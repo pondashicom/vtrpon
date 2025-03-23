@@ -1,0 +1,89 @@
+==============================
+         VTR-PON 2
+       LICENSE NOTICE
+==============================
+
+Copyright (c) 2024-2025 Tetsu Suzuki All Rights Reserved.
+
+This project "VTR-PON 2" is distributed under the terms of the GNU General Public License
+Version 3 (or, at your option, any later version). The entire distribution?both source
+code and executable binaries?is subject to the GPL.
+
+本プロジェクト「VTR-PON 2」は、GNU General Public License Version 3（または以降のバージョン）の
+条件の下で配布されています。配布物全体（ソースコードおよび実行可能バイナリ）は、GPLの条件に従います。
+
+------------------------------
+1. Primary License: GNU General Public License Version 3
+------------------------------
+
+This project is licensed under the GNU General Public License Version 3.
+For the full text of the GPL, please see the accompanying file "GPL.txt" or visit:
+https://www.gnu.org/licenses/gpl-3.0.txt
+
+本プロジェクトは、GNU General Public License Version 3 の下でライセンスされています。
+完全な GPL の全文は、同梱の「GPL.txt」または以下の公式サイトをご参照ください：
+https://www.gnu.org/licenses/gpl-3.0.txt
+
+------------------------------
+2. Third-Party Components and Their Licenses
+------------------------------
+
+This project incorporates several third-party components. Their respective licenses are as follows:
+
+本プロジェクトには、以下のサードパーティコンポーネントが含まれており、各コンポーネントはそれぞれのライセンス条件に従っています。
+
+- **Electron**  
+  Licensed under the MIT License.  
+  詳細: https://electronjs.org/docs/latest/tutorial/licensing
+
+- **Node.js**  
+  Licensed under the MIT License.  
+  詳細: https://github.com/nodejs/node/blob/master/LICENSE
+
+- **FFmpeg / ffprobe**  
+  The versions included in this distribution are provided under the GNU General Public License.
+  詳細: See the accompanying "gpl-3.0.txt" file or visit https://www.gnu.org/licenses/gpl-3.0.txt
+
+- **Other dependencies**  
+  Please refer to the "Third-Party Licenses.txt" file included in this distribution for details.
+  その他の依存ライブラリについては、同梱の「Third-Party Licenses.txt」ファイルをご参照ください。
+
+------------------------------
+3. Redistribution Requirements
+------------------------------
+
+When redistributing this project, you must include the full texts of the following license documents:
+  - GNU General Public License (GPL)
+  - MIT License (for Electron, Node.js, etc.)
+
+配布の際には、以下のライセンス文書を必ず同梱してください：
+  - GNU General Public License (本プロジェクト全体に適用)
+  - Electron、Node.js などのコンポーネントに関する MIT ライセンス文書
+
+Example:
+「本再配布物は、全体として GPL の条件に従います。サードパーティコンポーネントについては、それぞれのライセンス文書を同梱しております。」
+
+"This redistributed work is subject as a whole to the GPL. The license texts for third-party components are included in this distribution."
+
+------------------------------
+4. Notice on License Change and Transparency
+------------------------------
+
+Please note that earlier releases of this project may have contained inconsistent or incorrect license
+information. With the ver2.2.1 release, all components are now uniformly distributed under the GPL to ensure
+clarity and compliance. Future releases will continue to adhere to these terms.
+
+なお、以前のリリースではライセンス表記に不整合があった可能性がありますが、ver2.2.1 リリース以降、
+すべてのコンポーネントを統一して GPL の下で配布することにより、透明性と遵法性を確保しております。
+
+------------------------------
+5. Contact Information / お問い合わせ先
+------------------------------
+
+For any inquiries regarding this license, please contact:
+info@pondashi.com
+
+ライセンスに関するお問い合わせは、以下までご連絡ください：
+info@pondashi.com
+
+==============================

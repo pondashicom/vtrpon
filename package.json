@@ -1,0 +1,43 @@
+{
+  "name": "VTRPON2",
+  "version": "2.2.5",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "electron-builder",
+    "npmRebuild": false
+  },
+  "keywords": [],
+  "author": "Tetsu Suzuki",
+  "license": "GPL-3.0-or-later",
+  "description": "VTRPON2",
+  "dependencies": {
+    "fluent-ffmpeg": "^2.1.3",
+    "node-fetch": "^3.3.2",
+    "papaparse": "^5.5.2",
+    "winax": "^3.6.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^24.3.0",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "pondashi.com-vtrpon",
+    "win": {
+      "icon": "assets/icons/icon.ico"
+    },
+    "extraResources": [
+      {
+        "from": "src/assets/ffmpeg.exe",
+        "to": "ffmpeg.exe"
+      },
+      {
+        "from": "src/assets/ffprobe.exe",
+        "to": "ffprobe.exe"
+      }
+    ],
+    "npmRebuild": false
+  }
+}

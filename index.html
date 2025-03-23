@@ -1,0 +1,286 @@
+﻿<!-- index.html 2.2.3 -->
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' safe-file:;">
+    <title>VTR-PON  2</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="messages.js"></script>
+    <script src="messageManager.js" defer></script>
+    <script src="labels.js"></script>
+    <script src="labelManager.js" defer></script>
+    <script src="tooltips.js"></script>
+    <script src="tooltipManager.js" defer></script>
+    <script src="playlist.js" defer></script>
+    <script src="listedit.js" defer></script>
+    <script src="onair.js" defer></script>
+    <script src="uvc.js" defer></script>
+    <script src="pngtomp4.js" defer></script>
+    <script src="pptxtomp4.js" defer></script>
+    <script src="movtowebm.js" defer></script>
+    <script src="capture.js" defer></script>
+    <script src="renderer.js" defer></script>
+</head>
+<body>
+    <div class="grid-container">
+        <!-- エディットエリア -->
+        <div id="listedit-section" class="section listedit">
+            <h2 data-label-id="edit-title"></h2>
+            <!-- 動画表示エリア -->
+            <div class="video-container">
+                <video id="listedit-video"></video>
+                <div id="listedit-volume-bar" class="volume-bar"></div>
+            </div>
+
+            <!-- ファイル名表示 -->
+            <div class="info-bar">
+                <div id="listedit-filename" class="filename-display">No file loaded</div>
+            </div>
+
+            <!-- シークバー -->
+            <div id="progress-bar" class="progress-bar">
+                <span id="start-time">00:00:00</span>
+                <input id="progress-slider" type="range" min="0" max="100" value="0">
+                <span id="end-time">00:00:00</span>
+                <!-- IN/OUTマーカー -->
+                <div id="listedit-in-marker" class="seek-marker">I</div>
+                <div id="listedit-out-marker" class="seek-marker">O</div>
+            </div>
+
+            <!-- シークエリアとコントロールボタン -->
+            <div id="search-area" class="search-area">
+                <div class="controls">
+                    <button id="rewind-start" class="button control-button button-gray">|&lt;</button>
+                    <button id="rewind-10x" class="button control-button button-gray">&lt;&lt;&lt;</button>
+                    <button id="rewind-5x" class="button control-button button-gray">&lt;&lt;</button>
+                    <button id="pause-button" class="button control-button button-gray">||</button>
+                    <button id="play-button" class="button control-button button-gray">&gt;</button>
+                    <button id="fast-forward-5x" class="button control-button button-gray">&gt;&gt;</button>
+                    <button id="fast-forward-10x" class="button control-button button-gray">&gt;&gt;&gt;</button>
+                    <button id="fast-forward-end" class="button control-button button-gray">&gt;|</button>
+                </div>
+            </div>
+
+            <!-- IN/OUTポイント -->
+            <div id="search-area" class="search-area">
+                <div class="controls">
+                    <button id="in-point" class="button button button-gray" data-tooltip-id="in-point" data-label-id="in-point"></button>
+                    <div id="in-point-time">00:00:00</div>
+                    <button id="out-point" class="button button button-gray" data-tooltip-id="out-point" data-label-id="out-point"></button>
+                    <div id="out-point-time">00:00:00</div>
+                </div>
+            </div>
+
+            <!-- START MODE -->
+            <div id="start-mode-area" class="start-mode-area">
+                <p data-label-id="start-mode-title"></p>
+                <div class="controls">
+                    <button id="start-pause-button" class="button button button-gray" data-tooltip-id="start-pause-button" data-label-id="start-pause-button"></button>
+                    <button id="start-play-button" class="button button button-gray" data-tooltip-id="start-play-button" data-label-id="start-play-button"></button>
+                    <button id="start-fadein-button" class="button button button-gray" data-tooltip-id="start-fadein-button" data-label-id="start-fadein-button"></button>
+                </div>
+            </div>
+
+            <!-- END MODE -->
+            <div id="end-mode-area" class="end-mode-area">
+                <p data-label-id="end-mode-title"></p>
+                <div class="controls">
+                    <button id="end-off-button" class="button button button-gray" data-tooltip-id="end-off-button" data-label-id="end-off-button"></button>
+                    <button id="end-pause-button" class="button button button-gray" data-tooltip-id="end-pause-button" data-label-id="end-pause-button"></button>
+                    <button id="end-repeat-button" class="button button button-gray" data-tooltip-id="end-repeat-button" data-label-id="end-repeat-button"></button>
+                    <button id="end-next-button" class="button button button-gray" data-tooltip-id="end-next-button" data-label-id="end-next-button"></button>
+                    <button id="end-ftb-button" class="button button button-gray" data-tooltip-id="end-ftb-button" data-label-id="end-ftb-button"></button>
+                    <input type="number" id="ftbRate" min="0.1" step="0.1" value="1.0" class="ftb-rate-input" aria-label="FTB Rate" data-tooltip-id="ftbRate" data-label-id="ftbRate">
+                </div>
+            </div>
+
+            <!-- AUDIO LEVEL -->
+            <div id="control-area-volume" class="control-area">
+                <p data-label-id="audio-output-level"></p>
+                <div class="controls">
+                    <button id="pfl-button" class="button button button-gray" data-tooltip-id="pfl-button" data-label-id="pfl-button"></button>
+                    <input id="listedit-volume-slider" class="listedit-volume-slider" type="range" min="0" max="100" value="100" data-tooltip-id="listedit-volume-slider">
+                    <span id="volume-value" class="volume-value">100%</span>
+                </div>
+            </div>
+            
+            <!-- OTHER SOURCE -->
+            <h2 data-label-id="other-source-title"></h2>
+            <div id="control-area" class="control-area">
+                <p data-label-id="uvc-device"></p>
+                <div id="device-selection-container">
+                    <select id="uvcDeviceDropdown"></select>
+                    <button id="addUVCToPlaylistButton" class="button control-button button-gray" data-tooltip-id="addUVCToPlaylistButton" data-label-id="addUVCToPlaylistButton"></button>
+                </div>
+            </div>
+            <div id="control-area" class="control-area">
+                <p data-label-id="still-capture-title"></p>
+                <div class="controls">
+                    <button id="still-button" class="button button button-gray" data-tooltip-id="still-button" data-label-id="still-button"></button>
+                    <input type="number" id="fadeInDuration" min="1" step="1" value="1" class="pngtomp4-duration-input" aria-label="PNG to MP4 Duration" data-tooltip-id="fadeInDuration" data-label-id="fadeInDuration">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- プレイリストエリア -->
+        <div id="playlist-section" class="section playlist">
+            <h2 data-label-id="playlist-title"></h2>
+            <div id="control-area" class="control-area">
+                <p>INFO</p>
+                <div id="info-display" class="info-display">VTR PON2</div>
+            </div>
+            <!-- LIST MODE -->
+            <div id="list-mode-area" class="list-mode-area">
+                <p data-label-id="list-mode-title"></p>
+                <div class="controls">
+                    <button id="list-repeat-button" class="button button button-gray" data-tooltip-id="list-repeat-button" data-label-id="list-repeat-button"></button>
+                    <button id="list-list-button" class="button button button-gray" data-tooltip-id="list-list-button" data-label-id="list-list-button"></button>
+                    <button id="directonair-mode-button" class="button button button-gray" data-tooltip-id="directonair-mode-button" data-label-id="directonair-mode-button"></button>
+                    <button id="soundpad-mode-button" class="button button button-gray" data-tooltip-id="soundpad-mode-button" data-label-id="soundpad-mode-button"></button>
+                    <button id="fillkey-mode-button" class="button button button-gray" data-tooltip-id="fillkey-mode-button" data-label-id="fillkey-mode-button"></button>
+                    <!-- FILKEYプルダウン-->
+                    <select id="fillkey-color-picker" class="custom-select">
+                      <option value="#00FF00">G</option>
+                      <option value="#0000FF">B</option>
+                      <option value="#FFFFFF">W</option>
+                    </select>
+
+                </div>
+            </div>
+            <div id="playlistsave-area" class="playlistsave-area">
+                <div id="playlist-name-display" class="playlist-name-display" data-label-id="playlist-name-display"></div>
+                <div class="mode-controls">
+                    <button id="playlise-save-button" class="button control-button button-gray" data-tooltip-id="playlise-save-button" data-label-id="playlise-save-button"></button>
+                    <button id="playlise1-button" class="button control-button button-gray" data-label-id="playlise1-button">1</button>
+                    <button id="playlise2-button" class="button control-button button-gray" data-label-id="playlise2-button">2</button>
+                    <button id="playlise3-button" class="button control-button button-gray" data-label-id="playlise3-button">3</button>
+                    <button id="playlise4-button" class="button control-button button-gray" data-label-id="playlise4-button">4</button>
+                    <button id="playlise5-button" class="button control-button button-gray" data-label-id="playlise5-button">5</button>
+                    <button id="playlisedel-button" class="button control-button button-gray" data-tooltip-id="playlisedel-button" data-label-id="playlisedel-button"></button>
+                    <button id="playliseclear-button" class="button control-button button-gray" data-tooltip-id="playliseclear-button" data-label-id="playliseclear-button"></button>
+                </div>
+            </div>
+
+            <div id="loading-progress" class="loading-progress"></div>
+            <div class="playlist-items">
+                <!-- 動的に生成されるプレイリスト項目 -->
+            </div>
+
+            <div id="important-button-area" class="important-button-area">
+                <div class="mode-controls">
+                    <div class="controls">
+                        <button id="file-button" class="button important-button button-gray" data-tooltip-id="file-button" data-label-id="file-button"></button>
+                        <div id="footer-clock"> </div>
+                        <button id="cue-button" class="button important-button button-gray" data-tooltip-id="cue-button" data-label-id="cue-button"></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- プレイリスト名入力用モーダル -->
+        <div id="playlist-name-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2 data-label-id="playlist-name-title"></h2>
+                <input type="text" id="playlist-name-input" placeholder="Playlist Name">
+                <div class="modal-buttons">
+                    <button id="playlist-name-save" class="button button-green" data-label-id="playlist-name-save"></button>
+                    <button id="playlist-name-cancel" class="button button-gray" data-label-id="playlist-name-cancel"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- オンエアエリア -->
+        <div id="on-air-section" class="section on-air">
+            <h2 data-label-id="on-air-title"></h2>
+            <div class="video-container">
+                <video id="on-air-video" muted></video>
+                <canvas id="fade-canvas"></canvas>
+                <div id="on-air-volume-bar" class="volume-bar"></div>
+            </div>
+
+            <div class="info-bar">
+                <div id="on-air-filename">No file loaded</div>
+            </div>
+
+            <div id="on-air-progress-bar" class="progress-bar">
+                <span id="on-air-start-time">00:00:00</span>
+                <input id="on-air-progress-slider" type="range" min="0" max="100" value="0">
+                <span id="on-air-end-time">00:00:00</span>
+                <!-- IN/OUTマーカー -->
+                <div id="on-air-in-marker" class="seek-marker">I</div>
+                <div id="on-air-out-marker" class="seek-marker">O</div>
+            </div>
+
+            <!-- IN/OUTポイント -->
+            <div id="search-area" class="search-area">
+                <div class="controls">
+                    <p>IN</p>
+                    <div id="on-air-in-point-time">00:00:00:00</div>
+                    <p>OUT</p>
+                    <div id="on-air-out-point-time">00:00:00:00</div>
+                </div>
+            </div>
+
+            <div id="on-air-remain-time">00:00:00:00</div>
+
+            <div id="on-air-endmode">End Mode</div>
+
+            <!-- AUDIO OUTPUT -->
+            <div id="control-area-volume" class="control-area">
+                <p data-label-id="audio-output"></p>
+                <!-- アイテムごとの音量スライダー（各アイテムの基本設定） -->
+                <div class="controls">
+                    <p for="on-air-item-volume-slider">ITEM</p>
+                    <input id="on-air-item-volume-slider" class="on-air-item-volume-slider" type="range" min="0" max="100" value="100" data-tooltip-id="on-air-item-volume-slider">
+                    <span id="on-air-item-volume-value" class="volume-value">100%</span>
+                </div>
+                <!-- マスターフェーダー（グローバル操作） -->
+                <div class="controls">
+                    <p for="on-air-item-volume-slider">MAIN</p>
+                    <input id="on-air-master-volume-slider" class="on-air-master-volume-slider master-slider" type="range" min="0" max="100" value="100" data-tooltip-id="on-air-master-volume-slider">
+
+                    <span id="on-air-master-volume-value" class="volume-value">100%</span>
+                </div>
+                <div class="controls">
+                    <button id="on-air-fo-button" class="button button-gray" data-tooltip-id="on-air-fo-button" data-label-id="on-air-fo-button"></button>
+                    <input type="number" id="fioRate" min="0.1" step="0.1" value="1.0" class="fio-rate-input" aria-label="FADEIN/OUT RATE" data-tooltip-id="fioRate" data-label-id="fioRate">
+                    <button id="on-air-fi-button" class="button button-gray" data-tooltip-id="on-air-fi-button" data-label-id="on-air-fi-button"></button>
+                </div>
+            </div>
+
+
+            <!-- 再生速度コントローラー -->
+            <div id="playback-speed-control" class="control-area">
+                <p data-label-id="playback-speed-control"></p>
+                <div class="controls">
+                    <input id="playback-speed-slider" type="range" min="-16" max="16" value="0" step="0.1" data-tooltip-id="playback-speed-slider" data-label-id="playback-speed-slider">
+                    <input id="playback-speed-input" type="number" step="0.01" value="1.00" data-tooltip-id="playback-speed-input" data-label-id="playback-speed-input">
+                </div>
+            </div>
+
+            <!-- スクリーンショット機能 -->
+            <div id="control-area" class="control-area">
+                <p data-label-id="fullscreen-shot"></p>
+                <div class="controls">
+                    <button id="captuer-button" class="button button button-gray" data-tooltip-id="captuer-button" data-label-id="captuer-button"></button>
+                </div>
+            </div>
+            
+            <div id="important-button-area" class="important-button-area">
+                <div class="controls">
+                    <button id="off-air-button" class="button important-button button-gray" data-tooltip-id="off-air-button" data-label-id="off-air-button"></button>
+                    <button id="ftb-off-button" class="button important-button button-gray" data-tooltip-id="ftb-off-button" data-label-id="ftb-off-button"></button>
+                    <button id="on-air-pause-button" class="button important-button button-gray" data-tooltip-id="on-air-pause-button" data-label-id="on-air-pause-button"></button>
+                    <button id="on-air-play-button" class="button important-button button-gray" data-tooltip-id="on-air-play-button" data-label-id="on-air-play-button"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="clock.js"></script>
+</body>
+</html>

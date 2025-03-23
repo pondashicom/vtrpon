@@ -1,0 +1,50 @@
+﻿<!-- devicesettings.html 2.1.4 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+    <title>Device Settings</title>
+    <link rel="stylesheet" href="devicesettings.css">
+    <script src="devicesettings.js" defer></script>
+</head>
+<body>
+    <div class="section">
+        <h3>AUDIO</h3>
+        <label for="editAudioMonitorDevice">PFL AUDIO MONITOR DEVICE</label>
+        <select id="editAudioMonitorDevice"></select>
+        
+        <label for="onairAudioOutputDevice">ONAIR AUDIO OUTPUT DEVICE</label>
+        <select id="onairAudioOutputDevice"></select>
+
+        <!--
+        <label for="uvcAudioInputDevice">UVC INPUT AUDIO DEVICE</label>
+        <select id="uvcAudioInputDevice"></select>-->
+    </div>
+
+    <!--
+    <div class="section">
+        <h3>VIDEO</h3>
+        <label for="fullscreenVideoOutputDevice">FULLSCREEN VIDEO OUTPUT DEVICE</label>
+        <select id="fullscreenVideoOutputDevice"></select>
+    </div> -->
+
+    <button id="okButton">OK</button>
+    <script>
+        document.getElementById('okButton').addEventListener('click', () => {
+            window.electronAPI.closeDeviceSettings(); // `preload.js` 経由で `main.js` に通知
+        });
+    </script>
+
+<!-- カスタムモーダル -->
+<div id="customConfirmModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <p id="customConfirmMessage"></p>
+        <div class="modal-buttons">
+            <button id="confirmOkButton">OK</button>
+            <button id="confirmCancelButton">Cancel</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>

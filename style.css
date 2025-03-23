@@ -1,0 +1,1479 @@
+﻿/* style.css 2.2.4*/
+
+/* ------------------ */
+/*     共通スタイル   */
+/* ------------------ */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #292828;
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 95vh;
+    margin: 0;
+    overflow: hidden;  /* ページ全体のスクロールバーを非表示にする */
+}
+
+.grid-container {
+    display: grid;
+    grid-template-areas: 
+        "listedit playlist onair";
+    grid-template-columns: 0.8fr 1.2fr 1.0fr;
+    grid-template-rows: 1fr auto;
+    gap: 15px;
+    width: 95%;
+    height: 95vh;
+    align-items: stretch;
+    padding-top: 10px;
+}
+
+.section {
+    background-color: #383838;
+    padding: 20px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+    justify-content: flex-start;
+    height: 100%;
+}
+
+#listedit-section {
+    grid-area: listedit;
+    width: 100%;
+    max-width: 480px;
+    height: 100%;
+	box-shadow: 0 0 2px rgba(128, 128, 128, 0.5), 0 0 6px rgba(128, 128, 128, 0.3);
+}
+
+#playlist-section {
+    grid-area: playlist;
+    height: 100%;
+    max-width: 700px;
+	box-shadow: 0 0 2px rgba(128, 128, 128, 0.5), 0 0 6px rgba(128, 128, 128, 0.3);
+}
+
+#on-air-section {
+    grid-area: onair;
+    width: 100%;
+    height: 100%;
+	box-shadow: 0 0 2px rgba(128, 128, 128, 0.5), 0 0 6px rgba(128, 128, 128, 0.3);
+}
+
+h2 {
+    margin: 2px 0;
+    font-size: 1em;
+    font-weight: bold;
+    text-align: center;
+    width: 100%;
+    padding: 5px; /* 座布団の余白を設定 */
+    border-radius: 5px; /* 座布団の角を丸くする */
+    background: linear-gradient(180deg, #3f3f3f, #4f4f4f, #3f3f3f); /* 垂直方向のグラデーション */
+    box-shadow: 
+        inset 0 1px 3px rgba(255, 255, 255, 0.1), /* 内側の明るいエフェクトを控えめに */
+        inset 0 -1px 3px rgba(0, 0, 0, 0.15),    /* 内側の暗いエフェクトも軽めに */
+        0 2px 4px rgba(0, 0, 0, 0.2);           /* 外側の影を小さめに */
+    box-sizing: border-box; /* パディングを含めてサイズを計算 */
+    color: #fff; /* テキストの視認性を確保するため白色を指定 */
+}
+
+/* 各要素の並び */
+.video-container, .progress-bar, .search-area, .control-area, .end-mode-area {
+    width: 100%;
+}
+
+/* ------------------ */
+/* プレイリストエリア */
+/* ------------------ */
+
+/* プレイリスト */
+.playlist-items {
+    display: flex;
+    flex-direction: column;
+    gap: 5px; /* 各アイテム間のスペース */
+    width: 100%;
+    max-height: 490px; /* リストの最大高さを設定 */
+    overflow-y: auto; /* 縦方向にスクロールを許可 */
+    overflow-x: hidden; /* 横方向のスクロールを禁止 */
+    padding-right: 15px; /* スクロールバー分の余白を確保 */
+    box-sizing: border-box; /* パディングとボーダーを幅に含める */
+    position: relative; /* 必要に応じてスクロールバーを前面に */
+}
+
+/* --------------------- */
+/* プレイリストアイテム  */
+/* --------------------- */
+
+/* プレイリストの各アイテム */
+.playlist-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* 左右に要素を分割 */
+    gap: 10px;
+    padding: 5px;
+    background-color: #666666;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%; /* 横幅を親要素に収める */
+    box-sizing: border-box;
+    overflow: hidden;
+    min-height: 90px; /* 最小の高さを指定 */
+    margin-bottom: 5px; /* アイテム間の間隔を確保 */
+}
+
+/* ファイル名表示 */
+.file-name {
+    font-size: 0.95em;
+    font-weight: bold;
+    margin: 0px;
+    margin-bottom: 5px;
+    flex: 1;
+    min-width: 0; /* 余白を無視して幅を適切に調整 */
+    max-width: 300px; /* 最大幅 */
+    overflow: hidden; /* あふれた部分を隠す */
+    text-overflow: ellipsis; /* 省略記号 (...) を表示 */
+    white-space: nowrap; /* 改行を禁止 */
+    color: orange; /* 文字色をオレンジに設定 */
+    background-color: rgba(50, 50, 50, 0.8); /* 少しグレーがかった背景 */
+    padding: 5px; /* 背景内の余白 */
+    border-radius: 5px; /* 角を丸くする */
+    line-height: 0.95em; /* 行の高さを指定 */
+}
+
+
+/* 移動と削除ボタン */
+.move-up, .move-down, .delete-button {
+    width: 24px;
+    height: 20px;
+    font-size: 0.7em;
+    color: #ffffff;
+    background-color: #6c757d;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1;
+    padding: 0;
+    box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* 移動と削除ボタンのホバー時のスタイル */
+.move-up:hover, .move-down:hover, .delete-button:hover {
+    background-color: #5a6268;
+}
+
+/* 削除ボタン無効化時のスタイル */
+.delete-button:disabled {
+    background-color: #444444;
+    cursor: not-allowed;
+}
+
+/* 移動と削除ボタンを縦に並べるための設定 */
+.move-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: center;
+}
+
+/* ファイル情報グリッド */
+.file-details-grid {
+    display: grid;
+    font-size: 0.9em;
+    grid-template-columns: repeat(4, auto); /* 最大4列のグリッド */
+    column-gap: 15px; /* 列間の隙間 */
+    row-gap: 2px; /* 行間の隙間 */
+    width: 100%; /* 横幅いっぱいを使用 */
+    margin: 0;
+    padding: 0;
+}
+
+.file-details-row {
+    display: contents; /* 各要素を親グリッドに直接配置 */
+}
+
+/* ラベル */
+.label {
+    text-align: left;
+    color: #ddd;
+}
+
+/* 値 */
+.value {
+    font-weight: bold;
+    text-align: left;
+    color: #fff;
+}
+
+/* サムネイルからStart/Endボタンまでの幅を最大化 */
+.file-info {
+    flex-grow: 1; /* 幅を最大限に伸ばす */
+    margin-right: 10px; /* Start/Endボタンとの余白 */
+}
+
+/* プレイリスト名 */
+.playlist-name-display {
+    font-size: 0.9em;
+    color: white;
+    margin-top: 1px;
+    margin-bottom: 10px;
+    padding: 5px 5px; /* 水平方向の余白を調整 */
+    width: 60%;
+    text-align: center; /* 中央揃え */
+    background-color: rgba(0, 0, 0, 0.5); /* 半透明の背景 */
+    border-radius: 5px; /* 角を丸くする */
+    line-height: 1em; /* 行の高さを指定 */
+}
+
+/* ステータスエリア全体 */
+.status-container {
+    display: flex;
+    flex-direction: column; /* 縦に並べる */
+    gap: 30px; /* 各ステータス間の間隔 */
+    align-items: flex-end; /* 右揃え */
+}
+
+/* ステータスの行 */
+.status-row {
+    display: flex;
+    gap: 5px; /* ラベルと値の間隔 */
+    align-items: center; /* 縦方向の中央揃え */
+}
+
+/* ステータスラベル */
+.status-label {
+    font-size: 0.9em;
+    color: #ccc;
+}
+
+/* ステータス値 */
+.status-value {
+    font-size: 0.9em;
+    font-weight: bold;
+    background-color: #444;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-align: center;
+    min-width: 70px; /* 一定の幅を確保 */
+}
+
+/* イン点、アウト点表示 */
+#in-point-time, #out-point-time, #on-air-in-point-time, #on-air-out-point-time {
+    font-size: 0.9em;
+    color: white;
+    width: 100px;
+    text-align: center; /* 中央揃え */
+    padding: 5px 10px; /* 水平方向の余白を調整 */
+    background-color: rgba(0, 0, 0, 0.5); /* 半透明の背景 */
+    border-radius: 5px; /* 角を丸くする */
+}
+
+
+/* インフォディスプレイ */
+.info-display {
+    font-size: 0.9em;
+    color: rgba(0, 0, 0, 0.8);
+    margin-top: 1px;
+    margin-bottom: 2px;
+    padding: 5px 5px;
+    width: 90%;
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 5px;
+    line-height: 1em;
+    min-height: 3em;         /* 2行分（行の高さやpaddingに合わせ調整） */
+    overflow: hidden;        /* はみ出たテキストは非表示 */
+}
+
+
+.info-display.info {
+    color: orange;
+}
+
+.info-display.alert {
+    font-weight: bold;
+    color: red;
+}
+
+/* メディアオフライン */
+.media-offline {
+    background-color: #333333;  /* 濃いグレー */
+    color: red;                 /* 赤いフォント */
+    border: 2px solid red;      /* 赤い枠線 */
+    padding: 5px;
+    border-radius: 4px;
+    animation: neonBlink 1s infinite alternate;  /* ネオン風に点滅 */
+}
+
+@keyframes neonBlink {
+    from {
+        box-shadow: 0 0 3px red;
+    }
+    to {
+        box-shadow: 0 0 10px red;
+    }
+}
+
+
+/* ---------------------------- */
+/*  プレイリストサムネイル      */
+/* ---------------------------- */
+
+.thumbnail-image {
+    margin-top: 4px;
+    width: 135px;
+    height: auto;
+}
+
+/* ---------------------------- */
+/*  プレイリストハイライト      */
+/* ---------------------------- */
+
+/* 優先順位: onair > editing > selected */
+
+/* オンエア中のプレイリスト */
+.playlist-item.onair {
+    border: 2px solid rgba(255, 0, 0, 0.3); /* 赤の枠 */
+    box-shadow: 0 0 5px rgba(255, 0, 0, 0.3), 0 0 10px rgba(255, 0, 0, 0.2);
+    animation: onair-blink 2s infinite; /* アニメーションの適用 */
+}
+
+/* アニメーションの定義 */
+@keyframes onair-blink {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 0, 0, 0.3), 0 0 10px rgba(255, 0, 0, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 12px rgba(255, 0, 0, 0.6), 0 0 15px rgba(255, 0, 0, 0.4);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 0, 0, 0.3), 0 0 10px rgba(255, 0, 0, 0.2);
+    }
+}
+
+
+/* 次に編集中（onairがない場合のみ適用） */
+.playlist-item.editing:not(.onair) {
+    border: 2px solid rgba(0, 255, 0, 0.3); /* 緑の枠 */
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.3), 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+/* 最後に選択中（onairまたはeditingがない場合のみ適用） */
+.playlist-item.selected:not(.onair):not(.editing) {
+    border: 1px solid rgba(255, 255, 128, 0.3); /* グレーの枠 */
+    box-shadow: 0 0 5px rgba(255,255, 128, 0.3), 0 0 10px rgba(128, 128, 128, 0.2);
+}
+
+
+/* --------------------- */
+/*   ボタンの基本スタイル  */
+/* --------------------- */
+
+/* 共通スタイル */
+.button, .control-button {
+    display: flex;
+    justify-content: center; /* 水平方向中央揃え */
+    align-items: center; /* 垂直方向中央揃え */
+    width: 95px; /* 幅を統一 */
+    height: 23px; /* 高さを統一 */
+    padding: 10px; /* 内側余白 */
+    border: none; /* 枠線を削除 */
+    border-radius: 5px; /* 角を少し丸める */
+    font-size: 0.7em; /* フォントサイズ */
+    font-weight: 770;; 
+    color: #141414; /* テキスト色（統一） */
+    background-color: #d9d9d9; /* デフォルト背景色（統一） */
+    cursor: pointer; /* ポインタスタイル */
+    text-align: center; /* 中央揃え */
+    box-sizing: border-box; /* パディングを含めた計算 */
+    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease; /* スムーズな変化 */
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2); /* 控えめなシャドウ */
+}
+
+/* ホバー時の共通効果 */
+.button:hover, .control-button:hover {
+    filter: brightness(0.9); /* 明るさを若干調整 */
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.3); /* ホバー時にシャドウを少し強調 */
+}
+
+/* アクティブ時 */
+.button:active, .control-button:active {
+    transform: scale(0.98); /* 押した時に少し縮小 */
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2); /* シャドウを控えめに戻す */
+}
+
+/* 無効状態 */
+.button.disabled:hover,
+.control-button.disabled:hover {
+    background-color: gray !important; 
+    cursor: not-allowed !important;
+}
+
+/* UVCデバイス追加ボタン */
+#addUVCToPlaylistButton{
+    width: 120px; /* ボタン幅を少し広くする */
+    word-wrap: break-word; /* 長い単語を適切に折り返す */
+}
+
+/* エディットオーディオミュートボタン */
+#editaudioMuteButton{
+    width: 120px; /* ボタン幅を少し広くする */
+    word-wrap: break-word; /* 長い単語を適切に折り返す */
+}
+
+/* --------------------- */
+/*   色別スタイル  */
+/* --------------------- */
+
+/* 緑ボタン */
+.button-green {
+    background-color: rgba(102, 205, 102, 0.9)!important; /* 濃いめの緑 */
+    border: 1px solid rgba(0, 128, 0, 0.3); /* 輪郭をはっきり */
+    box-shadow: 0 0 10px rgba(0, 128, 0, 0.6); /* 発光を強め */
+    backdrop-filter: blur(4px); /* プラスチック感 */
+}
+
+.button-green:hover {
+    background-color: rgba(34, 139, 34, 1); /* ホバー時に濃い緑 */
+    box-shadow: 0 0 18px rgba(34, 139, 34, 0.8); /* 発光強調 */
+}
+
+/* 水色ボタン */
+.button-blue {
+    background-color: #007BFF !important; /* 水色っぽい青 */
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.8); /* 保存済みの控えめな水色の光 */
+}
+
+.button-blue:hover {
+    background-color: #0056d2; /* ホバー時の少し濃い水色 */
+    box-shadow: 0 0 18px rgba(0, 86, 210, 0.9); /* ホバー時に少し強調 */
+}
+
+/* オレンジボタン */
+.button-orange {
+    background-color: orange !important;
+    box-shadow: 0 0 10px rgba(255, 165, 0, 0.5);
+}
+
+.button-orange:hover {
+    background-color: #ff8c00;
+    box-shadow: 0 0 18px rgba(255, 140, 0, 0.7); 
+}
+
+/* 赤ボタン */
+.button-red {
+    background-color: rgba(255, 65, 54, 0.9)!important; /* 濃いめの赤 */
+    border: 1px solid rgba(199, 0, 25, 0.3); /* 輪郭をはっきり */
+    box-shadow: 0 0 10px rgba(199, 0, 25, 0.6); /* 発光を強め */
+    backdrop-filter: blur(4px); /* プラスチック感 */
+}
+
+.button-red:hover {
+    background-color: rgba(199, 0, 25, 1); /* ホバー時に濃い赤 */
+    box-shadow: 0 0 18px rgba(199, 0, 25, 0.8); /* 発光強調 */
+}
+
+/* グレーボタン */
+.button-gray {
+    background-color: #d9d9d9; /* 統一されたグレー */
+    border: 1px solid rgba(105, 105, 105, 0.3);
+    box-shadow: 0 0 10px rgba(105, 105, 105, 0.6);
+}
+
+.button-gray:hover {
+    background-color: #a6a6a6;
+    box-shadow: 0 0 18px rgba(90, 98, 104, 0.8);
+}
+
+/* --------------------- */
+/*   下段ボタンのスタイル  */
+/* --------------------- */
+
+/* 下段ボタン */
+.important-button {
+    font-size: 0.7em; /* フォントサイズ */
+    font-weight: 770; 
+    margin: auto;
+    height: 30px; /* 高さを統一 */
+    width: 100px;
+    background-color: d9d9d9;  /* 統一されたグレー */
+    border: 1px solid rgba(105, 105, 105, 0.3); /* 輪郭をはっきり */
+    box-shadow: 0 0 8px rgba(105, 105, 105, 0.6); /* 発光を強め */
+    backdrop-filter: blur(4px); /* プラスチック感 */
+    transition: all 0.3s ease; /* スムーズなホバーアニメーション */
+}
+
+.important-button:hover {
+    background-color: #a6a6a6; /* ホバー時に濃いグレー */
+    box-shadow: 0 0 13px rgba(90, 98, 104, 0.8); /* 発光強調 */
+}
+
+
+/* 光彩アニメーション */
+@keyframes glowAnimationRed {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(199, 0, 25, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(199, 0, 25, 1);
+    }
+}
+
+/* オンエアボタン */
+.important-button-red {
+    font-size: 0.8em;
+    margin: auto;
+    font-weight: bold;
+    color: #fff;
+    height: 30px; /* 高さを統一 */
+    width: 100px;
+    background-color: rgba(255, 65, 54, 0.9); /* 濃いめの赤 */
+    border: 1px solid rgba(199, 0, 25, 0.3); /* 輪郭をはっきり */
+    box-shadow: 0 0 8px rgba(199, 0, 25, 0.6); /* 発光を強め */
+    backdrop-filter: blur(4px); /* プラスチック感 */
+    transition: all 0.3s ease; /* スムーズなホバーアニメーション */
+    animation: glowAnimationRed 1.5s infinite; /* 光彩アニメーションを追加 */
+}
+
+.important-button-red:hover {
+    color: #fff;
+    font-weight: bold;
+    background-color: rgba(199, 0, 25, 1); /* ホバー時に濃い赤 */
+    box-shadow: 0 0 13px rgba(199, 0, 25, 0.8); /* 発光強調 */
+    animation: none; /* アニメーションを一時停止 */
+}
+
+/* オンエア再生ボタン */
+@keyframes glowAnimationOrange {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(255, 110, 30, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 110, 30, 1);
+    }
+}
+
+.important-button-orange {
+    font-size: 0.8em;
+    margin: auto;
+    height: 30px; /* 高さを統一 */
+    width: 100px;
+    font-weight: bold;
+    color: #fff;
+    background-color: rgba(255, 95, 30, 0.9); /* 濃いめのオレンジ */
+    border: 1px solid rgba(255, 100, 30, 0.3); /* 輪郭をはっきり */
+    box-shadow: 0 0 8px rgba(255, 110, 30, 0.6); /* 発光を強め */
+    backdrop-filter: blur(4px); /* プラスチック感 */
+    transition: all 0.3s ease; /* スムーズなホバーアニメーション */
+    animation: glowAnimationOrange 1.5s infinite; /* 光彩アニメーションを追加 */
+}
+
+.important-button-orange:hover {
+    font-weight: bold;
+    color: #fff;
+    background-color: rgba(255, 80, 30, 1); /* ホバー時に濃いオレンジ */
+    box-shadow: 0 0 13px rgba(255, 110, 30, 0.8); /* 発光強調 */
+    animation: none; /* アニメーションを一時停止 */
+}
+
+/* オンエアポーズボタン */
+@keyframes glowAnimationBlue {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(0, 86, 210, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(0, 86, 210, 1);
+    }
+}
+
+.important-button-blue {
+    font-size: 0.8em;
+    margin: auto;
+    font-weight: bold;
+    color: #fff;
+    height: 30px; /* 高さを統一 */
+    width: 100px;
+    background-color: rgba(0, 123, 255, 0.9); /* 濃いめのブルー */
+    border: 1px solid rgba(0, 86, 210, 0.3); /* 輪郭をはっきり */
+    box-shadow: 0 0 8px rgba(0, 86, 210, 0.6); /* 発光を強め */
+    backdrop-filter: blur(4px); /* プラスチック感 */
+    transition: all 0.3s ease; /* スムーズなホバーアニメーション */
+    animation: glowAnimationBlue 1.5s infinite; /* 光彩アニメーションを追加 */
+}
+
+.important-button-blue:hover {
+    font-weight: bold;
+    color: #fff;
+    background-color: rgba(0, 116, 230, 1)!important; /* ホバー時に濃いブルー */
+    box-shadow: 0 0 13px rgba(0, 86, 210, 0.8); /* 発光強調 */
+    animation: none; /* アニメーションを一時停止 */
+}
+
+/* --------------------- */
+/*   再生コントロールボタン  */
+/* --------------------- */
+
+/* 再生コントロールボタン（幅だけ異なる） */
+.control-button {
+    width: calc(100% / 4 - 15px); /* 元々の幅計算に基づく割合設定 */
+}
+
+/* --------------------- */
+/* 保存モード関連スタイル */
+/* --------------------- */
+
+/* SAVEボタンの点滅（オレンジ） */
+.button-blink-orange {
+    animation: fade-orange 1.5s ease-in-out infinite;
+}
+
+/* フェードアニメーション（オレンジ） */
+@keyframes fade-orange {
+    0%, 100% {
+        background-color: initial;
+    }
+    50% {
+        background-color: orange;
+    }
+}
+
+/* 空いている番号ボタン（静的な水色） */
+.button-lightblue {
+    background-color: lightblue;
+}
+
+/* --------------------- */
+/* 削除モード関連スタイル */
+/* --------------------- */
+
+/* DELボタンの点滅（オレンジ） */
+.button-blink-orange {
+    animation: fade-orange 1.5s ease-in-out infinite;
+}
+
+/* フェードアニメーション（オレンジ） */
+@keyframes fade-orange {
+    0%, 100% {
+        background-color: initial;
+    }
+    50% {
+        background-color: orange;
+    }
+}
+
+/* DELボタンの点滅（紫） */
+.button-blink-purple !important;{
+    animation: fade-purple 1.5s ease-in-out infinite;
+}
+
+/* フェードアニメーション（紫） */
+@keyframes fade-purple {
+    0%, 100% {
+        background-color: initial;
+    }
+    50% {
+        background-color: purple;
+    }
+}
+
+/* 保存されている番号ボタン（削除モード時の紫色） */
+.button-purple {
+    background-color: purple;
+    color: black; /* 文字色を黒に設定 */
+}
+
+/* 空いている番号ボタン（削除モードでは使用しない） */
+.button-lightblue {
+    background-color: lightblue;
+}
+
+/* ----------------------- */
+/* ボタングループスタイル  */
+/* ----------------------- */
+
+.playlistsave-area,
+.search-area,
+.control-area,
+.end-mode-area,
+.start-mode-area,
+.list-mode-area,
+.play-volume-area,
+.important-button-area,
+.start-mode-area{
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #555;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.edit-save-area,
+.important-button-area,
+.play-button-area,
+.file-button-area {
+    background: linear-gradient(180deg, #3f3f3f, #4f4f4f, #3f3f3f); /* 垂直方向のグラデーション */
+    width: 100%;
+    padding: 5px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; /* 縦方向でも中央揃え */
+    margin-top: auto;
+    height: 80px; /* 高さを統一 */
+    box-sizing: border-box;
+    border: 1px solid #555;
+    box-shadow: 
+        inset 0 2px 5px rgba(255, 255, 255, 0.1), /* 内側の明るいエフェクト (上側) */
+        inset 0 -2px 5px rgba(0, 0, 0, 0.2),     /* 内側の暗いエフェクト (下側) */
+        0 4px 8px rgba(0, 0, 0, 0.3);           /* 外側の影 */
+}
+
+.file-button-area p,
+.playlistsave-area p,
+.important-button-area p,
+.search-area p,
+.control-area p,
+.play-volume-area p,
+.list-mode-area p,
+.start-mode-area p,
+.end-mode-area p {
+    font-size: 0.8em;
+    color: #bbb;
+    margin: 0 0 4px;
+    text-align: center;
+}
+
+.controls,
+.mode-controls {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    align-items: center;  /* 縦中央揃えを追加 */
+    width: 100%;
+}
+
+#on-air-fo-button, #on-air-fi-button {
+    height: 23px;
+}
+
+.end-mode-area .control-button {
+    width: calc(100% / 4 - 15px);
+}
+
+.listedit-container {
+    text-align: center;
+    padding-top: 5px;
+}
+
+/* --------------------- */
+/* ビデオ表示のスタイル  */
+/* --------------------- */
+
+/* ビデオコンテナ */
+.video-container {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* エディットエリアビデオ枠 */
+#listedit-video {
+    width: 100%;
+    max-width: calc(100% - 40px);
+    aspect-ratio: 16 / 9;
+    background-color: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    object-fit: contain;
+    position: relative;
+    border: 1px solid rgba(0, 255, 0, 0.3); /* 線を細くし透明度を上げた緑の枠 */
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.3), 0 0 10px rgba(0, 255, 0, 0.2); /* 控えめなネオン効果 */
+    border-radius: 5px; /* 枠の角を丸める */
+}
+
+/* オンエアビデオエリア枠 */
+#on-air-video {
+    width: 100%; /* 親要素の幅いっぱいに広げる */
+    /* height: auto; */ /* 高さをアスペクト比に基づいて自動調整 */
+    aspect-ratio: 16 / 9;
+    max-width: calc(100% - 40px);
+    /* max-height: 100%; */ /* 親要素の高さを超えないようにする */
+    object-fit: contain; /* アスペクト比を維持してコンテンツを収める */
+    background-color: black; /* 背景を黒に */
+    position: relative; /* 親要素を基準に位置を調整 */
+    border: 1px solid rgba(255, 0, 0, 0.3); /* 赤い枠線 */
+    box-shadow: 0 0 5px rgba(255, 0, 0, 0.3), 0 0 10px rgba(255, 0, 0, 0.2); /* ネオン効果 */
+    border-radius: 5px; /* 枠を丸く */
+}
+
+/* フェードキャンバス（ビデオ要素の上に重なる） */
+#fade-canvas {
+    position: absolute; /* ビデオ要素に重ねる */
+    pointer-events: none; /* マウスイベントを無効化 */
+    background-color: black; /* 背景を黒に */
+    opacity: 0; /* 初期状態は透明 */
+    visibility: hidden; /* 初期状態は非表示 */
+    z-index: 1; /* ビデオ要素より前に表示 */
+    border-radius: 5px; /* 角を丸く */
+}
+
+/* ------------------------- */
+/* ボリュームメーター        */
+/* ------------------------- */
+
+/* ボリュームバー本体 */
+.volume-bar {
+    display: flex;
+    flex-direction: column;  /* 上から下に並べる */
+    justify-content: flex-end;  /* 下から積み上げる */
+    gap: 1px;  /* セグメント間のギャップを1pxに */
+    margin-left: 10px;
+    width: 20px;
+    height: 100%;  /* 親要素の高さに合わせる */
+    background-color: #333;
+    z-index: 2;
+}
+
+/* ボリュームバーの目盛 */
+.volume-segment {
+    width: 100%;  /* 幅を親要素に合わせる */
+    height: calc(100% / 60 - 1px);  /* 高さを均等に分け、間隔を考慮 */
+    background-color: #555;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+/* ------------------------------------------------------- */
+/* シークバーとスライダー、タイマー、ファイル名のスタイル  */
+/* ------------------------------------------------------- */
+
+/* シークバー、ボリュームスライダー本体 */
+.progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 0.9em;
+    margin-top: 10px;
+}
+
+/* シークバー、ボリュームスライダーのトラック部分 */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 7px; 
+  border-radius: 2px;
+  background: linear-gradient(to right, rgba(102,205,102,0.2) var(--value, 0%), #4a4a4a var(--value, 0%), #4a4a4a 100%);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+
+
+/* 緑つまみ */
+input[type="range"].listedit-volume-slider::-webkit-slider-thumb,
+input[type="range"].on-air-item-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 25px;
+  height: 15px;
+  border-radius: 3px;
+  background: linear-gradient(to right, 
+    rgba(80,120,80,1) 0%, 
+    rgba(130,170,130,1) 5%, 
+    rgba(130,170,130,1) 5%, 
+    rgba(130,170,130,1) 10%, 
+    rgba(80,120,80,1) 25%, 
+    rgba(100,130,100,1) 34%, 
+    rgba(100,130,100,1) 34%, 
+    rgba(130,170,130,1) 73%, 
+    rgba(130,170,130,1) 75%, 
+    rgba(70,100,70,1) 100%);
+  z-index: 10;
+  box-shadow: 0 0 3px 0 rgba(0,0,0,0.50);
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 15px;
+  border-radius: 3px; 
+  background: linear-gradient(to right, 
+    rgba(70,100,70,1) 0%, 
+    rgba(140,170,140,1) 10%, 
+    rgba(110,140,110,1) 40%, 
+    rgba(90,120,90,1) 50%, 
+    rgba(110,140,110,1) 60%, 
+    rgba(140,170,140,1) 90%, 
+    rgba(70,100,70,1) 100%);
+  z-index: 10;
+  box-shadow: 0 0 3px 0 rgba(0,0,0,0.50);
+  cursor: pointer;
+}
+
+/* シークバー上のIN/OUTマーカー用スタイル */
+.seek-marker {
+    position: absolute;
+    top: 15px; /* 必要に応じて調整してください */
+    font-size: 0.7em;
+    font-weight: bold;
+    color: gray;
+    z-index: 5;
+}
+
+#on-air-progress-bar {
+    position: relative;
+}
+
+#list-edit-progress-bar {
+    position: relative;
+}
+
+/* ---------------------- */
+/* ボリュームスライダー   */
+/* ---------------------- */
+
+/* ボリュームスライダー欄 */
+#control-area-volume .controls {
+    display: flex; /* フレックスボックスで整列 */
+    align-items: center; /* 子要素を縦方向で中央揃え */
+    gap: 10px; /* 要素間の余白を設定 */
+}
+
+/* マスターボリュームスライダー専用の背景設定 */
+input[type="range"].master-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 7px; 
+  border-radius: 2px;
+  /* 左側はオレンジ（rgba(255,165,0,0.9)）に変更 */
+  background: linear-gradient(to right, rgba(255,165,0,0.2) var(--value, 0%), #4a4a4a var(--value, 0%), #4a4a4a 100%);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+
+/* マスターボリュームスライダーのつまみ（オレンジ系に変更） */
+input[type="range"].master-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 25px;
+  height: 15px;
+  border-radius: 3px; /* 角ばった形状 */
+  background: linear-gradient(to right, 
+    rgba(150,110,80,1) 0%, 
+    rgba(210,160,120,1) 5%, 
+    rgba(210,160,120,1) 5%, 
+    rgba(210,160,120,1) 10%, 
+    rgba(150,110,80,1) 25%, 
+    rgba(140,100,80,1) 34%, 
+    rgba(140,100,80,1) 34%, 
+    rgba(210,160,120,1) 73%, 
+    rgba(210,160,120,1) 75%, 
+    rgba(130,90,70,1) 100%);
+  z-index: 10;
+  box-shadow: 0 0 3px 0 rgba(0,0,0,0.50);
+  cursor: pointer;
+}
+
+
+.listedit-volume-slider {
+    margin-bottom: 0; /* 不要なら下の余白を削除 */
+}
+
+.on-air-volume-slider {
+    margin-bottom: 0; /* 不要なら下の余白を削除 */
+}
+
+.playback-speed-slider {
+    margin-bottom: 0; /* 不要なら下の余白を削除 */
+}
+
+/* ボリューム数値表示 */
+.volume-value,
+.on-air-volume-value {
+    width: 50px;
+    height: 25px;
+    background-color: #2e2e2e;
+    color: #ffffff;
+    border: 1px solid #444444;
+    border-radius: 5px;
+    font-size: 12px;
+    padding: 5px;
+    padding-right: 3px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    margin-bottom: 4px;
+    cursor: text;
+    -moz-appearance: textfield;
+    box-sizing: border-box;
+    font-family: monospace;
+}
+
+/* 警告時のネオン風アニメーション */
+@keyframes neonFadeWarning {
+    0% {
+        border: 2px solid rgba(255, 0, 0, 0.6);
+        box-shadow: 0 0 5px rgba(255, 0, 0, 0.6);
+    }
+    50% {
+        border: 2px solid rgba(255, 0, 0, 1);
+        box-shadow: 0 0 15px rgba(255, 0, 0, 1);
+    }
+    100% {
+        border: 2px solid rgba(255, 0, 0, 0.6);
+        box-shadow: 0 0 5px rgba(255, 0, 0, 0.6);
+    }
+}
+
+.neon-warning {
+    animation: neonFadeWarning 1.5s ease-in-out infinite;
+}
+
+/* ----------------------------------------- */
+/* Infoバー、タイマー、ファイル名のスタイル  */
+/* ----------------------------------------- */
+
+/* Info Barのスタイル */
+.info-bar {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    width: 100%; 
+    margin-bottom: -10px; 
+    padding: 0 10px; 
+}
+
+/* リメインタイマーの表示 */
+#listedit-remain-time, #on-air-remain-time {
+    font-size: 1.2em;
+    color: orange;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7); /* 半透明の黒地背景 */
+    padding: 10px 20px; /* 内側の余白を追加 */
+    border-radius: 10px; /* 角を丸くする */
+    text-align: center; /* テキストを中央揃え */
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); /* 軽い影効果 */
+    width: 210px; /* 幅を固定 */
+    letter-spacing: 2px; /* 数字間の間隔を一定に */
+    margin: -7px auto; /* 上下中央に配置 */
+    max-width: 80%; /* 幅を制限して中央に収める */
+    position: relative; /* 親要素に対して中央配置 */
+    margin-bottom: 10px;
+    margin-top: 0px;
+}
+
+/* オンエアのエンドモード表示 */
+#on-air-endmode {
+    font-size: 0.9em;
+    color: white;
+    max-width: 450px; /* 最大幅 */
+    margin-top: 10px;
+    text-align: center; /* 中央揃え */
+    padding: 5px 10px; /* 水平方向の余白を調整 */
+    background-color: rgba(0, 0, 0, 0.5); /* 半透明の背景 */
+    border-radius: 5px; /* 角を丸くする */
+    overflow: hidden; /* テキストが溢れないように */
+    text-overflow: ellipsis; /* テキストの省略を追加 */
+    white-space: nowrap; /* テキストを1行に収める */
+    margin: -7px auto; /* 上下中央に配置 */
+    position: relative; /* 親要素に対して中央配置 */
+    line-height: 1em; /* 行の高さを指定 */
+    margin-bottom: 0px;
+}
+
+/* ファイル名表示 */
+#listedit-filename, #on-air-filename {
+    font-size: 0.8em;
+    color: white;
+    max-width: 450px; /* 最大幅 */
+    margin-top: 10px;
+    text-align: center; /* 中央揃え */
+    padding: 5px 10px; /* 水平方向の余白を調整 */
+    background-color: rgba(0, 0, 0, 0.5); /* 半透明の背景 */
+    border-radius: 5px; /* 角を丸くする */
+    overflow: hidden; /* テキストが溢れないように */
+    text-overflow: ellipsis; /* テキストの省略を追加 */
+    white-space: nowrap; /* テキストを1行に収める */
+    margin: -7px auto; /* 上下中央に配置 */
+    position: relative; /* 親要素に対して中央配置 */
+    line-height: 1em; /* 行の高さを指定 */
+}
+
+
+/* ------------------ */
+/*   スクロールバー   */
+/* ------------------ */
+
+/* スクロールバーのスタイル（Webkitブラウザ用：Chrome, Edge, Safari） */
+.playlist-items::-webkit-scrollbar {
+    width: 8px; /* スクロールバーの幅 */
+    background-color: #383838; /* 背景色 */
+    border-radius: 5px; /* 角を丸く */
+}
+
+/* スクロールバーのつまみ部分 */
+.playlist-items::-webkit-scrollbar-thumb {
+    background-color: #6c757d; /* つまみの色 */
+    border-radius: 5px; /* 角を丸く */
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5); /* 内側の影 */
+}
+
+/* スクロールバーのつまみ部分（ホバー時） */
+.playlist-items::-webkit-scrollbar-thumb:hover {
+    background-color: #5a6268; /* ホバー時の色 */
+}
+
+/* スクロールバーの両端のボタン部分（非表示にする例） */
+.playlist-items::-webkit-scrollbar-button {
+    display: none; /* スクロールボタンを非表示にする */
+}
+
+/* スクロールバーのトラック（背景） */
+.playlist-items::-webkit-scrollbar-track {
+    background-color: #2c2c2c; /* トラックの背景色 */
+    border-radius: 5px; /* 角を丸く */
+}
+
+/* --------------------- */
+/*  スピードコントロール */
+/* --------------------- */
+
+/* スピードコントロール数値入力欄（FTB Rate 等と統一したスタイル） */
+#playback-speed-input {
+    width: 50px;
+    height: 23px;
+    background-color: #2e2e2e;
+    color: #ffffff;
+    border: 1px solid #444444;
+    border-radius: 5px;
+    font-size: 12px;
+    padding: 5px;
+    padding-right: 3px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    cursor: text;
+    -moz-appearance: textfield;
+    box-sizing: border-box;
+    font-family: monospace;
+}
+
+/* ------------------ */
+/* モーダルスタイル   */
+/* ------------------ */
+
+/* モーダルスタイル */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.modal.hidden {
+    display: none;
+    pointer-events: none;
+}
+
+.modal-content {
+    background: #383838;
+    padding: 20px;
+    border-radius: 10px;
+    width: 300px;
+    text-align: center;
+}
+
+.modal input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #555;
+    border-radius: 5px;
+    font-size: 1em;
+    color: #fff;
+    background: #292828;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.modal-checkbox-container {
+    display: flex;
+    flex-direction: column; /* 縦方向に配置 */
+    align-items: center; /* 中央揃え */
+    margin: 10px 0;
+}
+
+#save-end-mode-label {
+    color: #fff;
+    font-size: 0.9em;
+    margin-bottom: 5px; /* テキストとチェックボックスの間に少し余白 */
+}
+
+.modal-checkbox-container input[type="checkbox"] {
+    margin: 0; /* 中央に整列するため余白をリセット */
+}
+
+/* -------------------- */
+/* エディットオーディオ */
+/* -------------------- */
+
+/* コンテナを横並びに配置 */
+#editaudio-device-selection-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* スペースを均等に配置 */
+    gap: 5px; /* 各要素間の余白 */
+    margin-top: 5px; /* 上の要素との間隔 */
+}
+
+/* ラベルスタイル */
+#editaudio-device-selection-container label {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #fff; /* テーマに合わせた色 */
+    margin-right: 5px;
+}
+
+/* ドロップダウンのスタイル */
+#editaudioDeviceDropdown {
+    width: 280px; /* ドロップダウンの幅 */
+    height: 30px; /* ドロップダウンの高さ */
+    background-color: #2e2e2e; /* 背景色をダークグレー */
+    color: #ffffff; /* テキスト色を白 */
+    border: 1px solid #444444; /* 枠線を暗い色に */
+    border-radius: 5px; /* 角を少し丸める */
+    font-size: 12px; /* 文字サイズを小さめに設定 */
+    padding: 5px; /* 内側の余白を調整 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 軽いシャドウを追加 */
+    appearance: none; /* ブラウザ標準の矢印を非表示（必要に応じて） */
+    -webkit-appearance: none; /* Safari対応 */
+    -moz-appearance: none; /* Firefox対応 */
+    text-align: left; /* テキストを左揃えに */
+    cursor: pointer; /* ポインター表示 */
+}
+
+/* ドロップダウンにフォーカスが当たった時のスタイル */
+#editaudioDeviceDropdown:focus {
+    outline: none; /* フォーカス時の枠線を非表示 */
+    border: 1px solid #007BFF; /* フォーカス時の枠線をブルーに */
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); /* フォーカス時の軽い発光 */
+}
+
+/* ドロップダウンのオプションのスタイル（カスタマイズは制限あり） */
+#editaudioDeviceDropdown option {
+    background-color: #2e2e2e; /* ドロップダウンの背景色 */
+    color: #ffffff; /* オプションの文字色 */
+    font-size: 12px; /* 文字サイズ */
+}
+
+/* ------------------ */
+/*      UVC選択       */
+/* ------------------ */
+
+/* コンテナを横並びに配置 */
+#device-selection-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* スペースを均等に配置 */
+    gap: 5px; /* 各要素間の余白 */
+    margin-top: 5px; /* 上の要素との間隔 */
+}
+
+/* ラベルスタイル */
+#device-selection-container label {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #fff; /* テーマに合わせた色 */
+    margin-right: 5px;
+}
+
+/* ドロップダウンのスタイル */
+#uvcDeviceDropdown {
+    width: 280px; /* ドロップダウンの幅 */
+    height: 30px; /* ドロップダウンの高さ */
+    background-color: #2e2e2e; /* 背景色をダークグレー */
+    color: #ffffff; /* テキスト色を白 */
+    border: 1px solid #444444; /* 枠線を暗い色に */
+    border-radius: 5px; /* 角を少し丸める */
+    font-size: 12px; /* 文字サイズを小さめに設定 */
+    padding: 5px; /* 内側の余白を調整 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 軽いシャドウを追加 */
+    appearance: none; /* ブラウザ標準の矢印を非表示（必要に応じて） */
+    -webkit-appearance: none; /* Safari対応 */
+    -moz-appearance: none; /* Firefox対応 */
+    text-align: left; /* テキストを左揃えに */
+    cursor: pointer; /* ポインター表示 */
+}
+
+/* ドロップダウンにフォーカスが当たった時のスタイル */
+#uvcDeviceDropdown:focus {
+    outline: none; /* フォーカス時の枠線を非表示 */
+    border: 1px solid #007BFF; /* フォーカス時の枠線をブルーに */
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); /* フォーカス時の軽い発光 */
+}
+
+/* ドロップダウンのオプションのスタイル（カスタマイズは制限あり） */
+#uvcDeviceDropdown option {
+    background-color: #2e2e2e; /* ドロップダウンの背景色 */
+    color: #ffffff; /* オプションの文字色 */
+    font-size: 12px; /* 文字サイズ */
+}
+
+/* ------------------ */
+/*  FILL&KEY選択      */
+/* ------------------ */
+#fillkey-color-picker {
+    width: 30px; /* ドロップダウンの幅 */
+    height: 30px; /* ドロップダウンの高さ */
+    background-color: #2e2e2e; /* 背景色をダークグレー */
+    color: #ffffff; /* テキスト色を白 */
+    border: 1px solid #444444; /* 枠線を暗い色に */
+    border-radius: 5px; /* 角を少し丸める */
+    font-size: 12px; /* 文字サイズを小さめに設定 */
+    padding: 5px; /* 内側の余白を調整 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 軽いシャドウを追加 */
+    appearance: none; /* ブラウザ標準の矢印を非表示 */
+    -webkit-appearance: none; /* Safari対応 */
+    -moz-appearance: none; /* Firefox対応 */
+    text-align: left; /* テキストを左揃えに */
+    cursor: pointer; /* ポインター表示 */
+}
+
+#fillkey-color-picker:focus {
+    outline: none; /* フォーカス時の枠線を非表示 */
+    border: 1px solid #007BFF; /* フォーカス時の枠線をブルーに */
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); /* フォーカス時の軽い発光 */
+}
+
+#fillkey-color-picker option {
+    background-color: #2e2e2e; /* ドロップダウンの背景色 */
+    color: #ffffff; /* オプションの文字色 */
+    font-size: 12px; /* 文字サイズ */
+}
+
+
+/* ------------------ */
+/*  PNG2MP4 / FTB     */
+/* ------------------ */
+
+/* 入力フィールドのスタイル */
+#fadeInDuration, #ftbRate {
+    width: 50px; /* 入力フィールドの幅 */
+    height: 23px; /* 入力フィールドの高さ */
+    background-color: #2e2e2e; /* 背景色をダークグレー */
+    color: #ffffff; /* テキスト色を白 */
+    border: 1px solid #444444; /* 枠線を暗い色に */
+    border-radius: 5px; /* 角を少し丸める */
+    font-size: 12px; /* 文字サイズを小さめに設定 */
+    padding: 5px; /* 内側の余白を調整 */
+    padding-right: 3px; /* 矢印と数字の間隔を調整 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 軽いシャドウを追加 */
+    text-align: right; /* テキストを右揃えに */
+    cursor: text; /* テキスト編集可能なポインター表示 */
+    -moz-appearance: textfield; /* Firefox用の矢印非表示 */
+}
+
+/* 矢印部分（スピンボックス）の非表示または調整 */
+#fadeInDuration::-webkit-inner-spin-button, #ftbRate::-webkit-inner-spin-button {
+    margin-left: 7px; /* 矢印と数字の距離を調整 */
+}
+
+#fadeInDuration::-webkit-outer-spin-button, #ftbRate::-webkit-outer-spin-button {
+    margin-left: 7px; /* 矢印と数字の距離を調整 */
+}
+
+/* 入力フィールドにフォーカスが当たった時のスタイル */
+#fadeInDuration:focus, #ftbRate:focus {
+    outline: none; /* フォーカス時の枠線を非表示 */
+    border: 1px solid #007BFF; /* フォーカス時の枠線をブルーに */
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); /* フォーカス時の軽い発光 */
+}
+
+
+/* オーディオフェードインアウトRATE */
+#fioDuration, #fioRate {
+    width: 50px; /* 入力フィールドの幅 */
+    height: 23px; /* 入力フィールドの高さ */
+    background-color: #2e2e2e; /* 背景色をダークグレー */
+    color: #ffffff; /* テキスト色を白 */
+    border: 1px solid #444444; /* 枠線を暗い色に */
+    border-radius: 5px; /* 角を少し丸める */
+    font-size: 12px; /* 文字サイズを小さめに設定 */
+    padding: 5px; /* 内側の余白を調整 */
+    padding-right: 3px; /* 矢印と数字の間隔を調整 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 軽いシャドウを追加 */
+    text-align: right; /* テキストを右揃えに */
+    cursor: text; /* テキスト編集可能なポインター表示 */
+    -moz-appearance: textfield; /* Firefox用の矢印非表示 */
+}
+
+/* ---------------------------- */
+/*  Media Offline 表示用スタイル  */
+/* ---------------------------- */
+
+/* オフライン状態のプレイリストアイテム */
+.playlist-item.media-offline {
+    border: 2px solid red;
+    box-shadow: 0 0 8px red;
+    background-color: #550000; /* ダークレッドの背景 */
+}
+
+/* オフライン状態のアイテム内のファイル名を赤色に */
+.playlist-item.media-offline .file-name {
+    color: red;
+}
+
+/* オフライン状態のアイテム内のサムネイルにフィルターを適用 */
+.playlist-item.media-offline .thumbnail-image {
+    filter: grayscale(100%) brightness(0.7) contrast(1.2) sepia(1) hue-rotate(-20deg);
+}
+
+/* Media Offline テキスト表示用 */
+.media-offline-text {
+    color: red;
+    font-weight: bold;
+    font-size: 0.9em;
+    margin-bottom: 5px;
+}
+
+/* ------------------ */
+/*         時計       */
+/* ------------------ */
+#footer-clock {
+    font-size: 1.2em;
+    color: lightblue;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7); /* 半透明の黒地背景 */
+    padding: 10px 20px; /* 内側の余白を追加 */
+    border-radius: 10px; /* 角を丸くする */
+    display: inline-block; /* コンテンツ幅に基づくボックス化 */
+    text-align: center; /* テキストを中央揃え */
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); /* 軽い影効果 */
+    width: 210px; /* 幅を固定 */
+    letter-spacing: 2px; /* 数字間の間隔を一定に */
+}
+

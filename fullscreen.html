@@ -1,0 +1,29 @@
+﻿<!-- fullscreen.html 2.1.5-->
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Fullscreen</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+                cursor: none; /* マウスカーソルを非表示にする */
+            }
+
+            video {
+                width: 100vw; /* 画面全体の幅 */
+                height: 100vh; /* 画面全体の高さ */
+                object-fit: contain; /* アスペクト比を保ちながら、フルスクリーンで表示 */
+                background: black !important;
+                mix-blend-mode: lighten; /* 黒背景が見えなくなる */
+            }
+        </style>
+</head>
+<body>
+    <video id="fullscreen-video"></video>
+    <script src="fullscreen.js"></script>
+</body>
+</html>
