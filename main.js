@@ -70,8 +70,6 @@ function saveConfig(config) {
     }
 }
 
-
-
 // ---------------------
 // 更新の確認
 // ---------------------
@@ -756,7 +754,6 @@ app.whenReady().then(() => {
     };
     console.log('[main.js] 初期デバイス設定:', global.deviceSettings);
 
-
     // ウインドウ初期化を実行
     createFullscreenWindow();
     createMainWindow();
@@ -795,7 +792,6 @@ app.whenReady().then(() => {
     mainWindow.webContents.once('did-finish-load', () => {
         clearPlaylistStorage(mainWindow);
     });
-
 });
 
 // ---------------------------------------------

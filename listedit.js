@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     listedit.js
-//     ver 2.2.5
+//     ver 2.2.6
 // -----------------------
 
 // -----------------------
@@ -1568,6 +1568,16 @@ async function handleShortcutAction(action) {
     switch (action) {
         case 'reset-edit-area':
             logOpe("[listedit.js] Reset Edit Area triggered.");
+            // PFLがONの場合は停止して初期化する
+            if (isPFLActive) {
+                await stopPFL();
+                isPFLActive = false;
+                // PFLボタンの状態も更新（グリーンを解除してグレーに）
+                if (pflButton) {
+                    pflButton.classList.remove('button-green');
+                    pflButton.classList.add('button-gray');
+                }
+            }
             await clearPlaylistSelection();
             // プレイリストUI更新の通知を送信して、選択状態の解除を反映させる
             window.electronAPI.notifyListeditUpdate();
