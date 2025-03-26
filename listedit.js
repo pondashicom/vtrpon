@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     listedit.js
-//     ver 2.2.6
+//     ver 2.2.7
 // -----------------------
 
 // -----------------------
@@ -718,16 +718,17 @@ function updateVolumeMeter(dbFS, sliderValue) {
         if (index >= totalSegments - activeSegments) {
             const segmentThreshold = -((index / totalSegments) * 80);
 
-            if (segmentThreshold >= -10) {
-                segment.style.backgroundColor = '#dc3545'; // 赤
-                segment.style.boxShadow = '0 0 5px rgba(220, 53, 69, 0.7)';
-            } else if (segmentThreshold >= -30) {
-                segment.style.backgroundColor = '#ffc107'; // オレンジ
-                segment.style.boxShadow = '0 0 5px rgba(255, 193, 7, 0.7)';
-            } else {
-                segment.style.backgroundColor = '#28a745'; // 緑
-                segment.style.boxShadow = '0 0 5px rgba(40, 167, 69, 0.7)';
-            }
+        if (segmentThreshold >= -10) {
+            segment.style.backgroundColor = '#c05050'; // やや深めの赤
+            segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
+        } else if (segmentThreshold >= -30) {
+            segment.style.backgroundColor = 'rgb(210,160,120)'; // オレンジつまみと同色
+            segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
+        } else {
+            segment.style.backgroundColor = 'rgb(90,130,90)'; // 濃いめ緑
+            segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
+        }
+
         } else {
             segment.style.backgroundColor = '#555'; // 灰色
             segment.style.boxShadow = 'none';
