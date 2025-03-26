@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.2.4
+//     ver 2.2.7
 // -----------------------
 
 
@@ -531,7 +531,7 @@ async function processFileData(file, currentPlaylist) {
         };
         const extension = file.path.split('.').pop().toLowerCase();
         newItem.isAudioFile = ['wav', 'mp3', 'flac'].includes(extension);
-
+        newItem.type = extension.toUpperCase();
 
         // stateControl に新しいアイテムを追加して順序を管理
         await window.electronAPI.stateControl.addFileToState(newItem);
@@ -766,11 +766,15 @@ function createFileInfo(file) {
                     <span class="label">OUT</span><span class="value">${outPoint}</span>
                 </div>
                 <div class="file-details-row">
+                    <span class="label">TYPE</span><span class="value">${file.type || file.path.split('.').pop().toUpperCase()}</span>
+                </div>
+                <div class="file-details-row">
                     <span class="label">VOL</span><span class="value">${file.defaultVolume !== undefined ? file.defaultVolume : 100}%</span>
                 </div>
             </div>
         </div>
     `;
+
     return fileInfo;
 }
 

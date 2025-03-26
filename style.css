@@ -550,39 +550,40 @@ h2 {
     box-shadow: 0 0 13px rgba(199, 0, 25, 0.8); /* 発光強調 */
     animation: none; /* アニメーションを一時停止 */
 }
-
-/* オンエア再生ボタン */
+/* オンエア再生ボタン（緑トーン、クラス名はそのまま） */
 @keyframes glowAnimationOrange {
     0%, 100% {
-        box-shadow: 0 0 8px rgba(255, 110, 30, 0.6);
+        box-shadow: 0 0 10px rgba(0, 128, 0, 0.6);
     }
     50% {
-        box-shadow: 0 0 15px rgba(255, 110, 30, 1);
+        box-shadow: 0 0 18px rgba(0, 128, 0, 1);
     }
 }
 
 .important-button-orange {
     font-size: 0.8em;
     margin: auto;
-    height: 30px; /* 高さを統一 */
+    height: 30px;
     width: 100px;
     font-weight: bold;
     color: #fff;
-    background-color: rgba(255, 95, 30, 0.9); /* 濃いめのオレンジ */
-    border: 1px solid rgba(255, 100, 30, 0.3); /* 輪郭をはっきり */
-    box-shadow: 0 0 8px rgba(255, 110, 30, 0.6); /* 発光を強め */
-    backdrop-filter: blur(4px); /* プラスチック感 */
-    transition: all 0.3s ease; /* スムーズなホバーアニメーション */
-    animation: glowAnimationOrange 1.5s infinite; /* 光彩アニメーションを追加 */
+    background-color: rgba(102, 205, 102, 0.9); /* 緑基調 */
+    border: 1px solid rgba(0, 128, 0, 0.3); /* 緑の輪郭 */
+    box-shadow: 0 0 10px rgba(0, 128, 0, 0.6); /* 発光を強め */
+    backdrop-filter: blur(4px);
+    transition: all 0.3s ease;
+    animation: glowAnimationOrange 1.5s infinite;
 }
 
 .important-button-orange:hover {
     font-weight: bold;
     color: #fff;
-    background-color: rgba(255, 80, 30, 1); /* ホバー時に濃いオレンジ */
-    box-shadow: 0 0 13px rgba(255, 110, 30, 0.8); /* 発光強調 */
-    animation: none; /* アニメーションを一時停止 */
+    background-color: rgba(34, 139, 34, 1); /* より濃い緑に */
+    box-shadow: 0 0 18px rgba(34, 139, 34, 0.8); /* ホバーで発光強調 */
+    animation: none;
 }
+
+
 
 /* オンエアポーズボタン */
 @keyframes glowAnimationBlue {
