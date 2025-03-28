@@ -185,8 +185,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     continue;
                 }
 
-                // (2) UVCデバイスはファイル存在チェックをスキップ（別途 uvc.js 等でオフライン判定）
+                // (2) UVCデバイスの場合は、現在のデバイス一覧と照合してオンライン/オフラインを判定
                 if (typeof item.path === 'string' && item.path.startsWith("UVC_DEVICE")) {
+                    const deviceId = item.path.replace("UVC_DEVICE:", "");
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput').map(device => device.deviceId);
+                    const deviceAvailable = videoDevices.includes(deviceId);
+                    if (!deviceAvailable && !item.mediaOffline) {
+                        item.mediaOffline = true;
+                        updated = true;
+                        logInfo(`[playlist.js] UVC device not found => mediaOffline: ${item.path}`);
+                    } else if (deviceAvailable && item.mediaOffline) {
+                        item.mediaOffline = false;
+                        updated = true;
+                    }
                     continue;
                 }
 

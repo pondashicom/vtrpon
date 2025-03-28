@@ -166,3 +166,6 @@ function stopAllStreams() {
 
 // 初期化時にプルダウンを更新
 updateUVCDevicesDropdown();
+
+// UVCデバイスの接続状況変化を監視し、プルダウンを更新する
+navigator.mediaDevices.addEventListener('devicechange', updateUVCDevicesDropdown);
