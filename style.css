@@ -448,38 +448,43 @@ h2 {
 
 /* 水色ボタン */
 .button-blue {
-    background-color: #007BFF !important; /* 水色っぽい青 */
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.8); /* 保存済みの控えめな水色の光 */
+    background-color: rgba(51, 125, 204, 0.9) !important; /* desaturated water blue */
+    border: 1px solid rgba(41, 100, 163, 0.3); /* 輪郭の調整 */
+    box-shadow: 0 0 8px rgba(51, 125, 204, 0.6); /* 発光効果 */
+    backdrop-filter: blur(4px); /* プラスチック感 */
+    transition: all 0.3s ease;
 }
-
 .button-blue:hover {
-    background-color: #0056d2; /* ホバー時の少し濃い水色 */
-    box-shadow: 0 0 18px rgba(0, 86, 210, 0.9); /* ホバー時に少し強調 */
+    background-color: rgba(51, 125, 204, 1); /* ホバー時に不透明に */
+    box-shadow: 0 0 13px rgba(51, 125, 204, 0.8); /* 発光強調 */
 }
 
 /* オレンジボタン */
 .button-orange {
-    background-color: orange !important;
-    box-shadow: 0 0 10px rgba(255, 165, 0, 0.5);
+    background-color: rgba(210, 114, 75, 0.9) !important; /* desaturated orange */
+    border: 1px solid rgba(183, 85, 46, 0.3); /* 輪郭の調整 */
+    box-shadow: 0 0 8px rgba(210, 114, 75, 0.6); /* 発光効果 */
+    backdrop-filter: blur(4px); /* プラスチック感 */
+    transition: all 0.3s ease;
 }
-
 .button-orange:hover {
-    background-color: #ff8c00;
-    box-shadow: 0 0 18px rgba(255, 140, 0, 0.7); 
+    background-color: rgba(210, 114, 75, 1); /* ホバー時に不透明に */
+    box-shadow: 0 0 13px rgba(210, 114, 75, 0.8); /* 発光強調 */
 }
 
 /* 赤ボタン */
 .button-red {
-    background-color: rgba(255, 65, 54, 0.9)!important; /* 濃いめの赤 */
-    border: 1px solid rgba(199, 0, 25, 0.3); /* 輪郭をはっきり */
-    box-shadow: 0 0 10px rgba(199, 0, 25, 0.6); /* 発光を強め */
+    background-color: rgba(215, 94, 94, 0.9) !important; /* desaturated red */
+    border: 1px solid rgba(204, 51, 51, 0.3); /* 輪郭の調整 */
+    box-shadow: 0 0 8px rgba(215, 94, 94, 0.6); /* 発光効果 */
     backdrop-filter: blur(4px); /* プラスチック感 */
+    transition: all 0.3s ease;
+}
+.button-red:hover {
+    background-color: rgba(215, 94, 94, 1); /* ホバー時に不透明に */
+    box-shadow: 0 0 13px rgba(215, 94, 94, 0.8); /* 発光強調 */
 }
 
-.button-red:hover {
-    background-color: rgba(199, 0, 25, 1); /* ホバー時に濃い赤 */
-    box-shadow: 0 0 18px rgba(199, 0, 25, 0.8); /* 発光強調 */
-}
 
 /* グレーボタン */
 .button-gray {
@@ -517,17 +522,18 @@ h2 {
 }
 
 
+/*  赤ボタン   */
+
 /* 光彩アニメーション */
 @keyframes glowAnimationRed {
     0%, 100% {
-        box-shadow: 0 0 8px rgba(199, 0, 25, 0.6);
+        box-shadow: 0 0 8px rgba(215, 94, 94, 0.6);
     }
     50% {
-        box-shadow: 0 0 15px rgba(199, 0, 25, 1);
+        box-shadow: 0 0 15px rgba(215, 94, 94, 1);
     }
 }
 
-/* オンエアボタン */
 .important-button-red {
     font-size: 0.8em;
     margin: auto;
@@ -535,41 +541,44 @@ h2 {
     color: #fff;
     height: 30px; /* 高さを統一 */
     width: 100px;
-    background-color: rgba(255, 65, 54, 0.9); /* 濃いめの赤 */
-    border: 1px solid rgba(199, 0, 25, 0.3); /* 輪郭をはっきり */
-    box-shadow: 0 0 8px rgba(199, 0, 25, 0.6); /* 発光を強め */
+    background-color: rgba(215, 94, 94, 0.9); /* desaturated red */
+    border: 1px solid rgba(204, 51, 51, 0.3); /* 輪郭を少し暗めに */
+    box-shadow: 0 0 8px rgba(215, 94, 94, 0.6); /* 発光 */
     backdrop-filter: blur(4px); /* プラスチック感 */
-    transition: all 0.3s ease; /* スムーズなホバーアニメーション */
-    animation: glowAnimationRed 1.5s infinite; /* 光彩アニメーションを追加 */
+    transition: all 0.3s ease;
+    animation: glowAnimationRed 1.5s infinite;
 }
 
 .important-button-red:hover {
     color: #fff;
     font-weight: bold;
-    background-color: rgba(199, 0, 25, 1); /* ホバー時に濃い赤 */
-    box-shadow: 0 0 13px rgba(199, 0, 25, 0.8); /* 発光強調 */
-    animation: none; /* アニメーションを一時停止 */
+    background-color: rgba(215, 94, 94, 1); /* ホバー時は不透明に */
+    box-shadow: 0 0 13px rgba(215, 94, 94, 0.8);
+    animation: none;
 }
-/* オンエア再生ボタン（緑トーン、クラス名はそのまま） */
+
+/*  オレンジボタン*/
+
+/* 光彩アニメーション */
 @keyframes glowAnimationOrange {
     0%, 100% {
-        box-shadow: 0 0 10px rgba(0, 128, 0, 0.6);
+        box-shadow: 0 0 8px rgba(210, 114, 75, 0.6);
     }
     50% {
-        box-shadow: 0 0 18px rgba(0, 128, 0, 1);
+        box-shadow: 0 0 15px rgba(210, 114, 75, 1);
     }
 }
 
 .important-button-orange {
     font-size: 0.8em;
     margin: auto;
-    height: 30px;
+    height: 30px; /* 高さを統一 */
     width: 100px;
     font-weight: bold;
     color: #fff;
-    background-color: rgba(102, 205, 102, 0.9); /* 緑基調 */
-    border: 1px solid rgba(0, 128, 0, 0.3); /* 緑の輪郭 */
-    box-shadow: 0 0 10px rgba(0, 128, 0, 0.6); /* 発光を強め */
+    background-color: rgba(210, 114, 75, 0.9); /* desaturated orange */
+    border: 1px solid rgba(183, 85, 46, 0.3); /* 輪郭の調整 */
+    box-shadow: 0 0 8px rgba(210, 114, 75, 0.6);
     backdrop-filter: blur(4px);
     transition: all 0.3s ease;
     animation: glowAnimationOrange 1.5s infinite;
@@ -578,20 +587,20 @@ h2 {
 .important-button-orange:hover {
     font-weight: bold;
     color: #fff;
-    background-color: rgba(34, 139, 34, 1); /* より濃い緑に */
-    box-shadow: 0 0 18px rgba(34, 139, 34, 0.8); /* ホバーで発光強調 */
+    background-color: rgba(210, 114, 75, 1);
+    box-shadow: 0 0 13px rgba(210, 114, 75, 0.8);
     animation: none;
 }
 
+/*  青ボタン   */
 
-
-/* オンエアポーズボタン */
+/* 光彩アニメーション */
 @keyframes glowAnimationBlue {
     0%, 100% {
-        box-shadow: 0 0 8px rgba(0, 86, 210, 0.6);
+        box-shadow: 0 0 8px rgba(51, 125, 204, 0.6);
     }
     50% {
-        box-shadow: 0 0 15px rgba(0, 86, 210, 1);
+        box-shadow: 0 0 15px rgba(51, 125, 204, 1);
     }
 }
 
@@ -602,20 +611,20 @@ h2 {
     color: #fff;
     height: 30px; /* 高さを統一 */
     width: 100px;
-    background-color: rgba(0, 123, 255, 0.9); /* 濃いめのブルー */
-    border: 1px solid rgba(0, 86, 210, 0.3); /* 輪郭をはっきり */
-    box-shadow: 0 0 8px rgba(0, 86, 210, 0.6); /* 発光を強め */
-    backdrop-filter: blur(4px); /* プラスチック感 */
-    transition: all 0.3s ease; /* スムーズなホバーアニメーション */
-    animation: glowAnimationBlue 1.5s infinite; /* 光彩アニメーションを追加 */
+    background-color: rgba(51, 125, 204, 0.9); /* desaturated blue */
+    border: 1px solid rgba(41, 100, 163, 0.3); /* 輪郭の調整 */
+    box-shadow: 0 0 8px rgba(51, 125, 204, 0.6);
+    backdrop-filter: blur(4px);
+    transition: all 0.3s ease;
+    animation: glowAnimationBlue 1.5s infinite;
 }
 
 .important-button-blue:hover {
     font-weight: bold;
     color: #fff;
-    background-color: rgba(0, 116, 230, 1)!important; /* ホバー時に濃いブルー */
-    box-shadow: 0 0 13px rgba(0, 86, 210, 0.8); /* 発光強調 */
-    animation: none; /* アニメーションを一時停止 */
+    background-color: rgba(51, 125, 204, 1);
+    box-shadow: 0 0 13px rgba(51, 125, 204, 0.8);
+    animation: none;
 }
 
 /* --------------------- */
@@ -861,6 +870,12 @@ h2 {
 /* シークバーとスライダー、タイマー、ファイル名のスタイル  */
 /* ------------------------------------------------------- */
 
+/* 
+  Copyright (c) 2025 by Brad Brock (https://codepen.io/verybradthings/pen/ZeNEpO)
+  Licensed under the MIT License.
+  (以下一部のフェーダー部分のコードでMITライセンスの条件に従って利用させていただいています)
+*/
+
 /* シークバー、ボリュームスライダー本体 */
 .progress-bar {
     display: flex;
@@ -880,7 +895,6 @@ input[type="range"] {
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
   outline: none;
 }
-
 
 /* 緑つまみ */
 input[type="range"].listedit-volume-slider::-webkit-slider-thumb,
@@ -944,6 +958,12 @@ input[type="range"]::-webkit-slider-thumb {
 /* ---------------------- */
 /* ボリュームスライダー   */
 /* ---------------------- */
+
+/* 
+  Copyright (c) 2025 by Brad Brock (https://codepen.io/verybradthings/pen/ZeNEpO)
+  Licensed under the MIT License.
+  (以下一部のフェーダー部分のコードでMITライセンスの条件に従って利用させていただいています)
+*/
 
 /* ボリュームスライダー欄 */
 #control-area-volume .controls {
