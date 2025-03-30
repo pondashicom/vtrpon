@@ -301,6 +301,57 @@ async function getValidUpdates(files, currentPlaylist) {
 }
 
 // -----------------------
+// ドラッグ＆ドロップで受信したファイルをプレイリストに追加する処理
+// -----------------------
+window.electronAPI.ipcRenderer.on('add-dropped-file', async (event, files) => {
+    console.log('[playlist.js] Received dropped files:', files);
+    if (!files || files.length === 0) {
+        logInfo('[playlist.js] ドロップされたファイルはありません。');
+        return;
+    }
+    // 進捗表示を初期化
+    updateLoadingProgress(0, files.length);
+    
+    let currentPlaylist = await stateControl.getPlaylistState();
+    let validUpdatesAccum = [];
+    let processedCount = 0;
+    
+    // 各ファイル処理（getValidUpdates 関数に任せる）
+    for (const file of files) {
+        const validUpdates = await getValidUpdates([file], currentPlaylist);
+        if (validUpdates.length > 0) {
+            validUpdatesAccum = validUpdatesAccum.concat(validUpdates);
+        }
+        processedCount++;
+        updateLoadingProgress(processedCount, files.length);
+    }
+    
+    if (validUpdatesAccum.length > 0) {
+        const updatedPlaylist = currentPlaylist.map(existingItem => {
+            const updatedItem = validUpdatesAccum.find(item => item.playlistItem_id === existingItem.playlistItem_id);
+            return updatedItem ? { ...existingItem, ...updatedItem, converting: false } : existingItem;
+        });
+        const newItems = validUpdatesAccum.filter(item => !currentPlaylist.some(existing => existing.playlistItem_id === item.playlistItem_id));
+        const finalPlaylist = [...updatedPlaylist, ...newItems];
+        await stateControl.setPlaylistState(finalPlaylist);
+        await updatePlaylistUI();
+    }
+    // 進捗表示の更新後にクリアする
+    const progressElem = document.getElementById('loading-progress');
+    if (progressElem) {
+        progressElem.textContent = "";
+    }
+});
+
+// 読み込めないファイルドロップ時の通知
+window.electronAPI.ipcRenderer.on('invalid-files-dropped', (event, invalidFiles) => {
+    const errorMsg = getMessage('not-supported-file-error') + "\n" + invalidFiles.join("\n");
+    showMessage(errorMsg, 5000, 'alert');
+});
+
+
+
+// -----------------------
 // サムネイル生成
 // -----------------------
 
