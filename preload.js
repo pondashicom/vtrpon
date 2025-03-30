@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.2.4
+//     ver 2.2.7
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -8,6 +8,25 @@ const path = require('path');
 const { exec } = require('child_process');
 const { logInfo, logOpe, logDebug, setLogLevel, LOG_LEVELS } = require('./logger');
 const stateControl = require('./statecontrol');
+
+
+
+// ドラッグ＆ドロップイベントのハンドリング
+window.addEventListener('dragover', (e) => {
+  e.preventDefault();
+});
+const { webUtils } = require('electron');  // 追加
+
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const droppedFiles = Array.from(e.dataTransfer.files);
+  const paths = droppedFiles
+    .map(file => webUtils.getPathForFile(file))
+    .filter(filePath => filePath && typeof filePath === 'string');
+  console.log('[preload.js] Dropped file paths:', paths);
+  ipcRenderer.send('files-dropped', paths);
+});
+
 
 contextBridge.exposeInMainWorld('electronAPI', {
 

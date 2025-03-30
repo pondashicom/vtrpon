@@ -1210,6 +1210,44 @@ ipcMain.handle('get-metadata', async (event, filePath) => {
 });
 
 // ---------------------------------
+// ドラッグ＆ドロップで追加されたファイルを処理する
+// ---------------------------------
+ipcMain.on('files-dropped', (event, files) => {
+    console.log('[main.js] Received dropped files:', files);
+    const allowedExtensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'png', 'mpeg', 'pptx'];
+    const validFiles = [];
+    const invalidFiles = [];
+
+    files.forEach(filePath => {
+        if (!filePath || typeof filePath !== 'string') {
+            console.warn('[main.js] Invalid file path received:', filePath);
+            return;
+        }
+        const ext = path.extname(filePath).toLowerCase().replace('.', '');
+        if (allowedExtensions.includes(ext)) {
+            validFiles.push({
+                path: filePath,
+                name: path.basename(filePath),
+                resolution: 'Unknown',
+                duration: 'Unknown',
+                creationDate: new Date().toLocaleDateString()
+            });
+        } else {
+            invalidFiles.push(filePath);
+        }
+    });
+
+    if (invalidFiles.length > 0) {
+        // 読み込めないファイルが含まれる場合、renderer 側でエラーメッセージを表示させるために通知を送信
+        mainWindow.webContents.send('invalid-files-dropped', invalidFiles);
+    }
+    if (validFiles.length > 0) {
+        // 読み込めるファイルがある場合は、add-dropped-file イベントで renderer に送信する
+        mainWindow.webContents.send('add-dropped-file', validFiles);
+    }
+});
+
+// ---------------------------------
 // FLACの波形生成
 // ---------------------------------
 
