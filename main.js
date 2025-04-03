@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     main.js
-//     ver 2.2.6
+//     ver 2.2.8
 // -----------------------
 
 // ---------------------
@@ -1168,7 +1168,7 @@ ipcMain.on('request-capture-screenshot', (event) => {
 ipcMain.handle('select-files', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Media Files', extensions: ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'png', 'mpeg', 'pptx'] }]
+        filters: [{ name: 'Media Files', extensions: ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg', 'pptx'] }]
     });
     if (canceled) return [];
 
@@ -1214,7 +1214,7 @@ ipcMain.handle('get-metadata', async (event, filePath) => {
 // ---------------------------------
 ipcMain.on('files-dropped', (event, files) => {
     console.log('[main.js] Received dropped files:', files);
-    const allowedExtensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'png', 'mpeg', 'pptx'];
+    const allowedExtensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg', 'pptx'];
     const validFiles = [];
     const invalidFiles = [];
 

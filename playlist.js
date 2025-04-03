@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.2.7
+//     ver 2.2.8
 // -----------------------
 
 
@@ -426,8 +426,8 @@ async function generateThumbnail(filePath) {
         // 拡張子を小文字で取得
         const extension = filePath.split('.').pop().toLowerCase();
 
-        // === 1) 音声ファイル（wav, mp3, flac）の場合 ===
-        if (['wav', 'mp3', 'flac'].includes(extension)) {
+        // === 1) 音声ファイル（wav, mp3, flac, aac, m4a）の場合 ===
+        if (['wav', 'mp3', 'flac', 'aac', 'm4a'].includes(extension)) {
             const safeFileURL = filePath;  // 既に先頭で変換済みなのでそのまま利用
             fetch(safeFileURL)
                 .then(response => response.arrayBuffer())
@@ -593,7 +593,7 @@ async function processFileData(file, currentPlaylist) {
             thumbnail: await generateThumbnail(file.path),
         };
         const extension = file.path.split('.').pop().toLowerCase();
-        newItem.isAudioFile = ['wav', 'mp3', 'flac'].includes(extension);
+        newItem.isAudioFile = ['wav', 'mp3', 'flac', 'aac', 'm4a'].includes(extension);
         newItem.type = extension.toUpperCase();
 
         // stateControl に新しいアイテムを追加して順序を管理
@@ -653,7 +653,7 @@ async function getMetadata(filePath) {
         }
 
         const extension = filePath.split('.').pop().toLowerCase();
-        const isAudioFile = ['mp3', 'wav' ,'flac'].includes(extension);
+        const isAudioFile = ['mp3', 'wav', 'flac', 'aac', 'm4a'].includes(extension);
 
         let creationDate = 'Unknown';
         try {
@@ -821,11 +821,11 @@ function createFileInfo(file) {
         <div class="file-details-grid">
             <div class="file-details-grid">
                 <div class="file-details-row">
-                    <span class="label">Res</span><span class="value">${file.resolution}</span>
+                    <span class="label">RES</span><span class="value">${file.resolution}</span>
                     <span class="label">IN</span><span class="value">${inPoint}</span>
                 </div>
                 <div class="file-details-row">
-                    <span class="label">Dur</span><span class="value">${file.duration}</span>
+                    <span class="label">DUR</span><span class="value">${file.duration}</span>
                     <span class="label">OUT</span><span class="value">${outPoint}</span>
                 </div>
                 <div class="file-details-row">

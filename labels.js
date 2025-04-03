@@ -199,7 +199,7 @@ const labels = {
     "uvc-device": "UVC DEVICE",
     "other-source-title": "OTHER SOURCE",
     "addUVCToPlaylistButton": "ADD LIST",
-    "still-capture-title": "STILL CAPTURE to MP4 / PNG to MP4 Duration (sec)",
+    "still-capture-title": "STILL CAPTURE TO MP4 / PPTX,PNG TO MP4 DURATION (SEC)",
     "still-button": "CAPTURE",
     "fadeInDuration": "Conversion Duration (sec)",
     "list-mode-title": "MODE",
