@@ -9,8 +9,6 @@ const { exec } = require('child_process');
 const { logInfo, logOpe, logDebug, setLogLevel, LOG_LEVELS } = require('./logger');
 const stateControl = require('./statecontrol');
 
-
-
 // ドラッグ＆ドロップイベントのハンドリング
 window.addEventListener('dragover', (e) => {
   e.preventDefault();
@@ -261,6 +259,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
                 }
             });
         });
+    },
+
+    // ----------------------------
+    //    録画機能用 API
+    // ----------------------------
+    recorderSave: {
+        saveRecordingFile: async (arrayBuffer, fileName) => {
+            try {
+                const savedPath = await ipcRenderer.invoke('save-recording-file', arrayBuffer, fileName);
+                return savedPath;
+            } catch (error) {
+                console.error('[preload.js] saveRecordingFile error:', error);
+                throw error;
+            }
+        }
+    },
+
+    recorderMerge: {
+        mergeRecordingChunks: async (chunkFilePaths, targetFileName) => {
+            try {
+                const mergedPath = await ipcRenderer.invoke('merge-recording-chunks', chunkFilePaths, targetFileName);
+                return mergedPath;
+            } catch (error) {
+                console.error('[preload.js] mergeRecordingChunks error:', error);
+                throw error;
+            }
+        }
+    },
+
+    // EBMLのメタデータ補完 API
+    fixWebmMetadata: async (mergedPath, totalDurationMs) => {
+        return await ipcRenderer.invoke('fix-webm-metadata', mergedPath, totalDurationMs);
+    },
+
+    // 追加: メディアファイルの再生時間を取得する API
+    getMediaDuration: async (filePath) => {
+        return await ipcRenderer.invoke('get-media-duration', filePath);
     },
 
     // ----------------------------

@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.2.3
+//     ver 2.2.8
 // -----------------------
 
 
@@ -87,6 +87,7 @@ const labels = {
     "addUVCToPlaylistButton": "リストに追加",
     "still-capture-title": "スチルキャプチャ/PNG動画変換の時間設定",
     "still-button": "キャプチャ",
+    "rec-button": "録画",
     "fadeInDuration": "変換時間（秒）",
     "list-mode-title": "モード",
     "list-repeat-button": "全リピート",
@@ -110,7 +111,7 @@ const labels = {
     "playback-speed-control": "再生速度",
     "playback-speed-slider": "速度調整",
     "playback-speed-input": "速度",
-    "fullscreen-shot": "フルスクリーンのキャプチャ",
+    "fullscreen-shot": "フルスクリーンキャプチャ",
     "captuer-button": "キャプチャ",
     "off-air-button": "オフエア",
     "ftb-off-button": "FTB",
@@ -224,8 +225,9 @@ const labels = {
     "playback-speed-control": "PLAYBACK SPEED CONTROL",
     "playback-speed-slider": "Speed Adjustment Slider",
     "playback-speed-input": "Speed Input",
-    "fullscreen-shot": "FULLSCREEN SHOT",
+    "fullscreen-shot": "SCREEN SHOT",
     "captuer-button": "SHOT",
+    "rec-button": "REC",
     "off-air-button": "OFF AIR",
     "ftb-off-button": "FTB",
     "on-air-pause-button": "PAUSE",

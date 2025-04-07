@@ -47,4 +47,3 @@ window.electronAPI.ipcRenderer.on('screenshot-saved', (event, savedPath) => {
 
 // 使用例
 // showMessage('UVCデバイスはエディットエリアで編集できません。', 5000, 'alert'); // 5秒間表示
-

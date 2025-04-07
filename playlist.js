@@ -816,6 +816,14 @@ function createFileInfo(file) {
     const fileName = file.mediaOffline ? 'Media Offline' : file.name;
     const fileNameClass = file.mediaOffline ? 'file-name media-offline' : 'file-name';
 
+    // 拡張子またはUVC_DEVICEの場合にTYPE表示を切り替える
+    let fileType = '';
+    if (typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE')) {
+        fileType = 'UVC';
+    } else {
+        fileType = file.type || file.path.split('.').pop().toUpperCase();
+    }
+
     fileInfo.innerHTML = `
         <p class="${fileNameClass}">${fileName}</p>
         <div class="file-details-grid">
@@ -829,7 +837,7 @@ function createFileInfo(file) {
                     <span class="label">OUT</span><span class="value">${outPoint}</span>
                 </div>
                 <div class="file-details-row">
-                    <span class="label">TYPE</span><span class="value">${file.type || file.path.split('.').pop().toUpperCase()}</span>
+                    <span class="label">TYPE</span><span class="value">${fileType}</span>
                 </div>
                 <div class="file-details-row">
                     <span class="label">VOL</span><span class="value">${file.defaultVolume !== undefined ? file.defaultVolume : 100}%</span>
