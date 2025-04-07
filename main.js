@@ -13,6 +13,8 @@ const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
 const statecontrol = require('./statecontrol.js');
+const fixWebmDuration = require('fix-webm-duration');
+
 
 let mainWindow, fullscreenWindow, deviceSettingsWindow;
 let isDebugMode = false;
@@ -1159,6 +1161,122 @@ ipcMain.on('request-capture-screenshot', (event) => {
         console.log('[main.js] Fullscreen window not available for screenshot capture.');
     }
 });
+
+
+// ---------------------------------
+// 録画機能
+// ---------------------------------
+
+ipcMain.handle('save-recording-file', async (event, arrayBuffer, chunkFileName) => {
+    try {
+        const tempDir = path.join(app.getPath('temp'), 'vtrpon_recordings');
+        await fs.promises.mkdir(tempDir, { recursive: true });
+        // 拡張子を強制的に .mp4 から .webm に変更
+        const filePath = path.join(tempDir, chunkFileName.replace(/\.mp4$/, '.webm'));
+        const buffer = Buffer.from(arrayBuffer);
+        await fs.promises.writeFile(filePath, buffer);
+        const stats = fs.statSync(filePath);
+        console.log(`[main.js] Recording chunk saved at: ${filePath}`);
+        console.log(`[main.js] Chunk file size: ${stats.size} bytes`);
+        return filePath;
+    } catch (error) {
+        console.error('[main.js] Failed to save recording chunk:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('merge-recording-chunks', async (event, chunkFilePaths, defaultFileName) => {
+    try {
+        // 操作ウインドウ(mainWindow)側で保存ダイアログを表示し、ユーザに保存場所とファイル名を指定させる
+        const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+            title: '保存先の選択',
+            defaultPath: defaultFileName.replace(/\.mp4$/, '.webm'),
+            filters: [{ name: 'WebM Video', extensions: ['webm'] }]
+        });
+        if (canceled || !filePath) {
+            throw new Error('User canceled save dialog');
+        }
+        
+        // concat プロトコル用の文字列生成（各ファイルパスを "|" で連結）
+        const concatInput = chunkFilePaths.map(p => p.replace(/\\/g, '/')).join('|');
+        console.log('[main.js] Concat input:', concatInput);
+        
+        // Step1: FFmpeg の concat プロトコルを使用してチャンクを結合（再エンコードなし）
+        const tempMergedPath = filePath.replace('.webm', '_temp.webm');
+        await new Promise((resolve, reject) => {
+            ffmpeg()
+                .input(`concat:${concatInput}`)
+                .outputOptions(['-c', 'copy', '-threads', '0'])
+                .on('end', () => {
+                    console.log('[main.js] Concat protocol による結合に成功しました。');
+                    resolve();
+                })
+                .on('error', (err) => {
+                    console.error('[main.js] Concat protocol 結合処理中エラー:', err);
+                    reject(err);
+                })
+                .save(tempMergedPath);
+        });
+        
+        // Step2: 結合後のファイルを remux してタイムスタンプをリセットする
+        const fixedTargetFileName = filePath.replace('.webm', '_fixed.webm');
+        await new Promise((resolve, reject) => {
+            ffmpeg()
+                .input(tempMergedPath)
+                .outputOptions([
+                    '-c', 'copy',
+                    '-fflags', '+genpts',
+                    '-reset_timestamps', '1'
+                ])
+                .on('end', () => {
+                    console.log('[main.js] Remux 処理によりタイムスタンプをリセットしました。');
+                    resolve();
+                })
+                .on('error', (err) => {
+                    console.error('[main.js] Remux 処理中エラー:', err);
+                    reject(err);
+                })
+                .save(fixedTargetFileName);
+        });
+        
+        // 一時ファイルを削除
+        await fs.promises.unlink(tempMergedPath);
+        
+        return fixedTargetFileName;
+    } catch (error) {
+        console.error('[main.js] merge-recording-chunks error:', error);
+        throw error;
+    }
+});
+
+
+ipcMain.handle('fix-webm-metadata', async (event, mergedPath, totalDurationMs) => {
+    try {
+        const buffer = await fs.promises.readFile(mergedPath);
+        const fixedBuffer = await fixWebmDuration(buffer, totalDurationMs);
+        await fs.promises.writeFile(mergedPath, fixedBuffer);
+        console.log('[main.js] EBML metadata fixed. Total duration:', totalDurationMs / 1000, 'seconds');
+        return mergedPath;
+    } catch (error) {
+        console.error('[main.js] EBML metadata fix failed:', error);
+        throw error;
+    }
+});
+
+
+ipcMain.handle('get-media-duration', async (event, filePath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(filePath, (err, metadata) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(metadata.format.duration);
+            }
+        });
+    });
+});
+
+
 
 // ---------------------------------
 // ファイル操作

@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.2.5
+//     ver 2.2.8
 // -----------------------
 
 // -----------------------
@@ -50,7 +50,7 @@ function initializeFullscreenArea() {
         defaultVolume: 100,
         ftbRate: 1.0,
         stream: null, // UVC デバイスのストリームを解除
-        volume: 1     // 追加: 初期音量は defaultVolume=100 により 1（100%）とする
+        volume: 1     // 初期音量は defaultVolume=100 により 1（100%）とする
     };
 
     // フェードキャンバスの初期化
@@ -219,6 +219,10 @@ function setupVideoPlayer() {
 
         // メタデータ確定後に再確認して音量を適用
         videoElement.volume = initialVolume;
+        if (fullscreenGainNode) {
+            const audioContext = FullscreenAudioManager.getContext();
+            fullscreenGainNode.gain.setValueAtTime(initialVolume, audioContext.currentTime);
+        }
 
         logInfo(`[fullscreen.js] Fullscreen video started with default volume: ${initialVolume}`);
     }, { once: true });
@@ -1024,7 +1028,7 @@ function captureScreenshot() {
             window.electronAPI.saveScreenshot(arrayBuffer, fileName, globalState.path)
                 .then((savedPath) => {
                     logInfo(`[fullscreen.js] Screenshot saved: ${savedPath}`);
-                    // 追加: メインウィンドウへ通知
+                    // メインウィンドウへ通知
                     window.electronAPI.notifyScreenshotSaved(savedPath);
                 })
                 .catch((err) => {

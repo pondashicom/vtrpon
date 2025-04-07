@@ -1,4 +1,4 @@
-﻿<!-- index.html 2.2.3 -->
+﻿<!-- index.html 2.2.8 -->
 
 <!DOCTYPE html>
 <html lang="ja">
@@ -8,6 +8,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' safe-file:;">
     <title>VTR-PON  2</title>
     <link rel="stylesheet" href="style.css">
+    <script src="recorder.js" defer></script>
     <script src="messages.js"></script>
     <script src="messageManager.js" defer></script>
     <script src="labels.js"></script>
@@ -262,14 +263,15 @@
                 </div>
             </div>
 
-            <!-- スクリーンショット機能 -->
+            <!-- スクリーンショット & REC機能 -->
             <div id="control-area" class="control-area">
                 <p data-label-id="fullscreen-shot"></p>
                 <div class="controls">
                     <button id="captuer-button" class="button button button-gray" data-tooltip-id="captuer-button" data-label-id="captuer-button"></button>
+                    <!-- <button id="rec-button" class="button button button-gray" data-tooltip-id="rec-button" data-label-id="rec-button">REC</button> -->
                 </div>
             </div>
-            
+
             <div id="important-button-area" class="important-button-area">
                 <div class="controls">
                     <button id="off-air-button" class="button important-button button-gray" data-tooltip-id="off-air-button" data-label-id="off-air-button"></button>

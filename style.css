@@ -1,4 +1,4 @@
-﻿/* style.css 2.2.6*/
+﻿/* style.css 2.2.8*/
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -553,6 +553,31 @@ h2 {
     color: #fff;
     font-weight: bold;
     background-color: rgba(215, 94, 94, 1); /* ホバー時は不透明に */
+    box-shadow: 0 0 13px rgba(215, 94, 94, 0.8);
+    animation: none;
+}
+
+/* RECボタン録画中用の点滅・光彩アニメーション */
+@keyframes blinkGlowRed {
+    0%, 100% {
+        background-color: rgba(215, 94, 94, 0.9);
+        box-shadow: 0 0 8px rgba(215, 94, 94, 0.6);
+    }
+    50% {
+        background-color: rgba(215, 94, 94, 1);
+        box-shadow: 0 0 10px rgba(215, 94, 94, 1);
+    }
+}
+
+/* RECボタンに録画中状態を示すクラス（色と光彩のみ調整） */
+.button-recording {
+    animation: blinkGlowRed 2s ease infinite;
+    border: 1px solid rgba(204, 51, 51, 0.3);
+    box-shadow: 0 0 8px rgba(215, 94, 94, 0.6);
+}
+
+.button-recording:hover {
+    background-color: rgba(215, 94, 94, 1);
     box-shadow: 0 0 13px rgba(215, 94, 94, 0.8);
     animation: none;
 }

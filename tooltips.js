@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     tooltips.js
-//     ver 2.2.1
+//     ver 2.2.8
 // -----------------------
 
 
@@ -39,6 +39,7 @@ const tooltips = {
     "playback-speed-slider": "スライダー操作中に動画の再生速度を変更します",
     "playback-speed-input": "動画の再生速度を変更します。スライダー操作でリセット",
     "captuer-button": "フルスクリーン動画のスクリーンショットをPNGとして保存します",
+    "rec-button": "フルスクリーンに投影されている動画を録画します。最初に押すと録画開始、もう一度押すとファイルとして録画を保存し、プレイリストに登録します。",
     "off-air-button": "フルスクリーン動画をオフエアします",
     "ftb-off-button": "フルスクリーン動画をフェードアウトします。フェード時間はエディットエリアのFTB秒数で設定",
     "on-air-pause-button": "フルスクリーン動画を一時停止します",
@@ -78,6 +79,7 @@ const tooltips = {
     "playback-speed-slider": "Adjust the playback speed while sliding",
     "playback-speed-input": "Change the playback speed; resets when the slider is used",
     "captuer-button": "Capture a screenshot of the fullscreen video and save it as a PNG in the same directory as the video",
+    "rec-button": "Record the video projected in fullscreen. Press once to start recording, and press again to save the recording as a file and add it to the playlist.",
     "off-air-button": "Turn off the fullscreen video projection",
     "ftb-off-button": "Fade out the fullscreen video. Duration is set by the seconds specified next to the FTB button in the edit area",
     "on-air-pause-button": "Pause the fullscreen video projection",
