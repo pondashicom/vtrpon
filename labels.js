@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.2.8
+//     ver 2.2.9
 // -----------------------
 
 
@@ -42,8 +42,8 @@ const labels = {
     "menu-off-air": "オフエア",
     "menu-ftb": "FTB",
     "menu-play-pause": "再生／停止",
-    "menu-audio-fade-in": "音声フェードイン",
-    "menu-audio-fade-out": "音声フェードアウト",
+    "menu-audio-fade-in": "メイン音声フェードイン",
+    "menu-audio-fade-out": "メイン音声フェードアウト",
     "menu-capture-fullscreen": "スクリーンショット",
     "menu-mode": "モード",
     "menu-list-mode-repeat": "リストモード：REPEAT",
@@ -78,7 +78,7 @@ const labels = {
     "end-next-button": "次",
     "end-ftb-button": "FTB",
     "ftbRate": "フェードアウト時間（秒）",
-    "audio-output-level": "規定音量設定",
+    "audio-output-level": "音量設定",
     "audio-output": "音声出力",
     "pfl-button": "PFL",
     "on-air-volume-slider": "音量",
@@ -106,6 +106,8 @@ const labels = {
     "playliseclear-button": "クリア",
     "file-button": "ファイル追加",
     "cue-button": "オンエア",
+    "on-air-item-fo-button": "F/O",
+    "on-air-item-fi-button": "F/I",
     "on-air-fo-button": "F/O",
     "on-air-fi-button": "F/I",
     "playback-speed-control": "再生速度",
@@ -157,8 +159,8 @@ const labels = {
     "menu-off-air": "Off Air",
     "menu-ftb": "FTB",
     "menu-play-pause": "Play / Pause",
-    "menu-audio-fade-in": "Audio Fade In",
-    "menu-audio-fade-out": "Audio Fade Out",
+    "menu-audio-fade-in": "Main Audio Fade In",
+    "menu-audio-fade-out": "Main Audio Fade Out",
     "menu-capture-fullscreen": "Capture Fullscreen",
     "menu-mode": "Mode",
     "menu-list-mode-repeat": "List Mode - REPEAT",
@@ -194,7 +196,7 @@ const labels = {
     "end-ftb-button": "FTB",
     "ftbRate": "Fade-out Duration (sec)",
     "audio-output": "AUDIO OUTPUT",
-    "audio-output-level": "ITEM AUDIO OUTPUT LEVEL",
+    "audio-output-level": "AUDIO OUTPUT LEVEL",
     "pfl-button": "PFL",
     "on-air-volume-slider": "Volume Slider",
     "uvc-device": "UVC DEVICE",
@@ -220,13 +222,15 @@ const labels = {
     "playliseclear-button": "CLEAR",
     "file-button": "ADD FILE",
     "cue-button": "ON AIR",
+    "on-air-item-fo-button": "F/O",
+    "on-air-item-fi-button": "F/I",
     "on-air-fo-button": "F/O",
     "on-air-fi-button": "F/I",
     "playback-speed-control": "PLAYBACK SPEED CONTROL",
     "playback-speed-slider": "Speed Adjustment Slider",
     "playback-speed-input": "Speed Input",
     "fullscreen-shot": "SCREEN SHOT",
-    "captuer-button": "SHOT",
+    "captuer-button": "SCREEN SHOT",
     "rec-button": "REC",
     "off-air-button": "OFF AIR",
     "ftb-off-button": "FTB",
