@@ -2005,11 +2005,44 @@ function audioFadeOutItem(duration) {
         } else {
             setSliderValue(targetValue);
             fadeOutInProgress = false;
-            stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
+            stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
         }
     }
     requestAnimationFrame(fadeStep);
 }
+
+// アイテムごとのフェードイン・フェードアウト
+document.getElementById('on-air-item-fo-button').addEventListener('click', () => {
+    const elements = onairGetElements();
+    const videoElement = elements.onairVideoElement;
+
+    // 動画がロードされているか確認
+    if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
+        logInfo('[onair.js] No video loaded or not ready. Item fade-out operation canceled.');
+        return;
+    }
+
+    // アイテム固有フェードの時間は ftbRate（アイテムデータから取得）を使用
+    const fadeDuration = onairCurrentState?.ftbRate || 1.0;
+    fadeButtonBlink(document.getElementById('on-air-item-fo-button')); // アイテムフェードアウトボタン点滅
+    audioFadeOutItem(fadeDuration); // アイテムフェードアウト処理
+});
+
+document.getElementById('on-air-item-fi-button').addEventListener('click', () => {
+    const elements = onairGetElements();
+    const videoElement = elements.onairVideoElement;
+
+    // 動画がロードされているか確認
+    if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
+        logInfo('[onair.js] No video loaded or not ready. Item fade-in operation canceled.');
+        return;
+    }
+
+    // アイテム固有フェードの時間は ftbRate（アイテムデータから取得）を使用
+    const fadeDuration = onairCurrentState?.ftbRate || 1.0;
+    fadeButtonBlink(document.getElementById('on-air-item-fi-button')); // アイテムフェードインボタン点滅
+    audioFadeInItem(fadeDuration); // アイテムフェードイン処理
+});
 
 
 // -----------------------
@@ -2099,7 +2132,7 @@ function audioFadeInItem(duration) {
             setSliderValue(targetValue);
             // フェードイン完了時に必要なグローバル変数を更新
             fadeInInProgress = false;
-            stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
+            stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
         }
     }
     requestAnimationFrame(fadeStep);

@@ -1,4 +1,4 @@
-﻿/* style.css 2.2.8*/
+﻿/* style.css 2.2.9*/
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -652,13 +652,77 @@ h2 {
     animation: none;
 }
 
-/* --------------------- */
+/* ------------------------- */
 /*   再生コントロールボタン  */
-/* --------------------- */
+/* ------------------------- */
 
 /* 再生コントロールボタン（幅だけ異なる） */
 .control-button {
     width: calc(100% / 4 - 15px); /* 元々の幅計算に基づく割合設定 */
+}
+
+
+/* ----------------------------- */
+/* FIFOボタン、キャプチャボタン  */
+/* ----------------------------- */
+
+/* FIFOボタン */
+#on-air-fo-button,
+#on-air-fi-button,
+#on-air-item-fo-button,
+#on-air-item-fi-button {
+    width: 80px;
+    height: 23px;
+}
+
+/* キャプチャボタン */
+#captuer-button {
+    width: 110px;
+    height: 23px;
+}
+
+/* 上段 FIFO 操作（ITEM行）*/
+#control-area-volume .fade-controls.item-fade {
+    display: grid;
+    grid-template-columns: 80px 200px 80px; /* 左110px、中央100px、右110px */
+    justify-items: center;
+    align-items: center;
+    width: 360px;0
+    margin: 0 auto;
+}
+
+/* 下段 FIFO 操作（MAIN行） */
+#control-area-volume .fade-controls:not(.item-fade) {
+    display: grid;
+    grid-template-columns: 80px 200px 80px;
+    justify-items: center;
+    align-items: center;
+    width: 360px;
+    margin: 0 auto;
+}
+
+/* 下段の入力欄 */
+#fioRate {
+    width: 200px;
+    height: 23px;
+    background-color: #2e2e2e;
+    color: #ffffff;
+    border: 1px solid #444444;
+    border-radius: 5px;
+    font-size: 12px;
+    padding: 5px;
+    padding-right: 3px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    text-align: right;
+    cursor: text;
+    -moz-appearance: textfield;
+}
+
+/* 透明なダミー要素*/
+.fifo-dummy {
+    width: 200px;
+    height: 23px;
+    visibility: hidden;
 }
 
 /* --------------------- */
@@ -796,10 +860,6 @@ h2 {
     justify-content: center;
     align-items: center;  /* 縦中央揃えを追加 */
     width: 100%;
-}
-
-#on-air-fo-button, #on-air-fi-button {
-    height: 23px;
 }
 
 .end-mode-area .control-button {
@@ -1031,7 +1091,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-
 .listedit-volume-slider {
     margin-bottom: 0; /* 不要なら下の余白を削除 */
 }
@@ -1116,7 +1175,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     margin: -7px auto; /* 上下中央に配置 */
     max-width: 80%; /* 幅を制限して中央に収める */
     position: relative; /* 親要素に対して中央配置 */
-    margin-bottom: 10px;
+    margin-bottom: 0px;
     margin-top: 0px;
 }
 
@@ -1125,7 +1184,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     font-size: 0.9em;
     color: white;
     max-width: 450px; /* 最大幅 */
-    margin-top: 10px;
+    margin-top:0px;
     text-align: center; /* 中央揃え */
     padding: 5px 10px; /* 水平方向の余白を調整 */
     background-color: rgba(0, 0, 0, 0.5); /* 半透明の背景 */
@@ -1136,7 +1195,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     margin: -7px auto; /* 上下中央に配置 */
     position: relative; /* 親要素に対して中央配置 */
     line-height: 1em; /* 行の高さを指定 */
-    margin-bottom: 0px;
+    margin-bottom: 5px;
 }
 
 /* ファイル名表示 */
@@ -1156,7 +1215,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     position: relative; /* 親要素に対して中央配置 */
     line-height: 1em; /* 行の高さを指定 */
 }
-
 
 /* ------------------ */
 /*   スクロールバー   */
@@ -1419,7 +1477,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     font-size: 12px; /* 文字サイズ */
 }
 
-
 /* ------------------ */
 /*  PNG2MP4 / FTB     */
 /* ------------------ */
@@ -1456,7 +1513,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     border: 1px solid #007BFF; /* フォーカス時の枠線をブルーに */
     box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); /* フォーカス時の軽い発光 */
 }
-
 
 /* オーディオフェードインアウトRATE */
 #fioDuration, #fioRate {
