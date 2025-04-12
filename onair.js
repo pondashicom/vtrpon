@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     onair.js
-//     ver 2.2.8
+//     ver 2.2.9
 // -----------------------
 
 // -----------------------
@@ -2417,34 +2417,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const recBtn = document.getElementById('rec-button');
     if (recBtn) {
         recBtn.addEventListener('click', async () => {
-            const videoElement = document.getElementById('on-air-video');
+            // 録画対象は fullscreen-video から取得するため、直接 recorder を呼び出さず、fullscreen.js へ制御コマンドを送信する
             if (!window.recorderIsActive) {
                 // 録画開始
-                if (videoElement) {
-                    window.recorder.startRecording(videoElement);
-                    window.recorderIsActive = true;
-                    recBtn.classList.add('button-recording');
-                    logInfo('[onair.js] REC mode started.');
-                } else {
-                    logDebug('[onair.js] on-air-video element not found.');
-                }
+                window.electronAPI.sendControlToFullscreen({ command: 'start-recording' });
+                window.recorderIsActive = true;
+                recBtn.classList.add('button-recording');
+                logInfo('[onair.js] REC mode started (command sent).');
             } else {
                 // 録画停止
-                await window.recorder.stopRecording();
-                try {
-                    const savedPath = await window.recorder.saveRecording();
-                    logInfo('[onair.js] Recording file saved:', savedPath);
-                    // ここで、保存したファイルをプレイリストに自動登録する処理を追加可能
-                } catch (error) {
-                    logDebug('[onair.js] Failed to save recording file:', error);
-                }
+                window.electronAPI.sendControlToFullscreen({ command: 'stop-recording' });
                 window.recorderIsActive = false;
                 recBtn.classList.remove('button-recording');
-                logInfo('[onair.js] REC mode ended.');
+                logInfo('[onair.js] REC mode ended (command sent).');
             }
         });
     }
 });
+
 
 // -----------------------
 // FTBボタンの処理
