@@ -496,7 +496,16 @@ function buildMenuTemplate(labels) {
                             console.log('[main.js] Menu: Fullscreen window not available for screenshot capture.');
                         }
                     }
-                }
+                },
+                { type: 'separator' },
+                {
+                    label: labels["menu-recording-toggle"],
+                    accelerator: 'Shift+R',
+                    click: () => {
+                        mainWindow.webContents.send('shortcut-trigger', 'Shift+R');
+                        console.log('[main.js] Menu: Recording Toggle triggered.');
+                    }
+                },
             ]
         },
         {

@@ -257,7 +257,10 @@ async function mergeRecording() {
         return;
     }
     logInfo('[recorder.js] Chunk files to merge: ' + JSON.stringify(diskChunkFiles, null, 2));
-    const targetFileName = `recording_merged_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+    const now = new Date();
+    const datePart = now.toLocaleDateString('ja-JP').replace(/\//g, '-'); // 例: "2023-04-12"
+    const timePart = now.toLocaleTimeString('ja-JP', { hour12: false }).replace(/:/g, ''); // 例: "224530"
+    const targetFileName = `recording_${datePart}_${timePart}.webm`;
     const mergedPath = await window.electronAPI.recorderMerge.mergeRecordingChunks(diskChunkFiles, targetFileName);
     logInfo('[recorder.js] Merged recording file: ' + mergedPath);
     const fixedPath = await fixWebmMetadata(mergedPath);
