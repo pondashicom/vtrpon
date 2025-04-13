@@ -2576,7 +2576,7 @@ window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
 // ショートカットキー管理
 // -----------------------
 
-// モーダル状態の初期化（onair専用の名前に変更）
+// モーダル状態の初期化
 let isOnAirModalActive = false;
 
 // ショートカットキーの共通処理関数
@@ -2626,6 +2626,11 @@ function handleShortcut(action) {
             onairHandleFTBButton();
             break;
 
+        case 'Shift+R': // Shift+R で録画の開始／停止をトグル
+            logDebug('[onair.js] Shortcut: Shift+R (recording toggle) triggered.');
+            document.getElementById('rec-button').click(); // 録画ボタンをクリック
+            break;
+
         default:
             logDebug(`[onair.js] Unknown shortcut: ${action}`);
             break;
@@ -2648,10 +2653,10 @@ document.addEventListener('keydown', (event) => {
     } else if (event.shiftKey && event.altKey && event.key.toLowerCase() === 'f') {
         action = 'Shift+Alt+F';
     } else if (event.shiftKey && event.key.toLowerCase() === 'f') {
-    
         action = 'Shift+F';
+    } else if (event.shiftKey && event.key.toLowerCase() === 'r') {
+        action = 'Shift+R';
     }
-
     if (action) {
         handleShortcut(action);
         event.preventDefault(); // ショートカットキーのデフォルト動作を防止
