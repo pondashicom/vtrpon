@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.2.5
+//     ver 2.2.9
 // -----------------------
 
 // -----------------------
@@ -50,11 +50,14 @@ function initializeFullscreenArea() {
         defaultVolume: 100,
         ftbRate: 1.0,
         stream: null, // UVC デバイスのストリームを解除
-        volume: 1     // 追加: 初期音量は defaultVolume=100 により 1（100%）とする
+        volume: 1     // 初期音量は defaultVolume=100 により 1（100%）とする
     };
 
     // フェードキャンバスの初期化
     initializeFadeCanvas();
+
+    // 音声チェーンを再初期化させるためのフラグリセット
+    setupFullscreenAudio.initialized = false;
 
     logInfo('[fullscreen.js] Fullscreen area has been reset.');
 }
@@ -219,6 +222,10 @@ function setupVideoPlayer() {
 
         // メタデータ確定後に再確認して音量を適用
         videoElement.volume = initialVolume;
+        if (fullscreenGainNode) {
+            const audioContext = FullscreenAudioManager.getContext();
+            fullscreenGainNode.gain.setValueAtTime(initialVolume, audioContext.currentTime);
+        }
 
         logInfo(`[fullscreen.js] Fullscreen video started with default volume: ${initialVolume}`);
     }, { once: true });
@@ -580,6 +587,27 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
 
                 handleEndMode(receivedEndMode); // エンドモードを発動
                 break;
+            case 'start-recording':
+                {
+                    const videoElement = document.getElementById('fullscreen-video');
+                    if (videoElement) {
+                        window.recorder.startRecording(videoElement);
+                        logInfo('[fullscreen.js] Start recording initiated.');
+                    } else {
+                        logInfo('[fullscreen.js] fullscreen-video element not found.');
+                    }
+                }
+                break;
+            case 'stop-recording':
+                window.recorder.stopRecording()
+                    .then(async () => {
+                        const savedPath = await window.recorder.saveRecording();
+                        logInfo('[fullscreen.js] Recording saved: ' + savedPath);
+                    })
+                    .catch(error => {
+                        logInfo('[fullscreen.js] Recording stop error: ' + error.message);
+                    });
+                break;
             default:
                 logInfo(`[fullscreen.js] Unknown command received: ${command}`);
         }
@@ -809,8 +837,8 @@ function setupFullscreenAudio(videoElement) {
 
     // MediaStreamDestination を作成し、隠しの audio 要素で出力する
     const mediaStreamDest = audioContext.createMediaStreamDestination();
-    // fullscreenAnalyser から mediaStreamDest へ接続
-    fullscreenAnalyser.connect(mediaStreamDest);
+    // fullscreenGainNode から MediaStreamDestination に接続する
+    fullscreenGainNode.connect(mediaStreamDest);
 
     // 隠しの audio 要素を作成（存在しなければ）
     let hiddenAudio = document.getElementById('fullscreen-hidden-audio');
@@ -823,7 +851,9 @@ function setupFullscreenAudio(videoElement) {
     // audio 要素に MediaStreamDestination の stream をセット
     hiddenAudio.srcObject = mediaStreamDest.stream;
 
-    // Device Settings から選択された音声出力先に切替
+    // 音声ストリームをグローバル変数に保存
+    window.fullscreenAudioStream = mediaStreamDest.stream;
+
     window.electronAPI.getDeviceSettings().then(settings => {
         const outputDeviceId = settings.onairAudioOutputDevice; // ONAIR AUDIO OUTPUT DEVICE の値
         if (hiddenAudio.setSinkId) {
@@ -847,6 +877,7 @@ function setupFullscreenAudio(videoElement) {
 
     logDebug('[fullscreen.js] Fullscreen audio setup completed with MediaStreamDestination.');
 }
+
 
 // Device Settings 更新時に隠し audio 要素の出力先を更新するリスナー
 window.electronAPI.ipcRenderer.on('device-settings-updated', (event, newSettings) => {
@@ -1024,7 +1055,7 @@ function captureScreenshot() {
             window.electronAPI.saveScreenshot(arrayBuffer, fileName, globalState.path)
                 .then((savedPath) => {
                     logInfo(`[fullscreen.js] Screenshot saved: ${savedPath}`);
-                    // 追加: メインウィンドウへ通知
+                    // メインウィンドウへ通知
                     window.electronAPI.notifyScreenshotSaved(savedPath);
                 })
                 .catch((err) => {

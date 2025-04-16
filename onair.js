@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     onair.js
-//     ver 2.2.7
+//     ver 2.2.9
 // -----------------------
 
 // -----------------------
@@ -48,7 +48,7 @@ let ftbOffAirTimeout = null; // FTB後半のオフエアタイマー
 let onairMasterVolume = 100; // マスターフェーダーの音量（グローバルに保持）
 let fadeOutInProgress = false;// フェード中の処理を管理するフラグを個別に管理
 let fadeInInProgress = false;
-let isOffAirProcessing = false; // Off-Air処理中フラグの追加
+let isOffAirProcessing = false; // Off-Air処理中フラグ
 
 // -----------------------
 // 初期化
@@ -371,7 +371,7 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
 
 // Off-Air通知を受信したら onairHandleOffAirButton を実行する
 window.electronAPI.onReceiveOffAirNotify(() => {
-    logDebug('[onair.js] Off-Air通知を受信しました。オフエア処理を開始します。');
+    logDebug('[onair.js] Received an off-air notification. Starting off-air processing.');
     onairHandleOffAirButton();
 });
 
@@ -473,7 +473,7 @@ function onairReset() {
         ftbOffAirTimeout = null;
     }
 
-    // 追加: 残り時間タイマーのリセット（タイマー表示を初期状態（オレンジ）に戻す）
+    // 残り時間タイマーのリセット（タイマー表示を初期状態（オレンジ）に戻す）
     onairResetRemainingTimer(elements);
 
     // リソースの解放
@@ -512,7 +512,7 @@ function onairGetStateData(itemId) {
         endMode: itemData.endMode || 'PAUSE',
         defaultVolume: itemData.defaultVolume !== undefined ? itemData.defaultVolume : 100,
         ftbRate: parseFloat(itemData.ftbRate || 1.0),
-        fillKeyMode: typeof itemData.fillKeyMode !== 'undefined' ? itemData.fillKeyMode : false, // 追加：FILLKEYモード状態
+        fillKeyMode: typeof itemData.fillKeyMode !== 'undefined' ? itemData.fillKeyMode : false, // FILLKEYモード状態
     };
 
     logDebug('[onair.js] State data updated:', onairCurrentState);
@@ -632,14 +632,36 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
             onairVideoElement.srcObject.getTracks().forEach(track => track.stop());
         }
 
-        // 新しいストリームを開始
+        // まずは基本的なストリームを取得して、カメラの能力を確認する
+        const tempStream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: deviceId } }
+        });
+        const capabilities = tempStream.getVideoTracks()[0].getCapabilities();
+        const widthIdeal = (capabilities.width && capabilities.width.max) ? capabilities.width.max : 1280;
+        const heightIdeal = (capabilities.height && capabilities.height.max) ? capabilities.height.max : 720;
+        // 不要になった一時ストリームは停止
+        tempStream.getTracks().forEach(track => track.stop());
+
+        // 再度、カメラのネイティブ解像度を理想値として指定してストリームを取得する
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: deviceId } },
+            video: {
+                deviceId: { exact: deviceId },
+                width: { ideal: widthIdeal },
+                height: { ideal: heightIdeal },
+                frameRate: { ideal: 30 }
+            },
+            audio: false
         });
 
         // ストリームをセットし再生を開始
         onairVideoElement.srcObject = stream;
+        onairVideoElement.autoplay = true;
+        onairVideoElement.playsInline = true;
         await onairVideoElement.play();
+
+        // カメラの実際の設定を取得してログ出力
+        const settings = stream.getVideoTracks()[0].getSettings();
+        logDebug(`[onair.js] UVC stream set for device ID: ${deviceId} with native resolution ${settings.width}x${settings.height}, frameRate: ${settings.frameRate}`);
 
         // 再生ボタンの見た目をオレンジに更新
         const { onairPlayButton, onairPauseButton } = elements;
@@ -653,16 +675,16 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
         // 残り時間タイマーを開始
         onairStartRemainingTimer(elements, onairCurrentState);
 
-        logDebug(`[onair.js] UVC stream set for device ID: ${deviceId}`);
+        logDebug(`[onair.js] UVC stream successfully set for device ID: ${deviceId}`);
     } catch (error) {
         logInfo(`[onair.js] Failed to start UVC stream for device ID: ${deviceId}: ${error.message}`);
         showMessage(`${getMessage('failed-to-start-uvc-stream')} ${error.message}`, 5000, 'error');
-
 
         // ストリーム失敗時にUIをリセット
         onairReset();
     }
 }
+
 
 // -----------------------
 // 4 UI更新
@@ -909,11 +931,11 @@ function onairStartPlayback(itemData) {
     if (itemData.path) {
         logInfo('[onair.js] Starting video playback.');
         onairSetupVideoFile(onairVideoElement, itemData.path);
-        // 追加：再生速度コントローラーの値を再適用
+        // 再生速度コントローラーの値を再適用
         const currentSpeed = parseFloat(document.getElementById('playback-speed-input').value) || 1.00;
         onairVideoElement.playbackRate = currentSpeed;
         logDebug(`[onair.js] Applied playback speed: ${currentSpeed}`);
-        // 追加：フルスクリーン側にも再生速度を送信する
+        // フルスクリーン側にも再生速度を送信する
         window.electronAPI.sendControlToFullscreen({
             command: 'set-playback-speed',
             value: currentSpeed
@@ -1363,11 +1385,11 @@ function onairHandlePauseButton() {
 // オフエアボタンの処理
 function onairHandleOffAirButton() {
     if (isOffAir || isOffAirProcessing) {
-        logDebug('[onair.js] 既にOff-Air状態または処理中のため、新たなOff-Air処理をスキップします。');
+        logDebug('[onair.js] Already in off-air state or processing; skipping new off-air processing.');
         return;
     }
     isOffAirProcessing = true;
-    logInfo('[onair.js] Off-Air処理を実行します。');
+    logInfo('[onair.js] Executing off-air processing.');
     onairNowOnAir = false; // オンエア状態を強制的に無効化
     onairReset(); // リセット処理（全体初期化）
     // ここでITEM音量を強制的に100%に再設定
@@ -1723,10 +1745,8 @@ function onairSetupVolumeSliderHandler(elements) {
             logDebug(`[onair.js] Key "${event.key}" input disabled on Master Volume Slider.`);
         }
     });
-
     logDebug('[onair.js] Volume slider handlers for item and master set up.');
 }
-
 
 // ------------------------------
 // フェードイン・フェードアウト
@@ -1783,7 +1803,7 @@ function audioFadeOut(duration) {
             requestAnimationFrame(fadeStep);
         } else {
             setSliderValue(targetValue);
-            // 追加: フェードアウト完了時にグローバル変数を更新
+            // フェードアウト完了時にグローバル変数を更新
             onairMasterVolume = targetValue;
             fadeOutInProgress = false;
             stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
@@ -1859,7 +1879,7 @@ function audioFadeIn(duration) {
             requestAnimationFrame(fadeStep);
         } else {
             setSliderValue(targetValue);
-            // 追加: フェードイン完了時にグローバル変数を更新
+            // フェードイン完了時にグローバル変数を更新
             onairMasterVolume = targetValue;
             fadeInInProgress = false;
             stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
@@ -1985,11 +2005,44 @@ function audioFadeOutItem(duration) {
         } else {
             setSliderValue(targetValue);
             fadeOutInProgress = false;
-            stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
+            stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
         }
     }
     requestAnimationFrame(fadeStep);
 }
+
+// アイテムごとのフェードイン・フェードアウト
+document.getElementById('on-air-item-fo-button').addEventListener('click', () => {
+    const elements = onairGetElements();
+    const videoElement = elements.onairVideoElement;
+
+    // 動画がロードされているか確認
+    if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
+        logInfo('[onair.js] No video loaded or not ready. Item fade-out operation canceled.');
+        return;
+    }
+
+    // アイテム固有フェードの時間は ftbRate（アイテムデータから取得）を使用
+    const fadeDuration = onairCurrentState?.ftbRate || 1.0;
+    fadeButtonBlink(document.getElementById('on-air-item-fo-button')); // アイテムフェードアウトボタン点滅
+    audioFadeOutItem(fadeDuration); // アイテムフェードアウト処理
+});
+
+document.getElementById('on-air-item-fi-button').addEventListener('click', () => {
+    const elements = onairGetElements();
+    const videoElement = elements.onairVideoElement;
+
+    // 動画がロードされているか確認
+    if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
+        logInfo('[onair.js] No video loaded or not ready. Item fade-in operation canceled.');
+        return;
+    }
+
+    // アイテム固有フェードの時間は ftbRate（アイテムデータから取得）を使用
+    const fadeDuration = onairCurrentState?.ftbRate || 1.0;
+    fadeButtonBlink(document.getElementById('on-air-item-fi-button')); // アイテムフェードインボタン点滅
+    audioFadeInItem(fadeDuration); // アイテムフェードイン処理
+});
 
 
 // -----------------------
@@ -2077,15 +2130,13 @@ function audioFadeInItem(duration) {
             requestAnimationFrame(fadeStep);
         } else {
             setSliderValue(targetValue);
-            // 追加: フェードイン完了時に必要なグローバル変数を更新
+            // フェードイン完了時に必要なグローバル変数を更新
             fadeInInProgress = false;
-            stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
+            stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
         }
     }
     requestAnimationFrame(fadeStep);
 }
-
-
 
 // -----------------------
 // アイテム状態情報の更新
@@ -2249,7 +2300,7 @@ function setupOnAirVolumeMeter() {
     const volumeBar = document.getElementById('on-air-volume-bar');
 
     if (!volumeBar) {
-        console.error('On-Air Volume Bar element not found.');
+        logDebug('On-Air Volume Bar element not found.');
         return;
     }
 
@@ -2348,7 +2399,7 @@ window.electronAPI.onReceiveFullscreenVolume((dbFS) => {
 });
 
 // -----------------------
-// スクリーンショットボタン
+// スクリーンショット機能
 // -----------------------
 document.addEventListener('DOMContentLoaded', () => {
     const captureBtn = document.getElementById('captuer-button');
@@ -2358,6 +2409,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// -----------------------
+// 録画機能
+// -----------------------
+document.addEventListener('DOMContentLoaded', () => {
+    const recBtn = document.getElementById('rec-button');
+    if (recBtn) {
+        recBtn.addEventListener('click', async () => {
+            // 録画対象は fullscreen-video から取得するため、直接 recorder を呼び出さず、fullscreen.js へ制御コマンドを送信する
+            if (!window.recorderIsActive) {
+                // 録画開始
+                window.electronAPI.sendControlToFullscreen({ command: 'start-recording' });
+                window.recorderIsActive = true;
+                recBtn.classList.add('button-recording');
+                logInfo('[onair.js] REC mode started (command sent).');
+            } else {
+                // 録画停止
+                window.electronAPI.sendControlToFullscreen({ command: 'stop-recording' });
+                window.recorderIsActive = false;
+                recBtn.classList.remove('button-recording');
+                logInfo('[onair.js] REC mode ended (command sent).');
+            }
+        });
+    }
+});
+
 
 // -----------------------
 // FTBボタンの処理
@@ -2476,8 +2553,6 @@ function updateFillKeyModeState() {
     }
 }
 
-
-
 // FILLKEYモード更新のための IPC 受信
 window.electronAPI.ipcRenderer.on('fillkey-mode-update', (event, fillKeyMode) => {
     logDebug(`[onair.js] Received fillkey-mode-update: ${fillKeyMode}`);
@@ -2488,23 +2563,20 @@ window.electronAPI.ipcRenderer.on('fillkey-mode-update', (event, fillKeyMode) =>
     }
 });
 
-
 window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
     logDebug('[onair.js] Received clear-modes notification with value:', newFillKeyMode);
     isFillKeyMode = newFillKeyMode;  // 解除状態（false）を適用
     updateFillKeyModeState();
-    // ★追加: フルスクリーン側にもフィルキー解除を伝える
+    // フルスクリーン側にもフィルキー解除を伝える
     window.electronAPI.sendControlToFullscreen({ command: 'set-fillkey-bg', value: '' });
     logDebug('[onair.js] FillKey mode has been updated to:', isFillKeyMode);
 });
-
-
 
 // -----------------------
 // ショートカットキー管理
 // -----------------------
 
-// モーダル状態の初期化（onair専用の名前に変更）
+// モーダル状態の初期化
 let isOnAirModalActive = false;
 
 // ショートカットキーの共通処理関数
@@ -2554,6 +2626,11 @@ function handleShortcut(action) {
             onairHandleFTBButton();
             break;
 
+        case 'Shift+R': // Shift+R で録画の開始／停止をトグル
+            logDebug('[onair.js] Shortcut: Shift+R (recording toggle) triggered.');
+            document.getElementById('rec-button').click(); // 録画ボタンをクリック
+            break;
+
         default:
             logDebug(`[onair.js] Unknown shortcut: ${action}`);
             break;
@@ -2576,10 +2653,10 @@ document.addEventListener('keydown', (event) => {
     } else if (event.shiftKey && event.altKey && event.key.toLowerCase() === 'f') {
         action = 'Shift+Alt+F';
     } else if (event.shiftKey && event.key.toLowerCase() === 'f') {
-    
         action = 'Shift+F';
+    } else if (event.shiftKey && event.key.toLowerCase() === 'r') {
+        action = 'Shift+R';
     }
-
     if (action) {
         handleShortcut(action);
         event.preventDefault(); // ショートカットキーのデフォルト動作を防止

@@ -1,4 +1,4 @@
-﻿<!-- index.html 2.2.3 -->
+﻿<!-- index.html 2.2.9 -->
 
 <!DOCTYPE html>
 <html lang="ja">
@@ -123,6 +123,16 @@
                     <input type="number" id="fadeInDuration" min="1" step="1" value="1" class="pngtomp4-duration-input" aria-label="PNG to MP4 Duration" data-tooltip-id="fadeInDuration" data-label-id="fadeInDuration">
                 </div>
             </div>
+            <!-- 
+            <div id="control-area" class="control-area">
+                <p data-label-id="dsk-title">DOWN STREAM KEY</p>
+                <div class="controls">
+                    <button id="dsk-button" class="button button button-gray" data-tooltip-id="dsk-button" data-label-id="dsk-button">DSK</button>
+                    <button id="dks-pause-button" class="button control-button button-gray">||</button>
+                    <button id="dsk-play-button" class="button control-button button-gray">&gt;</button>
+                </div>
+            </div>
+             -->
 
         </div>
 
@@ -231,27 +241,33 @@
 
             <!-- AUDIO OUTPUT -->
             <div id="control-area-volume" class="control-area">
-                <p data-label-id="audio-output"></p>
-                <!-- アイテムごとの音量スライダー（各アイテムの基本設定） -->
+                <p data-label-id="audio-output-level"></p>
+                <!-- アイテムフェーダー -->
                 <div class="controls">
                     <p for="on-air-item-volume-slider">ITEM</p>
                     <input id="on-air-item-volume-slider" class="on-air-item-volume-slider" type="range" min="0" max="100" value="100" data-tooltip-id="on-air-item-volume-slider">
                     <span id="on-air-item-volume-value" class="volume-value">100%</span>
                 </div>
-                <!-- マスターフェーダー（グローバル操作） -->
+                <!-- アイテムフェード操作 -->
+                <div class="controls fade-controls item-fade">
+                    <button id="on-air-item-fo-button" class="button button-gray" data-tooltip-id="on-air-item-fo-button" data-label-id="on-air-item-fo-button"></button>
+                    <div class="fifo-dummy"></div>
+                    <button id="on-air-item-fi-button" class="button button-gray" data-tooltip-id="on-air-item-fi-button" data-label-id="on-air-item-fi-button"></button>
+                </div>
+                <!-- マスターフェーダー -->
                 <div class="controls">
                     <p for="on-air-item-volume-slider">MAIN</p>
                     <input id="on-air-master-volume-slider" class="on-air-master-volume-slider master-slider" type="range" min="0" max="100" value="100" data-tooltip-id="on-air-master-volume-slider">
-
                     <span id="on-air-master-volume-value" class="volume-value">100%</span>
                 </div>
-                <div class="controls">
+                <!-- マスターフェード操作 -->
+                <div class="controls fade-controls">
                     <button id="on-air-fo-button" class="button button-gray" data-tooltip-id="on-air-fo-button" data-label-id="on-air-fo-button"></button>
-                    <input type="number" id="fioRate" min="0.1" step="0.1" value="1.0" class="fio-rate-input" aria-label="FADEIN/OUT RATE" data-tooltip-id="fioRate" data-label-id="fioRate">
+                    <input type="number" id="fioRate" min="0.1" step="0.1" value="1.0" class="fio-rate-input"
+                           aria-label="FADEIN/OUT RATE" data-tooltip-id="fioRate" data-label-id="fioRate">
                     <button id="on-air-fi-button" class="button button-gray" data-tooltip-id="on-air-fi-button" data-label-id="on-air-fi-button"></button>
                 </div>
             </div>
-
 
             <!-- 再生速度コントローラー -->
             <div id="playback-speed-control" class="control-area">
@@ -262,14 +278,15 @@
                 </div>
             </div>
 
-            <!-- スクリーンショット機能 -->
+            <!-- スクリーンショット & REC機能 -->
             <div id="control-area" class="control-area">
                 <p data-label-id="fullscreen-shot"></p>
                 <div class="controls">
-                    <button id="captuer-button" class="button button button-gray" data-tooltip-id="captuer-button" data-label-id="captuer-button"></button>
+                    <button id="captuer-button" class="button button-gray" data-tooltip-id="captuer-button" data-label-id="captuer-button"></button>
+                    <button id="rec-button" class="button button button-gray" data-tooltip-id="rec-button" data-label-id="rec-button">/button>
                 </div>
             </div>
-            
+
             <div id="important-button-area" class="important-button-area">
                 <div class="controls">
                     <button id="off-air-button" class="button important-button button-gray" data-tooltip-id="off-air-button" data-label-id="off-air-button"></button>

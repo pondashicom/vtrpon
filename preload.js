@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.2.4
+//     ver 2.2.7
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -8,6 +8,23 @@ const path = require('path');
 const { exec } = require('child_process');
 const { logInfo, logOpe, logDebug, setLogLevel, LOG_LEVELS } = require('./logger');
 const stateControl = require('./statecontrol');
+
+// ドラッグ＆ドロップイベントのハンドリング
+window.addEventListener('dragover', (e) => {
+  e.preventDefault();
+});
+const { webUtils } = require('electron');  // 追加
+
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const droppedFiles = Array.from(e.dataTransfer.files);
+  const paths = droppedFiles
+    .map(file => webUtils.getPathForFile(file))
+    .filter(filePath => filePath && typeof filePath === 'string');
+  console.log('[preload.js] Dropped file paths:', paths);
+  ipcRenderer.send('files-dropped', paths);
+});
+
 
 contextBridge.exposeInMainWorld('electronAPI', {
 
@@ -242,6 +259,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
                 }
             });
         });
+    },
+
+    // ----------------------------
+    //    録画機能用 API
+    // ----------------------------
+    recorderSave: {
+        saveRecordingFile: async (arrayBuffer, fileName) => {
+            try {
+                const savedPath = await ipcRenderer.invoke('save-recording-file', arrayBuffer, fileName);
+                return savedPath;
+            } catch (error) {
+                console.error('[preload.js] saveRecordingFile error:', error);
+                throw error;
+            }
+        }
+    },
+
+    recorderMerge: {
+        mergeRecordingChunks: async (chunkFilePaths, targetFileName) => {
+            try {
+                const mergedPath = await ipcRenderer.invoke('merge-recording-chunks', chunkFilePaths, targetFileName);
+                return mergedPath;
+            } catch (error) {
+                console.error('[preload.js] mergeRecordingChunks error:', error);
+                throw error;
+            }
+        }
+    },
+
+    // EBMLのメタデータ補完 API
+    fixWebmMetadata: async (mergedPath, totalDurationMs) => {
+        return await ipcRenderer.invoke('fix-webm-metadata', mergedPath, totalDurationMs);
+    },
+
+    // 追加: メディアファイルの再生時間を取得する API
+    getMediaDuration: async (filePath) => {
+        return await ipcRenderer.invoke('get-media-duration', filePath);
     },
 
     // ----------------------------
