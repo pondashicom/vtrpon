@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.2.7
+//     ver 2.2.8
 // -----------------------
 
 
@@ -301,6 +301,57 @@ async function getValidUpdates(files, currentPlaylist) {
 }
 
 // -----------------------
+// ドラッグ＆ドロップで受信したファイルをプレイリストに追加する処理
+// -----------------------
+window.electronAPI.ipcRenderer.on('add-dropped-file', async (event, files) => {
+    console.log('[playlist.js] Received dropped files:', files);
+    if (!files || files.length === 0) {
+        logInfo('[playlist.js] ドロップされたファイルはありません。');
+        return;
+    }
+    // 進捗表示を初期化
+    updateLoadingProgress(0, files.length);
+    
+    let currentPlaylist = await stateControl.getPlaylistState();
+    let validUpdatesAccum = [];
+    let processedCount = 0;
+    
+    // 各ファイル処理（getValidUpdates 関数に任せる）
+    for (const file of files) {
+        const validUpdates = await getValidUpdates([file], currentPlaylist);
+        if (validUpdates.length > 0) {
+            validUpdatesAccum = validUpdatesAccum.concat(validUpdates);
+        }
+        processedCount++;
+        updateLoadingProgress(processedCount, files.length);
+    }
+    
+    if (validUpdatesAccum.length > 0) {
+        const updatedPlaylist = currentPlaylist.map(existingItem => {
+            const updatedItem = validUpdatesAccum.find(item => item.playlistItem_id === existingItem.playlistItem_id);
+            return updatedItem ? { ...existingItem, ...updatedItem, converting: false } : existingItem;
+        });
+        const newItems = validUpdatesAccum.filter(item => !currentPlaylist.some(existing => existing.playlistItem_id === item.playlistItem_id));
+        const finalPlaylist = [...updatedPlaylist, ...newItems];
+        await stateControl.setPlaylistState(finalPlaylist);
+        await updatePlaylistUI();
+    }
+    // 進捗表示の更新後にクリアする
+    const progressElem = document.getElementById('loading-progress');
+    if (progressElem) {
+        progressElem.textContent = "";
+    }
+});
+
+// 読み込めないファイルドロップ時の通知
+window.electronAPI.ipcRenderer.on('invalid-files-dropped', (event, invalidFiles) => {
+    const errorMsg = getMessage('not-supported-file-error') + "\n" + invalidFiles.join("\n");
+    showMessage(errorMsg, 5000, 'alert');
+});
+
+
+
+// -----------------------
 // サムネイル生成
 // -----------------------
 
@@ -375,8 +426,8 @@ async function generateThumbnail(filePath) {
         // 拡張子を小文字で取得
         const extension = filePath.split('.').pop().toLowerCase();
 
-        // === 1) 音声ファイル（wav, mp3, flac）の場合 ===
-        if (['wav', 'mp3', 'flac'].includes(extension)) {
+        // === 1) 音声ファイル（wav, mp3, flac, aac, m4a）の場合 ===
+        if (['wav', 'mp3', 'flac', 'aac', 'm4a'].includes(extension)) {
             const safeFileURL = filePath;  // 既に先頭で変換済みなのでそのまま利用
             fetch(safeFileURL)
                 .then(response => response.arrayBuffer())
@@ -542,7 +593,7 @@ async function processFileData(file, currentPlaylist) {
             thumbnail: await generateThumbnail(file.path),
         };
         const extension = file.path.split('.').pop().toLowerCase();
-        newItem.isAudioFile = ['wav', 'mp3', 'flac'].includes(extension);
+        newItem.isAudioFile = ['wav', 'mp3', 'flac', 'aac', 'm4a'].includes(extension);
         newItem.type = extension.toUpperCase();
 
         // stateControl に新しいアイテムを追加して順序を管理
@@ -602,7 +653,7 @@ async function getMetadata(filePath) {
         }
 
         const extension = filePath.split('.').pop().toLowerCase();
-        const isAudioFile = ['mp3', 'wav' ,'flac'].includes(extension);
+        const isAudioFile = ['mp3', 'wav', 'flac', 'aac', 'm4a'].includes(extension);
 
         let creationDate = 'Unknown';
         try {
@@ -765,20 +816,28 @@ function createFileInfo(file) {
     const fileName = file.mediaOffline ? 'Media Offline' : file.name;
     const fileNameClass = file.mediaOffline ? 'file-name media-offline' : 'file-name';
 
+    // 拡張子またはUVC_DEVICEの場合にTYPE表示を切り替える
+    let fileType = '';
+    if (typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE')) {
+        fileType = 'UVC';
+    } else {
+        fileType = file.type || file.path.split('.').pop().toUpperCase();
+    }
+
     fileInfo.innerHTML = `
         <p class="${fileNameClass}">${fileName}</p>
         <div class="file-details-grid">
             <div class="file-details-grid">
                 <div class="file-details-row">
-                    <span class="label">Res</span><span class="value">${file.resolution}</span>
+                    <span class="label">RES</span><span class="value">${file.resolution}</span>
                     <span class="label">IN</span><span class="value">${inPoint}</span>
                 </div>
                 <div class="file-details-row">
-                    <span class="label">Dur</span><span class="value">${file.duration}</span>
+                    <span class="label">DUR</span><span class="value">${file.duration}</span>
                     <span class="label">OUT</span><span class="value">${outPoint}</span>
                 </div>
                 <div class="file-details-row">
-                    <span class="label">TYPE</span><span class="value">${file.type || file.path.split('.').pop().toUpperCase()}</span>
+                    <span class="label">TYPE</span><span class="value">${fileType}</span>
                 </div>
                 <div class="file-details-row">
                     <span class="label">VOL</span><span class="value">${file.defaultVolume !== undefined ? file.defaultVolume : 100}%</span>

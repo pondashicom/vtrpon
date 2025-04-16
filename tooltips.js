@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     tooltips.js
-//     ver 2.2.1
+//     ver 2.2.8
 // -----------------------
 
 
@@ -34,11 +34,14 @@ const tooltips = {
     "cue-button": "フルスクリーンにアイテムを投影します",
     "on-air-item-volume-slider": "アイテム固有のボリュームを調整します。ネクストモードや次のオンエアでアイテムごとの音量にリセットされます",
     "on-air-master-volume-slider": "システム全体のボリュームを調整します。ネクストモードや次のオンエアをしても音量は保持されます",
+    "on-air-item-fo-button": "アイテム固有の音声をフェードアウトします。フェード時間はエディットエリアのFTBボタン横の数字で指定します",
+    "on-air-item-fi-button": "アテム固有音声をフェードインします。フェード時間はエディットエリアのFTBボタン横の数字で指定します",
     "on-air-fo-button": "メイン音声をフェードアウトします。フェード時間はフェードインボタンとフェードアウトボタンの間の数字で指定します",
     "on-air-fi-button": "メイン音声をフェードインします。フェード時間はフェードインボタンとフェードアウトボタンの間の数字で指定します",
     "playback-speed-slider": "スライダー操作中に動画の再生速度を変更します",
     "playback-speed-input": "動画の再生速度を変更します。スライダー操作でリセット",
     "captuer-button": "フルスクリーン動画のスクリーンショットをPNGとして保存します",
+    "rec-button": "フルスクリーンに投影されている動画を録画します。最初に押すと録画開始、もう一度押すとファイルとして録画を保存し、プレイリストに登録します。",
     "off-air-button": "フルスクリーン動画をオフエアします",
     "ftb-off-button": "フルスクリーン動画をフェードアウトします。フェード時間はエディットエリアのFTB秒数で設定",
     "on-air-pause-button": "フルスクリーン動画を一時停止します",
@@ -73,11 +76,14 @@ const tooltips = {
     "cue-button": "Project the item to the fullscreen display",
     "on-air-item-volume-slider": "Adjust the volume for each item. The volume will reset to the item's level in Next Mode or on the next on-air.",
     "on-air-master-volume-slider": "Adjust the overall system volume. The volume remains even in Next Mode or on the next on-air.",
+    "on-air-item-fo-button": "Fades out the audio specific to the item. The fade time is specified by the number next to the FTB button in the edit area.",
+    "on-air-item-fi-button": "Fades in the audio specific to the item. The fade time is specified by the number next to the FTB button in the edit area.",
     "on-air-fo-button": "Fade out the main audio. The fade duration is specified by the number between the fade-in and fade-out buttons.",
     "on-air-fi-button": "Fade in the main audio. The fade duration is specified by the number between the fade-in and fade-out buttons.",
     "playback-speed-slider": "Adjust the playback speed while sliding",
     "playback-speed-input": "Change the playback speed; resets when the slider is used",
     "captuer-button": "Capture a screenshot of the fullscreen video and save it as a PNG in the same directory as the video",
+    "rec-button": "Record the video projected in fullscreen. Press once to start recording, and press again to save the recording as a file and add it to the playlist.",
     "off-air-button": "Turn off the fullscreen video projection",
     "ftb-off-button": "Fade out the fullscreen video. Duration is set by the seconds specified next to the FTB button in the edit area",
     "on-air-pause-button": "Pause the fullscreen video projection",

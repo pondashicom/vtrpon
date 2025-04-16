@@ -1,7 +1,7 @@
 ﻿
 // -----------------------
 //     messages.js
-//     ver 2.2.3
+//     ver 2.2.8
 // -----------------------
 
 const messages = {
@@ -16,6 +16,7 @@ const messages = {
     "failed-to-start-uvc-stream": "UVCストリームの開始に失敗しました:",
     "not-supported-file-error": "サポートされていないファイルです。エラー",
     "conversion-in-progress-cannot-select-item": "変換中です。アイテムを選択できません。",
+    "invalid-files-dropped": "読み込めないファイルをスキップしました", 
     "media-offline": "メディアオフライン:",
     "uvc-devices-cannot-be-edited": "UVCデバイスは編集できません。",
     "no-item-in-editing-state": "\"編集中\"の状態のアイテムがありません。オンエア処理を進めることができません。",
@@ -57,6 +58,7 @@ const messages = {
     "failed-to-start-uvc-stream": "Failed to start UVC stream:",
     "not-supported-file-error": "Not Supported FILE! Error",
     "conversion-in-progress-cannot-select-item": "Conversion in progress. Cannot select item.",
+    "invalid-files-dropped": "Skipped unreadable files.", 
     "media-offline": "Media Offline:",
     "uvc-devices-cannot-be-edited": "UVC devices cannot be edited.",
     "no-item-in-editing-state": "No item in \"editing\" state. On-Air action cannot proceed.",

@@ -1,6 +1,6 @@
 ﻿//------------------------------
 //  devicesettings.js
-//   2.0.8
+//   2.2.8
 //------------------------------
 
 // ログ機能の取得
@@ -25,16 +25,6 @@ async function initializeDeviceSettings() {
     
     populateAudioSelect(elements.onairAudioSelect, devices.audioOutputs, savedSettings?.onairAudioOutputDevice, true);
     populateAudioSelect(elements.editAudioSelect, devices.audioOutputs, savedSettings?.editAudioMonitorDevice, false, true);
-
-    // UVC と VIDEO OUTPUT
-    // if (elements.uvcAudioSelect) {
-    //     populateAudioSelect(elements.uvcAudioSelect, devices.audioInputs, savedSettings?.uvcAudioInputDevice);
-    // }
-    // if (elements.fullscreenVideoSelect) {
-    //     const displays = await getDisplayDevices();
-    //     populateVideoSelect(elements.fullscreenVideoSelect, displays, savedSettings?.fullscreenVideoOutputDevice);
-    // }
-
     addAudioSelectionWarnings(elements.editAudioSelect, elements.onairAudioSelect);
     addAudioSelectionWarnings(elements.onairAudioSelect, elements.editAudioSelect);
     
@@ -48,9 +38,6 @@ async function initializeDeviceSettings() {
 function getDOMElements() {
     const editAudioSelect = document.getElementById('editAudioMonitorDevice');
     const onairAudioSelect = document.getElementById('onairAudioOutputDevice');
-    // UI から削除した要素は取得しない
-    // const uvcAudioSelect = document.getElementById('uvcAudioInputDevice');
-    // const fullscreenVideoSelect = document.getElementById('fullscreenVideoOutputDevice');
     const okButton = document.getElementById('okButton');
 
     if (!editAudioSelect || !onairAudioSelect || !okButton) {
@@ -178,14 +165,6 @@ function saveSettings(elements) {
         editAudioMonitorDevice: elements.editAudioSelect.value,
         onairAudioOutputDevice: elements.onairAudioSelect.value
     };
-
-    // UI から削除したため、設定に含めない
-    // if (elements.uvcAudioSelect) {
-    //     settings.uvcAudioInputDevice = elements.uvcAudioSelect.value;
-    // }
-    // if (elements.fullscreenVideoSelect) {
-    //     settings.fullscreenVideoOutputDevice = elements.fullscreenVideoSelect.value;
-    // }
 
     window.electronAPI.setDeviceSettings(settings);
     window.electronAPI.closeDeviceSettings();

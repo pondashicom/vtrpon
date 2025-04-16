@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     main.js
-//     ver 2.2.6
+//     ver 2.2.9
 // -----------------------
 
 // ---------------------
@@ -13,6 +13,8 @@ const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
 const statecontrol = require('./statecontrol.js');
+const fixWebmDuration = require('fix-webm-duration');
+
 
 let mainWindow, fullscreenWindow, deviceSettingsWindow;
 let isDebugMode = false;
@@ -494,7 +496,16 @@ function buildMenuTemplate(labels) {
                             console.log('[main.js] Menu: Fullscreen window not available for screenshot capture.');
                         }
                     }
-                }
+                },
+                { type: 'separator' },
+                {
+                    label: labels["menu-recording-toggle"],
+                    accelerator: 'Shift+R',
+                    click: () => {
+                        mainWindow.webContents.send('shortcut-trigger', 'Shift+R');
+                        console.log('[main.js] Menu: Recording Toggle triggered.');
+                    }
+                },
             ]
         },
         {
@@ -596,7 +607,7 @@ function buildMenuTemplate(labels) {
                     dialog.showMessageBox(mainWindow, {
                       type: 'info',
                       title: 'About',
-                      message: 'VTRPON\n\Version: 2.2.6\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)',
+                      message: 'VTRPON\n\Version: 2.2.8\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)',
                       buttons: ['OK']
                     });
                   }
@@ -1160,6 +1171,122 @@ ipcMain.on('request-capture-screenshot', (event) => {
     }
 });
 
+
+// ---------------------------------
+// 録画機能
+// ---------------------------------
+
+ipcMain.handle('save-recording-file', async (event, arrayBuffer, chunkFileName) => {
+    try {
+        const tempDir = path.join(app.getPath('temp'), 'vtrpon_recordings');
+        await fs.promises.mkdir(tempDir, { recursive: true });
+        // 拡張子を強制的に .mp4 から .webm に変更
+        const filePath = path.join(tempDir, chunkFileName.replace(/\.mp4$/, '.webm'));
+        const buffer = Buffer.from(arrayBuffer);
+        await fs.promises.writeFile(filePath, buffer);
+        const stats = fs.statSync(filePath);
+        console.log(`[main.js] Recording chunk saved at: ${filePath}`);
+        console.log(`[main.js] Chunk file size: ${stats.size} bytes`);
+        return filePath;
+    } catch (error) {
+        console.error('[main.js] Failed to save recording chunk:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('merge-recording-chunks', async (event, chunkFilePaths, defaultFileName) => {
+    try {
+        // 操作ウインドウ(mainWindow)側で保存ダイアログを表示し、ユーザに保存場所とファイル名を指定させる
+        const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+            title: '保存先の選択',
+            defaultPath: defaultFileName.replace(/\.mp4$/, '.webm'),
+            filters: [{ name: 'WebM Video', extensions: ['webm'] }]
+        });
+        if (canceled || !filePath) {
+            throw new Error('User canceled save dialog');
+        }
+        
+        // concat プロトコル用の文字列生成（各ファイルパスを "|" で連結）
+        const concatInput = chunkFilePaths.map(p => p.replace(/\\/g, '/')).join('|');
+        console.log('[main.js] Concat input:', concatInput);
+        
+        // Step1: FFmpeg の concat プロトコルを使用してチャンクを結合（再エンコードなし）
+        const tempMergedPath = filePath.replace('.webm', '_temp.webm');
+        await new Promise((resolve, reject) => {
+            ffmpeg()
+                .input(`concat:${concatInput}`)
+                .outputOptions(['-c', 'copy', '-threads', '0'])
+                .on('end', () => {
+                    console.log('[main.js] Concat protocol による結合に成功しました。');
+                    resolve();
+                })
+                .on('error', (err) => {
+                    console.error('[main.js] Concat protocol 結合処理中エラー:', err);
+                    reject(err);
+                })
+                .save(tempMergedPath);
+        });
+        
+        // Step2: 結合後のファイルを remux してタイムスタンプをリセットする
+        const fixedTargetFileName = filePath.replace('.webm', '_fixed.webm');
+        await new Promise((resolve, reject) => {
+            ffmpeg()
+                .input(tempMergedPath)
+                .outputOptions([
+                    '-c', 'copy',
+                    '-fflags', '+genpts',
+                    '-reset_timestamps', '1'
+                ])
+                .on('end', () => {
+                    console.log('[main.js] Remux 処理によりタイムスタンプをリセットしました。');
+                    resolve();
+                })
+                .on('error', (err) => {
+                    console.error('[main.js] Remux 処理中エラー:', err);
+                    reject(err);
+                })
+                .save(fixedTargetFileName);
+        });
+        
+        // 一時ファイルを削除
+        await fs.promises.unlink(tempMergedPath);
+        
+        return fixedTargetFileName;
+    } catch (error) {
+        console.error('[main.js] merge-recording-chunks error:', error);
+        throw error;
+    }
+});
+
+
+ipcMain.handle('fix-webm-metadata', async (event, mergedPath, totalDurationMs) => {
+    try {
+        const buffer = await fs.promises.readFile(mergedPath);
+        const fixedBuffer = await fixWebmDuration(buffer, totalDurationMs);
+        await fs.promises.writeFile(mergedPath, fixedBuffer);
+        console.log('[main.js] EBML metadata fixed. Total duration:', totalDurationMs / 1000, 'seconds');
+        return mergedPath;
+    } catch (error) {
+        console.error('[main.js] EBML metadata fix failed:', error);
+        throw error;
+    }
+});
+
+
+ipcMain.handle('get-media-duration', async (event, filePath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(filePath, (err, metadata) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(metadata.format.duration);
+            }
+        });
+    });
+});
+
+
+
 // ---------------------------------
 // ファイル操作
 // ---------------------------------
@@ -1168,7 +1295,7 @@ ipcMain.on('request-capture-screenshot', (event) => {
 ipcMain.handle('select-files', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Media Files', extensions: ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'png', 'mpeg', 'pptx'] }]
+        filters: [{ name: 'Media Files', extensions: ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg', 'pptx'] }]
     });
     if (canceled) return [];
 
@@ -1207,6 +1334,44 @@ ipcMain.handle('get-metadata', async (event, filePath) => {
             }
         });
     });
+});
+
+// ---------------------------------
+// ドラッグ＆ドロップで追加されたファイルを処理する
+// ---------------------------------
+ipcMain.on('files-dropped', (event, files) => {
+    console.log('[main.js] Received dropped files:', files);
+    const allowedExtensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg', 'pptx'];
+    const validFiles = [];
+    const invalidFiles = [];
+
+    files.forEach(filePath => {
+        if (!filePath || typeof filePath !== 'string') {
+            console.warn('[main.js] Invalid file path received:', filePath);
+            return;
+        }
+        const ext = path.extname(filePath).toLowerCase().replace('.', '');
+        if (allowedExtensions.includes(ext)) {
+            validFiles.push({
+                path: filePath,
+                name: path.basename(filePath),
+                resolution: 'Unknown',
+                duration: 'Unknown',
+                creationDate: new Date().toLocaleDateString()
+            });
+        } else {
+            invalidFiles.push(filePath);
+        }
+    });
+
+    if (invalidFiles.length > 0) {
+        // 読み込めないファイルが含まれる場合、renderer 側でエラーメッセージを表示させるために通知を送信
+        mainWindow.webContents.send('invalid-files-dropped', invalidFiles);
+    }
+    if (validFiles.length > 0) {
+        // 読み込めるファイルがある場合は、add-dropped-file イベントで renderer に送信する
+        mainWindow.webContents.send('add-dropped-file', validFiles);
+    }
 });
 
 // ---------------------------------
