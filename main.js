@@ -1171,6 +1171,17 @@ ipcMain.on('request-capture-screenshot', (event) => {
     }
 });
 
+// -----------------------------
+// DSK用コマンド
+// -----------------------------
+ipcMain.on('dsk-command', (event, dskCommandData) => {
+    if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
+        fullscreenWindow.webContents.send('dsk-control', dskCommandData);
+        console.log(`[main.js] Sent DSK command to fullscreen: ${dskCommandData.command}`);
+    } else {
+        console.warn('[main.js] Fullscreen window is not available to receive DSK commands.');
+    }
+});
 
 // ---------------------------------
 // 録画機能

@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.2.8
+//     ver 2.2.9
 // -----------------------
 
 
@@ -304,9 +304,9 @@ async function getValidUpdates(files, currentPlaylist) {
 // ドラッグ＆ドロップで受信したファイルをプレイリストに追加する処理
 // -----------------------
 window.electronAPI.ipcRenderer.on('add-dropped-file', async (event, files) => {
-    console.log('[playlist.js] Received dropped files:', files);
+    logInfo('[playlist.js] Received dropped files:', files);
     if (!files || files.length === 0) {
-        logInfo('[playlist.js] ドロップされたファイルはありません。');
+        logInfo('[playlist.js] No dropped files detected.');
         return;
     }
     // 進捗表示を初期化
@@ -366,7 +366,7 @@ async function generateThumbnail(filePath) {
         // UVCデバイスのサムネイル生成
         if (filePath.startsWith("UVC_DEVICE:")) {
             const deviceId = filePath.replace("UVC_DEVICE:", ""); // `deviceId` を取得
-            console.log("サムネイル生成 - deviceId:", deviceId);
+            logInfo("Generating thumbnail - deviceId:", deviceId);
 
             // `deviceId` を使ってカメラを起動（各インスタンスで個別に処理）
             navigator.mediaDevices.getUserMedia({ video: { deviceId: deviceId } }).then((stream) => {
@@ -376,7 +376,7 @@ async function generateThumbnail(filePath) {
                 video.muted = true;
                 video.playsInline = true;
                 video.onloadedmetadata = () => {
-                    console.log("カメラのメタデータ取得 - Width:", video.videoWidth, "Height:", video.videoHeight);
+                    logInfo("Camera metadata - Width:", video.videoWidth, "Height:", video.videoHeight);
                     video.play();
                 };
 
@@ -402,7 +402,7 @@ async function generateThumbnail(filePath) {
                 // ライブプレビューとして video を返す（ストリームは停止しない）
                 resolve(container);
             }).catch((error) => {
-                console.error("カメラの取得に失敗:", error);
+                logInfo("Failed to get camera:", error);
                 // エラーの場合は従来のエラーハンドリング（赤背景にメッセージ）を実施
                 const canvas = document.createElement('canvas');
                 const targetWidth = 135;
@@ -896,6 +896,9 @@ function updateItemStateClass(item, file) {
     } else {
         item.classList.remove('selected');
     }
+    if (file.dskActive) {
+        item.classList.add('dsk-active');
+    }
 }
 
 // -----------------------
@@ -1275,7 +1278,7 @@ window.electronAPI.onReceiveOffAirNotify(async () => {
         logInfo('[playlist.js] Failed to reset playlist items Off-Air state:', error);
     }
     
-    // 追加：最後にオンエアだったアイテムがあれば次のアイテムを自動選択（オンエアは行わない）
+    // 最後にオンエアだったアイテムがあれば次のアイテムを自動選択（オンエアは行わない）
     if (lastOnAirItemId) {
         logInfo(`[playlist.js] Auto-selecting next item (without On-Air) after Off-Air for last On-Air item ID: ${lastOnAirItemId}`);
         await selectNextPlaylistItem(lastOnAirItemId);
@@ -1293,7 +1296,7 @@ async function selectNextPlaylistItem(currentItemId) {
         logDebug('[playlist.js] Playlist is empty or invalid.');
         // プレイリストが空の場合、Off-Air通知を送信する
         window.electronAPI.sendOffAirEvent();
-        logOpe('[playlist.js] Off-Air通知を送信しました。（プレイリスト空）');
+        logOpe('[playlist.js] Sent Off-Air notification. (Playlist is empty)');
         return;
     }
 
@@ -1317,7 +1320,7 @@ async function selectNextPlaylistItem(currentItemId) {
         logInfo('[playlist.js] No available next item (all items are media offline).');
         // さらに利用可能な次アイテムがない場合、Off-Air通知を送信する
         window.electronAPI.sendOffAirEvent();
-        logOpe('[playlist.js] Off-Air通知を送信しました。（全アイテムがオフライン）');
+        logOpe('[playlist.js] Sent Off-Air notification. (All items are offline)');
         return;
     }
 
@@ -1500,8 +1503,8 @@ async function savePlaylist(storeNumber) {
         const playlistData = {
             playlist_id, // プレイリストIDを設定
             name: playlistName,
-            soundPadMode: soundPadActive,        // 追加：現在の SOUND PAD モード状態
-            directOnAirMode: directOnAirActive,    // 追加：現在の DIRECT ONAIR モード状態
+            soundPadMode: soundPadActive,        // 現在の SOUND PAD モード状態
+            directOnAirMode: directOnAirActive,    // 現在の DIRECT ONAIR モード状態
             fillKeyMode: isFillKeyMode,            // 既存の FILLKEY モード状態
             data: playlist.map((item) => ({
                 ...item,
@@ -2278,13 +2281,14 @@ function findNextAvailableIndex(sortedPlaylist, startIndex) {
     let count = sortedPlaylist.length;
     let idx = startIndex;
     while (count > 0) {
-        if (!sortedPlaylist[idx].mediaOffline) {
+        // メディアオフラインでなく、かつDSK表示中 (dskActiveがtrue) でなければ候補とする
+        if (!sortedPlaylist[idx].mediaOffline && !sortedPlaylist[idx].dskActive) {
             return idx;
         }
         idx = (idx + 1) % sortedPlaylist.length;
         count--;
     }
-    return -1;  // すべてメディアオフラインの場合
+    return -1;  // すべてが選択不可の場合
 }
 
 async function handleNextModePlaylist(currentItemId) {
@@ -2293,7 +2297,7 @@ async function handleNextModePlaylist(currentItemId) {
     // プレイリストの検証
     if (!Array.isArray(playlist) || playlist.length === 0) {
         logDebug('[playlist.js] Playlist is empty or invalid.');
-        // 修正追加：プレイリストが空の場合、Off-Air通知を送信する
+        // プレイリストが空の場合、Off-Air通知を送信する
         window.electronAPI.sendOffAirEvent();
         logOpe('[playlist.js] Off-Air通知を送信しました。（プレイリスト空）');
         return;
@@ -2325,8 +2329,8 @@ async function handleNextModePlaylist(currentItemId) {
     nextIndex = availableIndex;
     const nextItem = sortedPlaylist[nextIndex];
 
-    logInfo(`[playlist.js] NEXTモード (sorted): currentIndex=${currentIndex}, nextIndex=${nextIndex}, sortedPlaylistLength=${sortedPlaylist.length}`);
-    logInfo(`[playlist.js] NEXTモード: 次に選択されるアイテム -> ID: ${nextItem.playlistItem_id}, Name: ${nextItem.name}`);
+    logInfo(`[playlist.js] NEXT MODE (sorted): currentIndex=${currentIndex}, nextIndex=${nextIndex}, sortedPlaylistLength=${sortedPlaylist.length}`);
+    logInfo(`[playlist.js] NEXT mode: Next selected item -> ID: ${nextItem.playlistItem_id}, Name: ${nextItem.name}`);
 
     if (nextItem) {
         // プレイリスト全体のステータスを更新
@@ -2390,6 +2394,96 @@ function scrollToPlaylistItem(itemId) {
         logInfo(`[playlist.js] Playlist item with ID ${itemId} not found.`);
     }
 }
+
+// -----------------------
+// DSK
+// -----------------------
+
+// DSKボタンのイベントリスナー
+const dskButton = document.getElementById('dsk-button');
+if (dskButton) {
+    dskButton.addEventListener('click', async () => {
+        // まず、DSKがすでに表示中なら、解除用に toggleOnAirDSK() を呼び出す
+        if (window.dskModule.getCurrentDSKItem()) {
+            window.dskModule.toggleOnAirDSK();  // 引数なしで呼び出すと内部で解除処理が走る
+            window.electronAPI.sendDSKCommand({ command: 'DSK_TOGGLE' });
+            return;
+        }
+        // DSKが未送出状態の場合は、通常の selected item の存在チェックを行う
+        const playlist = await stateControl.getPlaylistState();
+        const selectedItem = playlist.find(item => item.selectionState === "selected");
+        if (!selectedItem) {
+            showMessage(getMessage('no-selected-item-for-dsk'), 5000, 'alert');
+            return;
+        }
+        window.dskModule.toggleOnAirDSK(selectedItem);
+        window.electronAPI.sendDSKCommand({ command: 'DSK_TOGGLE', payload: selectedItem });
+    });
+} else {
+    logInfo('[playlist.js] DSK button not found.');
+}
+
+
+// DSK送出状態反映
+window.addEventListener('dsk-active-set', async (e) => {
+    const activeItemId = e.detail.itemId;
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        const updatedPlaylist = playlist.map(item => {
+            if (item.playlistItem_id === activeItemId) {
+                return { ...item, dskActive: true };
+            }
+            return item;
+        });
+        await stateControl.setPlaylistState(updatedPlaylist);
+        await updatePlaylistUI();
+    } catch (err) {
+        console.error("Error updating dskActive flag in state:", err);
+    }
+    const dskButton = document.getElementById('dsk-button');
+    if (dskButton) {
+        dskButton.classList.add('button-recording');
+    }
+});
+
+// DSK送出解除時
+window.addEventListener('dsk-active-clear', async () => {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        const updatedPlaylist = playlist.map(item => ({ ...item, dskActive: false }));
+        await stateControl.setPlaylistState(updatedPlaylist);
+        await updatePlaylistUI();
+    } catch (err) {
+        console.error("Error clearing dskActive flag in state:", err);
+    }
+    const dskButton = document.getElementById('dsk-button');
+    if (dskButton) {
+        dskButton.classList.remove('button-recording');
+    }
+});
+
+
+// 一時停止、再生ボタンイベントリスナー
+const dksPauseButton = document.getElementById('dks-pause-button');
+const dskPlayButton = document.getElementById('dsk-play-button');
+if (dksPauseButton) {
+    dksPauseButton.addEventListener('click', () => {
+        // オンエア側DSKの一時停止処理
+        window.dskModule.pauseOnAirDSK();
+        // フルスクリーン側DSKも同時に一時停止するためにIPC経由で命令送信
+        window.electronAPI.sendControlToFullscreen({ command: 'DSK_PAUSE' });
+    });
+}
+if (dskPlayButton) {
+    dskPlayButton.addEventListener('click', () => {
+        // オンエア側DSKの再生処理
+        window.dskModule.playOnAirDSK();
+        // フルスクリーン側DSKも同時に再生するためにIPC経由で命令送信
+        window.electronAPI.sendControlToFullscreen({ command: 'DSK_PLAY' });
+    });
+}
+
+
 
 // -----------------------
 // モーダル処理
@@ -2495,7 +2589,7 @@ document.addEventListener('keydown', (event) => {
     const isAlt = event.altKey;
     const isEnter = event.key === 'Enter';
 
-    // Shift+Enter の処理を追加
+    // Shift+Enter
     if (isShift && isEnter) {
         event.preventDefault(); // デフォルト動作を無効化
         const cueButton = document.getElementById('cue-button');
