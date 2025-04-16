@@ -57,6 +57,13 @@ let isOffAirProcessing = false; // Off-Air処理中フラグ
 // 初回読み込み時の初期化実行
 document.addEventListener('DOMContentLoaded', onairInitialize);
 
+document.addEventListener('DOMContentLoaded', () => {
+    onairInitialize();
+    if (window.dskModule && typeof window.dskModule.initDSKOverlay === 'function') {
+        window.dskModule.initDSKOverlay();
+    }
+});
+
 // UI要素の取得と定義
 function onairGetElements() {
     return {

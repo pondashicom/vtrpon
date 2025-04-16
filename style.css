@@ -1,4 +1,4 @@
-﻿/* style.css 2.2.6*/
+﻿/* style.css 2.2.9*/
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -372,6 +372,45 @@ h2 {
     box-shadow: 0 0 5px rgba(255,255, 128, 0.3), 0 0 10px rgba(128, 128, 128, 0.2);
 }
 
+/* ----------------------- */
+/*   DSKオーバーレイ用スタイル */
+/* ----------------------- */
+#dsk-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    visibility: hidden;
+    /* オンエア動画より上、FTBより下のレイヤー（必要に応じて調整） */
+    z-index: 5;
+    transition: opacity 0.3s ease;  /* ※今回はdsk.js側でftbRateによりdurationを動的に設定 */
+    pointer-events: none;  /* DS領域はクリックを遮らない */
+}
+
+/* ----------------------- */
+/*   プレイリストアイテム：DSK送出中 (dsk-active) */
+/* ----------------------- */
+.playlist-item.dsk-active {
+    /* 基本の枠線（例としてオレンジ） */
+    border: 2px solid orange;
+    /* 点滅アニメーション */
+    animation: dskBlink 1s infinite alternate;
+}
+
+/* DSK送出中用の点滅アニメーション */
+@keyframes dskBlink {
+    0% {
+        box-shadow: 0 0 5px rgba(255,165,0,0.7);
+    }
+    50% {
+        box-shadow: 0 0 12px rgba(255,165,0,1);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255,165,0,0.7);
+    }
+}
 
 /* --------------------- */
 /*   ボタンの基本スタイル  */
@@ -522,7 +561,7 @@ h2 {
 }
 
 
-/*  赤ボタン*/
+/*  赤ボタン   */
 
 /* 光彩アニメーション */
 @keyframes glowAnimationRed {
@@ -557,8 +596,32 @@ h2 {
     animation: none;
 }
 
+/* RECボタン録画中用の点滅・光彩アニメーション */
+@keyframes blinkGlowRed {
+    0%, 100% {
+        background-color: rgba(215, 94, 94, 0.9);
+        box-shadow: 0 0 8px rgba(215, 94, 94, 0.6);
+    }
+    50% {
+        background-color: rgba(215, 94, 94, 1);
+        box-shadow: 0 0 10px rgba(215, 94, 94, 1);
+    }
+}
 
-/*  オレンジボタン */
+/* RECボタンに録画中状態を示すクラス（色と光彩のみ調整） */
+.button-recording {
+    animation: blinkGlowRed 2s ease infinite;
+    border: 1px solid rgba(204, 51, 51, 0.3);
+    box-shadow: 0 0 8px rgba(215, 94, 94, 0.6);
+}
+
+.button-recording:hover {
+    background-color: rgba(215, 94, 94, 1);
+    box-shadow: 0 0 13px rgba(215, 94, 94, 0.8);
+    animation: none;
+}
+
+/*  オレンジボタン*/
 
 /* 光彩アニメーション */
 @keyframes glowAnimationOrange {
@@ -628,14 +691,77 @@ h2 {
     animation: none;
 }
 
-
-/* --------------------- */
+/* ------------------------- */
 /*   再生コントロールボタン  */
-/* --------------------- */
+/* ------------------------- */
 
 /* 再生コントロールボタン（幅だけ異なる） */
 .control-button {
     width: calc(100% / 4 - 15px); /* 元々の幅計算に基づく割合設定 */
+}
+
+
+/* ----------------------------- */
+/* FIFOボタン、キャプチャボタン  */
+/* ----------------------------- */
+
+/* FIFOボタン */
+#on-air-fo-button,
+#on-air-fi-button,
+#on-air-item-fo-button,
+#on-air-item-fi-button {
+    width: 80px;
+    height: 23px;
+}
+
+/* キャプチャボタン */
+#captuer-button {
+    width: 110px;
+    height: 23px;
+}
+
+/* 上段 FIFO 操作（ITEM行）*/
+#control-area-volume .fade-controls.item-fade {
+    display: grid;
+    grid-template-columns: 80px 200px 80px; /* 左110px、中央100px、右110px */
+    justify-items: center;
+    align-items: center;
+    width: 360px;0
+    margin: 0 auto;
+}
+
+/* 下段 FIFO 操作（MAIN行） */
+#control-area-volume .fade-controls:not(.item-fade) {
+    display: grid;
+    grid-template-columns: 80px 200px 80px;
+    justify-items: center;
+    align-items: center;
+    width: 360px;
+    margin: 0 auto;
+}
+
+/* 下段の入力欄 */
+#fioRate {
+    width: 200px;
+    height: 23px;
+    background-color: #2e2e2e;
+    color: #ffffff;
+    border: 1px solid #444444;
+    border-radius: 5px;
+    font-size: 12px;
+    padding: 5px;
+    padding-right: 3px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    text-align: right;
+    cursor: text;
+    -moz-appearance: textfield;
+}
+
+/* 透明なダミー要素*/
+.fifo-dummy {
+    width: 200px;
+    height: 23px;
+    visibility: hidden;
 }
 
 /* --------------------- */
@@ -775,10 +901,6 @@ h2 {
     width: 100%;
 }
 
-#on-air-fo-button, #on-air-fi-button {
-    height: 23px;
-}
-
 .end-mode-area .control-button {
     width: calc(100% / 4 - 15px);
 }
@@ -872,6 +994,12 @@ h2 {
 /* シークバーとスライダー、タイマー、ファイル名のスタイル  */
 /* ------------------------------------------------------- */
 
+/* 
+  Copyright (c) 2025 by Brad Brock (https://codepen.io/verybradthings/pen/ZeNEpO)
+  Licensed under the MIT License.
+  (以下一部のフェーダー部分のコードでMITライセンスの条件に従って利用させていただいています)
+*/
+
 /* シークバー、ボリュームスライダー本体 */
 .progress-bar {
     display: flex;
@@ -891,12 +1019,6 @@ input[type="range"] {
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
   outline: none;
 }
-
-/* 
-  Copyright (c) 2025 by Brad Brock (https://codepen.io/verybradthings/pen/ZeNEpO)
-  Licensed under the MIT License.
-  (以下のフェーダーノブのコードはMITライセンスの条件に従って利用しています)
-*/
 
 /* 緑つまみ */
 input[type="range"].listedit-volume-slider::-webkit-slider-thumb,
@@ -961,6 +1083,12 @@ input[type="range"]::-webkit-slider-thumb {
 /* ボリュームスライダー   */
 /* ---------------------- */
 
+/* 
+  Copyright (c) 2025 by Brad Brock (https://codepen.io/verybradthings/pen/ZeNEpO)
+  Licensed under the MIT License.
+  (以下一部のフェーダー部分のコードでMITライセンスの条件に従って利用させていただいています)
+*/
+
 /* ボリュームスライダー欄 */
 #control-area-volume .controls {
     display: flex; /* フレックスボックスで整列 */
@@ -979,12 +1107,6 @@ input[type="range"].master-slider {
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
   outline: none;
 }
-
-/* 
-  Copyright (c) 2025 by Brad Brock (https://codepen.io/verybradthings/pen/ZeNEpO)
-  Licensed under the MIT License.
-  (以下のフェーダーノブのコードはMITライセンスの条件に従って利用しています)
-*/
 
 /* マスターボリュームスライダーのつまみ（オレンジ系に変更） */
 input[type="range"].master-slider::-webkit-slider-thumb {
@@ -1007,7 +1129,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
   box-shadow: 0 0 3px 0 rgba(0,0,0,0.50);
   cursor: pointer;
 }
-
 
 .listedit-volume-slider {
     margin-bottom: 0; /* 不要なら下の余白を削除 */
@@ -1093,7 +1214,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     margin: -7px auto; /* 上下中央に配置 */
     max-width: 80%; /* 幅を制限して中央に収める */
     position: relative; /* 親要素に対して中央配置 */
-    margin-bottom: 10px;
+    margin-bottom: 0px;
     margin-top: 0px;
 }
 
@@ -1102,7 +1223,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     font-size: 0.9em;
     color: white;
     max-width: 450px; /* 最大幅 */
-    margin-top: 10px;
+    margin-top:0px;
     text-align: center; /* 中央揃え */
     padding: 5px 10px; /* 水平方向の余白を調整 */
     background-color: rgba(0, 0, 0, 0.5); /* 半透明の背景 */
@@ -1113,7 +1234,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     margin: -7px auto; /* 上下中央に配置 */
     position: relative; /* 親要素に対して中央配置 */
     line-height: 1em; /* 行の高さを指定 */
-    margin-bottom: 0px;
+    margin-bottom: 5px;
 }
 
 /* ファイル名表示 */
@@ -1133,7 +1254,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     position: relative; /* 親要素に対して中央配置 */
     line-height: 1em; /* 行の高さを指定 */
 }
-
 
 /* ------------------ */
 /*   スクロールバー   */
@@ -1396,7 +1516,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     font-size: 12px; /* 文字サイズ */
 }
 
-
 /* ------------------ */
 /*  PNG2MP4 / FTB     */
 /* ------------------ */
@@ -1433,7 +1552,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     border: 1px solid #007BFF; /* フォーカス時の枠線をブルーに */
     box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); /* フォーカス時の軽い発光 */
 }
-
 
 /* オーディオフェードインアウトRATE */
 #fioDuration, #fioRate {

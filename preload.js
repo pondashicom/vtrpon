@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.2.7
+//     ver 2.2.9
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -213,6 +213,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fillKeyModeUpdate: (fillKeyMode) => ipcRenderer.send('fillkey-mode-update', fillKeyMode),
     clearModes: () => ipcRenderer.send('clear-modes'),
 
+    // ----------------------------
+    //    DSK機能関連
+    // ----------------------------
+
+    // DSK送出用
+    sendDSKCommand: (dskCommandData) => ipcRenderer.send('dsk-command', dskCommandData),
+
     // ------------------------------
     //    ファイル処理
     // ------------------------------
@@ -293,7 +300,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return await ipcRenderer.invoke('fix-webm-metadata', mergedPath, totalDurationMs);
     },
 
-    // 追加: メディアファイルの再生時間を取得する API
+    // メディアファイルの再生時間を取得する API
     getMediaDuration: async (filePath) => {
         return await ipcRenderer.invoke('get-media-duration', filePath);
     },
