@@ -12,10 +12,21 @@
 <body>
   <div class="container">
     <h3>RECORDING</h3>
+    <!-- Recording Quality -->
+    <div class="field-col">
+        <label for="recordingQualitySelect">RECORDING QUALITY</label>
+    </div>
+    <div class="field-col">
+        <select id="recordingQualitySelect">
+            <option value="10000000">HIGH QUALITY (10Mbps)</option>
+            <option value="8000000" selected>STANDARD (8Mbps)</option>
+            <option value="6000000">PERFORMANCE (6Mbps)</option>
+        </select>
+    </div>
     
     <!-- File Name Prefix -->
     <div class="field-col">
-      <label for="recordingPrefixInput">File Name Prefix</label>
+      <label for="recordingPrefixInput">FILE NAME PREFIx</label>
     </div>
     <div class="field-col">
       <input type="text" id="recordingPrefixInput">
@@ -23,13 +34,13 @@
     
     <!-- Save Directory -->
     <div class="field-col">
-      <label for="recordingDirInput">Save Directory</label>
+      <label for="recordingDirInput">SAVE DIRECTORY</label>
     </div>
     <div class="field-col">
       <input type="text" id="recordingDirInput" readonly>
     </div>
     <div class="field-col">
-      <button id="browseButton">Browse...</button>
+      <button id="browseButton">BROWSE...</button>
     </div>
     
     <!-- OK ボタン -->
@@ -38,6 +49,5 @@
     </div>
   </div>
 
-  <!-- カスタムモーダル（省略） -->
 </body>
 </html>

@@ -760,10 +760,15 @@ app.whenReady().then(() => {
     const recordingConfig = config.recording || {};
     const recordingDir = recordingConfig.directory || path.join(app.getPath('pictures'), 'vtrpon-recordeing');
     const recordingPrefix = recordingConfig.prefix || '';
+    const recordingBitrate = recordingConfig.videoBitsPerSecond || 8000000;  // ← 追加
     if (!fs.existsSync(recordingDir)) {
-      fs.mkdirSync(recordingDir, { recursive: true });
+        fs.mkdirSync(recordingDir, { recursive: true });
     }
-    config.recording = { directory: recordingDir, prefix: recordingPrefix };
+    config.recording = {
+        directory:            recordingDir,
+        prefix:               recordingPrefix,
+        videoBitsPerSecond:   recordingBitrate  // ← 追加
+    };
     saveConfig(config);
     global.recordingConfig = config.recording;
     console.log('[main.js] Recording settings loaded:', global.recordingConfig);
@@ -914,7 +919,7 @@ ipcMain.handle('get-device-settings', () => {
 function createRecordingSettingsWindow() {
   recordingSettingsWindow = new BrowserWindow({
     width: 500,
-    height: 420,
+    height: 550,
     title: 'Recording Settings',
     parent: mainWindow,
     modal: true,
