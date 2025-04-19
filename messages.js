@@ -45,7 +45,10 @@ const messages = {
     "single-display-dialog-title": "ディスプレイの接続状況", 
     "single-display-dialog-message": "本ソフトウェアはディスプレイが2枚以上接続された状態での動作を想定しています。現在1枚のディスプレイしか接続されていませんが起動しますか？",
     "single-display-dialog-button-continue": "起動する", 
-    "single-display-dialog-button-exit": "終了"
+    "single-display-dialog-button-exit": "終了",
+    "recording-save-start": "録画ファイルの保存を開始しました…",
+    "recording-save-complete": "録画ファイルの保存が完了しました",
+    "recording-save-result": "保存先: "
   },
   "en": {
     "monitoring-failed": "PFL: Monitoring failed to start.",
@@ -87,7 +90,10 @@ const messages = {
     "single-display-dialog-title": "Display Check", 
     "single-display-dialog-message": "This software is designed to run with two or more displays. Only one display detected. Continue startup?", 
     "single-display-dialog-button-continue": "Continue",
-    "single-display-dialog-button-exit": "Exit" 
+    "single-display-dialog-button-exit": "Exit",
+    "recording-save-start": "Recording save started…",
+    "recording-save-complete": "Recording save completed",
+    "recording-save-result": "Saved file at: "
   }
 };
 

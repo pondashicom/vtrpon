@@ -295,6 +295,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         }
     },
 
+    // 録画保存完了通知リスナー
+    onRecordingSaveNotify: (callback) => ipcRenderer.on('recording-save-notify', (event, savedPath) => callback(savedPath)),
+
     // EBMLのメタデータ補完 API
     fixWebmMetadata: async (mergedPath, totalDurationMs) => {
         return await ipcRenderer.invoke('fix-webm-metadata', mergedPath, totalDurationMs);
@@ -304,6 +307,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getMediaDuration: async (filePath) => {
         return await ipcRenderer.invoke('get-media-duration', filePath);
     },
+
+    // ----------------------------
+    // 録画設定用 API
+    // ----------------------------
+    getRecordingSettings: () => ipcRenderer.invoke('get-recording-settings'),
+    setRecordingSettings: (settings) => ipcRenderer.send('set-recording-settings', settings),
+    onRecordingSaveStart: (callback) => ipcRenderer.on('recording-save-start', (event) => callback()),
+    onRecordingSaveComplete: (callback) => ipcRenderer.on('recording-save-complete', (event) => callback()),
+    openRecordingSettings: () => ipcRenderer.send('open-recording-settings'),
+    closeRecordingSettings: () => ipcRenderer.send('close-recording-settings'),
+    showDirectoryDialog: () => ipcRenderer.invoke('show-recording-directory-dialog'),
 
     // ----------------------------
     //  その他の処理
