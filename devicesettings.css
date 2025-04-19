@@ -150,3 +150,57 @@ button:hover {
 #confirmCancelButton:hover {
     background-color: #d32f2f;
 }
+
+
+
+/* ------------- */
+/*   録画設定    */
+/* ------------- */
+
+/* 全体をウィンドウサイズにフィットさせる */
+.container {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 10px;
+  box-sizing: border-box;
+}
+
+/* 縦並びフィールド */
+.field-col {
+  width: 100%;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* ラベルは中央寄せでマージン下 */
+.field-col label {
+  display: block;
+  font-size: 0.9em;
+  color: #ddd;
+  margin-bottom: 6px;
+}
+
+/* テキスト入力は幅100% */
+.field-col input[type="text"] {
+  width: 100%;
+  padding: 8px;
+  background-color: #2e2e2e;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 4px;
+  font-size: 0.9em;
+  box-sizing: border-box;
+}
+
+/* ボタンは幅100% */
+.field-col button {
+  width: 100%;
+  padding: 10px;
+  background-color: rgba(102,205,102,0.9);
+  color: #000;
+  border: 1px solid rgba(0,128,0,0.3);
+  border-radius: 4px;
+  font-size: 0.9em;
+  cursor: pointer;
+}

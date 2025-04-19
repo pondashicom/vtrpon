@@ -1,0 +1,43 @@
+﻿<!-- recordingSettings.html ver2.2.9 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <title>Recording Settings</title>
+  <link rel="stylesheet" href="devicesettings.css">
+  <script src="recordingSettings.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <h3>RECORDING</h3>
+    
+    <!-- File Name Prefix -->
+    <div class="field-col">
+      <label for="recordingPrefixInput">File Name Prefix</label>
+    </div>
+    <div class="field-col">
+      <input type="text" id="recordingPrefixInput">
+    </div>
+    
+    <!-- Save Directory -->
+    <div class="field-col">
+      <label for="recordingDirInput">Save Directory</label>
+    </div>
+    <div class="field-col">
+      <input type="text" id="recordingDirInput" readonly>
+    </div>
+    <div class="field-col">
+      <button id="browseButton">Browse...</button>
+    </div>
+    
+    <!-- OK ボタン -->
+    <div class="field-col">
+      <button id="okButton">OK</button>
+    </div>
+  </div>
+
+  <!-- カスタムモーダル（省略） -->
+</body>
+</html>
