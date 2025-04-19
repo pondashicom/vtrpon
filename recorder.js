@@ -27,8 +27,17 @@ let recordingOptions = { ...defaultRecordingOptions };
 // ----------------------------------------
 // 録画開始処理
 // ----------------------------------------
-function startRecording(videoElement) {
+async function startRecording(videoElement) {
+    // 設定ウィンドウから録画設定を取得し、ビットレートを反映
+    try {
+        const saved = await window.electronAPI.getRecordingSettings();
+        recordingOptions.videoBitsPerSecond = saved.videoBitsPerSecond || recordingOptions.videoBitsPerSecond;
+    } catch (error) {
+        logOpe('[recorder.js] 設定取得失敗: ' + error);
+    }
+    console.log('[recorder.js] bitrate:', recordingOptions.videoBitsPerSecond);
     let stream;
+
     // オフスクリーンキャンバスで内部解像度にて描画
     const recordingCanvas = document.createElement('canvas');
     const intrinsicWidth = videoElement.videoWidth || 1920;
