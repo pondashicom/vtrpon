@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     main.js
-//     ver 2.2.9
+//     ver 2.2.9.1
 // -----------------------
 
 // ---------------------
@@ -516,6 +516,14 @@ function buildMenuTemplate(labels) {
                         console.log('[main.js] Menu: Recording Toggle triggered.');
                     }
                 },
+                { type: 'separator' },
+                {
+                    label: labels["menu-dsk-toggle"],
+                    accelerator: 'Shift+D',
+                    click: () => {
+                        mainWindow.webContents.send('shortcut-trigger', 'Shift+D');
+                    }
+                }
             ]
         },
         {

@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.2.9
+//     ver 2.2.9.1
 // -----------------------
 
 
@@ -47,6 +47,7 @@ const labels = {
     "menu-audio-fade-out": "メイン音声フェードアウト",
     "menu-capture-fullscreen": "スクリーンショット",
     "menu-recording-toggle": "録画",
+    "menu-dsk-toggle": "DSK のオン／オフ",
     "menu-mode": "モード",
     "menu-list-mode-repeat": "リストモード：REPEAT",
     "menu-list-mode-list": "リストモード：LIST",
@@ -167,6 +168,7 @@ const labels = {
     "menu-audio-fade-out": "Main Audio Fade Out",
     "menu-capture-fullscreen": "Capture Fullscreen",
     "menu-recording-toggle": "Recording",
+    "menu-dsk-toggle": "Toggle DSK",
     "menu-mode": "Mode",
     "menu-list-mode-repeat": "List Mode - REPEAT",
     "menu-list-mode-list": "List Mode - LIST",
