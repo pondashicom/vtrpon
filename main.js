@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     main.js
-//     ver 2.2.9.1
+//     ver 2.3.0
 // -----------------------
 
 // ---------------------
@@ -47,7 +47,18 @@ if (!fs.existsSync(ffmpegPath)) {
     ffmpeg.setFfmpegPath(ffmpegPath);
 }
 
-const ffprobePath = path.join(process.resourcesPath, 'ffprobe.exe');
+let ffprobePath = path.join(process.resourcesPath, 'ffprobe.exe');
+const unpackedPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ffprobe.exe');
+if (fs.existsSync(unpackedPath)) {
+    ffprobePath = unpackedPath;
+}
+
+if (!fs.existsSync(ffprobePath)) {
+    console.error('[main.js] FFprobe binary not found:', ffprobePath);
+} else {
+    console.log('[main.js] FFprobe binary found:', ffprobePath);
+    ffmpeg.setFfprobePath(ffprobePath);
+}
 
 // 設定ファイルの読み込み
 function loadConfig() {
@@ -625,7 +636,7 @@ function buildMenuTemplate(labels) {
                     dialog.showMessageBox(mainWindow, {
                       type: 'info',
                       title: 'About',
-                      message: 'VTRPON\n\Version: 2.2.9\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)',
+                      message: 'VTRPON\n\Version: 2.3.0\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)',
                       buttons: ['OK']
                     });
                   }
