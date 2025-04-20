@@ -918,20 +918,6 @@ function resetFullscreenAudio() {
     logDebug('[fullscreen.js] Fullscreen audio reset completed.');
 }
 
-// 音声のリセット関数
-function resetFullscreenAudio() {
-    if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-    }
-    if (fullscreenSourceNode) {
-        fullscreenSourceNode.disconnect();
-        fullscreenSourceNode = null;
-    }
-    FullscreenAudioManager.resetContext();
-    logDebug('[fullscreen.js] Fullscreen audio reset completed.');
-}
-
 // Fullscreen 用音声フェードイン処理の実装
 function audioFadeIn(duration) {
     const videoElement = document.getElementById('fullscreen-video');
@@ -1267,22 +1253,12 @@ function playFullscreenDSK() {
     }
 }
 
-
-// 安全なファイルURL変換関数
-function getSafeFileURL(filePath) {
-    if (!filePath.startsWith('file://')) {
-        filePath = 'file:///' + filePath.replace(/\\/g, '/');
-    }
-    return encodeURI(filePath).replace(/#/g, '%23');
-}
-
 // ----------------------------------------
 // フルスクリーン状態のリセット
 // ----------------------------------------
 function resetFullscreenState() {
     // 進行中のフェードアウト処理があればキャンセル
     cancelFadeOut();
-
     const videoElement = document.getElementById('fullscreen-video');
 
     if (videoElement) {

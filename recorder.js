@@ -76,6 +76,47 @@ async function startRecording(videoElement) {
                 offsetX = (intrinsicWidth - drawWidth) / 2;
             }
             ctx.drawImage(videoElement, offsetX, offsetY, drawWidth, drawHeight);
+
+            //  DSK オーバーレイの合成処理
+            const overlayElems = Array.from(
+                document.querySelectorAll('video,canvas')
+            ).filter(elem => elem !== videoElement);
+
+            overlayElems.forEach(elem => {
+                const isVideo  = elem.tagName === 'VIDEO';
+                const pausedOK = isVideo ? (!elem.paused && elem.readyState >= 2) : true;
+                if (!pausedOK) return;
+
+                const srcW = isVideo ? elem.videoWidth  : elem.width;
+                const srcH = isVideo ? elem.videoHeight : elem.height;
+                if (!srcW || !srcH) return;
+
+                const elemRatio = srcW / srcH;
+                let drawW, drawH, offX, offY;
+
+                if (elemRatio > canvasRatio) {
+                    drawW = intrinsicWidth;
+                    drawH = intrinsicWidth / elemRatio;
+                    offX  = 0;
+                    offY  = (intrinsicHeight - drawH) / 2;
+                } else {
+                    drawH = intrinsicHeight;
+                    drawW = intrinsicHeight * elemRatio;
+                    offY  = 0;
+                    offX  = (intrinsicWidth - drawW) / 2;
+                }
+
+                // 透過率は親要素の style.opacity を参照（無ければ 1.0）
+                const opacity = parseFloat(
+                    window.getComputedStyle(elem.parentElement || elem).opacity
+                ) || 1.0;
+
+                ctx.save();
+                ctx.globalAlpha = opacity;
+                ctx.drawImage(elem, offX, offY, drawW, drawH);
+                ctx.restore();
+            });
+
         } else {
             ctx.fillStyle = 'black';
             ctx.fillRect(0, 0, intrinsicWidth, intrinsicHeight);
