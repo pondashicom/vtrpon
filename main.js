@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     main.js
-//     ver 2.3.0
+//     ver 2.3.1
 // -----------------------
 
 // ---------------------
@@ -686,6 +686,7 @@ function createMainWindow() {
             sandbox: false,              
             webSecurity: true, 
             nodeIntegrationInSubFrames: true,
+            backgroundThrottling: false 
         }
     });
 
