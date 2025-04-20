@@ -2409,7 +2409,6 @@ if (dskButton) {
     logInfo('[playlist.js] DSK button not found.');
 }
 
-
 // DSK送出状態反映
 window.addEventListener('dsk-active-set', async (e) => {
     const activeItemId = e.detail.itemId;

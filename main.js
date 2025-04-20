@@ -617,7 +617,7 @@ function buildMenuTemplate(labels) {
                     dialog.showMessageBox(mainWindow, {
                       type: 'info',
                       title: 'About',
-                      message: 'VTRPON\n\Version: 2.2.8\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)',
+                      message: 'VTRPON\n\Version: 2.2.9\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)',
                       buttons: ['OK']
                     });
                   }
