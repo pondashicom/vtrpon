@@ -18,7 +18,7 @@ const fixWebmDuration = require('fix-webm-duration');
 
 let mainWindow, fullscreenWindow, deviceSettingsWindow, recordingSettingsWindow;
 let isDebugMode = false;
-let playlistState = []; // グローバルなプレイリスト状態を保持
+let playlistState = [];
 let powerSaveBlockerId;
 let isRecordingSaving = false;
 let shouldQuitAfterSave = false;
