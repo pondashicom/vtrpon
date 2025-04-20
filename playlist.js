@@ -897,6 +897,22 @@ function setCurrentPlaylistId(playlistId) {
 }
 let currentPlaylistId = null;  // 現在のプレイリストIDを追跡
 
+// 高解像度対応：プレイリスト高さ調整関数を追加
+function adjustPlaylistHeight() {
+  const playlist = document.querySelector('.playlist-items');
+  if (!playlist) return;
+  const top = playlist.getBoundingClientRect().top;
+  // 追加：下部エリアの高さを取得
+  const footer = document.getElementById('important-button-area');
+  const footerHeight = footer ? footer.offsetHeight : 0;
+  const margin = 20; // 下部に確保する余白（必要に応じて調整）
+  playlist.style.maxHeight = (window.innerHeight - top - footerHeight - margin) + 'px';
+}
+
+// ページ読み込み＆リサイズ時に高さを調整
+window.addEventListener('load',  adjustPlaylistHeight);
+window.addEventListener('resize', adjustPlaylistHeight);
+
 // プレイリストUI更新処理
 async function updatePlaylistUI() {
     const playlistItemsContainer = document.querySelector('.playlist-items');
@@ -953,6 +969,8 @@ async function updatePlaylistUI() {
             onair: item.classList.contains('onair'),
         });
     });
+    // 高解像度対応：描画後に高さを再調整
+    adjustPlaylistHeight();
 }
 
 // -------------------------------------------------------
