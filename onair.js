@@ -2442,7 +2442,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-
 // -----------------------
 // FTBボタンの処理
 // -----------------------
