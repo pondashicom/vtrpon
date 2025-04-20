@@ -23,11 +23,58 @@ let directOnAirActive = false;
 // 変換中のファイルを管理
 const convertingFiles = new Set();
 
+// インポートキュー管理
+const pendingFiles = [];
+let isImporting = false;
+let totalCount = 0;
+let finishedCount = 0;
+
 // 進捗表示用関数
 function updateLoadingProgress(current, total) {
     const progressElem = document.getElementById('loading-progress');
     if (progressElem) {
-        progressElem.textContent = `LOADING... ${current} / ${total}`;
+        progressElem.textContent = total === 0 ? "" : `LOADING... ${current} / ${total}`;
+    }
+}
+function enqueueImport(files) {
+    pendingFiles.push(...files);
+    totalCount += files.length;
+    updateLoadingProgress(finishedCount, totalCount);
+    if (!isImporting) {
+        processNextFile();
+    }
+}
+async function processNextFile() {
+    if (pendingFiles.length === 0) {
+        isImporting = false;
+        totalCount = 0;
+        finishedCount = 0;
+        updateLoadingProgress(0, 0);
+        return;
+    }
+    isImporting = true;
+    const file = pendingFiles.shift();
+
+    try {
+        let currentPlaylist = await stateControl.getPlaylistState();
+        const validUpdates = await getValidUpdates([file], currentPlaylist);
+
+        if (validUpdates.length > 0) {
+            const updatedPlaylist = currentPlaylist.map(existingItem => {
+                const updatedItem = validUpdates.find(item => item.playlistItem_id === existingItem.playlistItem_id);
+                return updatedItem ? { ...existingItem, ...updatedItem, converting: false } : existingItem;
+            });
+            const newItems = validUpdates.filter(item => !currentPlaylist.some(existing => existing.playlistItem_id === item.playlistItem_id));
+            const finalPlaylist = [...updatedPlaylist, ...newItems];
+            await stateControl.setPlaylistState(finalPlaylist);
+            await updatePlaylistUI();
+        }
+    } catch (error) {
+        logInfo('[playlist.js] Error processing file:', error);
+    } finally {
+        finishedCount++;
+        updateLoadingProgress(finishedCount, totalCount);
+        await processNextFile();
     }
 }
 
@@ -107,51 +154,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ファイルボタンのクリックイベント登録
-    addFileButton.addEventListener('click', async () => {
-        logOpe('[playlist.js] File button clicked.');
+        addFileButton.addEventListener('click', async () => {
+            logOpe('[playlist.js] File button clicked.');
 
-        try {
-            const files = await window.electronAPI.selectFiles();
-            if (!files || files.length === 0) {
-                logInfo('[playlist.js] No files selected.');
-                return;
-            }
-            // 進捗表示を初期化
-            updateLoadingProgress(0, files.length);
-
-            let processedCount = 0;
-            let validUpdatesAccum = [];
-            let currentPlaylist = await stateControl.getPlaylistState();
-
-            // 各ファイルを順次処理する（getValidUpdates は配列を受け取るため、個別処理）
-            for (const file of files) {
-                const validUpdates = await getValidUpdates([file], currentPlaylist);
-                if (validUpdates.length > 0) {
-                    validUpdatesAccum = validUpdatesAccum.concat(validUpdates);
+            try {
+                const files = await window.electronAPI.selectFiles();
+                if (!files || files.length === 0) {
+                    logInfo('[playlist.js] No files selected.');
+                    return;
                 }
-                processedCount++;
-                updateLoadingProgress(processedCount, files.length);
+                enqueueImport(files);
+            } catch (error) {
+                logInfo('[playlist.js] Error adding files:', error);
             }
-
-            if (validUpdatesAccum.length > 0) {
-                const updatedPlaylist = currentPlaylist.map(existingItem => {
-                    const updatedItem = validUpdatesAccum.find(item => item.playlistItem_id === existingItem.playlistItem_id);
-                    return updatedItem ? { ...existingItem, ...updatedItem, converting: false } : existingItem;
-                });
-
-                const newItems = validUpdatesAccum.filter(item => !currentPlaylist.some(existing => existing.playlistItem_id === item.playlistItem_id));
-                const finalPlaylist = [...updatedPlaylist, ...newItems];
-
-                await stateControl.setPlaylistState(finalPlaylist);
-                await updatePlaylistUI();
-            }
-            // 全処理完了後、進捗表示をクリア
-            const progressElem = document.getElementById('loading-progress');
-            if (progressElem) progressElem.textContent = "";
-        } catch (error) {
-            logInfo('[playlist.js] Error adding files:', error);
-        }
-    });
+        });
 
     // 初回UI更新
     try {
@@ -303,44 +319,14 @@ async function getValidUpdates(files, currentPlaylist) {
 // -----------------------
 // ドラッグ＆ドロップで受信したファイルをプレイリストに追加する処理
 // -----------------------
+// ドラッグ＆ドロップで受信したファイルをプレイリストに追加する処理
 window.electronAPI.ipcRenderer.on('add-dropped-file', async (event, files) => {
     logInfo('[playlist.js] Received dropped files:', files);
     if (!files || files.length === 0) {
         logInfo('[playlist.js] No dropped files detected.');
         return;
     }
-    // 進捗表示を初期化
-    updateLoadingProgress(0, files.length);
-    
-    let currentPlaylist = await stateControl.getPlaylistState();
-    let validUpdatesAccum = [];
-    let processedCount = 0;
-    
-    // 各ファイル処理（getValidUpdates 関数に任せる）
-    for (const file of files) {
-        const validUpdates = await getValidUpdates([file], currentPlaylist);
-        if (validUpdates.length > 0) {
-            validUpdatesAccum = validUpdatesAccum.concat(validUpdates);
-        }
-        processedCount++;
-        updateLoadingProgress(processedCount, files.length);
-    }
-    
-    if (validUpdatesAccum.length > 0) {
-        const updatedPlaylist = currentPlaylist.map(existingItem => {
-            const updatedItem = validUpdatesAccum.find(item => item.playlistItem_id === existingItem.playlistItem_id);
-            return updatedItem ? { ...existingItem, ...updatedItem, converting: false } : existingItem;
-        });
-        const newItems = validUpdatesAccum.filter(item => !currentPlaylist.some(existing => existing.playlistItem_id === item.playlistItem_id));
-        const finalPlaylist = [...updatedPlaylist, ...newItems];
-        await stateControl.setPlaylistState(finalPlaylist);
-        await updatePlaylistUI();
-    }
-    // 進捗表示の更新後にクリアする
-    const progressElem = document.getElementById('loading-progress');
-    if (progressElem) {
-        progressElem.textContent = "";
-    }
+    enqueueImport(files);
 });
 
 // 読み込めないファイルドロップ時の通知
