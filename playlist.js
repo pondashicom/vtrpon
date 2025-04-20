@@ -2577,6 +2577,10 @@ function handlePlaylistShortcut(action) {
             document.getElementById('soundpad-mode-button')?.click();
             logOpe('[playlist.js] SOUND PAD mode triggered via shortcut.');
             break;
+        case 'Shift+D':
+          document.getElementById('dsk-button')?.click();
+          logOpe('[playlist.js] DSK toggled via shortcut.');
+          break;
         default:
             logInfo(`[playlist.js] Unknown action: ${action}`);
     }
@@ -2610,6 +2614,8 @@ document.addEventListener('keydown', (event) => {
         event.preventDefault(); // デフォルト動作を無効化
         if (isShift && isAlt && key === 'd') {
             handlePlaylistShortcut('Shift+Alt+D');
+        } else if (isShift && !isAlt && !isCtrl && key === 'd') {
+          handlePlaylistShortcut('Shift+D');
         } else if (isCtrl && key === '.') {
             handlePlaylistShortcut('Ctrl+,');
         } else if (isCtrl && key === ',') {
@@ -2687,6 +2693,9 @@ window.electronAPI.onShortcutTrigger((event, shortcut) => {
     }
     else if (shortcut === 'Shift+Alt+S') {
         handlePlaylistShortcut('Shift+Alt+S');
+    }
+    else if (shortcut === 'Shift+D') {
+        handlePlaylistShortcut('Shift+D');
     }
     else if (shortcut === 'copy-item-state') {
         copyItemState();
