@@ -636,7 +636,7 @@ function buildMenuTemplate(labels) {
                     dialog.showMessageBox(mainWindow, {
                       type: 'info',
                       title: 'About',
-                      message: 'VTRPON\n\Version: 2.3.0\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)',
+                      message: `VTRPON\nVersion: ${app.getVersion()}\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)`,
                       buttons: ['OK']
                     });
                   }
@@ -719,6 +719,7 @@ function createMainWindow() {
     mainWindow.loadFile('index.html');
     mainWindow.webContents.once('did-finish-load', () => {
         mainWindow.webContents.send('language-changed', global.currentLanguage);
+        mainWindow.setTitle(`VTR-PON2  ver.${app.getVersion()}`);
     });
 }
 
