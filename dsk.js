@@ -118,23 +118,40 @@ function showOnAirDSK(itemData) {
     // IN点～OUT点の秒数に変換
     const inSec = parseTimecode(itemData.inPoint);
     const outSec = parseTimecode(itemData.outPoint);
-    if (outSec > inSec) {
-        video.loop = false;
-        video.currentTime = inSec;
-        
-        // timeupdate イベントで常にチェック
+
+    // EndMode に応じた終了処理をイベント登録
+    video.loop = false;
+    video.currentTime = inSec;
+    const mode = itemData.endMode || 'OFF';
+
+    if (mode === 'REPEAT') {
+        // REPEAT：IN→OUT をループ
         video.addEventListener('timeupdate', function loopSegment() {
             if (video.currentTime >= outSec) {
                 video.currentTime = inSec;
             }
         });
-        // 追加：ended イベントでもループ処理を実施（OUT点が動画の全長の場合など）
         video.addEventListener('ended', function loopOnEnded() {
             video.currentTime = inSec;
-            video.play().catch(err => console.error('[fullscreen.js] fsDSK video.play() error (ended):', err));
+            video.play().catch(err => console.error('[dsk.js] REPEAT play error:', err));
         });
+
+    } else if (mode === 'PAUSE') {
+        // PAUSE：終了時に一時停止
+        function onPauseEnd() {
+            video.pause();
+            video.currentTime = outSec;
+            video.removeEventListener('ended', onPauseEnd);
+        }
+        video.addEventListener('ended', onPauseEnd);
+
     } else {
-        video.loop = true;
+        // OFF/FTB/NEXT：終了時にクリア
+        function onClearEnd() {
+            handleDskEnd();
+            video.removeEventListener('ended', onClearEnd);
+        }
+        video.addEventListener('ended', onClearEnd);
     }
 
     video.play().catch(err => console.error('[dsk.js] video.play() error:', err));
@@ -149,6 +166,49 @@ function showOnAirDSK(itemData) {
         window.electronAPI.sendDSKCommand({ command: 'DSK_SHOW', payload: itemData, target: 'onair' });
     }
     window.dispatchEvent(new CustomEvent('dsk-active-set', { detail: { itemId: itemData.playlistItem_id } }));
+}
+
+
+// DSK終了処理分岐
+function handleDskEnd() {
+    if (!currentDSKItem || !dskVideo) return;
+
+    const inSec = parseTimecode(currentDSKItem.inPoint);
+    const outSec = parseTimecode(currentDSKItem.outPoint);
+    const mode  = currentDSKItem.endMode || 'OFF';
+
+    switch (mode) {
+        case 'REPEAT':
+            // 繰り返し
+            dskVideo.currentTime = inSec;
+            dskVideo.play().catch(err => console.error('[dsk.js] handleDskEnd repeat error:', err));
+            break;
+
+        case 'PAUSE':
+            // 最終フレームで停止
+            dskVideo.pause();
+            dskVideo.currentTime = outSec;
+            break;
+
+        case 'FTB':
+            // 既存のフェード→クリア
+            hideOnAirDSK();
+            break;
+
+        case 'OFF':
+        case 'NEXT':
+            // 即時クリア
+            if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
+                window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR', target: 'onair' });
+            }
+            dskOverlay.innerHTML = '';
+            dskOverlay.style.opacity = '0';
+            dskOverlay.style.visibility = 'hidden';
+            // currentDSKItem はクリアしない（playlist 側で保持したままに）
+            window.dispatchEvent(new CustomEvent('dsk-active-clear'));
+            break;
+
+    }
 }
 
 // -----------------------
@@ -221,9 +281,17 @@ function pauseOnAirDSK() {
 function playOnAirDSK() {
     if (dskVideo && dskVideo.paused) {
         dskVideo.play().catch(err => console.error('[dsk.js] dskVideo.play() error:', err));
+        // PAUSE モードなら再度ハンドラ登録
+        if (currentDSKItem?.endMode === 'PAUSE') {
+            function onPauseEnd() {
+                dskVideo.pause();
+                dskVideo.currentTime = parseTimecode(currentDSKItem.outPoint);
+                dskVideo.removeEventListener('ended', onPauseEnd);
+            }
+            dskVideo.addEventListener('ended', onPauseEnd);
+        }
     }
 }
-
 
 // -----------------------
 // 安全なファイルURL変換関数 (getSafeFileURL)
@@ -264,8 +332,6 @@ function parseTimecode(timecode) {
     }
     return 0;
 }
-
-
 
 // -----------------------
 // モジュールエクスポート

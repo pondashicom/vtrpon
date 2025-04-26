@@ -1145,9 +1145,11 @@ function showFullscreenDSK(itemData) {
         initFsDSKOverlay();
         if (!fsDSKOverlay) return;
     }
+    // 毎回クリアしてから初期化
     fsDSKOverlay.innerHTML = '';
-
-    // オーバーレイの背景を透過に設定
+    // 確実に表示状態に
+    fsDSKOverlay.style.visibility = 'visible';
+    fsDSKOverlay.style.opacity    = '0';
     fsDSKOverlay.style.backgroundColor = 'transparent';
 
     if (!itemData) {
@@ -1155,44 +1157,68 @@ function showFullscreenDSK(itemData) {
     }
     currentDSKItem = itemData;
 
-    // 対象は必ず動画素材：mov, mp4, webm のみ。動画素材の場合は <video> 要素で表示
+    // <video> 要素を生成
     const video = document.createElement('video');
     video.src = getSafeFileURL(itemData.path);
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'contain';
     video.style.setProperty('background-color', 'transparent', 'important');
-    video.muted = true;  // フルスクリーン側DSK動画のみミュート
-    // IN点～OUT点の秒数に変換
-    const inSec = parseTimecode(itemData.inPoint);
+    video.muted = true;
+    video.setAttribute('playsinline', 'true');
+
+    // IN～OUT を秒に変換
+    const inSec  = parseTimecode(itemData.inPoint);
     const outSec = parseTimecode(itemData.outPoint);
-    if (outSec > inSec) {
-        video.loop = false;
-        video.currentTime = inSec;
-        
-        // timeupdate イベントで常にチェック
-        video.addEventListener('timeupdate', function loopSegment() {
+
+    // EndMode に従って一度だけエンド処理を発動
+    const mode = itemData.endMode || 'OFF';
+    video.loop = false;
+    video.currentTime = inSec;
+
+    if (mode === 'REPEAT') {
+        // REPEAT：IN→OUT をループ再生
+        video.addEventListener('timeupdate', function loopRepeat() {
             if (video.currentTime >= outSec) {
                 video.currentTime = inSec;
             }
         });
-        // 追加：ended イベントでもループ処理を実施（OUT点が動画の全長の場合など）
         video.addEventListener('ended', function loopOnEnded() {
             video.currentTime = inSec;
-            video.play().catch(err => console.error('[fullscreen.js] fsDSK video.play() error (ended):', err));
+            video.play().catch(err => console.error('[fullscreen.js] fsDSK repeat error:', err));
         });
     } else {
-        video.loop = true;
+        // その他モード：終了検知して一度だけ handleFullscreenDskEnd を呼ぶ
+        function onFsEnd() {
+            video.removeEventListener('timeupdate', onFsTimeUpdate);
+            video.removeEventListener('ended',      onFsEnd);
+            handleFullscreenDskEnd(video);
+        }
+        function onFsTimeUpdate() {
+            if (video.currentTime >= outSec) {
+                onFsEnd();
+            }
+        }
+        // NEXT／OFF は再生完了(ended)のみ、PAUSE／FTB は timeupdate+ended
+        if (mode === 'NEXT' || mode === 'OFF') {
+            video.addEventListener('ended', onFsEnd);
+        } else {
+            video.addEventListener('timeupdate', onFsTimeUpdate);
+            video.addEventListener('ended',      onFsEnd);
+        }
     }
 
 
-    video.setAttribute('playsinline', 'true');
+    // 再生開始
     video.addEventListener('loadeddata', function() {
-        video.play().catch(err => console.error('[fullscreen.js] fsDSK video.play() エラー:', err));
+        video.play().catch(err => console.error('[fullscreen.js] fsDSK video.play() error:', err));
     });
-    fsDSKOverlay.appendChild(video);
 
-    // ftbRate をフェードイン時間として利用（ミリ秒）
+    fsDSKOverlay.appendChild(video);
+    // 再度可視化
+    fsDSKOverlay.style.visibility = 'visible';
+
+    // フェードイン（FTBモードの rate を利用）
     const fadeDuration = itemData.ftbRate * 1000;
     fadeIn(fsDSKOverlay, fadeDuration);
 }
@@ -1224,10 +1250,20 @@ function parseTimecode(timecode) {
     return 0;
 }
 
-
 function hideFullscreenDSK() {
     if (!fsDSKOverlay) return;
-    // 直ちにフェードアウト処理を開始し、対象アイテムのftbRate秒かけてフェードアウトする
+
+    // OFF/NEXT は即時クリア＆非表示
+    const mode = currentDSKItem?.endMode || 'OFF';
+    if (mode === 'OFF' || mode === 'NEXT') {
+        fsDSKOverlay.innerHTML   = '';
+        fsDSKOverlay.style.opacity    = '0';
+        fsDSKOverlay.style.visibility = 'hidden';
+        window.fsDSKActive = false;
+        return;
+    }
+
+    // その他（FTB/PAUSE/REPEAT）は既存通りフェードアウト
     const fadeDuration = (currentDSKItem && currentDSKItem.ftbRate ? currentDSKItem.ftbRate * 1000 : DEFAULT_FADE_DURATION);
     fadeOut(fsDSKOverlay, fadeDuration, () => {
         fsDSKOverlay.innerHTML = '';
@@ -1248,8 +1284,54 @@ function pauseFullscreenDSK() {
 function playFullscreenDSK() {
     if (!fsDSKOverlay) return;
     const video = fsDSKOverlay.querySelector('video');
-    if (video && video.paused) {
+    if (!video) return;
+
+    // 確実に可視化
+    fsDSKOverlay.style.visibility = 'visible';
+
+    if (video.paused) {
         video.play().catch(err => console.error('[fullscreen.js] fsDSK video.play() error:', err));
+    }
+
+    // PAUSE モード時は終了検知リスナを再登録
+    if (currentDSKItem?.endMode === 'PAUSE') {
+        if (video._onFsTimeUpdate) video.addEventListener('timeupdate', video._onFsTimeUpdate);
+        if (video._onFsEnd)        video.addEventListener('ended',      video._onFsEnd);
+    }
+}
+
+
+// DSK終了時の EndMode 分岐処理
+function handleFullscreenDskEnd(videoEl) {
+    if (!videoEl || !currentDSKItem || !fsDSKOverlay) return;
+
+    const inSec  = parseTimecode(currentDSKItem.inPoint);
+    const outSec = parseTimecode(currentDSKItem.outPoint);
+    const mode   = currentDSKItem.endMode || 'OFF';
+
+    switch (mode) {
+        case 'REPEAT':
+            videoEl.currentTime = inSec;
+            videoEl.play().catch(err => console.error('[fullscreen.js] REPEAT error:', err));
+            break;
+
+        case 'PAUSE':
+            videoEl.pause();
+            videoEl.currentTime = outSec;
+            break;
+
+        case 'FTB':
+            hideFullscreenDSK();
+            break;
+
+        case 'OFF':
+        case 'NEXT':
+        default:
+            fsDSKOverlay.innerHTML   = '';
+            fsDSKOverlay.style.opacity    = '0';
+            fsDSKOverlay.style.visibility = 'hidden';
+            window.fsDSKActive = false;
+            break;
     }
 }
 
