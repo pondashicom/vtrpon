@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     onair.js
-//     ver 2.2.9
+//     ver 2.3.1
 // -----------------------
 
 // -----------------------
@@ -758,7 +758,11 @@ function onairUpdateRemainingTime(elements, itemData) {
         return;
     }
 
-    const remainingTime = Math.max(0, itemData.outPoint - onairVideoElement.currentTime);
+    // 実時間ベースの残り時間を計算（再生速度を考慮）
+    const rawRemaining = Math.max(0, itemData.outPoint - onairVideoElement.currentTime);
+    const rate = onairVideoElement.playbackRate || 1;
+    const remainingTime = rawRemaining / rate;
+
     onairRemainTimeDisplay.textContent = onairFormatTime(remainingTime);
 
     // 残り時間が少ない場合、色を赤にする
@@ -768,10 +772,8 @@ function onairUpdateRemainingTime(elements, itemData) {
         onairRemainTimeDisplay.style.color = 'orange';
     }
 
-    logDebug(`[onair.js] Remaining time updated: ${remainingTime}s`);
+    logDebug(`[onair.js] Remaining time updated: ${remainingTime}s (rate=${rate})`);
 }
-
-
 // 再生・一時停止ボタンの更新
 function onairUpdatePlayPauseButtons(elements) {
     const { onairPlayButton, onairPauseButton } = elements;
@@ -880,29 +882,6 @@ function onairUpdateVolume(elements, volume) {
 
     onairVolumeSlider.value = volume;
     onairVolumeValueDisplay.textContent = `${volume}%`;
-}
-
-// 残り時間タイマーの更新
-function onairUpdateRemainingTime(elements, itemData) {
-    const { onairVideoElement, onairRemainTimeDisplay } = elements;
-
-    if (!onairVideoElement || !onairRemainTimeDisplay) return;
-
-    // UVCの場合は "LIVE" と表示して終了
-    if (itemData.endMode === "UVC") {
-        onairRemainTimeDisplay.textContent = 'LIVE';
-        onairRemainTimeDisplay.style.color = 'green';
-        return;
-    }
-
-    // 残り時間の計算
-    const remainingTime = Math.max(0, itemData.outPoint - onairVideoElement.currentTime);
-    onairRemainTimeDisplay.textContent = onairFormatTime(remainingTime);
-
-    // 色の更新: 5秒未満なら赤、それ以外はオレンジ
-    onairRemainTimeDisplay.style.color = remainingTime < 5 ? 'red' : 'orange';
-
-    // logDebug(`Remaining time updated: ${remainingTime}s`);
 }
 
 // -----------------------
