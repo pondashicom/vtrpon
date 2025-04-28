@@ -771,8 +771,6 @@ function onairUpdateRemainingTime(elements, itemData) {
     } else {
         onairRemainTimeDisplay.style.color = 'orange';
     }
-
-    logDebug(`[onair.js] Remaining time updated: ${remainingTime}s (rate=${rate})`);
 }
 // 再生・一時停止ボタンの更新
 function onairUpdatePlayPauseButtons(elements) {
