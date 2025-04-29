@@ -13,7 +13,7 @@ const stateControl = require('./statecontrol');
 window.addEventListener('dragover', (e) => {
   e.preventDefault();
 });
-const { webUtils } = require('electron');  // 追加
+const { webUtils } = require('electron');
 
 window.addEventListener('drop', (e) => {
   e.preventDefault();

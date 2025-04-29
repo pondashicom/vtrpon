@@ -78,7 +78,7 @@ async function convertPptxToMp4(originalPath, tempEntryPath) {
          playlist[tempIndex].converting = true;
          playlist[tempIndex].mediaOffline = false;
          playlist[tempIndex].resolution = "Converting...";
-         playlist[tempIndex].duration = "00:00:10:00";  // 仮のデフォルト値
+         playlist[tempIndex].duration = "00:00:10:00";
          await window.electronAPI.stateControl.setPlaylistState(playlist);
          await updatePlaylistUI();
     }
@@ -95,7 +95,6 @@ async function convertPptxToMp4(originalPath, tempEntryPath) {
          if (tempIndex !== -1) {
              playlist[tempIndex].converting = false;
              playlist[tempIndex].mediaOffline = true;
-             // エラー用サムネイルのURL（適宜変更してください）
             const errorCanvas = document.createElement('canvas');
             errorCanvas.width = 112;
             errorCanvas.height = 63;
@@ -134,7 +133,7 @@ async function convertPptxToMp4(originalPath, tempEntryPath) {
     const finalIndex = finalPlaylist.findIndex(item => item.path === tempEntryPath);
     if (finalIndex !== -1) {
          finalPlaylist[finalIndex].path = mp4Path;
-         finalPlaylist[finalIndex].name = window.electronAPI.path.basename(mp4Path); // 正しいファイル名に更新
+         finalPlaylist[finalIndex].name = window.electronAPI.path.basename(mp4Path);
          finalPlaylist[finalIndex].thumbnail = await generateThumbnail(mp4Path);
          finalPlaylist[finalIndex].resolution = metadata.resolution || "Unknown";
          finalPlaylist[finalIndex].duration = metadata.duration || "00:00:10:00";

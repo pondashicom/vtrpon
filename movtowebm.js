@@ -14,7 +14,6 @@ async function checkMovAlpha(filePath) {
   }
 }
 
-
 // 仮のプレイリストエントリを追加する関数
 async function addLoadingEntry(originalPath, extension) {
     const originalFileName = window.electronAPI.path.basename(originalPath).replace(window.electronAPI.path.extname(originalPath), '');
@@ -40,7 +39,7 @@ async function addLoadingEntry(originalPath, extension) {
         selectionState: "unselected",
         editingState: null,
         onAirState: null,
-        mediaOffline: false, // ? **メディアオフラインにならないように設定**
+        mediaOffline: false, 
     };
 
     const currentPlaylist = await stateControl.getPlaylistState();
@@ -61,11 +60,11 @@ async function convertMovToWebm(originalPath, tempEntryPath) {
     const tempIndex = playlist.findIndex(item => item.path === tempEntryPath);
 
     if (tempIndex !== -1) {
-        playlist[tempIndex].converting = true;          // 変換中フラグを追加
+        playlist[tempIndex].converting = true; 
 
         playlist[tempIndex].mediaOffline = false;
         playlist[tempIndex].resolution = "Converting...";
-        playlist[tempIndex].duration = "00:00:10:00";  // 仮のデフォルト値
+        playlist[tempIndex].duration = "00:00:10:00"; 
         await stateControl.setPlaylistState(playlist);
         await updatePlaylistUI();
     }
@@ -108,7 +107,7 @@ async function convertMovToWebm(originalPath, tempEntryPath) {
         finalPlaylist[finalIndex].outPoint = metadata.duration || "00:00:10:00";
         finalPlaylist[finalIndex].mediaOffline = false;
 
-        finalPlaylist[finalIndex].converting = false;   // 変換完了したのでフラグ解除
+        finalPlaylist[finalIndex].converting = false;
 
         await stateControl.setPlaylistState(finalPlaylist);
         await updatePlaylistUI();

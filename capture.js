@@ -3,6 +3,7 @@
 //     ver 2.0.1
 // -----------------------
 
+
 // キャプチャボタンのイベントリスナー
 document.getElementById('still-button').addEventListener('click', async () => {
     const videoElement = document.getElementById('listedit-video');

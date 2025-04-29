@@ -735,7 +735,7 @@ function createFullscreenWindow() {
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
-            nodeIntegration: false,  // 修正: preload.js経由のIPCのみ有効
+            nodeIntegration: false,
             sandbox: false
         }
     });
@@ -781,14 +781,14 @@ app.whenReady().then(() => {
     const recordingConfig = config.recording || {};
     const recordingDir = recordingConfig.directory || path.join(app.getPath('pictures'), 'vtrpon-recordeing');
     const recordingPrefix = recordingConfig.prefix || '';
-    const recordingBitrate = recordingConfig.videoBitsPerSecond || 8000000;  // ← 追加
+    const recordingBitrate = recordingConfig.videoBitsPerSecond || 8000000; 
     if (!fs.existsSync(recordingDir)) {
         fs.mkdirSync(recordingDir, { recursive: true });
     }
     config.recording = {
         directory:            recordingDir,
         prefix:               recordingPrefix,
-        videoBitsPerSecond:   recordingBitrate  // ← 追加
+        videoBitsPerSecond:   recordingBitrate
     };
     saveConfig(config);
     global.recordingConfig = config.recording;
@@ -864,7 +864,7 @@ function createDeviceSettingsWindow() {
         width: 500,
         height: 400,
         title: 'Device Settings',
-        parent: mainWindow, // メインウィンドウを親に設定（必要に応じて）
+        parent: mainWindow, // メインウィンドウを親に設定
         modal: true,
         frame: false,
         webPreferences: {
@@ -1539,7 +1539,6 @@ ipcMain.handle('generate-waveform-thumbnail', async (event, filePath) => {
     });
 });
 
-
 // --------------------------------
 // プレイリストのインポート、エクスポート
 // --------------------------------
@@ -1795,7 +1794,7 @@ ipcMain.on('update-modal-state', (event, { isActive }) => {
         console.log("[main.js] Modal is inactive, shortcuts re-registered");
     }
 
-    // 追加: モーダル状態の変更をすべてのレンダラープロセスに通知
+    // モーダル状態の変更をすべてのレンダラープロセスに通知
     BrowserWindow.getAllWindows().forEach(win => {
         win.webContents.send('modal-state-change', { isActive });
     });
