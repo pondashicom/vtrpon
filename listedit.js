@@ -11,7 +11,7 @@
 let controlButtons = {};
 let inPoint = null;
 let outPoint = null;
-let isVideoLoaded = false; // 動画の読み込み状態を管理するフラグを追加
+let isVideoLoaded = false;
 
 // -----------------------
 //     初期化
@@ -25,17 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeEditArea() {
     const videoElement = document.getElementById('listedit-video');
     const filenameDisplay = document.getElementById('listedit-filename');
-    const volumeMeter = document.getElementById('listedit-volume-bar'); // volumeMeterを取得
-    const volumeSlider = document.getElementById('listedit-volume-slider'); // スライダー
-    const volumeValue = document.getElementById('volume-value'); // スライダー表示
-    const progressSlider = document.getElementById('progress-slider'); // シークバー
-    const startTime = document.getElementById('start-time'); // シークバー開始時間
-    const endTime = document.getElementById('end-time'); // シークバー終了時間
+    const volumeMeter = document.getElementById('listedit-volume-bar');
+    const volumeSlider = document.getElementById('listedit-volume-slider'); 
+    const volumeValue = document.getElementById('volume-value'); 
+    const progressSlider = document.getElementById('progress-slider'); 
+    const startTime = document.getElementById('start-time'); 
+    const endTime = document.getElementById('end-time');
     const inPointTime = document.getElementById('in-point-time');
     const outPointTime = document.getElementById('out-point-time');
     const inPointButton = document.getElementById('in-point');
     const outPointButton = document.getElementById('out-point');
-    const ftbRateInput = document.getElementById('ftbRate'); // FTB Rate入力フィールド
+    const ftbRateInput = document.getElementById('ftbRate'); 
     
     const startModeButtons = [
         document.getElementById('start-pause-button'),
@@ -58,44 +58,44 @@ function initializeEditArea() {
 
     // ビデオ要素をリセット
     if (videoElement) {
-        videoElement.pause(); // 再生停止
-        videoElement.src = ""; // ソースをクリア
+        videoElement.pause(); 
+        videoElement.src = "";
     }
 
     // ファイル名表示をクリア
     if (filenameDisplay) {
-        filenameDisplay.textContent = "No file loaded"; // デフォルトメッセージ
+        filenameDisplay.textContent = "No file loaded";
     }
 
     // 音量メーターのリセット
     if (volumeMeter) {
         Array.from(volumeMeter.querySelectorAll('.volume-segment')).forEach(segment => {
-            segment.style.backgroundColor = '#555'; // 灰色でリセット
-            segment.style.boxShadow = 'none'; // 光彩をクリア
+            segment.style.backgroundColor = '#555'; 
+            segment.style.boxShadow = 'none'; 
         });
     }
 
     // 音量スライダーの初期化
     if (volumeSlider && volumeValue) {
-        const defaultVolume = 100; // 初期値
+        const defaultVolume = 100;
         volumeSlider.value = defaultVolume;
         volumeValue.textContent = `${defaultVolume}%`;
     }
 
     // シークバーのリセット
     if (progressSlider && startTime && endTime) {
-        progressSlider.value = 0; // シーク位置を先頭に設定
-        progressSlider.max = 0; // 最大値をリセット
-        progressSlider.step = "0.01"; // 精度はそのまま
-        startTime.textContent = "00:00:00:00"; // 開始時間をリセット
-        endTime.textContent = "00:00:00:00"; // 終了時間をリセット
+        progressSlider.value = 0; 
+        progressSlider.max = 0; 
+        progressSlider.step = "0.01";
+        startTime.textContent = "00:00:00:00"; 
+        endTime.textContent = "00:00:00:00"; 
     }
 
     // IN/OUT点のリセット
     if (inPointTime && outPointTime) {
     
-        inPointTime.textContent = "00:00:00:00"; // IN点表示をリセット
-        outPointTime.textContent = "00:00:00:00"; // OUT点表示をリセット
+        inPointTime.textContent = "00:00:00:00"; 
+        outPointTime.textContent = "00:00:00:00"; 
 
         if (inPointButton) {
             inPointButton.classList.remove('button-green');
@@ -111,16 +111,16 @@ function initializeEditArea() {
     // スタートモードのリセット
     if (startModeButtons.every(button => button)) {
         startModeButtons.forEach(button => {
-            button.classList.remove('button-green'); // ボタンのグリーン状態を解除
-            button.classList.add('button-gray'); // グレーに設定
+            button.classList.remove('button-green'); 
+            button.classList.add('button-gray');
         });
     }
 
     // エンドモードのリセット
     if (endModeButtons.every(button => button)) {
         endModeButtons.forEach(button => {
-            button.classList.remove('button-green'); // ボタンのグリーン状態を解除
-            button.classList.add('button-gray'); // グレーに設定
+            button.classList.remove('button-green');
+            button.classList.add('button-gray');
         });
     }
 
@@ -148,12 +148,12 @@ function initializeEditArea() {
     setupVideoPlayer(videoElement, filenameDisplay);
     setupPlaybackControls(videoElement);
     setupMouseWheelControl(videoElement);
-    setupVolumeMeter(videoElement, volumeMeter); // シングルトンを使用
+    setupVolumeMeter(videoElement, volumeMeter);
     setupInOutPoints(videoElement);
     setupStartModeControls(videoElement);
     setupEndModeControls(videoElement);
-    setupFtbRate(ftbRateInput); // FTBレートの初期化
-    setupFtbRateListener(ftbRateInput); // FTBレートのリスナーを設定
+    setupFtbRate(ftbRateInput); 
+    setupFtbRateListener(ftbRateInput);
     setupVolumeControl();
     setVideoLoadedState(false);
 }
@@ -171,8 +171,8 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
         if (!itemData || !itemData.playlistItem_id) {
             logInfo('[listedit.js] Invalid edit state data received.');
             filenameDisplay.textContent = 'No file loaded';
-            videoElement.src = ''; // 動画をリセット
-            setVideoLoadedState(false); // 動画が読み込まれていない状態に設定
+            videoElement.src = ''; 
+            setVideoLoadedState(false); 
             return;
         }
 
@@ -193,7 +193,7 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
         videoElement.load();
 
         videoElement.addEventListener('loadedmetadata', async () => {
-            setVideoLoadedState(true); // 動画が読み込まれた状態に設定
+            setVideoLoadedState(true); 
 
             // In/Out、StartMode、EndMode の初期値を設定
             const playlist = await stateControl.getPlaylistState();
@@ -201,11 +201,11 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
                 if (file.playlistItem_id === currentEditingItemId) {
                     return {
                         ...file,
-                        inPoint: file.inPoint || "00:00:00.00", // 小数点以下2桁形式に修正
-                        outPoint: file.outPoint || formatTime(videoElement.duration), // 小数点以下2桁形式に修正
+                        inPoint: file.inPoint || "00:00:00.00", 
+                        outPoint: file.outPoint || formatTime(videoElement.duration),
                         startMode: file.startMode || "PAUSE",
                         endMode: file.endMode || "OFF",
-                        defaultVolume: file.defaultVolume ?? 100 // 初期音量をデフォルト値で設定
+                        defaultVolume: file.defaultVolume ?? 100
                     };
                 }
                 return file;
@@ -217,7 +217,7 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
             const startMode = currentItem?.startMode || "PAUSE";
             const endMode = currentItem?.endMode || "OFF";
 
-            const volumeValueFromState = currentItem?.defaultVolume ?? 100; // 既に定義されている defaultVolume を再宣言せず利用
+            const volumeValueFromState = currentItem?.defaultVolume ?? 100;
 
             updateStartModeButtons(startMode);
             updateEndModeButtons(endMode);
@@ -226,10 +226,10 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
             const volumeSlider = document.getElementById('listedit-volume-slider');
             const volumeValue = document.getElementById('volume-value');
             if (volumeSlider && volumeValue) {
-                volumeSlider.value = volumeValueFromState; // スライダーに反映
-                volumeValue.textContent = `${volumeValueFromState}%`; // 表示に反映
-                volumeSlider.style.setProperty('--value', `${volumeValueFromState}%`); // CSSプロパティの更新を追加
-                volumeAdjustmentFactor = volumeValueFromState / 100; // 正規化
+                volumeSlider.value = volumeValueFromState;
+                volumeValue.textContent = `${volumeValueFromState}%`;
+                volumeSlider.style.setProperty('--value', `${volumeValueFromState}%`);
+                volumeAdjustmentFactor = volumeValueFromState / 100;
             }
 
             // IN/OUT点の復元処理
@@ -241,8 +241,8 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
 
             if (inPointTime && currentItem?.inPoint) {
                 inPointTime.textContent = currentItem.inPoint;
-                inPoint = parseTime(currentItem.inPoint); // IN点を状態に設定
-                updateButtonColor(inPointButton, inPoint > 0); // ボタン色を更新
+                inPoint = parseTime(currentItem.inPoint); 
+                updateButtonColor(inPointButton, inPoint > 0); 
                 
                 // シークバーをIN点の位置に進める
                 videoElement.currentTime = inPoint;
@@ -252,7 +252,7 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
                 outPoint = parseTime(currentItem.outPoint); // OUT点を状態に設定
 
                 // OUT点が動画の長さと等しい場合、グレーにする
-                const duration = parseFloat(videoElement.duration.toFixed(2)); // 統一した精度で保持
+                const duration = parseFloat(videoElement.duration.toFixed(2)); 
                 const isOutPointAtEnd = Math.abs(outPoint - duration) < 0.01;
                 updateButtonColor(outPointButton, !isOutPointAtEnd);
             }
@@ -269,12 +269,9 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
 
 // INOUT状態の復元時にフォーマットされた時間を数値に変換
 function parseTime(timeString) {
-    // 万一数値で渡ってきた場合に備え、文字列化する
     if (typeof timeString !== 'string') {
         timeString = String(timeString);
     }
-
-    // ":" と "." を区切り文字として処理
     const parts = timeString.split(/[:.]/);
 
     if (parts.length === 4) {
@@ -287,7 +284,7 @@ function parseTime(timeString) {
 // 動画の読み込み状態を管理する関数
 function setVideoLoadedState(loaded) {
     isVideoLoaded = loaded;
-    updateUIForVideoState(); // 状態に応じてUIを更新
+    updateUIForVideoState();
 }
 
 // UIの状態を動画の読み込み状態に応じて更新する関数
@@ -353,9 +350,9 @@ function handleEndedEvent() {
     const videoElement = document.getElementById('listedit-video');
     if (!videoElement) return;
 
-    videoElement.pause(); // 念のため停止
-    videoElement.currentTime = videoElement.duration; // 時間を最後に設定
-    updateUIForVideoState(); // UIを終了状態に更新
+    videoElement.pause(); 
+    videoElement.currentTime = videoElement.duration;
+    updateUIForVideoState();
 }
 
 // -----------------------
@@ -373,8 +370,6 @@ function setupPlaybackControls(videoElement) {
         fastForward10x: 'fast-forward-10x',
         fastForwardend: 'fast-forward-end',
     };
-
-    // ローカル変数を作らずグローバル変数 controlButtons に代入する
     controlButtons = Object.fromEntries(
         Object.entries(buttonIds).map(([key, id]) => [key, document.getElementById(id)])
     );
@@ -391,18 +386,16 @@ function setupPlaybackControls(videoElement) {
 
     // 再生ボタン
     controlButtons.play?.addEventListener('click', async () => {
-        // 終了状態、または currentTime が duration に近い場合、明示的に pause() と currentTime リセットを行い、load() で内部状態をリセット
         if (videoElement.ended || (videoElement.currentTime >= videoElement.duration - 0.05)) {
             videoElement.pause();
             videoElement.currentTime = 0;
-            // load() を呼び出すことで、ended状態を解除する
             videoElement.load();
         }
         try {
             await videoElement.play();
-            isVideoLoaded = true; // 再生開始で動画がロードされたとみなす
-            updateButtonStates({ play: true, pause: false }); // 再生ボタンを緑にし、一時停止ボタンを無効化
-            updateUIForVideoState(); // UIを更新
+            isVideoLoaded = true;
+            updateButtonStates({ play: true, pause: false });
+            updateUIForVideoState();
         } catch (error) {
             logInfo("[listedit.js] Error during play button handling:", error);
         }
@@ -415,9 +408,9 @@ function setupPlaybackControls(videoElement) {
         }
 
         videoElement.pause();
-        isVideoLoaded = true; // 一時停止でも動画はロードされた状態
-        updateButtonStates({ play: false, pause: true }); // 一時停止ボタンを緑にし、再生ボタンを無効化
-        updateUIForVideoState(); // UIを更新
+        isVideoLoaded = true;
+        updateButtonStates({ play: false, pause: true });
+        updateUIForVideoState();
         logOpe("[listedit.js] Video is paused.");
     });
 
@@ -426,7 +419,7 @@ function setupPlaybackControls(videoElement) {
         resetVideoIfEnded(videoElement);
         videoElement.currentTime = 0;
         videoElement.pause();
-        updateButtonStates({ play: true, pause: false }); // 再生可能状態に更新
+        updateButtonStates({ play: true, pause: false });
         logOpe("[listedit.js] Rewind start button clicked. Video reset to the start.");
     });
 
@@ -501,7 +494,7 @@ function setupPlaybackControls(videoElement) {
     });
 
     // 動画が終わった時の処理
-    let isVideoHandlingEnded = false; // フラグを初期化
+    let isVideoHandlingEnded = false;
 
     videoElement.addEventListener('ended', (event) => {
         if (isVideoHandlingEnded) {
@@ -510,13 +503,13 @@ function setupPlaybackControls(videoElement) {
 
         isVideoHandlingEnded = true;
 
-        videoElement.currentTime = videoElement.duration; // 動画の時間を最後に設定
-        handleEndedEvent(event); // 終了イベントを処理
-        updateUIForVideoState(); // 必要に応じてUI更新処理
+        videoElement.currentTime = videoElement.duration;
+        handleEndedEvent(event);
+        updateUIForVideoState();
 
         setTimeout(() => {
-            isVideoHandlingEnded = false; // 一定時間後にフラグをリセット
-        }, 100); // 必要に応じて遅延を調整
+            isVideoHandlingEnded = false;
+        }, 100);
     });
 }
 
@@ -551,8 +544,8 @@ function restorePlayPauseState(videoElement) {
     } else {
         updateButtonStates({ play: false, pause: true });
     }
-    isVideoLoaded = true; // 状態復元時も動画はロードされた状態
-    updateUIForVideoState(); // UIを更新
+    isVideoLoaded = true;
+    updateUIForVideoState();
 }
 
 function disableAllButtons(controlButtons) {
@@ -719,18 +712,18 @@ function updateVolumeMeter(dbFS, sliderValue) {
             const segmentThreshold = -((index / totalSegments) * 80);
 
         if (segmentThreshold >= -10) {
-            segment.style.backgroundColor = '#c05050'; // やや深めの赤
+            segment.style.backgroundColor = '#c05050';
             segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
         } else if (segmentThreshold >= -30) {
-            segment.style.backgroundColor = 'rgb(210,160,120)'; // オレンジつまみと同色
+            segment.style.backgroundColor = 'rgb(210,160,120)';
             segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
         } else {
-            segment.style.backgroundColor = 'rgb(90,130,90)'; // 濃いめ緑
+            segment.style.backgroundColor = 'rgb(90,130,90)';
             segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
         }
 
         } else {
-            segment.style.backgroundColor = '#555'; // 灰色
+            segment.style.backgroundColor = '#555';
             segment.style.boxShadow = 'none';
         }
     });
@@ -750,7 +743,7 @@ function setupVolumeMeter(videoElement, volumeMeter) {
 
     // 初期化関数
     function initVolumeMeter() {
-        volumeMeter.innerHTML = ''; // メーターをクリア
+        volumeMeter.innerHTML = '';
         for (let i = 0; i < 60; i++) {
             const segment = document.createElement('div');
             segment.classList.add('volume-segment');
@@ -789,7 +782,7 @@ function setupVolumeMeter(videoElement, volumeMeter) {
                 const rawMaxAmplitude = Math.max(...dataArray);
 
                 if (rawMaxAmplitude === 0) {
-                    updateVolumeMeter(-Infinity, 100); // 無音状態
+                    updateVolumeMeter(-Infinity, 100); 
                 } else {
                     const scaledAmplitude = rawMaxAmplitude / 255;
                     const adjustedAmplitude = Math.pow(scaledAmplitude, 1.5);
@@ -830,16 +823,16 @@ function setupVolumeControl() {
     volumeSlider.style.setProperty('--value', `${volumeSlider.value}%`);
 
     volumeSlider.addEventListener("input", async () => {
-        const sliderValue = parseInt(volumeSlider.value, 10); // スライダー値（0～100）
+        const sliderValue = parseInt(volumeSlider.value, 10); 
         volumeSlider.style.setProperty('--value', `${volumeSlider.value}%`);
 
         // スライダー値をそのまま保持
-        const sliderNormalizedValue = sliderValue / 100; // 0～1の範囲に正規化
+        const sliderNormalizedValue = sliderValue / 100;
 
         // 実際の音量変換（対数スケール）
         const audioVolume = sliderValue === 0
             ? 0
-            : Math.pow(sliderNormalizedValue, 2.2); // スライダーが0のときは計算をスキップ
+            : Math.pow(sliderNormalizedValue, 2.2);
 
         // グローバル変数に保持
         volumeAdjustmentFactor = sliderNormalizedValue;
@@ -851,17 +844,17 @@ function setupVolumeControl() {
         volumeSlider.style.setProperty('--value', `${sliderValue}%`);
 
         // 再生中かどうかをチェック（再生中でない場合はメーター更新をスキップ）
-        const isPlaying = checkIfPlaying(); // 再生中かを判定する関数
+        const isPlaying = checkIfPlaying(); 
         if (isPlaying) {
             // メーターを更新（スライダー値が0の場合はリセット）
-            const dbFS = sliderValue === 0 ? -Infinity : 0; // スライダーが0のときは無音扱い
+            const dbFS = sliderValue === 0 ? -Infinity : 0;
             updateVolumeMeter(dbFS, sliderValue);
         } else {
             logInfo("[listedit.js] Volume slider adjusted, but playback is not active. Skipping meter update.");
         }
 
         // 音量の状態を更新（スライダーが0の場合は0を送信）
-        const volumeToSend = sliderValue === 0 ? 0 : sliderValue; // 明示的に0を送信
+        const volumeToSend = sliderValue === 0 ? 0 : sliderValue;
         await updateVolumeState(volumeToSend);
 
         // 状態変更後に通知
@@ -884,12 +877,12 @@ function setupVolumeControl() {
 
 // 再生状態をチェックする関数
 function checkIfPlaying() {
-    const videoElement = document.getElementById("listedit-video"); // 正しい動画エレメントを取得
+    const videoElement = document.getElementById("listedit-video");
     if (!videoElement) {
         logInfo("[listedit.js] Video element not found.");
         return false;
     }
-    return !videoElement.paused && !videoElement.ended; // 再生中であれば true を返す
+    return !videoElement.paused && !videoElement.ended;
 }
 
 
@@ -905,7 +898,7 @@ async function updateVolumeState(newVolume) {
         if (item.playlistItem_id === currentEditingItemId) {
             return {
                 ...item,
-                defaultVolume: adjustedVolume, // 音量を正しく更新
+                defaultVolume: adjustedVolume,
             };
         }
         return item;
@@ -979,7 +972,7 @@ async function startPFL(selectedDeviceId) {
         if (typeof pflAudioElement.setSinkId === 'function' && selectedDeviceId) {
             try {
                 await pflAudioElement.setSinkId(selectedDeviceId);
-                console.log(`PFL: Successfully set sinkId (${selectedDeviceId}).`);
+                logInfo(`PFL: Successfully set sinkId (${selectedDeviceId}).`);
             } catch (err) {
                 logInfo('[listedit.js] PFL: Failed to set sinkId:', err);
                 showMessage(getMessage('failed-to-set-device'), 5000, 'alert');
@@ -1014,7 +1007,7 @@ if (pflButton && videoElement) {
     pflButton.addEventListener('click', async () => {
         // 動画が読み込まれているか確認
         if (!isVideoLoaded) {
-            showMessage(getMessage('no-video-loaded'), 5000, 'alert'); // 5秒間表示
+            showMessage(getMessage('no-video-loaded'), 5000, 'alert'); 
             return;
         }
 
@@ -1024,7 +1017,7 @@ if (pflButton && videoElement) {
         
         // デバイスが選択されていなければ、音声出力しない
         if (!selectedDeviceId) {
-            showMessage(getMessage('no-pfl-device-selected'), 5000, 'alert'); // 5秒間表示
+            showMessage(getMessage('no-pfl-device-selected'), 5000, 'alert');
             return;
         }
 
@@ -1062,7 +1055,6 @@ videoElement.addEventListener('playing', async () => {
     // 動画が終了状態の場合は、currentTimeをリセットしてから再初期化を試みる
     if (videoElement.ended) {
         videoElement.currentTime = 0;
-        // 動画リセットが反映されるように少し待機（必要に応じて調整）
         await new Promise(resolve => setTimeout(resolve, 100));
     }
     if (isPFLActive && !pflAudioContext) {
@@ -1081,11 +1073,9 @@ videoElement.addEventListener('ended', async () => {
 
 // メインプロセスからデバイス設定変更の通知を受信し、PFLがONなら再初期化する
 window.electronAPI.ipcRenderer.on('device-settings-updated', async (event, newSettings) => {
-    console.log('[listedit.js] Device settings updated:', newSettings);
-    // PFLがON状態なら、新しいデバイス設定を適用するために再初期化する
+    logInfo('[listedit.js] Device settings updated:', newSettings);
     if (isPFLActive) {
         await stopPFL();
-        // 新しい設定からPFL用デバイスIDを取得
         const newDeviceId = newSettings.editAudioMonitorDevice;
         if (!newDeviceId) {
             showMessage(getMessage('no-pfl-device-selected'), 5000, 'alert');
@@ -1112,7 +1102,6 @@ document.addEventListener("DOMContentLoaded", function () {
         progressSlider.step = "0.01";
         progressSlider.value = 0;
         endTime.textContent = formatTime(duration);
-        // 初回マーカー位置更新
         updateListeditSeekBarMarkers(inPoint, outPoint);
     });
 
@@ -1120,10 +1109,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const currentTime = video.currentTime;
         progressSlider.value = currentTime;
         startTime.textContent = formatTime(currentTime);
-        // 毎回マーカー位置更新
         updateListeditSeekBarMarkers(inPoint, outPoint);
 
-        // 追加: 動画終了に近い状態なら強制的に終了状態にする
         if (video.duration > 0 && currentTime >= video.duration - 0.05) {
             if (!video.ended) {
                 video.pause();
@@ -1192,13 +1179,13 @@ function updateListeditSeekBarMarkers(inPoint, outPoint) {
     const sliderWidth = sliderRect.width;
     const sliderLeftOffset = sliderRect.left - containerRect.left;
     
-    // ONAIR側と同様にシンプルな計算（オフセット値は調整済み）
+    // ONAIR側と同様にシンプルな計算
     const inPositionRatio = inPoint / duration;
     const outPositionRatio = outPoint / duration;
     const inLeft = sliderLeftOffset + (inPositionRatio * sliderWidth);
     const outLeft = sliderLeftOffset + (outPositionRatio * sliderWidth);
     
-    // マーカーの位置を設定（ここでは OUT マーカーは 6px 左にずらす）
+    // マーカーの位置を設定
     inMarker.style.left = `${inLeft}px`;
     outMarker.style.left = `${outLeft - 5}px`;
 }
@@ -1219,16 +1206,16 @@ function setupInOutPoints(videoElement) {
             return;
         }
 
-        const currentTime = parseFloat(videoElement.currentTime.toFixed(2)); // 小数点以下2桁に丸める
+        const currentTime = parseFloat(videoElement.currentTime.toFixed(2));
 
-        // 動作条件: 現在地が0の場合にグレーに戻す
+        // 現在地が0の場合にグレーに戻す
         if (currentTime === 0) {
-            await updateInOutPoint('inPoint', 0); // IN点を解除
-            updateButtonColor(inPointButton, false); // ボタンをグレーに戻す
+            await updateInOutPoint('inPoint', 0);
+            updateButtonColor(inPointButton, false);
             return;
         }
         
-        // 追加チェック: すでにOUT点が設定されている場合、currentTimeがOUT点以上ならエラー表示
+        // すでにOUT点が設定されている場合、currentTimeがOUT点以上ならエラー表示
         if (outPoint !== null && currentTime >= outPoint) {
             showMessage(getMessage('in-before-out'), 5000, 'alert');
             return;
@@ -1246,13 +1233,13 @@ function setupInOutPoints(videoElement) {
             return;
         }
 
-        const currentTime = parseFloat(videoElement.currentTime.toFixed(2)); // 小数点以下2桁に丸める
-        const duration = parseFloat(videoElement.duration.toFixed(2)); // 動画の長さ
+        const currentTime = parseFloat(videoElement.currentTime.toFixed(2)); 
+        const duration = parseFloat(videoElement.duration.toFixed(2)); 
 
         // 動作条件: 現在地が動画の長さの場合にグレーに戻す
         if (Math.abs(currentTime - duration) < 0.01) {
-            await updateInOutPoint('outPoint', duration); // OUT点を動画の長さに設定
-            updateButtonColor(outPointButton, false); // ボタンをグレーに戻す
+            await updateInOutPoint('outPoint', duration);
+            updateButtonColor(outPointButton, false);
             return;
         }
         
@@ -1264,7 +1251,7 @@ function setupInOutPoints(videoElement) {
 
         // OUT点を新たに設定
         await updateInOutPoint('outPoint', currentTime);
-        updateButtonColor(outPointButton, true); // ボタンを緑に更新
+        updateButtonColor(outPointButton, true);
     });
 }
 
@@ -1283,7 +1270,7 @@ function updateButtonColor(button, isChanged) {
 function updateInOutPointUI(pointType, newTime) {
     const targetElement = document.getElementById(pointType === 'inPoint' ? 'in-point-time' : 'out-point-time');
     if (targetElement) {
-        const formattedTime = formatTime(newTime); // 小数点以下2桁の秒数形式
+        const formattedTime = formatTime(newTime);
         targetElement.textContent = formattedTime;
     }
 }
@@ -1448,7 +1435,7 @@ async function updateEndModeState(newMode) {
     logOpe('[listedit.js] updateEndModeState called with newMode:', newMode);
 
     const updatedPlaylist = playlist.map(file => {
-        if (file.playlistItem_id === currentEditingItemId) { // 修正: IDで比較
+        if (file.playlistItem_id === currentEditingItemId) {
             return {
                 ...file,
                 endMode: newMode
@@ -1540,16 +1527,16 @@ function updateFtbRateUI(ftbRateInput) {
     }
 
     // プレイリストを取得
-    const playlist = stateControl.getPlaylistState(); // 同期的に取得
+    const playlist = stateControl.getPlaylistState();
 
     const currentItem = playlist.find(item => item.playlistItem_id === currentEditingItemId);
 
     // 新しい値を一時的に保持
     let newValue;
     if (currentItem && typeof currentItem.ftbRate !== 'undefined') {
-        newValue = currentItem.ftbRate.toFixed(1); // 小数点以下1桁に設定
+        newValue = currentItem.ftbRate.toFixed(1);
     } else {
-        newValue = '1.0'; // デフォルト値に設定
+        newValue = '1.0';
     }
 
     // 前回と同じ値ならログを出さずにスキップ
@@ -1561,6 +1548,7 @@ function updateFtbRateUI(ftbRateInput) {
 
     logOpe(`[listedit.js] FTB Rate UI updated: ${newValue}`);
 }
+
 // --------------------------------
 //  キーボードショートカット
 // --------------------------------
@@ -1573,7 +1561,7 @@ async function handleShortcutAction(action) {
             if (isPFLActive) {
                 await stopPFL();
                 isPFLActive = false;
-                // PFLボタンの状態も更新（グリーンを解除してグレーに）
+                // PFLボタンの状態も更新
                 if (pflButton) {
                     pflButton.classList.remove('button-green');
                     pflButton.classList.add('button-gray');

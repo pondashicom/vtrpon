@@ -25,27 +25,26 @@ function getAllPlaylists() {
 
 // プレイリスト全体の状態を取得するメソッド
 function getPlaylistById(playlist_id) {
-    const allPlaylists = getAllPlaylists(); // すべてのプレイリストを取得
-
-    // プレイリストが存在しない場合の警告
+    console.log(
+        '[statecontrol.js] getPlaylistById',
+        'playlist_id:', playlist_id,
+        'timestamp:', new Date().toISOString()
+    );
+    const allPlaylists = getAllPlaylists();
+    const playlist = allPlaylists.find(p => p.playlist_id === playlist_id) || null;
     if (!playlist) {
         console.warn(`No playlist found for ID: ${playlist_id}`);
     } else {
         console.debug(`Playlist found: ${playlist.name}`);
-    }
-
-    // 指定されたプレイリストIDに一致するものを取得
-    const playlist = allPlaylists.find(p => p.playlist_id === playlist_id) || null;
-
-    if (playlist) {
         playlist.data = playlist.data.map((item, idx) => ({
             ...item,
-            order: item.order, // 順序を補完せず、そのまま使用
-            path: item.path || (item.name === "UVC_DEVICE" ? "UVC_DEVICE" : ""), // パスを補完
+            order: item.order,
+            path: item.path || (item.name === "UVC_DEVICE" ? "UVC_DEVICE" : ""),
         }));
     }
     return playlist;
 }
+
 
 // -----------------------
 //   プレイリストアイテム
@@ -80,13 +79,13 @@ function setPlaylistState(newState) {
             editingState: typeof newItem.editingState !== 'undefined' 
                 ? newItem.editingState 
                 : (existingItem?.editingState || null),
-            onAirState: onAirState.currentOnAirItem === newItem.playlistItem_id ? "onair" : null, // 正しく適用
+            onAirState: onAirState.currentOnAirItem === newItem.playlistItem_id ? "onair" : null,
             startMode: newItem.startMode || existingItem?.startMode || "PAUSE",
             endMode: newItem.endMode || existingItem?.endMode || "PAUSE",
             defaultVolume: newItem.defaultVolume ?? existingItem?.defaultVolume ?? 100,
             ftbRate: typeof newItem.ftbRate !== 'undefined'
                 ? newItem.ftbRate
-                : (existingItem?.ftbRate || 1.0), // デフォルト値を1.0に設定
+                : (existingItem?.ftbRate || 1.0),
             order: typeof newItem.order !== 'undefined' ? newItem.order : (existingItem?.order ?? index),
             inPoint: typeof newItem.inPoint !== 'undefined' 
                 ? newItem.inPoint 
@@ -94,15 +93,13 @@ function setPlaylistState(newState) {
             outPoint: typeof newItem.outPoint !== 'undefined' 
                 ? newItem.outPoint 
                 : (existingItem?.outPoint || "00:00:00.00"),
-            directMode: typeof newItem.directMode !== 'undefined' // 追加
+            directMode: typeof newItem.directMode !== 'undefined'
                 ? newItem.directMode 
                 : (existingItem?.directMode || false), 
-            fillKeyMode: typeof newItem.fillKeyMode !== 'undefined' // 追加
+            fillKeyMode: typeof newItem.fillKeyMode !== 'undefined'
                 ? newItem.fillKeyMode 
                 : (existingItem?.fillKeyMode || false),
         };
-
-        // console.log('[statecontrol.js] Updated item:', updatedItem);
         return updatedItem;
     }));
 }
@@ -118,13 +115,13 @@ function addFileToState(file) {
     if (!playlist.some(item => item.path === file.path)) {
         playlist.push({
             ...file,
-            playlistItem_id: file.playlistItem_id || generateUniqueId('item_'),  // アイテムIDを設定
+            playlistItem_id: file.playlistItem_id || generateUniqueId('item_'), 
             selectionState: "unselected",
             editingState: null,
             startMode: "PAUSE",
             endMode: "PAUSE",
-            defaultVolume: 100, // 初期音量を100に設定
-            order: file.order ?? nextOrder // 指定された order がなければ計算した値を使用
+            defaultVolume: 100,
+            order: file.order ?? nextOrder
         });
     }
 }
@@ -135,7 +132,7 @@ function addFileToState(file) {
 
 // 編集状態の管理
 const editState = {
-    currentEditingItem: null, // 現在編集中のアイテム
+    currentEditingItem: null,
 };
 
 // 編集状態を設定
@@ -157,21 +154,21 @@ function getEditState() {
 
 // オンエア状態の管理オブジェクト
 const onAirState = {
-    currentOnAirItem: null, // 現在オンエア中のアイテムID
+    currentOnAirItem: null,
 };
 
 // オンエア状態を設定
 function setOnAirState(itemId) { 
-    onAirState.currentOnAirItem = itemId; // 現在のオンエアアイテムIDを更新
+    onAirState.currentOnAirItem = itemId;
 
     playlist.forEach(item => {
-        item.onAirState = item.playlistItem_id === itemId ? "onair" : null; // 正しく playlistItem_id を比較
+        item.onAirState = item.playlistItem_id === itemId ? "onair" : null;
     });
 }
 
 // オンエア状態を取得
 function getOnAirState() {
-    return onAirState.currentOnAirItem; // 現在のオンエアアイテムIDを返す
+    return onAirState.currentOnAirItem;
 }
 
 // オンエア状態をリセット
@@ -194,26 +191,20 @@ function resetOnAirState() {
 function moveItemInPlaylist(itemId, direction) {
     const index = playlist.findIndex(item => item.playlistItem_id === itemId);
 
-    if (index === -1) return false; // アイテムが見つからない場合は処理しない
-
+    if (index === -1) return false;
     const targetIndex = index + direction;
-
-    if (targetIndex < 0 || targetIndex >= playlist.length) return false; // 範囲外の場合は処理しない
-
+    if (targetIndex < 0 || targetIndex >= playlist.length) return false;
     // アイテムを交換
     const [movedItem] = playlist.splice(index, 1);
     playlist.splice(targetIndex, 0, movedItem);
-
-    return true; // 成功した場合
+    return true;
 }
 
 // プレイリスト内からアイテムを削除したとき
 function deleteItemFromPlaylist(itemId) {
     const index = playlist.findIndex(item => item.playlistItem_id === itemId);
-
-    if (index === -1) return false; // アイテムが見つからない場合は処理しない
-
-    playlist.splice(index, 1); // アイテムを削除
+    if (index === -1) return false;
+    playlist.splice(index, 1);
     return true;
 }
 
@@ -222,15 +213,15 @@ function addItemToPlaylist(itemData) {
     // 新しいアイテムをプレイリストの最後に追加
     playlist.push({
         ...itemData,
-        order: playlist.length, // 現在のリストの長さを順序として設定
-        playlistItem_id: itemData.playlistItem_id || generateUniqueId('item_'), // アイテムIDを生成
+        order: playlist.length,
+        playlistItem_id: itemData.playlistItem_id || generateUniqueId('item_'),
     });
 }
 
 // プレイリストの順序を再計算（必要な場合のみ呼び出すこと）
 function recalculateOrder() {
     playlist.forEach((item, index) => {
-        item.order = index; // インデックスを順序に設定
+        item.order = index;
     });
 }
 
@@ -238,6 +229,15 @@ function recalculateOrder() {
 //   プレイリストの保存
 // -----------------------
 function setPlaylistStateWithId(playlist_id, playlistData) {
+    // ===== 追加ログ出力 =====
+    console.log(
+        '[statecontrol.js] setPlaylistStateWithId',
+        'playlist_id:', playlist_id,
+        'itemCount:', playlistData.data.length,
+        'orders:', playlistData.data.map(item => item.order),
+        'timestamp:', new Date().toISOString()
+    );
+
     const allPlaylists = getAllPlaylists();
 
     // 既に保存されているプレイリストの中に、渡された playlist_id と一致するものがあるかを確認
@@ -253,12 +253,11 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
                 playlistItem_id: item.playlistItem_id || generateUniqueId('item_'),
                 order: item.order !== undefined ? item.order : (allPlaylists[existingIndex].data.length),
                 path: item.path || (item.name === "UVC_DEVICE" ? "UVC_DEVICE" : ""),
-                directMode: typeof item.directMode !== 'undefined' ? item.directMode : false, // DIRECTモード追加
-                fillKeyMode: typeof item.fillKeyMode !== 'undefined' ? item.fillKeyMode : false,  // FILLKEYモード追加
+                directMode: typeof item.directMode !== 'undefined' ? item.directMode : false,
+                fillKeyMode: typeof item.fillKeyMode !== 'undefined' ? item.fillKeyMode : false,
             }))
         };
     } else {
-        // 新規追加：playlistData に既に playlist_id が含まれていればそれを使い、なければ渡された playlist_id を利用する
         const newId = playlistData.playlist_id || playlist_id;
         allPlaylists.push({
             playlist_id: newId,
@@ -267,8 +266,8 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
                 ...item,
                 playlistItem_id: item.playlistItem_id || generateUniqueId('item_'),
                 order: item.order !== undefined ? item.order : allPlaylists.length,
-                directMode: typeof item.directMode !== 'undefined' ? item.directMode : false, // DIRECTモード追加
-                fillKeyMode: typeof item.fillKeyMode !== 'undefined' ? item.fillKeyMode : false,  // FILLKEYモード追加
+                directMode: typeof item.directMode !== 'undefined' ? item.directMode : false,
+                fillKeyMode: typeof item.fillKeyMode !== 'undefined' ? item.fillKeyMode : false,
             }))
         });
     }
@@ -308,9 +307,9 @@ function createUVCDeviceItem(selectedDevice) {
 
 // 初期化
 function clearState() {
-    playlist.length = 0; // プレイリストアイテムをクリア
-    playlists.length = 0; // プレイリストオブジェクトをクリア（追加）
-    editState.currentEditingItem = null; // 編集状態をクリア
+    playlist.length = 0;
+    playlists.length = 0;
+    editState.currentEditingItem = null;
 }
 
 // エクスポート
