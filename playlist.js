@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.2.9
+//     ver 2.3.2
 // -----------------------
 
 
@@ -319,7 +319,6 @@ async function getValidUpdates(files, currentPlaylist) {
 // -----------------------
 // ドラッグ＆ドロップで受信したファイルをプレイリストに追加する処理
 // -----------------------
-// ドラッグ＆ドロップで受信したファイルをプレイリストに追加する処理
 window.electronAPI.ipcRenderer.on('add-dropped-file', async (event, files) => {
     logInfo('[playlist.js] Received dropped files:', files);
     if (!files || files.length === 0) {
@@ -335,15 +334,13 @@ window.electronAPI.ipcRenderer.on('invalid-files-dropped', (event, invalidFiles)
     showMessage(errorMsg, 5000, 'alert');
 });
 
-
-
 // -----------------------
 // サムネイル生成
 // -----------------------
 
 // サムネイル生成関数
 async function generateThumbnail(filePath) {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
         // もしファイルパスが UVC デバイス用でなく、かつ file:// で始まっていなければ、安全なファイルURLに変換する
         if (!filePath.startsWith("UVC_DEVICE:") && !/^file:\/\//.test(filePath)) {
             filePath = getSafeFileURL(filePath);
@@ -413,61 +410,76 @@ async function generateThumbnail(filePath) {
         const extension = filePath.split('.').pop().toLowerCase();
 
         // === 1) 音声ファイル（wav, mp3, flac, aac, m4a）の場合 ===
-        if (['wav', 'mp3', 'flac', 'aac', 'm4a'].includes(extension)) {
-            const safeFileURL = filePath;  // 既に先頭で変換済みなのでそのまま利用
-            fetch(safeFileURL)
-                .then(response => response.arrayBuffer())
-                .then(arrayBuffer => {
-                    const audioContext = new AudioContext();
-                    return audioContext.decodeAudioData(arrayBuffer);
-                })
-                .then(audioBuffer => {
-                    // キャンバスを作って黒背景に白波形を描画
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 112;
-                    canvas.height = 63;
-                    const ctx = canvas.getContext('2d');
+        if (['wav','mp3','flac','aac','m4a'].includes(extension)) {
+            // ① AudioElement で必ず duration を取得（非同期・ブラウザ処理）
+            const audio = new Audio(filePath);
+            await new Promise(resolve => audio.addEventListener('loadedmetadata', resolve));
+            const durationSec = audio.duration;  // 秒数（小数点あり）
 
-                    // 背景を黒で塗りつぶし
-                    ctx.fillStyle = 'black';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // ② 2時間（7200秒）以上なら波形スキップ
+            if (durationSec > 7200) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 112;
+                canvas.height = 63;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(extension.toUpperCase(), canvas.width/2, canvas.height/2);
+                resolve(canvas.toDataURL('image/png'));
+                return;
+            }
 
-                    // 波形を描画
-                    ctx.strokeStyle = 'green';
-                    ctx.lineWidth = 1;
-                    const rawData = audioBuffer.getChannelData(0);
-                    const sampleStep = Math.floor(rawData.length / canvas.width);
-                    ctx.beginPath();
-                    for (let i = 0; i < canvas.width; i++) {
-                        const sampleIndex = i * sampleStep;
-                        const amplitude = rawData[sampleIndex] * (canvas.height / 2);
-                        ctx.lineTo(i, (canvas.height / 2) - amplitude);
-                    }
-                    ctx.stroke();
+            // ③ 2時間未満は従来どおり波形描画
+            try {
+                const arrayBuffer = await fetch(filePath).then(r => r.arrayBuffer());
+                const audioContext = new AudioContext();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-                    // 拡張子テキストを下部に重ねる
-                    ctx.fillStyle = 'rgba(200, 200, 200, 0.7)';
-                    ctx.font = '10px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
-                    ctx.fillText(extension.toUpperCase(), canvas.width / 2, canvas.height - 2);
-                    resolve(canvas.toDataURL('image/png'));
-                })
-                .catch(() => {
-                    // フォールバック処理
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 112;
-                    canvas.height = 63;
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = 'black';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = 'white';
-                    ctx.font = '16px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(extension.toUpperCase(), canvas.width / 2, canvas.height / 2);
-                    resolve(canvas.toDataURL('image/png'));
-                });
+                const canvas = document.createElement('canvas');
+                canvas.width = 112;
+                canvas.height = 63;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.strokeStyle = 'green';
+                ctx.lineWidth = 1;
+                const rawData = audioBuffer.getChannelData(0);
+                const step = Math.floor(rawData.length / canvas.width);
+                ctx.beginPath();
+                for (let i = 0; i < canvas.width; i++) {
+                    const amp = rawData[i * step] * (canvas.height/2);
+                    ctx.lineTo(i, (canvas.height/2) - amp);
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(200,200,200,0.7)';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(extension.toUpperCase(), canvas.width/2, canvas.height-2);
+
+                resolve(canvas.toDataURL('image/png'));
+            } catch {
+                // フォールバック：拡張子のみ
+                const canvas = document.createElement('canvas');
+                canvas.width = 112;
+                canvas.height = 63;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(extension.toUpperCase(), canvas.width/2, canvas.height/2);
+                resolve(canvas.toDataURL('image/png'));
+            }
             return;
         }
 
@@ -561,6 +573,7 @@ async function processFileData(file, currentPlaylist) {
 
         // 通常のファイル処理
         const metadata = await getMetadata(file.path);
+        
         const newItem = {
             playlistItem_id: file.playlistItem_id || `${Date.now()}-${Math.random()}`,
             path: file.path,
@@ -584,7 +597,10 @@ async function processFileData(file, currentPlaylist) {
 
         // stateControl に新しいアイテムを追加して順序を管理
         await window.electronAPI.stateControl.addFileToState(newItem);
-        
+
+        // デバッグログに追加されたアイテムの情報を出力
+        // logDebug(`Added item: ID: ${newItem.playlistItem_id}, Name: ${newItem.name}, Order: ${newItem.order}`);
+
         return newItem;
     } catch (error) {
         logInfo(`[playlist.js] Error processing file: ${file.name}, Error: ${error.message}`);
@@ -598,7 +614,8 @@ function escapeSpecialCharacters(input) {
     return input.replace(/[#&%]/g, (char) => encodeURIComponent(char));
 }
 
-// ローカルファイルパスを安全なファイルURLに変換
+// ローカルファイルパスを安全なファイルURLに変換する関数（修正後）
+// encodeURI() は「#」をエスケープしないため、手動で「#」を%23に変換します
 function getSafeFileURL(filePath) {
     // Windowsの場合、バックスラッシュをスラッシュに変換
     let normalizedPath = filePath.replace(/\\/g, '/');
@@ -619,8 +636,8 @@ function getSafeFileURL(filePath) {
 async function getMetadata(filePath) {
     try {
         if (filePath.startsWith("UVC_DEVICE")) {
-            const deviceId = filePath.split(":")[1];
-            const resolution = await getUVCResolution(deviceId);
+            const deviceId = filePath.split(":")[1]; // "UVC_DEVICE:<deviceId>" の形式から deviceId を取得
+            const resolution = await getUVCResolution(deviceId); // 解像度を取得
             return {
                 resolution: resolution || "Unknown",
                 duration: "UVC",
@@ -670,8 +687,8 @@ async function getUVCResolution(deviceId) {
             video: { deviceId: { exact: deviceId } }
         });
         const track = stream.getVideoTracks()[0];
-        const capabilities = track.getSettings();
-        track.stop();
+        const capabilities = track.getSettings(); // 解像度を取得
+        track.stop(); // ストリームを閉じる
 
         if (capabilities.width && capabilities.height) {
             return `${capabilities.width}x${capabilities.height}`;
@@ -759,7 +776,7 @@ function createButton(text, className, onClick) {
     button.textContent = text;
     button.addEventListener('click', (event) => {
         event.stopPropagation();
-        logOpe(`[playlist.js] Button clicked: ${text}`);
+        logOpe(`[playlist.js] Button clicked: ${text}`);  // クリック時の確認
         onClick();
     });
     return button;
@@ -836,6 +853,8 @@ function createStatusContainer(file) {
     const statusContainer = document.createElement('div');
     statusContainer.classList.add('status-container');
 
+    // startModeはfile.startModeをそのまま表示
+    // endModeはfile.endMode || 'OFF'で初期化済みなのでそのままでOK
     const statusList = [
         { label: 'START', value: file.startMode },
         { label: 'END', value: file.endMode || 'OFF' },
@@ -889,17 +908,17 @@ function updateItemStateClass(item, file) {
 function setCurrentPlaylistId(playlistId) {
     currentPlaylistId = playlistId;
 }
-let currentPlaylistId = null;
+let currentPlaylistId = null;  // 現在のプレイリストIDを追跡
 
 // 高解像度対応：プレイリスト高さ調整関数を追加
 function adjustPlaylistHeight() {
   const playlist = document.querySelector('.playlist-items');
   if (!playlist) return;
   const top = playlist.getBoundingClientRect().top;
-  // 下部エリアの高さを取得
+  // 追加：下部エリアの高さを取得
   const footer = document.getElementById('important-button-area');
   const footerHeight = footer ? footer.offsetHeight : 0;
-  const margin = 20;
+  const margin = 20; // 下部に確保する余白（必要に応じて調整）
   playlist.style.maxHeight = (window.innerHeight - top - footerHeight - margin) + 'px';
 }
 
@@ -910,7 +929,7 @@ window.addEventListener('resize', adjustPlaylistHeight);
 // プレイリストUI更新処理
 async function updatePlaylistUI() {
     const playlistItemsContainer = document.querySelector('.playlist-items');
-    const playlist = await stateControl.getPlaylistState();
+    const playlist = await stateControl.getPlaylistState(); // プレイリスト状態を取得
 
     if (!Array.isArray(playlist)) {
         logInfo('[playlist.js] Playlist is not an array:', playlist);
@@ -923,7 +942,7 @@ async function updatePlaylistUI() {
     // プレイリストアイテムをすべて削除
     playlistItemsContainer.innerHTML = '';
 
-    const renderedItems = [];
+    const renderedItems = []; // 描画されたアイテムを記録
 
 
     // 各プレイリストアイテムを描画
@@ -971,7 +990,7 @@ async function updatePlaylistUI() {
 // プレイリストアイテムを選択しエディットに動画を送る
 // -------------------------------------------------------
 async function handlePlaylistItemClick(item, index) {
-    const targetPlaylistItemId = item.playlistItem_id;
+    const targetPlaylistItemId = item.playlistItem_id; // プロパティからIDを取得
     logOpe(`[playlist.js] Handling click for ID: ${targetPlaylistItemId}`);
 
     // IDが取得できない場合は処理を終了
@@ -1021,7 +1040,7 @@ async function handlePlaylistItemClick(item, index) {
         await stateControl.setPlaylistState(
             updatedPlaylist.map(item => ({
                 ...item,
-                order: Number(item.order),
+                order: Number(item.order), // 数値形式に変換して保存
             }))
         );
 
@@ -1038,7 +1057,7 @@ async function handlePlaylistItemClick(item, index) {
         // UVCデバイスの場合はエディットエリアに送らない
         if (selectedItem && (selectedItem.endMode === "UVC" || (typeof selectedItem.path === 'string' && selectedItem.path.startsWith("UVC_DEVICE")))) {
             logInfo(`[playlist.js] UVC device "${selectedItem.name}" selected. Skipping edit area update.`);
-            showMessage(getMessage('uvc-devices-cannot-be-edited'), 5000, 'info'); 
+            showMessage(getMessage('uvc-devices-cannot-be-edited'), 5000, 'info'); // 5秒間表示
             // 自動選択処理（simulateRightArrowKey）の呼び出しとログ出力を削除
             return;
         }
@@ -1166,7 +1185,7 @@ function initializeOnAirButtonListener() {
     onAirButton.addEventListener('click', async () => {
         try {
             const playlist = await stateControl.getPlaylistState();
-            const editingItem = playlist.find(item => item.editingState === 'editing'); 
+            const editingItem = playlist.find(item => item.editingState === 'editing'); // 現在編集中のアイテム
 
             if (!editingItem) {
                 // 動作しない理由を表示
@@ -1181,13 +1200,13 @@ function initializeOnAirButtonListener() {
             onAirButton.classList.add('important-button-red');
 
             // プレイリストのオンエア状態をstateControlに通知
-            await stateControl.setOnAirState(editingItem.playlistItem_id); 
+            await stateControl.setOnAirState(editingItem.playlistItem_id); // 正しく playlistItem_id を渡す
 
             // プレイリストを正規化して保存（orderの数値形式を保持）
             await stateControl.setPlaylistState(
                 playlist.map(item => ({
                     ...item,
-                    order: Number(item.order), 
+                    order: Number(item.order), // 数値形式に変換して保存
                 }))
             );
 
@@ -1200,7 +1219,7 @@ function initializeOnAirButtonListener() {
             window.electronAPI.sendOnAirItemIdToMain(editingItem.playlistItem_id);
 
             // ON AIRメッセージ表示後もボタンの色を維持
-            showMessage(getMessage('on-air'), 10000, 'alert'); 
+            showMessage(getMessage('on-air'), 10000, 'alert'); // 10秒間表示
             
         } catch (error) {
             logInfo('[playlist.js] Error during On-Air process:', error);
@@ -1219,7 +1238,7 @@ function initializeOnAirButtonListener() {
 
 // 編集中のアイテムIDを取得
 function getEditingItemId() {
-    const playlist = stateControl.getPlaylistState();
+    const playlist = stateControl.getPlaylistState(); // プレイリストの状態を取得
     const editingItem = playlist.find(item => item.editingState === 'editing');
     return editingItem ? editingItem.playlistItem_id : null;
 }
@@ -1233,7 +1252,7 @@ function notifyOnAirItemId(itemId) {
 
 // アイテムのオンエア状態を更新
 function setOnAirState(itemId) {
-    const playlist = stateControl.getPlaylistState();
+    const playlist = stateControl.getPlaylistState(); // プレイリストの状態を取得
     const updatedPlaylist = playlist.map(item => {
         // 選択されたアイテムは "onair" に、それ以外は null に設定
         return {
@@ -1241,7 +1260,7 @@ function setOnAirState(itemId) {
             onAirState: item.playlistItem_id === itemId ? "onair" : null,
         };
     });
-    stateControl.setPlaylistState(updatedPlaylist);
+    stateControl.setPlaylistState(updatedPlaylist); // 更新したプレイリストを保存
 
     // プレイリストUIを更新
     updatePlaylistUI(); 
@@ -1253,12 +1272,12 @@ function setOnAirState(itemId) {
 // オフエア通知の受信
 // -----------------------
 window.electronAPI.onReceiveOffAirNotify(async () => {
-    logInfo('[playlist.js] Received Off-Air notification.');
+    logInfo('[playlist.js] Received Off-Air notification.'); // ログに表示
 
     // オンエアボタンを消灯
     const onAirButton = document.getElementById('cue-button');
     if (onAirButton) {
-        onAirButton.classList.remove('important-button-red'); 
+        onAirButton.classList.remove('important-button-red'); // 赤色（オンエア状態）を解除
         logInfo('[playlist.js] On-Air button has been turned off.');
     } else {
         logInfo('[playlist.js] On-Air button not found.');
@@ -1266,11 +1285,11 @@ window.electronAPI.onReceiveOffAirNotify(async () => {
 
     // プレイリストアイテムのオンエア状態を解除
     try {
-        await stateControl.resetOnAirState(); 
+        await stateControl.resetOnAirState(); // 既存のリセット関数を呼び出し
         logInfo('[playlist.js] All playlist items have been set to Off-Air state.');
 
         // プレイリストUIを更新
-        await updatePlaylistUI();
+        await updatePlaylistUI(); // ここでUIを更新
         logInfo('[playlist.js] Playlist UI updated successfully after Off-Air.');
     } catch (error) {
         logInfo('[playlist.js] Failed to reset playlist items Off-Air state:', error);
@@ -1288,7 +1307,7 @@ window.electronAPI.onReceiveOffAirNotify(async () => {
 // オフエア後に次のアイテムを選択する（オンエアはしない）
 // -----------------------
 async function selectNextPlaylistItem(currentItemId) {
-    const playlist = await stateControl.getPlaylistState();
+    const playlist = await stateControl.getPlaylistState(); // プレイリスト状態を取得
 
     if (!Array.isArray(playlist) || playlist.length === 0) {
         logDebug('[playlist.js] Playlist is empty or invalid.');
@@ -1388,14 +1407,14 @@ document.getElementById('playlise-save-button').addEventListener('click', () => 
     }
 
     // SAVEモードを開始
-    saveButton.classList.add('button-blink-orange');
+    saveButton.classList.add('button-blink-orange'); // SAVEボタンをオレンジに点滅
 
     // 空いている番号ボタンを水色に変更
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         if (!localStorage.getItem(`vtrpon_playlist_store_${i}`)) {
-            button.classList.add('button-lightblue'); 
-            button.addEventListener('click', enterSaveMode, { once: true }); 
+            button.classList.add('button-lightblue'); // 水色に設定
+            button.addEventListener('click', enterSaveMode, { once: true }); // SAVEモード処理を登録（一度限り）
         }
     }
     logOpe('[playlist.js] playlise-save-button clicked.');
@@ -1460,12 +1479,12 @@ function enterSaveMode(event) {
 // SAVEモードを終了
 function exitSaveMode() {
     const saveButton = document.getElementById('playlise-save-button');
-    saveButton.classList.remove('button-blink-orange');
+    saveButton.classList.remove('button-blink-orange'); // SAVEボタンの点滅解除
     // 空いている番号ボタンの水色解除
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
-        button.classList.remove('button-lightblue'); 
-        button.removeEventListener('click', enterSaveMode); 
+        button.classList.remove('button-lightblue'); // 水色を削除
+        button.removeEventListener('click', enterSaveMode); // SAVEモード処理を解除
     }
 }
 
@@ -1480,7 +1499,7 @@ async function savePlaylist(storeNumber) {
     const playlistName = nameInput.value.trim();
 
     if (!playlistName) {
-        showMessage(getMessage('enter-playlist-name'), 5000, 'alert'); 
+        showMessage(getMessage('enter-playlist-name'), 5000, 'alert'); // 5秒間表示
         return;
     }
 
@@ -1492,28 +1511,28 @@ async function savePlaylist(storeNumber) {
 
     try {
         // 最新のプレイリスト状態を取得
-        const playlist = await stateControl.getPlaylistState();
+        const playlist = await stateControl.getPlaylistState(); // 非同期で最新状態を取得
 
         if (!playlist || !Array.isArray(playlist)) {
             logInfo("[playlist.js] Invalid playlist state:", playlist);
-            showMessage(getMessage('failed-to-retrieve-playlist-state'), 5000, 'alert');
+            showMessage(getMessage('failed-to-retrieve-playlist-state'), 5000, 'alert'); // 5秒間表示
             return;
         }
 
         // プレイリストデータの構築（DIRECTモードとFILLKEYモードの状態を追加）
         const playlistData = {
-            playlist_id,
+            playlist_id, // プレイリストIDを設定
             name: playlistName,
-            soundPadMode: soundPadActive, 
-            directOnAirMode: directOnAirActive, 
-            fillKeyMode: isFillKeyMode,
+            soundPadMode: soundPadActive,        // 現在の SOUND PAD モード状態
+            directOnAirMode: directOnAirActive,    // 現在の DIRECT ONAIR モード状態
+            fillKeyMode: isFillKeyMode,            // 既存の FILLKEY モード状態
             data: playlist.map((item) => ({
                 ...item,
-                order: item.order, 
-                playlistItem_id: item.playlistItem_id || `${playlist_id}-${item.order}`,
-                selectionState: "unselected",
-                editingState: null, 
-                onAirState: null,
+                order: item.order, // 元の順序をそのまま保持
+                playlistItem_id: item.playlistItem_id || `${playlist_id}-${item.order}`, // アイテムIDを生成
+                selectionState: "unselected", // 保存時に選択状態をリセット
+                editingState: null, // 保存時に編集状態をリセット
+                onAirState: null, // 保存時はすべてオフエアに設定
             })),
         };
 
@@ -1527,11 +1546,15 @@ async function savePlaylist(storeNumber) {
         await stateControl.setPlaylistStateWithId(playlist_id, playlistData);
 
         hideModal(); // モーダル非表示
-        setActiveStoreButton(storeNumber);
+        setActiveStoreButton(storeNumber); // ボタンのアクティブ状態を更新
     } catch (error) {
         logInfo('[playlist.js] Error saving playlist:', error);
-        showMessage(getMessage('failed-to-save-playlist'), 5000, 'alert');
+        showMessage(getMessage('failed-to-save-playlist'), 5000, 'alert'); // 5秒間表示
     }
+
+    // デバッグ用：保存後の状態をログに出力
+    // const savedState = await stateControl.getPlaylistState();
+    // logDebug('Playlist state after save:', savedState);
 }
 
 // --------------------------------
@@ -1637,6 +1660,9 @@ async function loadPlaylist(storeNumber) {
         } catch (error) {
             logInfo('[playlist.js] Error loading playlist:', error);
         }
+
+        // 自動選択処理は一旦無効化（※必要に応じて後で見直す）
+        // simulateRightArrowKey();
         logOpe("[playlist.js] edit claer.");
 }
 
@@ -1650,21 +1676,27 @@ function updateStoreButtons() {
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
+
+        // 保存された場合は青、それ以外はグレー
         if (storedPlaylist) {
-            button.classList.add('button-blue');
-            button.classList.remove('button-gray');
+            button.classList.add('button-blue'); // 保存済み状態
+            button.classList.remove('button-gray'); // 未保存状態を削除
         } else {
-            button.classList.add('button-gray');
-            button.classList.remove('button-blue');
-            button.classList.remove('button-purple');
+            button.classList.add('button-gray'); // 未保存状態
+            button.classList.remove('button-blue'); // 保存済み状態を削除
+            button.classList.remove('button-purple'); // 削除されたボタンは紫を解除
         }
+
+        // 削除モード中は保存されたボタンを紫色に設定
         if (document.getElementById('playlisedel-button').classList.contains('button-blink-orange')) {
             if (storedPlaylist) {
-                button.classList.add('button-purple');
+                button.classList.add('button-purple'); // 紫色に設定
             }
         } else {
-            button.classList.remove('button-purple');
+            button.classList.remove('button-purple'); // 削除モード終了時は紫を解除
         }
+
+        // アクティブ状態（オレンジ）をリセット
         button.classList.remove('button-orange');
     }
 }
@@ -1674,9 +1706,9 @@ function setActiveButton(activeIndex) {
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         if (i === activeIndex) {
-            button.classList.add('button-orange');
+            button.classList.add('button-orange'); // アクティブ状態（オレンジ）を追加
         } else {
-            button.classList.remove('button-orange');
+            button.classList.remove('button-orange'); // 他のボタンのアクティブ状態を解除
         }
     }
 }
@@ -1685,9 +1717,12 @@ function setActiveButton(activeIndex) {
 function setActiveStoreButton(storeNumber) {
     const activeButton = document.getElementById(`playlise${storeNumber}-button`);
     const playlistNameDisplay = document.getElementById('playlist-name-display');
+    
+    // ボタンのクラスを適切に設定
     updateStoreButtons();
+    
     if (activeButton) {
-        activeButton.classList.add('button-orange');
+        activeButton.classList.add('button-orange');  // アクティブ状態
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${storeNumber}`);
 
         if (storedPlaylist) {
@@ -1728,17 +1763,17 @@ document.getElementById('playlisedel-button').addEventListener('click', () => {
     }
 
     // 削除モードを開始（オレンジに点滅）
-    delButton.classList.add('button-blink-orange');
+    delButton.classList.add('button-blink-orange'); // DELボタンをオレンジに点滅
 
     // 保存されている番号ボタンを紫色に変更
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
         if (storedPlaylist) {
-            button.classList.remove('button-blue');
-            button.classList.remove('button-orenge');
-            button.classList.add('button-purple');
-            button.addEventListener('click', enterDeleteMode);
+            button.classList.remove('button-blue'); // 青色を削除
+            button.classList.remove('button-orenge'); // オレンジを削除
+            button.classList.add('button-purple'); // 紫色に設定
+            button.addEventListener('click', enterDeleteMode); // 削除モード処理を登録
         }
     }
     logOpe('[playlist.js] playlistdel-button clicked.');
@@ -1747,10 +1782,10 @@ document.getElementById('playlisedel-button').addEventListener('click', () => {
 // 削除モードの処理
 function enterDeleteMode(event) {
     const button = event.currentTarget;
-    const storeNumber = button.dataset.storeNumber;
+    const storeNumber = button.dataset.storeNumber; // data-store-number 属性から取得
     // 削除処理を実行
-    deletePlaylist(storeNumber);
-    exitDeleteMode(); //
+    deletePlaylist(storeNumber); // 削除処理を即実行
+    exitDeleteMode(); // 削除モードを終了
 }
 
 // プレイリストを削除
@@ -1769,28 +1804,28 @@ function deletePlaylist(storeNumber) {
         // logDebug(`Playlist ${storeNumber} deleted successfully!`);
     } catch (error) {
         logInfo('[playlist.js] Error deleting playlist:', error);
-        showMessage(getMessage('failed-to-delete-playlist'), 5000, 'alert');
+        showMessage(getMessage('failed-to-delete-playlist'), 5000, 'alert'); // 5秒間表示
     }
 }
 
 // 削除モードを終了
 function exitDeleteMode() {
     const delButton = document.getElementById('playlisedel-button');
-    delButton.classList.remove('button-blink-orange');
+    delButton.classList.remove('button-blink-orange'); // DELボタンの点滅解除（オレンジに戻す）
 
     let activeButtonIndex = null;
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
-        button.classList.remove('button-purple');
+        button.classList.remove('button-purple'); // 紫を削除
 
         if (storedPlaylist) {
-            button.classList.add('button-blue');
+            button.classList.add('button-blue'); // 保存済み状態を復元
         } else {
-            button.classList.add('button-gray');
+            button.classList.add('button-gray'); // 未保存状態を復元
         }
 
-        button.removeEventListener('click', enterDeleteMode);
+        button.removeEventListener('click', enterDeleteMode); // 削除モード処理を解除
 
         // 現在アクティブなボタンを記録
         if (button.classList.contains('button-orange')) {
@@ -1884,7 +1919,7 @@ function updateButtonColors() {
 // プレイリストのエクスポート処理
 window.electronAPI.ipcRenderer.on('export-playlist', async () => {
     try {
-        const MAX_PLAYLISTS = 5;
+        const MAX_PLAYLISTS = 5; // 最大プレイリスト数
         const allPlaylists = [];
 
         // ローカルストレージからプレイリストを収集
@@ -1952,12 +1987,15 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
                 return;
             }
             const errorDetails = result.error ? `Reason: ${result.error}` : 'Invalid playlist file format.';
-            showMessage(`${getMessage('failed-to-import-playlist')}\n${errorDetails}`, 5000, 'alert');
+            showMessage(`${getMessage('failed-to-import-playlist')}\n${errorDetails}`, 5000, 'alert'); // 5秒間表示
             return;
         }
+
         const { playlists, activePlaylistIndex } = result.data;
         const missingFiles = [];
-        const newPlaylists = [];
+
+        const newPlaylists = []; // インポートした新しいプレイリストデータを一時保存
+
         for (const playlist of playlists) {
             const { index, name, data, endMode } = playlist;
 
@@ -1971,11 +2009,13 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
                     missingFiles.push(file.path || file.name || 'Unknown file');
                 }
             }
+
             const playlistData = {
                 name,
                 data: validData.sort((a, b) => a.order - b.order),
                 endMode,
             };
+
             newPlaylists.push({ index, playlistData, active: index === activePlaylistIndex });
         }
 
@@ -1990,7 +2030,7 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
                 document.getElementById('playlist-name-display').textContent = playlistData.name;
 
                 const playlistItemsContainer = document.querySelector('.playlist-items');
-                playlistItemsContainer.innerHTML = '';
+                playlistItemsContainer.innerHTML = ''; // 既存のリストをクリア
 
                 for (const file of playlistData.data) {
                     logInfo(`[playlist.js] File added to playlist: ${file.name}`);
@@ -2005,11 +2045,11 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
 
         logDebug('[playlist.js] All playlists imported successfully');
         setTimeout(() => {
-            showMessage(getMessage('playlists-imported-successfully'), 5000, 'info');
+            showMessage(getMessage('playlists-imported-successfully'), 5000, 'info'); // 5秒間表示
 
             if (missingFiles.length > 0) {
                 const missingList = missingFiles.join('\n');
-                showMessage(`${getMessage('files-not-found')}\n${missingList}`, 20000, 'alert');
+                showMessage(`${getMessage('files-not-found')}\n${missingList}`, 20000, 'alert'); // 5秒間表示
             }
         }, 200);
     } catch (error) {
@@ -2034,13 +2074,13 @@ document.getElementById("list-list-button").addEventListener("click", setListMod
 // エンターキーによる誤動作防止
 document.getElementById("list-repeat-button").addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
-        event.preventDefault();
+        event.preventDefault(); // エンターキーのデフォルト動作を無効化
     }
 });
 
 document.getElementById("list-list-button").addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
-        event.preventDefault();
+        event.preventDefault(); // エンターキーのデフォルト動作を無効化
     }
 });
 
@@ -2049,7 +2089,7 @@ async function setRepeatMode() {
     const playlist = await stateControl.getPlaylistState();
     const updatedPlaylist = playlist.map((item, index) => {
         if (item.startMode === "PLAY" && item.endMode === "UVC") {
-            return item;
+            return item; // 条件に一致するアイテムはそのままにする
         }
         return {
             ...item,
@@ -2059,7 +2099,7 @@ async function setRepeatMode() {
     });
     const normalizedPlaylist = updatedPlaylist.map(item => ({
         ...item,
-        order: Number(item.order),
+        order: Number(item.order), // 数値形式に変換して保存
     }));
     await stateControl.setPlaylistState(normalizedPlaylist);
 
@@ -2067,7 +2107,7 @@ async function setRepeatMode() {
     await updatePlaylistUI();
     logOpe("[playlist.js] Playlist set to REPEAT mode.");
 
-    // 設定完了をユーザに通知
+    // 設定完了をユーザに通知（削除しない）
     showMessage(getMessage('repeat-mode-activated'), 5000, "info");
 }
 
@@ -2076,7 +2116,7 @@ async function setListMode() {
     const playlist = await stateControl.getPlaylistState();
     const updatedPlaylist = playlist.map((item, index) => {
         if (item.startMode === "PLAY" && item.endMode === "UVC") {
-            return item;
+            return item; // 条件に一致するアイテムはそのままにする
         }
         return {
             ...item,
@@ -2086,7 +2126,7 @@ async function setListMode() {
     });
     const normalizedPlaylist = updatedPlaylist.map(item => ({
         ...item,
-        order: Number(item.order),
+        order: Number(item.order), // 数値形式に変換して保存
     }));
     await stateControl.setPlaylistState(normalizedPlaylist);
     updateListModeButtons("LIST");
@@ -2097,8 +2137,9 @@ async function setListMode() {
     showMessage(getMessage('list-mode-activated'), 5000, "info");
 }
 
-// 右矢印キーを自動押下する処理
+// 右矢印キーを自動押下する処理（選択状態を解除するよう修正）
 function simulateRightArrowKey() {
+    // キーボードイベントのシミュレーション（必要に応じて残す）
     const event = new KeyboardEvent("keydown", {
         key: "ArrowRight",
         code: "ArrowRight",
@@ -2107,9 +2148,9 @@ function simulateRightArrowKey() {
     });
     document.dispatchEvent(event);
     
-    // プレイリスト状態を取得し、全アイテムの選択状態を解除
+    // プレイリスト状態を取得し、全アイテムの選択状態を解除する
     try {
-        const playlist = stateControl.getPlaylistState();
+        const playlist = stateControl.getPlaylistState(); // 同期関数なので.thenは使えない
         const updatedPlaylist = playlist.map(item => ({
             ...item,
             selectionState: "unselected",
@@ -2118,6 +2159,7 @@ function simulateRightArrowKey() {
         // 選択状態解除後、状態を保存しUIを更新
         stateControl.setPlaylistState(updatedPlaylist).then(() => {
             updatePlaylistUI();
+            // 現在の選択インデックスもリセット
             currentSelectedIndex = -1;
             logOpe('[playlist.js] Playlist selection cleared after right arrow simulation.');
         }).catch((error) => {
@@ -2127,6 +2169,8 @@ function simulateRightArrowKey() {
         logInfo('[playlist.js] Error getting playlist state:', error);
     }
 }
+
+
 
 // ボタン更新
 function updateListModeButtons(activeMode) {
@@ -2191,6 +2235,8 @@ async function handleSoundPadOnAir(item, index) {
     showMessage(`${getMessage('sound-pad-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
 }
 
+
+
 // -----------------------
 // Direct Onair モード処理
 // -----------------------
@@ -2200,13 +2246,14 @@ async function handleDirectOnAir(item, index) {
     logOpe(`[playlist.js] DIRECT ONAIR triggered for item ID: ${targetId}`);
 
     // 現在のプレイリスト状態を取得し、対象アイテムの状態を更新
-    // スタートモードを PLAY に設定し、エンドモードは既存の値を保持する
+    // ※ スタートモードを PLAY に設定し、エンドモードは既存の値を保持する
     let playlist = await stateControl.getPlaylistState();
     playlist = playlist.map(file => {
         if (file.playlistItem_id === targetId) {
             return {
                 ...file,
-                startMode: "PLAY",
+                startMode: "PLAY", // スタートモードのみ強制設定
+                // endMode は変更せず既存の値を保持
                 selectionState: "selected",
                 editingState: "editing"
             };
@@ -2261,15 +2308,16 @@ function findNextAvailableIndex(sortedPlaylist, startIndex) {
         idx = (idx + 1) % sortedPlaylist.length;
         count--;
     }
-    return -1;
+    return -1;  // すべてが選択不可の場合
 }
 
 async function handleNextModePlaylist(currentItemId) {
-    const playlist = await stateControl.getPlaylistState();
+    const playlist = await stateControl.getPlaylistState(); // プレイリスト状態を非同期で取得
 
     // プレイリストの検証
     if (!Array.isArray(playlist) || playlist.length === 0) {
         logDebug('[playlist.js] Playlist is empty or invalid.');
+        // プレイリストが空の場合、Off-Air通知を送信する
         window.electronAPI.sendOffAirEvent();
         logOpe('[playlist.js] Off-Air通知を送信しました。（プレイリスト空）');
         return;
@@ -2358,8 +2406,8 @@ function scrollToPlaylistItem(itemId) {
     const itemElement = document.querySelector(`.playlist-item[data-playlist-item-id="${itemId}"]`);
     if (itemElement) {
         itemElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
+            behavior: 'smooth', // スクロールをスムーズに
+            block: 'nearest',   // 必要最小限のスクロール
         });
         logInfo(`[playlist.js] Scrolled into view for next item: ${itemId}`);
     } else {
@@ -2377,7 +2425,7 @@ if (dskButton) {
     dskButton.addEventListener('click', async () => {
         // まず、DSKがすでに表示中なら、解除用に toggleOnAirDSK() を呼び出す
         if (window.dskModule.getCurrentDSKItem()) {
-            window.dskModule.toggleOnAirDSK(); 
+            window.dskModule.toggleOnAirDSK();  // 引数なしで呼び出すと内部で解除処理が走る
             window.electronAPI.sendDSKCommand({ command: 'DSK_TOGGLE' });
             return;
         }
@@ -2734,50 +2782,51 @@ let copiedItemState = null;
 // 矢印キーで選択を移動する処理
 function changePlaylistSelection(direction) {
     if (isModalActive) {
-        return;
+        // logDebug('Modal is open, ignoring shortcuts');
+        return; // モーダルが開いている場合はショートカットを無視
     }
 
-    const items = Array.from(document.querySelectorAll('.playlist-item')); 
+    const items = Array.from(document.querySelectorAll('.playlist-item')); // 全アイテムを取得
     if (items.length === 0) {
         logInfo('[playlist.js] No playlist items available for selection.');
-        return;
+        return; // アイテムがなければ何もしない
     }
 
     // 現在の選択状態を取得して初期化
     if (currentSelectedIndex === -1) {
-        const selectedItem = items.find(item => item.classList.contains('editing'));
+        const selectedItem = items.find(item => item.classList.contains('editing')); // editing状態のアイテムを取得
         currentSelectedIndex = items.indexOf(selectedItem);
-        if (currentSelectedIndex === -1) currentSelectedIndex = 0;
+        if (currentSelectedIndex === -1) currentSelectedIndex = 0; // 選択されていない場合は最初を選択
     }
 
     // 上下移動のロジック
     currentSelectedIndex += direction;
-    if (currentSelectedIndex < 0) currentSelectedIndex = items.length - 1;
-    if (currentSelectedIndex >= items.length) currentSelectedIndex = 0;
+    if (currentSelectedIndex < 0) currentSelectedIndex = items.length - 1; // 循環
+    if (currentSelectedIndex >= items.length) currentSelectedIndex = 0;   // 循環
 
     // 現在選択されたアイテムを取得
     const selectedItem = items[currentSelectedIndex];
 
     // 選択されたアイテムを画面内にスクロール
     selectedItem.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
+        behavior: 'smooth', // スムーズなスクロール
+        block: 'nearest',   // 必要最小限のスクロール
     });
 
-    // クリック処理をトリガー
-    selectedItem.click(); 
+    // クリック処理をトリガー（アイテム選択の処理を一元化）
+    selectedItem.click(); // この処理で `handlePlaylistItemClick` が呼ばれる
     logOpe(`[playlist.js] Playlist selection changed to index: ${currentSelectedIndex}`);
 }
 
 // キーボードイベントリスナーを登録
 document.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowUp') {
-        changePlaylistSelection(-1); 
-        event.preventDefault();
+        changePlaylistSelection(-1); // 上方向
+        event.preventDefault(); // デフォルトのスクロールを防止
         logOpe('[playlist.js] ArrowUp clicked.');
     } else if (event.key === 'ArrowDown') {
-        changePlaylistSelection(1);
-        event.preventDefault();
+        changePlaylistSelection(1); // 下方向
+        event.preventDefault(); // デフォルトのスクロールを防止
         logOpe('[playlist.js] ArrowDown clicked.');
     }
 });
