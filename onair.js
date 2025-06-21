@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     onair.js
-//     ver 2.3.1
+//     ver 2.3.2
 // -----------------------
 
 // -----------------------
@@ -569,6 +569,9 @@ function onairSetupPlayer(itemData) {
         return;
     }
 
+	// プレビュー用動画にマウスホイール／キー操作をバインド
+    setupMouseWheelControl(onairVideoElement);
+    
     // FILLKEYモード状態を反映する
     updateFillKeyModeState();
 
@@ -1386,6 +1389,38 @@ function onairSetupButtonHandlers() {
         onairFTBButton.addEventListener('click', onairHandleFTBButton);
     }
     logDebug('[onair.js] Button handlers set up.');
+}
+
+// -----------------------
+// マウスホイール操作よるコマ送りの処理
+// -----------------------
+function setupMouseWheelControl(videoElement) {
+    // 動画要素をマウスホイールで操作可能にするため tabindex を設定
+    videoElement.tabIndex = 0;
+
+    // 動画ロード完了判定
+    let isVideoLoaded = false;
+    videoElement.addEventListener('loadedmetadata', () => {
+        isVideoLoaded = true;
+    });
+
+    // ホイール操作によるシーク処理
+    videoElement.addEventListener('wheel', (event) => {
+        if (!isVideoLoaded) {
+            logInfo('[onair.js] Mouse wheel jog ignored because video is not loaded.');
+            return;
+        }
+        event.preventDefault();
+        const frameStep = 0.033;
+        const delta = event.deltaY > 0 ? frameStep : -frameStep;
+        const newTime = Math.max(0,
+            Math.min(videoElement.duration, videoElement.currentTime + delta)
+        );
+        videoElement.currentTime = newTime;
+        logOpe('[onair.js] Mouse wheel jog moved.');
+        // フルスクリーン側にもシーク通知
+        window.electronAPI.sendControlToFullscreen({ command: 'seek', value: newTime });
+    });
 }
 
 // --------------
