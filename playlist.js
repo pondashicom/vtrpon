@@ -2374,7 +2374,7 @@ async function handleNextModePlaylist(currentItemId) {
         if (nextItem.path.startsWith("UVC_DEVICE")) {
             logInfo(`[playlist.js] Next item is a UVC device. Skipping edit area update.`);
             // 右矢印キーを自動押下
-            simulateRightArrowKey();
+            // simulateRightArrowKey();
             logOpe("[playlist.js] edit claer.");
         } else {
             // エディットに次のアイテムを送る
