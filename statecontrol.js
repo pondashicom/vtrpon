@@ -314,6 +314,7 @@ function clearState() {
 
 // エクスポート
 module.exports = {
+    generateUniqueId,
     getPlaylistState,
     setPlaylistState,
     addFileToState,
