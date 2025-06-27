@@ -5,6 +5,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
+    "test": "node test/statecontrol.test.js",
     "npmRebuild": false
   },
   "keywords": [],
