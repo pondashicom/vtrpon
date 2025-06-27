@@ -722,10 +722,10 @@ h2 {
 /* 上段 FIFO 操作（ITEM行）*/
 #control-area-volume .fade-controls.item-fade {
     display: grid;
-    grid-template-columns: 80px 200px 80px; /* 左110px、中央100px、右110px */
+    grid-template-columns: 80px 200px 80px; /* 左80px、中央200px、右80px */
     justify-items: center;
     align-items: center;
-    width: 360px;0
+    width: 360px;
     margin: 0 auto;
 }
 
