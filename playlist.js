@@ -1771,7 +1771,8 @@ document.getElementById('playlisedel-button').addEventListener('click', () => {
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
         if (storedPlaylist) {
             button.classList.remove('button-blue'); // 青色を削除
-            button.classList.remove('button-orenge'); // オレンジを削除
+            // タイプミス修正: 正しいクラス名 'button-orange' を除去
+            button.classList.remove('button-orange'); // オレンジを削除
             button.classList.add('button-purple'); // 紫色に設定
             button.addEventListener('click', enterDeleteMode); // 削除モード処理を登録
         }
