@@ -2378,7 +2378,7 @@ window.electronAPI.onReceiveFullscreenVolume((dbFS) => {
 // スクリーンショット機能
 // -----------------------
 document.addEventListener('DOMContentLoaded', () => {
-    const captureBtn = document.getElementById('captuer-button');
+    const captureBtn = document.getElementById('capture-button');
     if (captureBtn) {
         captureBtn.addEventListener('click', () => {
             window.electronAPI.ipcRenderer.send('request-capture-screenshot');
