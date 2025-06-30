@@ -1,0 +1,65 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>ATEM Connection</title>
+  <!-- devicesettings.css を読み込む -->
+  <link rel="stylesheet" href="devicesettings.css" />
+</head>
+<body>
+  <div class="container">
+    <h2>ATEM Connection</h2>
+
+    <div class="field-col">
+      <label for="atem-enable">
+        <input type="checkbox" id="atem-enable" />
+        ATEM Connection Enable
+      </label>
+    </div>
+
+    <div class="field-col">
+      <label for="atem-auto">
+        <input type="checkbox" id="atem-auto" />
+        Auto OnAir on Switch
+      </label>
+    </div>
+    
+    <div class="field-col">
+      <label for="atem-ip">IP Address</label>
+      <input
+        type="text"
+        id="atem-ip"
+        placeholder="e.g. 000.000.000.000"
+        pattern="[0-9\.]*"
+        inputmode="numeric"
+      />
+    </div>
+    
+    <div id="ip-error" class="field-error"></div>
+    <div id="atem-status" class="field-error"></div>
+
+    <div class="field-col">
+      <label for="atem-input">VTR-PON Input Number</label>
+      <select id="atem-input">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+      </select>
+    </div>
+
+    <div class="field-col">
+      <button id="save-btn">Save</button>
+    </div>
+    <div class="field-col">
+      <button id="close-btn">Cancel</button>
+    </div>
+  </div>
+
+  <script src="atemsettings.js"></script>
+</body>
+</html>
