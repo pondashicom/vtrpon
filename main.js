@@ -14,9 +14,9 @@ const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
 const statecontrol = require('./statecontrol.js');
 const fixWebmDuration = require('fix-webm-duration');
+const { Atem } = require('atem-connection');
 
-
-let mainWindow, fullscreenWindow, deviceSettingsWindow, recordingSettingsWindow;
+let mainWindow, fullscreenWindow, deviceSettingsWindow, recordingSettingsWindow, atemSettingsWindow;
 let isDebugMode = false;
 let playlistState = [];
 let powerSaveBlockerId;
@@ -85,6 +85,52 @@ function saveConfig(config) {
         console.error('[main.js] Failed to save config.json:', e);
     }
 }
+
+// ATEM 設定取得
+ipcMain.handle('get-atem-config', (event) => {
+    const config = loadConfig();
+    // 初期値として空文字列＋入力1を返す
+    return config.atem || { ip: '', input: 1 };
+});
+
+// ATEM 設定保存
+ipcMain.on('set-atem-config', (event, atemConfig) => {
+    const config = loadConfig();
+    config.atem = atemConfig;
+    saveConfig(config);
+});
+
+// ATEM 存在チェック
+ipcMain.handle('check-atem-device', async (event, ip) => {
+  const atem = new Atem();
+  try {
+    // 1) ATEM に接続
+    await atem.connect(ip);
+
+    // 2) Info イベントを待つ（最大 1 秒でタイムアウト）
+    const info = await new Promise(resolve => {
+      const timeout = setTimeout(() => {
+        // タイムアウト時は現在の state.info を返す
+        resolve(atem.state.info || {});
+      }, 1000);
+
+      // ATEM-Connection が受け取る Info パケット
+      atem.once('info', data => {
+        clearTimeout(timeout);
+        resolve(data);
+      });
+    });
+
+    // 3) 切断
+    atem.disconnect();
+
+    return { found: true, info };
+  } catch (error) {
+    console.error('[main.js] ATEM connect error:', error);
+    return { found: false, error: error.message };
+  }
+});
+
 
 // ---------------------
 // 更新の確認
@@ -618,6 +664,17 @@ function buildMenuTemplate(labels) {
             ]
         },
         {
+            label: 'Tools',
+            submenu: [
+                {
+                    label: 'ATEM Connection',
+                    click: () => {
+                        createAtemSettingsWindow();
+                    }
+                }
+            ]
+        },
+        {
             label: labels["menu-help"],
             submenu: [
                 {
@@ -762,7 +819,7 @@ function registerSafeFileProtocol() {
 }
 
 // アプリが準備完了したときの処理
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     const displays = screen.getAllDisplays();
 
     // スクリーンセーバーやディスプレイスリープを防止するために powerSaveBlocker を開始
@@ -775,6 +832,32 @@ app.whenReady().then(() => {
     }).then(() => {
         console.log('[main.js] Cache and local storage cleared.');
     });
+
+    // 起動時から ATEM の状態変化を監視
+    const cfg = loadConfig().atem || { enable: false, auto: false, ip: '', input: 1 };
+    if (cfg.enable && cfg.ip) {
+        global.atemMonitor = new Atem();
+        try {
+            // connect() が完了するまで await して、その後 on() を呼ぶ
+            await global.atemMonitor.connect(cfg.ip);
+            console.log(`[main.js] ATEM Monitor connected to ${cfg.ip}`);
+            global.atemMonitor.on('stateChanged', (state, paths) => {
+                const changed = Array.isArray(paths) ? paths : [paths];
+                if (changed.includes('video.mixEffects.0.programInput')) {
+                    const programOut = state.video.mixEffects[0].programInput;
+                    console.log(`[main.js][ATEM Monitor] Program Output switched to ${programOut}`);
+                    const latest = loadConfig().atem || {};
+                    if (latest.auto && programOut === latest.input && mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('shortcut-trigger', 'Shift+Enter');
+                        console.log('[main.js][ATEM Monitor] Sent Shift+Enter to mainWindow');
+                    }
+                }
+            });
+        } catch (err) {
+            console.error('[main.js] ATEM Monitor connection error:', err);
+        }
+    }
+
 
     // 録画設定の読み込み・初期化
     const config = loadConfig();
@@ -976,6 +1059,38 @@ ipcMain.handle('show-recording-directory-dialog', async () => {
 });
 
 // ---------------------------------------------
+// ATEM 設定ウインドウ
+// ---------------------------------------------
+function createAtemSettingsWindow() {
+    if (atemSettingsWindow) {
+        atemSettingsWindow.focus();
+        return;
+    }
+    atemSettingsWindow = new BrowserWindow({
+        width: 500,
+        height: 550,
+        title: 'ATEM Connection',
+        parent: mainWindow,
+        modal: true,
+        frame: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false
+        }
+    });
+    // CSS／HTML のサイズに合わせて load
+    atemSettingsWindow.loadFile('atemsettings.html');
+    // メニュー非表示
+    atemSettingsWindow.setMenuBarVisibility(false);
+    // 閉じられたら変数クリア
+    atemSettingsWindow.on('closed', () => {
+        atemSettingsWindow = null;
+    });
+}
+
+// ---------------------------------------------
 // プレイリストとエディットの状態管理と通知
 // ---------------------------------------------
 
@@ -1030,21 +1145,57 @@ ipcMain.on('listedit-updated', () => {
 });
 
 // ---------------------------------------------
-// プレイリストからオンエアにアイテムIDを中継
+// ATEM 切り替えヘルパー
 // ---------------------------------------------
+async function reliableAtemSwitch(atem, input) {
+  const maxRetries = 5;
+  const retryDelay = 100; // ms
+  for (let i = 1; i <= maxRetries; i++) {
+    try {
+      await atem.changeProgramInput(input);
+    } catch (e) {
+      console.warn(`[main.js] changeProgramInput attempt ${i} failed:`, e);
+    }
+    // 少し待ってから状態を確認
+    await new Promise(r => setTimeout(r, retryDelay));
+    const current = atem.state.video.mixEffects[0]?.programInput;
+    if (current === input) {
+      console.log(`[main.js] ATEM input confirmed as ${input} on attempt ${i}`);
+      return;
+    }
+  }
+  console.warn(`[main.js] ATEM switch to ${input} not confirmed after ${maxRetries} attempts`);
+}
 
-// プレイリストからオンエア用のアイテムIDを受信
-ipcMain.on('on-air-item-id', (event, itemId) => {
-    console.log(`[main.js] Received On-Air Item ID from Playlist: ${itemId}`);
-    console.log(`[main.js] On-Air Item ID received: ${itemId}`);
+// ---------------------------------------------
+// プレイリストからオンエアにアイテムIDを中継＋ATEM制御
+// ---------------------------------------------
+ipcMain.on('on-air-item-id', async (event, itemId) => {
+  const cfg = loadConfig().atem || { enable: false, ip: '', input: 1 };
 
-    // オンエア画面にアイテムIDを中継
-    BrowserWindow.getAllWindows().forEach(win => {
-        win.webContents.send('on-air-data', itemId); // ここではIDのみ送信
-        console.log(`[main.js] On-Air Item ID sent to On-Air Window: ${itemId}`);
-        console.log(`[main.js] On-Air Item ID sent: ${itemId}`);
-    });
+  if (cfg.enable) {
+    try {
+      // 接続（初回のみ）
+      if (!global.atem) {
+        global.atem = new Atem();
+        await global.atem.connect(cfg.ip);
+        console.log(`[main.js] Connected to ATEM at ${cfg.ip}`);
+        await new Promise(r => setTimeout(r, 300)); // 初期化待ち
+      }
+
+      // reliableAtemSwitch で確実に切替
+      await reliableAtemSwitch(global.atem, cfg.input);
+    } catch (err) {
+      console.error('[main.js] ATEM overall switch error:', err);
+    }
+  }
+
+  // 必ず再生トリガー
+  BrowserWindow.getAllWindows().forEach(win => {
+    win.webContents.send('on-air-data', itemId);
+  });
 });
+
 
 // ---------------------------------------------
 // オンエアからフルスクリーンにアイテムIDを中継
