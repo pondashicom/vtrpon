@@ -44,6 +44,10 @@ This project incorporates several third-party components. Their respective licen
   The versions included in this distribution are provided under the GNU General Public License.
   詳細: See the accompanying "gpl-3.0.txt" file or visit https://www.gnu.org/licenses/gpl-3.0.txt
 
+- **atem-connection**  
+  Licensed under the MIT License.  
+  詳細: https://github.com/nrkno/atem-connection/blob/main/LICENSE
+
 - **Other dependencies**  
   Please refer to the "Third-Party Licenses.txt" file included in this distribution for details.
   その他の依存ライブラリについては、同梱の「Third-Party Licenses.txt」ファイルをご参照ください。
@@ -76,8 +80,27 @@ clarity and compliance. Future releases will continue to adhere to these terms.
 なお、以前のリリースではライセンス表記に不整合があった可能性がありますが、ver2.2.1 リリース以降、
 すべてのコンポーネントを統一して GPL の下で配布することにより、透明性と遵法性を確保しております。
 
+
 ------------------------------
-5. Contact Information / お問い合わせ先
+5. ATEM Mini Control Notice
+------------------------------
+
+This software includes control functionality for the ATEM Mini series,
+but it does **not** use the official SDK provided by Blackmagic Design.
+Instead, it relies on an **unofficial** control library based on the network protocol.
+
+As such, this feature is **not** supported by Blackmagic Design.
+Use at your own risk.
+
+本ソフトウェアには ATEM Mini シリーズの制御機能が含まれていますが、
+これは Blackmagic Design 社が提供する公式 SDK ではなく、
+ネットワーク制御プロトコルをもとにした **非公式ライブラリ** を使用しています。
+
+そのため、Blackmagic Design 社のサポート対象外となります。
+ご使用は自己責任でお願いいたします。
+
+------------------------------
+6. Contact Information / お問い合わせ先
 ------------------------------
 
 For any inquiries regarding this license, please contact:
