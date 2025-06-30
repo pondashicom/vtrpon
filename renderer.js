@@ -50,6 +50,13 @@ window.electronAPI.onRecordingSaveNotify((savedPath) => {
     showMessage(getMessage('recording-save-result') + savedPath, 10000, 'info');
 });
 
+// info-message イベントを受信して showMessage を呼び出す
+window.electronAPI.ipcRenderer.on('info-message', (event, key) => {
+    // messages.js のキーを元にテキストを取得
+    const text = getMessage(key) || key;
+    // タイプ 'info' で表示（5秒間）
+    showMessage(text, 5000, 'info');
+});
 
 // 使用例
 // showMessage('UVCデバイスはエディットエリアで編集できません。', 5000, 'alert'); // 5秒間表示

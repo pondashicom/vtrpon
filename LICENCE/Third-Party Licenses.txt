@@ -44,16 +44,22 @@ License: MIT License
 winax is distributed under the MIT License. It is a lightweight library for COM automation in Node.js, allowing integration with Windows COM objects (such as Microsoft Office applications). For the full text of the MIT License for winax, please refer to its repository or the file "winax-license.txt" included with the package, or visit: https://github.com/durs/node-winax
 
 --------------------------------------------------
-5. Other Dependencies
+5. atem-connection
+--------------------------------------------------
+License: MIT License
+
+atem-connection is distributed under the MIT License. It provides an API for controlling Blackmagic Design ATEM switchers from Node.js. For the full text of the MIT License for atem-connection, please refer to its repository or the file "LICENSE" in the atem-connection package, or visit: https://github.com/nrkno/atem-connection/blob/main/LICENSE
+
+--------------------------------------------------
+6. Other Dependencies
 --------------------------------------------------
 For other third-party libraries and components used in this project,
 please refer to their respective documentation or license files included in the distribution.
 
 Å¶ This file is provided for informational purposes only. The full text of each license is available in the respective license files or at the provided URLs.
 
-
 --------------------------------------------------
-6. Microsoft PowerPoint (Required Software)
+7. Microsoft PowerPoint (Required Software)
 --------------------------------------------------
 License: Proprietary (Microsoft Corporation)
 
