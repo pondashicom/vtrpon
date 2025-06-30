@@ -1,12 +1,18 @@
-﻿// atemsettings.js
+﻿//------------------------------
+// atemsettings.js
+//   2.3.4
+//------------------------------
+
+
+//初期化
 document.addEventListener('DOMContentLoaded', async () => {
-    const enableInput = document.getElementById('atem-enable');
-    const autoInput   = document.getElementById('atem-auto');
-    const ipInput     = document.getElementById('atem-ip');
-    const chanInput   = document.getElementById('atem-input');
-    const saveBtn     = document.getElementById('save-btn');
-    const closeBtn    = document.getElementById('close-btn');
-    const ipError     = document.getElementById('ip-error');
+    const controlInput    = document.getElementById('atem-control-enable');
+    const autoSwitchInput = document.getElementById('atem-auto-switch-enable');
+    const ipInput         = document.getElementById('atem-ip');
+    const chanInput       = document.getElementById('atem-input');
+    const saveBtn         = document.getElementById('save-btn');
+    const closeBtn        = document.getElementById('close-btn');
+    const ipError         = document.getElementById('ip-error');
 
     // IP入力は数字とドットのみ
     ipInput.addEventListener('input', () => {
@@ -42,13 +48,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // 初期値読み込み（enableとautoも含む）
+    // 初期値読み込み（controlとautoSwitchも含む）
     const cfg = await window.electronAPI.getATEMConfig();
-    enableInput.checked = cfg.enable ?? false;
-    autoInput.checked   = cfg.auto   ?? false;
-    ipInput.value       = cfg.ip     || '';
-    chanInput.value     = cfg.input  || 1;
-    ipError.textContent = '';
+    controlInput.checked    = cfg.control    ?? false;
+    autoSwitchInput.checked = cfg.autoSwitch ?? false;
+    ipInput.value           = cfg.ip         || '';
+    chanInput.value         = cfg.input      || 1;
+    ipError.textContent     = '';
 
     // 保存処理
     saveBtn.addEventListener('click', () => {
@@ -60,12 +66,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             ipInput.focus();
             return;
         }
-        // 有効フラグと Auto フラグも含めて保存
+        // control と autoSwitch フラグを含めて保存
         const newCfg = {
-            enable: enableInput.checked,
-            auto:   autoInput.checked,
-            ip:     ip,
-            input:  parseInt(chanInput.value, 10) || 1
+            control:    controlInput.checked,
+            autoSwitch: autoSwitchInput.checked,
+            ip:         ip,
+            input:      parseInt(chanInput.value, 10) || 1
         };
         window.electronAPI.setATEMConfig(newCfg);
         window.close();

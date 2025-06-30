@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     main.js
-//     ver 2.3.1
+//     ver 2.3.4
 // -----------------------
 
 // ---------------------
@@ -89,16 +89,32 @@ function saveConfig(config) {
 // ATEM 設定取得
 ipcMain.handle('get-atem-config', (event) => {
     const config = loadConfig();
-    // 初期値として空文字列＋入力1を返す
-    return config.atem || { ip: '', input: 1 };
+    // control/autoSwitch フラグも含むデフォルトを返す
+    return config.atem || { control: false, autoSwitch: false, ip: '', input: 1 };
 });
 
-// ATEM 設定保存
-ipcMain.on('set-atem-config', (event, atemConfig) => {
+// ATEM 設定保存 ＆ 機能ON/OFFを即時反映
+ipcMain.on('set-atem-config', async (event, atemConfig) => {
+    // 設定永続化
     const config = loadConfig();
     config.atem = atemConfig;
     saveConfig(config);
+
+    // VTR-PON→ATEM制御のON/OFF
+    if (atemConfig.control && atemConfig.ip) {
+        await prepareAtemControl(atemConfig.ip);
+    } else {
+        disableAtemControl();
+    }
+
+    // ATEM→VTR-PON自動オンエアのON/OFF
+    if (atemConfig.autoSwitch && atemConfig.ip) {
+        await startATEMMonitor(atemConfig.ip);
+    } else {
+        stopATEMMonitor();
+    }
 });
+
 
 // ATEM 存在チェック
 ipcMain.handle('check-atem-device', async (event, ip) => {
@@ -833,31 +849,18 @@ app.whenReady().then(async () => {
         console.log('[main.js] Cache and local storage cleared.');
     });
 
-    // 起動時から ATEM の状態変化を監視
-    const cfg = loadConfig().atem || { enable: false, auto: false, ip: '', input: 1 };
-    if (cfg.enable && cfg.ip) {
-        global.atemMonitor = new Atem();
-        try {
-            // connect() が完了するまで await して、その後 on() を呼ぶ
-            await global.atemMonitor.connect(cfg.ip);
-            console.log(`[main.js] ATEM Monitor connected to ${cfg.ip}`);
-            global.atemMonitor.on('stateChanged', (state, paths) => {
-                const changed = Array.isArray(paths) ? paths : [paths];
-                if (changed.includes('video.mixEffects.0.programInput')) {
-                    const programOut = state.video.mixEffects[0].programInput;
-                    console.log(`[main.js][ATEM Monitor] Program Output switched to ${programOut}`);
-                    const latest = loadConfig().atem || {};
-                    if (latest.auto && programOut === latest.input && mainWindow && !mainWindow.isDestroyed()) {
-                        mainWindow.webContents.send('shortcut-trigger', 'Shift+Enter');
-                        console.log('[main.js][ATEM Monitor] Sent Shift+Enter to mainWindow');
-                    }
-                }
-            });
-        } catch (err) {
-            console.error('[main.js] ATEM Monitor connection error:', err);
-        }
+    // ATEM設定を読み込んでフラグを取得
+    const cfg = loadConfig().atem || { control: false, autoSwitch: false, ip: '', input: 1 };
+
+    // VTR-PON→ATEM制御がONならコマンド送信用に接続
+    if (cfg.control && cfg.ip) {
+        await prepareAtemControl(cfg.ip);
     }
 
+    // ATEM→VTR-PON自動オンエアがONなら監視開始
+    if (cfg.autoSwitch && cfg.ip) {
+        await startATEMMonitor(cfg.ip);
+    }
 
     // 録画設定の読み込み・初期化
     const config = loadConfig();
@@ -936,6 +939,68 @@ app.whenReady().then(async () => {
         clearPlaylistStorage(mainWindow);
     });
 });
+
+// ---------------------------------------------
+// ATEM Control設定
+// ---------------------------------------------
+
+// VTR-PON→ATEM制御用インスタンスを生成し接続（オンエア時コマンド送信準備）
+async function prepareAtemControl(ip) {
+    if (!global.atem) {
+        global.atem = new Atem();
+        try {
+            await global.atem.connect(ip);
+            console.log(`[main.js] ATEM Control connected to ${ip}`);
+        } catch (err) {
+            console.error('[main.js] ATEM Control connection error:', err);
+        }
+    }
+}
+
+// VTR-PON→ATEM制御を停止（インスタンス破棄）
+function disableAtemControl() {
+    if (global.atem) {
+        global.atem.disconnect();
+        delete global.atem;
+        console.log('[main.js] ATEM Control disconnected');
+    }
+}
+
+// ATEMモニタリング用インスタンスがなければ生成して接続
+async function startATEMMonitor(ip) {
+    if (global.atemMonitor) return;
+    global.atemMonitor = new Atem();
+    try {
+        await global.atemMonitor.connect(ip);
+        console.log(`[main.js] ATEM Monitor connected to ${ip}`);
+        global.atemMonitor.on('stateChanged', (state, paths) => {
+            const changed = Array.isArray(paths) ? paths : [paths];
+            if (changed.includes('video.mixEffects.0.programInput')) {
+                const programOut = state.video.mixEffects[0].programInput;
+                console.log(`[main.js][ATEM Monitor] Program switched to ${programOut}`);
+                const latest = loadConfig().atem || {};
+                if (latest.autoSwitch && programOut === latest.input
+                    && mainWindow && !mainWindow.isDestroyed()
+                ) {
+                    mainWindow.webContents.send('shortcut-trigger', 'Shift+Enter');
+                    mainWindow.webContents.send('info-message', 'atem.autoOnAirTriggered');
+                    console.log('[main.js][ATEM Monitor] Auto OnAir triggered');
+                }
+            }
+        });
+    } catch (err) {
+        console.error('[main.js] ATEM Monitor connection error:', err);
+    }
+}
+
+// ATEMモニタリングを停止してインスタンスを破棄
+function stopATEMMonitor() {
+    if (global.atemMonitor) {
+        global.atemMonitor.disconnect();
+        delete global.atemMonitor;
+        console.log('[main.js] ATEM Monitor disconnected');
+    }
+}
 
 // ---------------------------------------------
 // デバイス設定
@@ -1171,29 +1236,34 @@ async function reliableAtemSwitch(atem, input) {
 // プレイリストからオンエアにアイテムIDを中継＋ATEM制御
 // ---------------------------------------------
 ipcMain.on('on-air-item-id', async (event, itemId) => {
-  const cfg = loadConfig().atem || { enable: false, ip: '', input: 1 };
+    // control フラグを含む新しい設定を取得
+    const cfg = loadConfig().atem || { control: false, autoSwitch: false, ip: '', input: 1 };
 
-  if (cfg.enable) {
-    try {
-      // 接続（初回のみ）
-      if (!global.atem) {
-        global.atem = new Atem();
-        await global.atem.connect(cfg.ip);
-        console.log(`[main.js] Connected to ATEM at ${cfg.ip}`);
-        await new Promise(r => setTimeout(r, 300)); // 初期化待ち
-      }
+    // VTR-PON→ATEM制御がONの場合に実行
+    if (cfg.control && cfg.ip) {
+        try {
+            // 接続（初回のみ）
+            if (!global.atem) {
+                global.atem = new Atem();
+                await global.atem.connect(cfg.ip);
+                console.log(`[main.js] Connected to ATEM at ${cfg.ip}`);
+                await new Promise(r => setTimeout(r, 300)); // 初期化待ち
+            }
 
-      // reliableAtemSwitch で確実に切替
-      await reliableAtemSwitch(global.atem, cfg.input);
-    } catch (err) {
-      console.error('[main.js] ATEM overall switch error:', err);
+            // reliableAtemSwitch で確実に切替
+            await reliableAtemSwitch(global.atem, cfg.input);
+
+            // 切替コマンド送信完了をInfo Windowに表示
+            mainWindow.webContents.send('info-message', 'atem.autoSwitchCommandSent');
+        } catch (err) {
+            console.error('[main.js] ATEM overall switch error:', err);
+        }
     }
-  }
 
-  // 必ず再生トリガー
-  BrowserWindow.getAllWindows().forEach(win => {
-    win.webContents.send('on-air-data', itemId);
-  });
+    // 必ず再生トリガー
+    BrowserWindow.getAllWindows().forEach(win => {
+        win.webContents.send('on-air-data', itemId);
+    });
 });
 
 
