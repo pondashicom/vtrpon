@@ -1,7 +1,7 @@
 ﻿
 // -----------------------
 //     messages.js
-//     ver 2.2.8
+//     ver 2.3.4
 // -----------------------
 
 const messages = {
@@ -48,7 +48,11 @@ const messages = {
     "single-display-dialog-button-exit": "終了",
     "recording-save-start": "録画ファイルの保存を開始しました…",
     "recording-save-complete": "録画ファイルの保存が完了しました",
-    "recording-save-result": "保存先: "
+    "recording-save-result": "保存先: ",
+    "atem.autoSwitchCommandSent":    "ATEM切替コマンドを自動で送信しました。",
+    "atem.connected":                "ATEMに接続されました。",
+    "atem.disconnected":             "ATEMの接続が切断されました。",
+    "atem.autoOnAirTriggered":       "ATEM入力切替により自動でオンエアが開始されました。"
   },
   "en": {
     "monitoring-failed": "PFL: Monitoring failed to start.",
@@ -93,7 +97,11 @@ const messages = {
     "single-display-dialog-button-exit": "Exit",
     "recording-save-start": "Recording save started…",
     "recording-save-complete": "Recording save completed",
-    "recording-save-result": "Saved file at: "
+    "recording-save-result": "Saved file at: ",
+    "atem.autoSwitchCommandSent":  "ATEM switch command sent automatically.",
+    "atem.connected":              "ATEM connected.",
+    "atem.disconnected":           "ATEM disconnected.",
+    "atem.autoOnAirTriggered":     "Automatically triggered OnAir by ATEM input switch."
   }
 };
 

@@ -1,4 +1,4 @@
-﻿/* devicesettings.css */
+﻿/* devicesettings.css 2.3.4*/
 
 /* ------------------ */
 /*     共通スタイル      */
@@ -203,4 +203,31 @@ button:hover {
   border-radius: 4px;
   font-size: 0.9em;
   cursor: pointer;
+}
+
+/* ------------- */
+/*   ATEM設定    */
+/* ------------- */
+
+/* ATEM Connection モーダル用フィールド幅調整 */
+#atem-ip {
+  /* IP アドレス入力欄を適切な横幅に */
+  width: 180px;
+}
+
+/* プルダウン (1～8) を必要最小限の幅に */
+#atem-input {
+  width: 60px;
+}
+
+.field-error {
+    color: #ffffff;               /* 文字色を白に */
+    font-size: 14px;
+    margin: 8px auto 0 auto;     /* 上マージン8px、左右中央寄せ */
+    padding: 4px 8px;             /* 内側余白 */
+    text-align: center;           /* テキスト中央寄せ */
+    display: block;               /* 幅指定を有効に */
+    max-width: 100%;              /* 親幅に合わせる */
+    box-sizing: border-box;
+    background: transparent;      /* 背景は透過 */
 }

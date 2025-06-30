@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.2.9
+//     ver 2.3.4
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -318,6 +318,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openRecordingSettings: () => ipcRenderer.send('open-recording-settings'),
     closeRecordingSettings: () => ipcRenderer.send('close-recording-settings'),
     showDirectoryDialog: () => ipcRenderer.invoke('show-recording-directory-dialog'),
+
+    // ----------------------------
+    // ATEM設定関連
+    // ----------------------------
+    // ATEMのIP/入力番号を取得
+    getATEMConfig: () => ipcRenderer.invoke('get-atem-config'),
+    // ATEMのIP/入力番号を保存
+    setATEMConfig: (config) => ipcRenderer.send('set-atem-config', config),
+    // ATEM設定モーダルを開く
+    openATEMSettings: () => ipcRenderer.send('open-atem-settings'),
+    // ATEM存在確認
+    checkATEMDevice:(ip) => ipcRenderer.invoke('check-atem-device', ip),
+
+    // ----------------------------
+    // Info Window メッセージ受信
+    // ----------------------------
+    onInfoMessage: (callback) => ipcRenderer.on('info-message', (event, key) => callback(key)),
 
     // ----------------------------
     //  その他の処理
