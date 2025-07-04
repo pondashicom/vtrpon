@@ -39,7 +39,10 @@ if (!gotTheLock) {
 }
 
 // ffmpeg とffprobe のパス指定
-const ffmpegPath = path.join(process.resourcesPath, 'ffmpeg.exe');
+const ffmpegPath = path.join(
+    process.resourcesPath,
+    process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+);
 if (!fs.existsSync(ffmpegPath)) {
     console.error('[main.js] FFmpeg binary not found:', ffmpegPath);
 } else {
@@ -47,7 +50,11 @@ if (!fs.existsSync(ffmpegPath)) {
     ffmpeg.setFfmpegPath(ffmpegPath);
 }
 
-let ffprobePath = path.join(process.resourcesPath, 'ffprobe.exe');
+const ffprobePath = path.join(
+    process.resourcesPath,
+    process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'
+);
+
 const unpackedPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ffprobe.exe');
 if (fs.existsSync(unpackedPath)) {
     ffprobePath = unpackedPath;
