@@ -16,7 +16,7 @@ VTR-PON 2 utilizes dual displays, allowing separate operational and fullscreen p
 
 - Instant playback of videos (MP4, MOV, WEBM), audio (WAV, MP3, FLAC, M4A, AAC), and images (PNG)
 - Playback and streaming of UVC device inputs
-- Convert and playback PowerPoint slides (.pptx) as videos
+- Convert and playback PowerPoint slides (.pptx) as videos(Windows only)
 - Customizable playback points (IN/OUT), fade effects
 - Playlist creation, management, and quick recall
 - Volume management and fullscreen output monitoring
@@ -27,11 +27,10 @@ VTR-PON 2 utilizes dual displays, allowing separate operational and fullscreen p
 
 ## System Requirements
 
-- Windows 10/11
 - Two or more displays required
 - Dedicated graphics card recommended
 - 8GB RAM or higher recommended
-- Microsoft PowerPoint (Office 2016 or later) required only for pptx conversion feature
+- Microsoft PowerPoint (Office 2016 or later) required only for pptx conversion feature (Windows only)
 
 ---
 

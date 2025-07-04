@@ -1465,6 +1465,10 @@ ipcMain.handle('convert-mov-to-webm', async (event, filePath) => {
 const pptxConverterWinax = require('./pptxConverterWinax');
 
 ipcMain.handle('convert-pptx-to-png-winax', async (event, pptxPath) => {
+    if (pptxConverterWinax.available() === false) {
+        console.error("[main.js] convert-pptx-to-png-winax is only supported");
+        throw new Error("Unsupported platform for PPTX to PNG conversion.");
+    }
     try {
         const outputFolder = await pptxConverterWinax.convertPPTXToPNG(pptxPath);
         return outputFolder;
@@ -1478,6 +1482,10 @@ ipcMain.handle('convert-pptx-to-png-winax', async (event, pptxPath) => {
 // PNG連番ファイルを読み込む（PPTX変換用）
 // ------------------------------------------
 ipcMain.handle('get-png-files', async (event, outputFolder) => {
+    if (pptxConverterWinax.available() === false) {
+        console.error("[main.js] get-png-files is only supported");
+        throw new Error("Unsupported platform for PNG file retrieval.");
+    }
     try {
         const files = await fs.promises.readdir(outputFolder);
         const pngFiles = files.filter(file => file.toLowerCase().endsWith('.png'))
@@ -1687,9 +1695,13 @@ ipcMain.on('set-recording-settings', (event, newSettings) => {
 
 // プレイリストでファイル選択ダイアログを表示し、選択されたファイルの基本情報を返す
 ipcMain.handle('select-files', async () => {
+    let extensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg'];
+    if (pptxConverterWinax.available()) {
+        extensions.push('pptx'); // WindowsでPPTX変換が可能な場合、pptxを追加
+    }
     const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Media Files', extensions: ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg', 'pptx'] }]
+        filters: [{ name: 'Media Files', extensions: extensions }]
     });
     if (canceled) return [];
 
