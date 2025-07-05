@@ -5,8 +5,10 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "test": "node test/statecontrol.test.js",
-    "npmRebuild": false
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "npm run build:win && npm run build:mac",
+    "test": "node test/statecontrol.test.js"
   },
   "keywords": [],
   "author": "Tetsu Suzuki",
@@ -17,7 +19,9 @@
     "fix-webm-duration": "^1.0.6",
     "fluent-ffmpeg": "^2.1.3",
     "node-fetch": "^3.3.2",
-    "papaparse": "^5.5.2",
+    "papaparse": "^5.5.2"
+  },
+  "optionalDependencies": {
     "winax": "^3.6.1"
   },
   "devDependencies": {
