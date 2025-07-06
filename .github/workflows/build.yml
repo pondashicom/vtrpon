@@ -1,0 +1,69 @@
+name: Build Electron App
+
+on:
+  push:
+    # branches:
+    #   - main
+    #   - master
+  pull_request:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache node modules (macOS)
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: macos-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            macos-node-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Build macOS
+        run: npm run build:mac
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: mkdir release directory
+        run: mkdir -p release
+      - name: Copy License files
+        run: cp -r LICENSE release/
+      - name: Move built files
+        run: mv dist/*.dmg release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vtrpon-mac
+          path: release/
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache node modules (Windows)
+        uses: actions/cache@v4
+        with:
+          path: C:\\Users\\runneradmin\\AppData\\Roaming\\npm-cache
+          key: windows-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            windows-node-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Build Windows
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: mkdir release directory
+        run: mkdir -p release
+      - name: Copy License files
+        run: cp -r LICENSE release/LICENSE
+      - name: Move built files
+        run: mv dist/*.exe release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vtrpon-win
+          path: release/
