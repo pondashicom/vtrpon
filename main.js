@@ -11,7 +11,7 @@ const { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, globalShort
 
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
-const ffmpegStatic = require('ffmpeg-static');
+let ffmpegStatic = require('ffmpeg-static');
 const ffprobeStatic = require('ffprobe-static');
 const fs = require('fs');
 const statecontrol = require('./statecontrol.js');
@@ -41,8 +41,23 @@ if (!gotTheLock) {
 }
 
 // ffmpeg とffprobe のパス指定
-ffmpeg.setFfmpegPath(ffmpegStatic);
-ffmpeg.setFfprobePath(ffprobeStatic.path);
+if (ffmpegStatic.includes('app.asar')) {
+  ffmpegStatic = ffmpegStatic.replace('app.asar', 'app.asar.unpacked');
+}
+if (!fs.existsSync(ffmpegStatic)) {
+    console.error('[main.js] ffmpeg path does not exist:', ffmpegStatic);
+} else {
+    ffmpeg.setFfmpegPath(path.normalize(ffmpegStatic));
+}
+
+if (ffprobeStatic.path.includes('app.asar')) {
+    ffprobeStatic.path = ffprobeStatic.path.replace('app.asar', 'app.asar.unpacked');
+}
+if (!fs.existsSync(ffprobeStatic.path)) {
+    console.error('[main.js] ffprobe path still does not exist after fallback:', ffprobeStatic.path);
+} else {
+    ffmpeg.setFfprobePath(path.normalize(ffprobeStatic.path));
+}
 
 // 設定ファイルの読み込み
 function loadConfig() {
