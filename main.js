@@ -221,7 +221,11 @@ function initUpdateCheck() {
 
         dialog.showMessageBox(mainWindow, options).then(result => {
             if (result.response === 0) {
-                shell.openExternal(latestInfo['Download URL']);
+                // macOS の場合だけ専用 URL を使い、その他は従来の Download URL を使用
+                const downloadUrl = process.platform === 'darwin'
+                    ? latestInfo['Download URL (mac)']
+                    : latestInfo['Download URL'];
+                shell.openExternal(downloadUrl);
             }
         });
     }
