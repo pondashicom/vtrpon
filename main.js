@@ -11,6 +11,8 @@ const { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, globalShort
 
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
+const ffmpegStatic = require('ffmpeg-static');
+const ffprobeStatic = require('ffprobe-static');
 const fs = require('fs');
 const statecontrol = require('./statecontrol.js');
 const fixWebmDuration = require('fix-webm-duration');
@@ -39,33 +41,8 @@ if (!gotTheLock) {
 }
 
 // ffmpeg とffprobe のパス指定
-const ffmpegPath = path.join(
-    process.resourcesPath,
-    process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
-);
-if (!fs.existsSync(ffmpegPath)) {
-    console.error('[main.js] FFmpeg binary not found:', ffmpegPath);
-} else {
-    console.log('[main.js] FFmpeg binary found:', ffmpegPath);
-    ffmpeg.setFfmpegPath(ffmpegPath);
-}
-
-const ffprobePath = path.join(
-    process.resourcesPath,
-    process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'
-);
-
-const unpackedPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ffprobe.exe');
-if (fs.existsSync(unpackedPath)) {
-    ffprobePath = unpackedPath;
-}
-
-if (!fs.existsSync(ffprobePath)) {
-    console.error('[main.js] FFprobe binary not found:', ffprobePath);
-} else {
-    console.log('[main.js] FFprobe binary found:', ffprobePath);
-    ffmpeg.setFfprobePath(ffprobePath);
-}
+ffmpeg.setFfmpegPath(ffmpegStatic);
+ffmpeg.setFfprobePath(ffprobeStatic.path);
 
 // 設定ファイルの読み込み
 function loadConfig() {
