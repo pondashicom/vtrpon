@@ -49,22 +49,6 @@ Download the latest version:(https://pondashi.com/vtrpon/)
 If you intend to build the installer from source code, the following components must be installed separately:
 
 - Node.js ([Download Node.js](https://nodejs.org/))
-- FFmpeg and ffprobe executables (must be placed manually into the application directory)
-
-Refer to `package.json` for asset details:
-
-```json
-"extraResources": [
-  {
-    "from": "src/assets/ffmpeg.exe",
-    "to": "ffmpeg.exe"
-  },
-  {
-    "from": "src/assets/ffprobe.exe",
-    "to": "ffprobe.exe"
-  }
-]
-```
 
 ---
 
