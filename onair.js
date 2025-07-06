@@ -2601,31 +2601,32 @@ function handleShortcut(action) {
     }
 }
 
-// キーボードショートカットの設定
+// キーボードショートカットの設定（Mac用追加）
 document.addEventListener('keydown', (event) => {
     let action = null;
+    const isMod   = event.ctrlKey || event.metaKey;  // Windows/Linux: Ctrl, Mac: Command
+    const isAlt   = event.altKey;
+    const isShift = event.shiftKey;
 
     // ショートカットキーの判定
-    if (event.key.toLowerCase() === 'escape') {
-        action = 'Escape';
-    } else if (event.key === ' ') {
-        action = 'Space';
-    } else if (event.ctrlKey && event.key === '.') {
-        action = 'Ctrl+,';
-    } else if (event.ctrlKey && event.key === ',') {
-        action = 'Ctrl+.';
-    } else if (event.shiftKey && event.altKey && event.key.toLowerCase() === 'f') {
+    if (isMod && event.key === '.') {
+        action = 'Ctrl+.';    // Ctrl+. または Cmd+. で反応
+    } else if (isMod && event.key === ',') {
+        action = 'Ctrl+,';    // Ctrl+, または Cmd+, で反応
+    } else if (isShift && isAlt && event.key.toLowerCase() === 'f') {
         action = 'Shift+Alt+F';
-    } else if (event.shiftKey && event.key.toLowerCase() === 'f') {
+    } else if (isShift && event.key.toLowerCase() === 'f') {
         action = 'Shift+F';
-    } else if (event.shiftKey && event.key.toLowerCase() === 'r') {
+    } else if (isShift && event.key.toLowerCase() === 'r') {
         action = 'Shift+R';
     }
+
     if (action) {
         handleShortcut(action);
-        event.preventDefault(); // ショートカットキーのデフォルト動作を防止
+        event.preventDefault();
     }
 });
+
 
 // メニューからショートカット通知を受信
 window.electronAPI.onShortcutTrigger((event, action) => {
