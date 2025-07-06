@@ -17,6 +17,7 @@ const fs = require('fs');
 const statecontrol = require('./statecontrol.js');
 const fixWebmDuration = require('fix-webm-duration');
 const { Atem } = require('atem-connection');
+const { exec } = require('child_process');
 
 let mainWindow, fullscreenWindow, deviceSettingsWindow, recordingSettingsWindow, atemSettingsWindow;
 let isDebugMode = false;
@@ -41,13 +42,14 @@ if (!gotTheLock) {
 }
 
 // ffmpeg とffprobe のパス指定
-if (ffmpegStatic.includes('app.asar')) {
-  ffmpegStatic = ffmpegStatic.replace('app.asar', 'app.asar.unpacked');
+let ffmpegPath = ffmpegStatic;
+if (ffmpegPath.includes('app.asar')) {
+  ffmpegPath = ffmpegStatic.replace('app.asar', 'app.asar.unpacked');
 }
-if (!fs.existsSync(ffmpegStatic)) {
-    console.error('[main.js] ffmpeg path does not exist:', ffmpegStatic);
+if (!fs.existsSync(ffmpegPath)) {
+    console.error('[main.js] ffmpeg path does not exist:', ffmpegPath);
 } else {
-    ffmpeg.setFfmpegPath(path.normalize(ffmpegStatic));
+    ffmpeg.setFfmpegPath(path.normalize(ffmpegPath));
 }
 
 if (ffprobeStatic.path.includes('app.asar')) {
@@ -1727,6 +1729,28 @@ ipcMain.handle('get-metadata', async (event, filePath) => {
                     duration: formatDuration(durationInSeconds), // 秒数を hh:mm:ss.xx にフォーマット
                     creationDate: creationDate
                 });
+            }
+        });
+    });
+});
+
+// ffmpeg操作
+ipcMain.handle('exec-ffmpeg', async (event, args) => {
+    const command = `"${ffmpegPath}" ${args}`;
+
+    return new Promise((resolve, reject) => {
+        exec(command, { shell: true, encoding: 'utf8' }, (error, stdout, stderr) => {
+            if (error) {
+                if (!stderr.includes('Unsupported pixel format: -1')) {
+                    console.error(`FFmpeg error: ${stderr}`);
+                    reject(stderr);
+                } else {
+                    console.warn('Filtered FFmpeg warning: Unsupported pixel format');
+                    resolve(stdout);
+                }
+            } else {
+                console.log(`FFmpeg output: ${stdout}`);
+                resolve(stdout);
             }
         });
     });
