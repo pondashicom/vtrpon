@@ -22,7 +22,7 @@ let playlistState = [];
 let powerSaveBlockerId;
 let isRecordingSaving = false;
 let shouldQuitAfterSave = false;
-
+let ignoreAtemEvent = false;
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -680,10 +680,10 @@ function buildMenuTemplate(labels) {
             ]
         },
         {
-            label: 'Tools',
+            label: labels["menu-tools"],
             submenu: [
                 {
-                    label: 'ATEM Connection',
+                    label: labels["menu-tools-atem-connection"],
                     click: () => {
                         createAtemSettingsWindow();
                     }
@@ -975,24 +975,29 @@ async function startATEMMonitor(ip) {
         console.log(`[main.js] ATEM Monitor connected to ${ip}`);
         global.atemMonitor.on('stateChanged', (state, paths) => {
             const changed = Array.isArray(paths) ? paths : [paths];
-            if (changed.includes('video.mixEffects.0.programInput')) {
-                const programOut = state.video.mixEffects[0].programInput;
-                console.log(`[main.js][ATEM Monitor] Program switched to ${programOut}`);
-                const latest = loadConfig().atem || {};
-                if (latest.autoSwitch && programOut === latest.input
-                    && mainWindow && !mainWindow.isDestroyed()
-                ) {
-                    mainWindow.webContents.send('shortcut-trigger', 'Shift+Enter');
-                    mainWindow.webContents.send('info-message', 'atem.autoOnAirTriggered');
-                    console.log('[main.js][ATEM Monitor] Auto OnAir triggered');
-                }
+            if (!changed.includes('video.mixEffects.0.programInput')) return;
+
+            // 自身で発生させた切替イベントは無視
+            if (ignoreAtemEvent) {
+                ignoreAtemEvent = false;
+                return;
+            }
+
+            const programOut = state.video.mixEffects[0].programInput;
+            console.log(`[main.js][ATEM Monitor] Program switched to ${programOut}`);
+            const latest = loadConfig().atem || {};
+            if (latest.autoSwitch && programOut === latest.input
+                && mainWindow && !mainWindow.isDestroyed()
+            ) {
+                mainWindow.webContents.send('shortcut-trigger', 'Shift+Enter');
+                mainWindow.webContents.send('info-message', 'atem.autoOnAirTriggered');
+                console.log('[main.js][ATEM Monitor] Auto OnAir triggered');
             }
         });
     } catch (err) {
         console.error('[main.js] ATEM Monitor connection error:', err);
     }
 }
-
 // ATEMモニタリングを停止してインスタンスを破棄
 function stopATEMMonitor() {
     if (global.atemMonitor) {
@@ -1240,7 +1245,7 @@ ipcMain.on('on-air-item-id', async (event, itemId) => {
     const cfg = loadConfig().atem || { control: false, autoSwitch: false, ip: '', input: 1, delay: 0 };
 
     if (cfg.control && cfg.ip && cfg.delay < 0) {
-        // 負のオフセット: 先にATEM切替、待機後に再生
+        // 負のオフセット
         try {
             // 接続（初回のみ）
             if (!global.atem) {
@@ -1249,7 +1254,7 @@ ipcMain.on('on-air-item-id', async (event, itemId) => {
                 console.log(`[main.js] Connected to ATEM at ${cfg.ip}`);
                 await new Promise(r => setTimeout(r, 300)); // 初期化待ち
             }
-            // reliableAtemSwitch で確実に切替
+            ignoreAtemEvent = true;  // ← 自身の切替はモニタで無視
             await reliableAtemSwitch(global.atem, cfg.input);
             // 切替完了通知
             if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1265,7 +1270,7 @@ ipcMain.on('on-air-item-id', async (event, itemId) => {
             win.webContents.send('on-air-data', itemId);
         });
     } else {
-        // 正のオフセットまたは0: 先に再生、後でATEM切替
+        // 正のオフセットまたは0
         // 再生トリガー
         BrowserWindow.getAllWindows().forEach(win => {
             win.webContents.send('on-air-data', itemId);
@@ -1280,6 +1285,7 @@ ipcMain.on('on-air-item-id', async (event, itemId) => {
                         console.log(`[main.js] Connected to ATEM at ${cfg.ip}`);
                         await new Promise(r => setTimeout(r, 300)); // 初期化待ち
                     }
+                    ignoreAtemEvent = true;  // 自身の切替はモニタで無視
                     await reliableAtemSwitch(global.atem, cfg.input);
                     if (mainWindow && !mainWindow.isDestroyed()) {
                         mainWindow.webContents.send('info-message', 'atem.autoSwitchCommandSent');
@@ -1291,8 +1297,6 @@ ipcMain.on('on-air-item-id', async (event, itemId) => {
         }
     }
 });
-
-
 // ---------------------------------------------
 // オンエアからフルスクリーンにアイテムIDを中継
 // ---------------------------------------------
