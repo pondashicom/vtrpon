@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     main.js
-//     ver 2.3.4
+//     ver 2.3.5
 // -----------------------
 
 // ---------------------
@@ -90,7 +90,7 @@ function saveConfig(config) {
 ipcMain.handle('get-atem-config', (event) => {
     const config = loadConfig();
     // control/autoSwitch フラグも含むデフォルトを返す
-    return config.atem || { control: false, autoSwitch: false, ip: '', input: 1 };
+    return config.atem || { control: false, autoSwitch: false, ip: '', input: 1, delay: 0 };
 });
 
 // ATEM 設定保存 ＆ 機能ON/OFFを即時反映
@@ -288,7 +288,7 @@ function buildMenuTemplate(labels) {
             submenu: [
                 {
                     label: labels["menu-add-file"],
-                    accelerator: 'Ctrl+F',
+                    accelerator: 'CommandOrControl+F',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', 'add-file');
                     }
@@ -357,7 +357,7 @@ function buildMenuTemplate(labels) {
                 { type: 'separator' },
                 {
                     label: labels["menu-exit"],
-                    accelerator: 'Ctrl+Q',
+                    accelerator: 'CommandOrControl+Q',
                     click: () => {
                         app.quit();
                     }
@@ -435,14 +435,14 @@ function buildMenuTemplate(labels) {
                 { type: 'separator' },
                 {
                     label: labels["menu-copy-item-state"],
-                    accelerator: 'Ctrl+C',
+                    accelerator: 'CommandOrControl+C',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', 'copy-item-state');
                     }
                 },
                 {
                     label: labels["menu-paste-item-state"],
-                    accelerator: 'Ctrl+V',
+                    accelerator: 'CommandOrControl+V',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', 'paste-item-state');
                     }
@@ -454,35 +454,35 @@ function buildMenuTemplate(labels) {
             submenu: [
                 {
                     label: labels["menu-playlist1"],
-                    accelerator: 'Ctrl+1',
+                    accelerator: 'CommandOrControl+1',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', '1');
                     }
                 },
                 {
                     label: labels["menu-playlist2"],
-                    accelerator: 'Ctrl+2',
+                    accelerator: 'CommandOrControl+2',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', '2');
                     }
                 },
                 {
                     label: labels["menu-playlist3"],
-                    accelerator: 'Ctrl+3',
+                    accelerator: 'CommandOrControl+3',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', '3');
                     }
                 },
                 {
                     label: labels["menu-playlist4"],
-                    accelerator: 'Ctrl+4',
+                    accelerator: 'CommandOrControl+4',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', '4');
                     }
                 },
                 {
                     label: labels["menu-playlist5"],
-                    accelerator: 'Ctrl+5',
+                    accelerator: 'CommandOrControl+5',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', '5');
                     }
@@ -490,21 +490,21 @@ function buildMenuTemplate(labels) {
                 { type: 'separator' },
                 {
                     label: labels["menu-save-mode"],
-                    accelerator: 'Ctrl+S',
+                    accelerator: 'CommandOrControl+S',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', 'save');
                     }
                 },
                 {
                     label: labels["menu-delete-mode"],
-                    accelerator: 'Ctrl+D',
+                    accelerator: 'CommandOrControl+D',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', 'delete');
                     }
                 },
                 {
                     label: labels["menu-clear-playlist"],
-                    accelerator: 'Ctrl+K',
+                    accelerator: 'CommandOrControl+K',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', 'clear');
                     }
@@ -555,16 +555,16 @@ function buildMenuTemplate(labels) {
                 },
                 {
                     label: labels["menu-audio-fade-in"],
-                    accelerator: 'Ctrl+,',
+                    accelerator: 'CommandOrControl+,',
                     click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Ctrl+,');
+                        mainWindow.webContents.send('shortcut-trigger', 'CommandOrControl+,');
                     }
                 },
                 {
                     label: labels["menu-audio-fade-out"],
-                    accelerator: 'Ctrl+.',
+                    accelerator: 'CommandOrControl+.',
                     click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Ctrl+.');
+                        mainWindow.webContents.send('shortcut-trigger', 'CommandOrControl+.');
                     }
                 },
                 { type: 'separator' },
@@ -604,14 +604,14 @@ function buildMenuTemplate(labels) {
             submenu: [
                 {
                     label: labels["menu-list-mode-repeat"],
-                    accelerator: 'Ctrl+R',
+                    accelerator: 'CommandOrControl+R',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', 'repeat');
                     }
                 },
                 {
                     label: labels["menu-list-mode-list"],
-                    accelerator: 'Ctrl+L',
+                    accelerator: 'CommandOrControl+L',
                     click: () => {
                         mainWindow.webContents.send('shortcut-trigger', 'list');
                     }
@@ -1003,6 +1003,38 @@ function stopATEMMonitor() {
 }
 
 // ---------------------------------------------
+// ATEM 設定ウインドウ
+// ---------------------------------------------
+function createAtemSettingsWindow() {
+    if (atemSettingsWindow) {
+        atemSettingsWindow.focus();
+        return;
+    }
+    atemSettingsWindow = new BrowserWindow({
+        width: 500,
+        height: 650,
+        title: 'ATEM Connection',
+        parent: mainWindow,
+        modal: true,
+        frame: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false
+        }
+    });
+    // CSS／HTML のサイズに合わせて load
+    atemSettingsWindow.loadFile('atemsettings.html');
+    // メニュー非表示
+    atemSettingsWindow.setMenuBarVisibility(false);
+    // 閉じられたら変数クリア
+    atemSettingsWindow.on('closed', () => {
+        atemSettingsWindow = null;
+    });
+}
+
+// ---------------------------------------------
 // デバイス設定
 // ---------------------------------------------
 
@@ -1124,38 +1156,6 @@ ipcMain.handle('show-recording-directory-dialog', async () => {
 });
 
 // ---------------------------------------------
-// ATEM 設定ウインドウ
-// ---------------------------------------------
-function createAtemSettingsWindow() {
-    if (atemSettingsWindow) {
-        atemSettingsWindow.focus();
-        return;
-    }
-    atemSettingsWindow = new BrowserWindow({
-        width: 500,
-        height: 550,
-        title: 'ATEM Connection',
-        parent: mainWindow,
-        modal: true,
-        frame: false,
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
-            nodeIntegration: false,
-            sandbox: false
-        }
-    });
-    // CSS／HTML のサイズに合わせて load
-    atemSettingsWindow.loadFile('atemsettings.html');
-    // メニュー非表示
-    atemSettingsWindow.setMenuBarVisibility(false);
-    // 閉じられたら変数クリア
-    atemSettingsWindow.on('closed', () => {
-        atemSettingsWindow = null;
-    });
-}
-
-// ---------------------------------------------
 // プレイリストとエディットの状態管理と通知
 // ---------------------------------------------
 
@@ -1236,11 +1236,11 @@ async function reliableAtemSwitch(atem, input) {
 // プレイリストからオンエアにアイテムIDを中継＋ATEM制御
 // ---------------------------------------------
 ipcMain.on('on-air-item-id', async (event, itemId) => {
-    // control フラグを含む新しい設定を取得
-    const cfg = loadConfig().atem || { control: false, autoSwitch: false, ip: '', input: 1 };
+    // control フラグを含む新しい設定を取得（delay も含む）
+    const cfg = loadConfig().atem || { control: false, autoSwitch: false, ip: '', input: 1, delay: 0 };
 
-    // VTR-PON→ATEM制御がONの場合に実行
-    if (cfg.control && cfg.ip) {
+    if (cfg.control && cfg.ip && cfg.delay < 0) {
+        // 負のオフセット: 先にATEM切替、待機後に再生
         try {
             // 接続（初回のみ）
             if (!global.atem) {
@@ -1249,21 +1249,47 @@ ipcMain.on('on-air-item-id', async (event, itemId) => {
                 console.log(`[main.js] Connected to ATEM at ${cfg.ip}`);
                 await new Promise(r => setTimeout(r, 300)); // 初期化待ち
             }
-
             // reliableAtemSwitch で確実に切替
             await reliableAtemSwitch(global.atem, cfg.input);
-
-            // 切替コマンド送信完了をInfo Windowに表示
-            mainWindow.webContents.send('info-message', 'atem.autoSwitchCommandSent');
+            // 切替完了通知
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('info-message', 'atem.autoSwitchCommandSent');
+            }
         } catch (err) {
-            console.error('[main.js] ATEM overall switch error:', err);
+            console.error('[main.js] ATEM switch error:', err);
+        }
+        // 絶対値分だけ待機
+        await new Promise(r => setTimeout(r, Math.abs(cfg.delay)));
+        // 再生トリガー
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('on-air-data', itemId);
+        });
+    } else {
+        // 正のオフセットまたは0: 先に再生、後でATEM切替
+        // 再生トリガー
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('on-air-data', itemId);
+        });
+
+        if (cfg.control && cfg.ip) {
+            setTimeout(async () => {
+                try {
+                    if (!global.atem) {
+                        global.atem = new Atem();
+                        await global.atem.connect(cfg.ip);
+                        console.log(`[main.js] Connected to ATEM at ${cfg.ip}`);
+                        await new Promise(r => setTimeout(r, 300)); // 初期化待ち
+                    }
+                    await reliableAtemSwitch(global.atem, cfg.input);
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('info-message', 'atem.autoSwitchCommandSent');
+                    }
+                } catch (err) {
+                    console.error('[main.js] ATEM switch error:', err);
+                }
+            }, cfg.delay);
         }
     }
-
-    // 必ず再生トリガー
-    BrowserWindow.getAllWindows().forEach(win => {
-        win.webContents.send('on-air-data', itemId);
-    });
 });
 
 
@@ -1945,9 +1971,10 @@ app.on('browser-window-focus', () => {
 });
 
 app.on('browser-window-blur', () => {
+    // すべてのグローバルショートカットを解除
     globalShortcut.unregisterAll();
-    // Ctrl+Qは常に有効にする
-    globalShortcut.register('Ctrl+Q', () => {
+    // CommandOrControl+Qは常に有効にする（アプリ終了）
+    globalShortcut.register('CommandOrControl+Q', () => {
         app.quit();
     });
 });
