@@ -220,6 +220,30 @@ button:hover {
   width: 60px;
 }
 
+/* スイッチングディレイ入力欄 */
+#atem-delay {
+  width: 60px;
+  height: 23px;
+  background-color: #2e2e2e;
+  color: #ffffff;
+  border: 1px solid #444444;
+  border-radius: 5px;
+  font-size: 12px;
+  padding: 5px;
+  box-sizing: border-box;
+  text-align: right;
+  cursor: text;
+  -moz-appearance: textfield;
+}
+
+/* フォーカス時のスタイル */
+#atem-delay:focus {
+  outline: none;
+  border: 1px solid #007BFF;
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+}
+
+
 .field-error {
     color: #ffffff;               /* 文字色を白に */
     font-size: 14px;
