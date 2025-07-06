@@ -1163,12 +1163,10 @@ ipcMain.on('close-recording-settings', () => {
 
 // ディレクトリ選択ダイアログ用
 ipcMain.handle('show-recording-directory-dialog', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
-  return (result.canceled || result.filePaths.length === 0)
-    ? null
-    : result.filePaths[0];
+  return (canceled || filePaths.length === 0) ? null : filePaths[0];
 });
 
 // ---------------------------------------------
