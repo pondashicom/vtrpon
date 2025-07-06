@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.3.4
+//     ver 2.3.5
 // -----------------------
 
 
@@ -2603,71 +2603,71 @@ function handlePlaylistShortcut(action) {
     }
 }
 
+// キーボードショートカットの設定(Mac用追加）
 document.addEventListener('keydown', (event) => {
     if (isModalActive) {
         return; // モーダルが開いている場合はショートカットを無視
     }
-    const key = event.key.toLowerCase();
-    const isCtrl = event.ctrlKey;
+    const key     = event.key.toLowerCase();
+    const isMod   = event.ctrlKey || event.metaKey;    // Windows/Linux: Ctrl, Mac: Cmd
     const isShift = event.shiftKey;
-    const isAlt = event.altKey;
+    const isAlt   = event.altKey;
     const isEnter = event.key === 'Enter';
 
     // Shift+Enter
     if (isShift && isEnter) {
-        event.preventDefault(); // デフォルト動作を無効化
+        event.preventDefault();
         const cueButton = document.getElementById('cue-button');
         if (cueButton) {
             cueButton.click();
             logOpe('[playlist.js] On-Air triggered via Shift+Enter.');
-        } else {
-            logInfo('[playlist.js] On-Air button not found.');
         }
-        return; // 他の処理を実行しないようにリターン
+        return;
     }
 
-    // Ctrl, Shift, Alt キーの組み合わせを処理
-    if (isCtrl || isShift || isAlt) {
-        event.preventDefault(); // デフォルト動作を無効化
+    // Mod (Ctrl または Cmd)、Shift、Alt キーの組み合わせを処理
+    if (isMod || isShift || isAlt) {
+        event.preventDefault();
         if (isShift && isAlt && key === 'd') {
             handlePlaylistShortcut('Shift+Alt+D');
-        } else if (isShift && !isAlt && !isCtrl && key === 'd') {
-          handlePlaylistShortcut('Shift+D');
-        } else if (isCtrl && key === '.') {
-            handlePlaylistShortcut('Ctrl+,');
-        } else if (isCtrl && key === ',') {
-            handlePlaylistShortcut('Ctrl+.');
-        } else if (isCtrl && key === '1') {
+        } else if (isShift && !isAlt && !isMod && key === 'd') {
+            handlePlaylistShortcut('Shift+D');
+        } else if (isMod && key === '.') {
+            handlePlaylistShortcut('Mod+.');   // Mod+. (Ctrl+. または Cmd+.)
+        } else if (isMod && key === ',') {
+            handlePlaylistShortcut('Mod+,');   // Mod+, (Ctrl+, または Cmd+,)
+        } else if (isMod && key === '1') {
             handlePlaylistShortcut('1');
-        } else if (isCtrl && key === '2') {
+        } else if (isMod && key === '2') {
             handlePlaylistShortcut('2');
-        } else if (isCtrl && key === '3') {
+        } else if (isMod && key === '3') {
             handlePlaylistShortcut('3');
-        } else if (isCtrl && key === '4') {
+        } else if (isMod && key === '4') {
             handlePlaylistShortcut('4');
-        } else if (isCtrl && key === '5') {
+        } else if (isMod && key === '5') {
             handlePlaylistShortcut('5');
-        } else if (isCtrl && key === 's') {
+        } else if (isMod && key === 's') {
             handlePlaylistShortcut('save');
-        } else if (isCtrl && key === 'd') {
+        } else if (isMod && key === 'd') {
             handlePlaylistShortcut('delete');
-        } else if (isCtrl && key === 'k') {
+        } else if (isMod && key === 'k') {
             handlePlaylistShortcut('clear');
-        } else if (isCtrl && key === 'r') {
+        } else if (isMod && key === 'r') {
             handlePlaylistShortcut('repeat');
-        } else if (isCtrl && key === 'l') {
+        } else if (isMod && key === 'l') {
             handlePlaylistShortcut('list');
-        } else if (isCtrl && key === 'e') {
+        } else if (isMod && key === 'e') {
             handlePlaylistShortcut('edit');
-        } else if (isCtrl && key === 'f') {
+        } else if (isMod && key === 'f') {
             handlePlaylistShortcut('add-file');
-        } else if (isCtrl && key === 'c') {  // Ctrl+C
+        } else if (isMod && key === 'c') {  // Mod+C
             copyItemState();
-        } else if (isCtrl && key === 'v') {  // Ctrl+V
+        } else if (isMod && key === 'v') {  // Mod+V
             pasteItemState();
         }
     }
 });
+
 
 
 // メニューからのショートカットイベント処理
