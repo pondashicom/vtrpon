@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     uvc.js 
-//     ver 2.2.8
+//     ver 2.3.5
 // -----------------------
 
 // -----------------------
@@ -17,7 +17,7 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('click', asyn
         try {
             // まずは解像度を取得
             const resolution = await getUVCResolution(selectedDevice.id);
-            logDebug(`[playlist.js] 実際のカメラ解像度 - ${resolution}`);
+            logDebug(`[playlist.js] Actual camera resolution: ${resolution}`);
 
             // 仮の「Loading...」サムネイルを作成
             const loadingThumbnail = createLoadingThumbnail();
@@ -50,7 +50,7 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('click', asyn
 
             // ?? 非同期でサムネイルを生成し、後から更新
             const thumbnail = await generateThumbnail(`UVC_DEVICE:${selectedDevice.id}`);
-            logDebug(`[uvc.js] サムネイル生成完了 - deviceId: ${selectedDevice.id}`);
+            logDebug(`[uvc.js] Thumbnail generation complete - deviceId: ${selectedDevice.id}`);
 
             // サムネイルを更新
             const newPlaylist = await stateControl.getPlaylistState();
@@ -60,7 +60,7 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('click', asyn
                 newPlaylist[targetIndex].thumbnail = thumbnail;
                 await stateControl.setPlaylistState(newPlaylist);
                 await updatePlaylistUI();
-                logDebug(`[uvc.js] サムネイルを更新しました - deviceId: ${selectedDevice.id}`);
+                logDebug(`[uvc.js] Thumbnail updated - deviceId: ${selectedDevice.id}`);
             }
         } catch (error) {
             logDebug('[uvc.js] Error adding UVC device to playlist:', error);
@@ -125,28 +125,32 @@ async function getUVCDevices() {
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
         logDebug('[uvc.js] Video Input Devices:', videoDevices);
 
-        return await Promise.all(
-            videoDevices.map(async (device, index) => {
-                const resolution = await getDeviceResolution(device.deviceId);
-                logDebug(`[uvc.js] Device ID: ${device.deviceId}, Resolution: ${resolution}`);
-                return {
-                    id: device.deviceId,
-                    deviceName: device.label || `Camera ${index + 1}`,
-                    resolution,
-                };
-            })
-        );
+        return videoDevices.map((device, index) => ({
+            id: device.deviceId,
+            deviceName: device.label || `Camera ${index + 1}`
+        }));
     } catch (error) {
         logDebug('[uvc.js] Error fetching video input devices:', error);
         return [];
     }
 }
 
-// 選択されたUVCデバイスから解像度を取得
-async function getDeviceResolution(deviceId) {
-    // 解像度取得処理をスキップし、デフォルト値を返す
-    return 'Unknown';
+// 解像度を取得
+async function getUVCResolution(deviceId) {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: deviceId } }
+        });
+        const track = stream.getVideoTracks()[0];
+        const { width, height } = track.getSettings();
+        track.stop();
+        return `${width}x${height}`;
+    } catch (error) {
+        logDebug(`[uvc.js] deviceId=${deviceId}`, error);
+        return 'Unknown';
+    }
 }
+
 
 // ほかのアプリで使われたら奪う
 function stopAllStreams() {
