@@ -11,10 +11,13 @@ const { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, globalShort
 
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
+let ffmpegStatic = require('ffmpeg-static');
+const ffprobeStatic = require('ffprobe-static');
 const fs = require('fs');
 const statecontrol = require('./statecontrol.js');
 const fixWebmDuration = require('fix-webm-duration');
 const { Atem } = require('atem-connection');
+const { exec } = require('child_process');
 
 let mainWindow, fullscreenWindow, deviceSettingsWindow, recordingSettingsWindow, atemSettingsWindow;
 let isDebugMode = false;
@@ -39,25 +42,23 @@ if (!gotTheLock) {
 }
 
 // ffmpeg とffprobe のパス指定
-const ffmpegPath = path.join(process.resourcesPath, 'ffmpeg.exe');
+let ffmpegPath = ffmpegStatic;
+if (ffmpegPath.includes('app.asar')) {
+  ffmpegPath = ffmpegStatic.replace('app.asar', 'app.asar.unpacked');
+}
 if (!fs.existsSync(ffmpegPath)) {
-    console.error('[main.js] FFmpeg binary not found:', ffmpegPath);
+    console.error('[main.js] ffmpeg path does not exist:', ffmpegPath);
 } else {
-    console.log('[main.js] FFmpeg binary found:', ffmpegPath);
-    ffmpeg.setFfmpegPath(ffmpegPath);
+    ffmpeg.setFfmpegPath(path.normalize(ffmpegPath));
 }
 
-let ffprobePath = path.join(process.resourcesPath, 'ffprobe.exe');
-const unpackedPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ffprobe.exe');
-if (fs.existsSync(unpackedPath)) {
-    ffprobePath = unpackedPath;
+if (ffprobeStatic.path.includes('app.asar')) {
+    ffprobeStatic.path = ffprobeStatic.path.replace('app.asar', 'app.asar.unpacked');
 }
-
-if (!fs.existsSync(ffprobePath)) {
-    console.error('[main.js] FFprobe binary not found:', ffprobePath);
+if (!fs.existsSync(ffprobeStatic.path)) {
+    console.error('[main.js] ffprobe path still does not exist after fallback:', ffprobeStatic.path);
 } else {
-    console.log('[main.js] FFprobe binary found:', ffprobePath);
-    ffmpeg.setFfprobePath(ffprobePath);
+    ffmpeg.setFfprobePath(path.normalize(ffprobeStatic.path));
 }
 
 // 設定ファイルの読み込み
@@ -1156,12 +1157,10 @@ ipcMain.on('close-recording-settings', () => {
 
 // ディレクトリ選択ダイアログ用
 ipcMain.handle('show-recording-directory-dialog', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
-  return (result.canceled || result.filePaths.length === 0)
-    ? null
-    : result.filePaths[0];
+  return (canceled || filePaths.length === 0) ? null : filePaths[0];
 });
 
 // ---------------------------------------------
@@ -1458,6 +1457,10 @@ ipcMain.handle('convert-mov-to-webm', async (event, filePath) => {
 const pptxConverterWinax = require('./pptxConverterWinax');
 
 ipcMain.handle('convert-pptx-to-png-winax', async (event, pptxPath) => {
+    if (pptxConverterWinax.available() === false) {
+        console.error("[main.js] convert-pptx-to-png-winax is only supported");
+        throw new Error("Unsupported platform for PPTX to PNG conversion.");
+    }
     try {
         const outputFolder = await pptxConverterWinax.convertPPTXToPNG(pptxPath);
         return outputFolder;
@@ -1471,6 +1474,10 @@ ipcMain.handle('convert-pptx-to-png-winax', async (event, pptxPath) => {
 // PNG連番ファイルを読み込む（PPTX変換用）
 // ------------------------------------------
 ipcMain.handle('get-png-files', async (event, outputFolder) => {
+    if (pptxConverterWinax.available() === false) {
+        console.error("[main.js] get-png-files is only supported");
+        throw new Error("Unsupported platform for PNG file retrieval.");
+    }
     try {
         const files = await fs.promises.readdir(outputFolder);
         const pngFiles = files.filter(file => file.toLowerCase().endsWith('.png'))
@@ -1680,9 +1687,13 @@ ipcMain.on('set-recording-settings', (event, newSettings) => {
 
 // プレイリストでファイル選択ダイアログを表示し、選択されたファイルの基本情報を返す
 ipcMain.handle('select-files', async () => {
+    let extensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg'];
+    if (pptxConverterWinax.available()) {
+        extensions.push('pptx'); // WindowsでPPTX変換が可能な場合、pptxを追加
+    }
     const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Media Files', extensions: ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg', 'pptx'] }]
+        filters: [{ name: 'Media Files', extensions: extensions }]
     });
     if (canceled) return [];
 
@@ -1718,6 +1729,28 @@ ipcMain.handle('get-metadata', async (event, filePath) => {
                     duration: formatDuration(durationInSeconds), // 秒数を hh:mm:ss.xx にフォーマット
                     creationDate: creationDate
                 });
+            }
+        });
+    });
+});
+
+// ffmpeg操作
+ipcMain.handle('exec-ffmpeg', async (event, args) => {
+    const command = `"${ffmpegPath}" ${args}`;
+
+    return new Promise((resolve, reject) => {
+        exec(command, { shell: true, encoding: 'utf8' }, (error, stdout, stderr) => {
+            if (error) {
+                if (!stderr.includes('Unsupported pixel format: -1')) {
+                    console.error(`FFmpeg error: ${stderr}`);
+                    reject(stderr);
+                } else {
+                    console.warn('Filtered FFmpeg warning: Unsupported pixel format');
+                    resolve(stdout);
+                }
+            } else {
+                console.log(`FFmpeg output: ${stdout}`);
+                resolve(stdout);
             }
         });
     });

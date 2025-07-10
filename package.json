@@ -5,8 +5,10 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "test": "node test/statecontrol.test.js",
-    "npmRebuild": false
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "npm run build:win && npm run build:mac",
+    "test": "node test/statecontrol.test.js"
   },
   "keywords": [],
   "author": "Tetsu Suzuki",
@@ -14,10 +16,14 @@
   "description": "VTRPON2",
   "dependencies": {
     "atem-connection": "^3.6.0",
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
     "fix-webm-duration": "^1.0.6",
     "fluent-ffmpeg": "^2.1.3",
     "node-fetch": "^3.3.2",
-    "papaparse": "^5.5.2",
+    "papaparse": "^5.5.2"
+  },
+  "optionalDependencies": {
     "winax": "^3.6.1"
   },
   "devDependencies": {
@@ -27,19 +33,24 @@
   },
   "build": {
     "appId": "pondashi.com-vtrpon",
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**",
+      "node_modules/ffprobe-static/**"
+    ],
     "win": {
       "icon": "assets/icons/icon.ico"
     },
-    "extraResources": [
-      {
-        "from": "src/assets/ffmpeg.exe",
-        "to": "ffmpeg.exe"
-      },
-      {
-        "from": "src/assets/ffprobe.exe",
-        "to": "ffprobe.exe"
-      }
-    ],
-    "npmRebuild": false
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/icon_512x512.png"
+    }
   }
 }
