@@ -4,14 +4,27 @@
 // ----------------------------
 
 
-const ActiveXObject = require('winax').Object;
+let ActiveXObject;
+let winaxAvailable = true;
+try {
+    ActiveXObject = require('winax').Object;
+} catch (e) {
+    winaxAvailable = false;
+}
 const fs = require('fs');
 const path = require('path');
 
+function available() {
+    return winaxAvailable;
+}
 
 // PPTXファイルを開いて、各スライドをPNG連番として出力する。
 async function convertPPTXToPNG(pptxPath) {
     return new Promise((resolve, reject) => {
+        if (!winaxAvailable) {
+            reject(new Error('winax モジュールが利用できません。'));
+            return;
+        }
         try {
             // PPTXファイルのディレクトリとベース名を取得
             const pptDir = path.dirname(pptxPath);
@@ -74,4 +87,4 @@ async function convertPPTXToPNG(pptxPath) {
     });
 }
 
-module.exports = { convertPPTXToPNG };
+module.exports = { available, convertPPTXToPNG };

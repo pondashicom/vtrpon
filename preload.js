@@ -5,7 +5,6 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
-const { exec } = require('child_process');
 const { logInfo, logOpe, logDebug, setLogLevel, LOG_LEVELS } = require('./logger');
 const stateControl = require('./statecontrol');
 
@@ -244,29 +243,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ------------------------------
 
     // FFmpeg操作
-    execFfmpeg: (args) => {
-        const ffmpegPath = path.join(process.resourcesPath, 'ffmpeg.exe');
-        console.log('FFmpeg Path:', ffmpegPath);
-
-        const command = `"${ffmpegPath}" ${args}`;
-
-        return new Promise((resolve, reject) => {
-            exec(command, { shell: true, encoding: 'utf8' }, (error, stdout, stderr) => {
-                if (error) {
-                    if (!stderr.includes('Unsupported pixel format: -1')) {
-                        console.error(`FFmpeg error: ${stderr}`);
-                        reject(stderr);
-                    } else {
-                        console.warn('Filtered FFmpeg warning: Unsupported pixel format');
-                        resolve(stdout);
-                    }
-                } else {
-                    console.log(`FFmpeg output: ${stdout}`);
-                    resolve(stdout);
-                }
-            });
-        });
-    },
+    execFfmpeg: (args) => ipcRenderer.invoke('exec-ffmpeg', args),
 
     // ----------------------------
     //    録画機能用 API
