@@ -68,6 +68,15 @@ Feedback and contributions are always welcome.
 - Email: info@pondashi.com
 - Twitter: [@vtrpon2](https://x.com/vtrpon2)
 
+
+---
+
+## Contributors
+
+Special thanks to all contributors who have helped improve VTR-PON 2.
+
+- [nasshu2916](https://github.com/nasshu2916) - Cross-platform compatibility improvements, automated build scripts for Windows and macOS
+
 ---
 
 ## License
