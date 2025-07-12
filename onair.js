@@ -2203,6 +2203,13 @@ function handleInPointUpdate(newInPoint) {
     } else {
         logDebug(`[onair.js] IN point updated without seeking: ${parsedInPoint}s`);
     }
+
+    // フルスクリーン側にもIN点シークを通知
+    window.electronAPI.sendControlToFullscreen({
+      command: 'seek',
+      value: onairCurrentState.inPoint
+    });
+    logDebug(`[onair.js] Sent 'seek' to fullscreen: ${onairCurrentState.inPoint}s`);
 }
 
 // OUT点の更新処理
