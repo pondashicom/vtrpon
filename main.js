@@ -755,7 +755,7 @@ function createMainWindow() {
     mainWindow = new BrowserWindow({
         width: width,   // ディスプレイ幅そのまま
         height: height, // ディスプレイ高さそのまま
-        icon: path.join(__dirname, 'assets/icons/icon.png'), // アイコンファイル
+        icon: path.join(__dirname, 'assets/icons/icon_256x25.png'), // アイコンファイル
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
