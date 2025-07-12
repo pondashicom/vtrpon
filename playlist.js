@@ -2110,6 +2110,14 @@ async function setRepeatMode() {
 
     // 設定完了をユーザに通知（削除しない）
     showMessage(getMessage('repeat-mode-activated'), 5000, "info");
+
+    // モード切替後、エディットエリアへ現在の編集アイテムを再送信
+    const latest = await stateControl.getPlaylistState();
+    const editingItem = latest.find(item => item.editingState === 'editing');
+    if (editingItem) {
+        window.electronAPI.updateEditState(editingItem);
+        logOpe(`[playlist.js] Edit area updated after mode change for ID: ${editingItem.playlistItem_id}`);
+    }
 }
 
 // リストモードに設定
@@ -2136,6 +2144,14 @@ async function setListMode() {
 
     // 設定完了をユーザに通知（削除しない）
     showMessage(getMessage('list-mode-activated'), 5000, "info");
+
+    // モード切替後、エディットエリアへ現在の編集アイテムを再送信
+    const latest = await stateControl.getPlaylistState();
+    const editingItem = latest.find(item => item.editingState === 'editing');
+    if (editingItem) {
+        window.electronAPI.updateEditState(editingItem);
+        logOpe(`[playlist.js] Edit area updated after mode change for ID: ${editingItem.playlistItem_id}`);
+    }
 }
 
 // 右矢印キーを自動押下する処理（選択状態を解除するよう修正）
