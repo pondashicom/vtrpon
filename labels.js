@@ -180,7 +180,7 @@ const labels = {
     "menu-fullscreen": "Fullscreen",
     "menu-fullscreen-toggle-minimize-maximize": "Toggle Fullscreen Minimize/Maximize",
     "menu-move-fullscreen": "Move Fullscreen Window",
-    "menu-tools": "tools",
+    "menu-tools": "Tools",
     "menu-tools-atem-connection": "ATEM Connection",
     "menu-help": "Help",
     "menu-about": "About",
