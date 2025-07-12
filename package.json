@@ -1,10 +1,11 @@
 {
   "name": "VTRPON2",
-  "version": "2.3.4",
+  "version": "2.3.5",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
+    "postinstall": "electron-builder install-app-deps",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:all": "npm run build:win && npm run build:mac",
@@ -32,15 +33,30 @@
     "electron-rebuild": "^3.2.9"
   },
   "build": {
+    "productName": "VTRPON2",
     "appId": "pondashi.com-vtrpon",
+    "directories": {
+      "output": "dist"
+    },
     "asarUnpack": [
       "node_modules/ffmpeg-static/**",
       "node_modules/ffprobe-static/**"
     ],
     "win": {
-      "icon": "assets/icons/icon.ico"
+      "icon": "assets/icons/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
     },
     "mac": {
+      "icon": "assets/icons/icon_512x512.png",
+      "category": "public.app-category.video",
       "target": [
         {
           "target": "dmg",
@@ -49,8 +65,7 @@
             "arm64"
           ]
         }
-      ],
-      "icon": "assets/icons/icon_512x512.png"
+      ]
     }
   }
 }
