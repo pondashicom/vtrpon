@@ -7,7 +7,7 @@
 // 初期設定
 // ---------------------
 
-const { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, globalShortcut, session, shell, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, Menu, globalShortcut, session, shell, powerSaveBlocker, screen } = require('electron');
 
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
@@ -90,9 +90,15 @@ function saveConfig(config) {
 // ATEM 設定取得
 ipcMain.handle('get-atem-config', (event) => {
     const config = loadConfig();
-    // control/autoSwitch フラグも含むデフォルトを返す
-    return config.atem || { control: false, autoSwitch: false, ip: '', input: 1, delay: 0 };
+    return config.atem || {
+        control:    false,
+        autoSwitch: false,
+        ip:         '',
+        input:      1,
+        delay:      0
+    };
 });
+
 
 // ATEM 設定保存 ＆ 機能ON/OFFを即時反映
 ipcMain.on('set-atem-config', async (event, atemConfig) => {
@@ -746,60 +752,96 @@ function rebuildMenu() {
 // ウインドウ生成
 // ---------------------
 
-// 操作ウインドウの生成
+
+const LAYOUT_W = 1920;  // レイアウト上の横(pt)
+const LAYOUT_H = 1080;  // レイアウト上の縦(pt)
+
 function createMainWindow() {
-    // プライマリディスプレイのサイズを取得
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    const scaleFactor = screen.getPrimaryDisplay().scaleFactor; // 拡大率（例: 1.5で150%拡大）
+  // 1. ディスプレイ情報を取得
+  const disp = screen.getPrimaryDisplay();
+  const physW = disp.size.width;            // 物理ピクセル幅
+  const physH = disp.size.height;           // 物理ピクセル高
+  const scaleFactor = disp.scaleFactor;     // DPI 拡大率
+  const workArea = disp.workArea;           // ワークエリア（DIP）
+  const WA_W = workArea.width;
+  const WA_H = workArea.height;
 
-    mainWindow = new BrowserWindow({
-        width: width,   // ディスプレイ幅そのまま
-        height: height, // ディスプレイ高さそのまま
-        icon: path.join(__dirname, 'assets/icons/icon_256x25.png'), // アイコンファイル
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            nodeIntegration: false,
-            contextIsolation: true,
-            enableRemoteModule: false,
-            sandbox: false,              
-            webSecurity: true, 
-            nodeIntegrationInSubFrames: true,
-            backgroundThrottling: false 
-        }
-    });
+  // 2. 基本ズーム係数
+  //    ・物理解像度が 1920×1080 のときは、DPI スケールを無視（常に1倍）
+  //    ・それ以外は scaleFactor を使う
+  const baseZoom = (physW === LAYOUT_W && physH === LAYOUT_H)
+                  ? 1
+                  : scaleFactor;
 
-    // スケーリングの調整はそのまま残す
-    mainWindow.webContents.on('did-finish-load', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.setZoomFactor(1 / scaleFactor); // スケーリング補正を適用
-        }
-    });
+  // 3. “pt → px” による理想サイズ（DIP ではなく「pt×scaleFactor」でのピクセル）
+  const idealPxW = Math.round(LAYOUT_W * baseZoom);
+  const idealPxH = Math.round(LAYOUT_H * baseZoom);
 
-    // ウィンドウ生成後のdid-finish-loadイベントリスナー登録
-    mainWindow.webContents.on('did-finish-load', function handleDidFinishLoad() {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.setZoomFactor(1 / scaleFactor);
-        } else {
-            console.log('[main.js] mainWindow has already been destroyed before adjusting the zoom factor.');
-        }
-    });
+  // 4. ワークエリアに収まる縮小係数
+  const fitRatioW = WA_W / idealPxW;
+  const fitRatioH = WA_H / idealPxH;
+  //  拡大を防ぐため Math.min(1, ...)
+  const fitZoom = Math.min(1, fitRatioW, fitRatioH);
 
+  // 5. 最終的なウインドウズームとウインドウサイズ
+  const finalZoom = baseZoom * fitZoom;
+  const winPxW   = Math.round(LAYOUT_W * finalZoom);
+  const winPxH   = Math.round(LAYOUT_H * finalZoom);
 
-    mainWindow.on('closed', () => {
-        mainWindow = null; // mainWindow参照をクリア
+  // 6. 画面中央にオフセット
+  const offsetX = Math.floor((WA_W - winPxW) / 2) + workArea.x;
+  const offsetY = Math.floor((WA_H - winPxH) / 2) + workArea.y;
 
-        // アプリ全体を終了する
-        if (process.platform !== 'darwin') {
-            app.quit(); // macOS以外ではアプリを終了
-        }
-    });
+  // 7. BrowserWindow の生成
+  const mainWindow = new BrowserWindow({
+    x: offsetX,
+    y: offsetY,
+    width: winPxW,
+    height: winPxH,
+    useContentSize: true,   // 内部コンテンツは pt 単位で LAYOUT_W×LAYOUT_H
+    resizable: true,
+    maximizable: true,
+    backgroundColor: '#222',
+    icon: path.join(__dirname, 'assets/icons/icon_256x256.png'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      webSecurity: true,
+      backgroundThrottling: false,
+    },
+  });
 
-    mainWindow.loadFile('index.html');
-    mainWindow.webContents.once('did-finish-load', () => {
-        mainWindow.webContents.send('language-changed', global.currentLanguage);
-        mainWindow.setTitle(`VTR-PON2  ver.${app.getVersion()}`);
-    });
+  mainWindow.loadFile('index.html');
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (mainWindow.isDestroyed()) return;
+    // 8. コンテンツ自体も同じズーム
+    mainWindow.webContents.setZoomFactor(finalZoom);
+
+    // 9. フォントサイズは15pxに固定
+    mainWindow.webContents.insertCSS(`html { font-size: 15px !important; }`);
+
+    // 言語通知とタイトル
+    mainWindow.webContents.send('language-changed', global.currentLanguage);
+    mainWindow.setTitle(`VTR-PON2  ver.${app.getVersion()}`);
+  });
+
+  mainWindow.on('closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+
+  return mainWindow;
 }
+
+
+app.whenReady().then(createMainWindow);
+
 
 // フルスクリーンウインドウの生成
 function createFullscreenWindow() {
@@ -841,7 +883,8 @@ function registerSafeFileProtocol() {
 
 // アプリが準備完了したときの処理
 app.whenReady().then(async () => {
-    const displays = screen.getAllDisplays();
+
+    const scaleFactor = screen.getPrimaryDisplay().scaleFactor;
 
     // スクリーンセーバーやディスプレイスリープを防止するために powerSaveBlocker を開始
     powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
@@ -887,6 +930,8 @@ app.whenReady().then(async () => {
 
     // プレイリスト保存ファイルを削除
     removeOldPlaylistFile();
+
+    const displays = screen.getAllDisplays();
 
     // アプリ起動時のデフォルトデバイス設定を読み込む
     let defaultFullscreenVideoOutputDevice = null;
