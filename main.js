@@ -839,10 +839,6 @@ function createMainWindow() {
   return mainWindow;
 }
 
-
-app.whenReady().then(createMainWindow);
-
-
 // フルスクリーンウインドウの生成
 function createFullscreenWindow() {
     const displays = screen.getAllDisplays();
