@@ -757,87 +757,98 @@ const LAYOUT_W = 1920;  // レイアウト上の横(pt)
 const LAYOUT_H = 1080;  // レイアウト上の縦(pt)
 
 function createMainWindow() {
-  // 1. ディスプレイ情報を取得
-  const disp = screen.getPrimaryDisplay();
-  const physW = disp.size.width;            // 物理ピクセル幅
-  const physH = disp.size.height;           // 物理ピクセル高
-  const scaleFactor = disp.scaleFactor;     // DPI 拡大率
-  const workArea = disp.workArea;           // ワークエリア（DIP）
-  const WA_W = workArea.width;
-  const WA_H = workArea.height;
+    // 1. ディスプレイ情報を取得
+    const disp = screen.getPrimaryDisplay();
+    const physW = disp.size.width;            // 物理ピクセル幅
+    const physH = disp.size.height;           // 物理ピクセル高
+    const scaleFactor = disp.scaleFactor;     // DPI 拡大率
+    const workArea = disp.workArea;           // ワークエリア（DIP）
+    const WA_W = workArea.width;
+    const WA_H = workArea.height;
+  
+    // 2. 基本ズーム係数
+    //    ・物理解像度が 1920×1080 のときは、DPI スケールを無視（常に1倍）
+    //    ・それ以外は scaleFactor を使う
+    const baseZoom = (physW === LAYOUT_W && physH === LAYOUT_H)
+                    ? 1
+                    : scaleFactor;
+  
+    // 3. “pt → px” による理想サイズ（DIP ではなく「pt×scaleFactor」でのピクセル）
+    const idealPxW = Math.round(LAYOUT_W * baseZoom);
+    const idealPxH = Math.round(LAYOUT_H * baseZoom);
+  
+    // 4. ワークエリアに収まる縮小係数
+    const fitRatioW = WA_W / idealPxW;
+    const fitRatioH = WA_H / idealPxH;
+    //  拡大を防ぐため Math.min(1, ...)
+    const fitZoom = Math.min(1, fitRatioW, fitRatioH);
+  
+    // 5. 最終的なウインドウズームとウインドウサイズ
+    const finalZoom = baseZoom * fitZoom;
+    const winPxW   = Math.round(LAYOUT_W * finalZoom);
+    const winPxH   = Math.round(LAYOUT_H * finalZoom);
+  
+    // 6. 画面中央にオフセット
+    const offsetX = Math.floor((WA_W - winPxW) / 2) + workArea.x;
+    const offsetY = Math.floor((WA_H - winPxH) / 2) + workArea.y;
 
-  // 2. 基本ズーム係数
-  //    ・物理解像度が 1920×1080 のときは、DPI スケールを無視（常に1倍）
-  //    ・それ以外は scaleFactor を使う
-  const baseZoom = (physW === LAYOUT_W && physH === LAYOUT_H)
-                  ? 1
-                  : scaleFactor;
+    // CSS グリッドで定義した各カラムの最小幅合計 (px)
+    const MIN_CSS_WIDTH = 400 + 620 + 500;
+    // CSS上の最小縦幅 (px)
+    const MIN_CSS_HEIGHT = 920;
 
-  // 3. “pt → px” による理想サイズ（DIP ではなく「pt×scaleFactor」でのピクセル）
-  const idealPxW = Math.round(LAYOUT_W * baseZoom);
-  const idealPxH = Math.round(LAYOUT_H * baseZoom);
+    // ウィンドウ下限のサイズを計算 (DIP 単位)
+    const minWinWidth  = Math.round(MIN_CSS_WIDTH * finalZoom);
+    const minWinHeight = Math.round(MIN_CSS_HEIGHT * finalZoom);
 
-  // 4. ワークエリアに収まる縮小係数
-  const fitRatioW = WA_W / idealPxW;
-  const fitRatioH = WA_H / idealPxH;
-  //  拡大を防ぐため Math.min(1, ...)
-  const fitZoom = Math.min(1, fitRatioW, fitRatioH);
-
-  // 5. 最終的なウインドウズームとウインドウサイズ
-  const finalZoom = baseZoom * fitZoom;
-  const winPxW   = Math.round(LAYOUT_W * finalZoom);
-  const winPxH   = Math.round(LAYOUT_H * finalZoom);
-
-  // 6. 画面中央にオフセット
-  const offsetX = Math.floor((WA_W - winPxW) / 2) + workArea.x;
-  const offsetY = Math.floor((WA_H - winPxH) / 2) + workArea.y;
-
-  // 7. BrowserWindow の生成
-  const mainWindow = new BrowserWindow({
-    x: offsetX,
-    y: offsetY,
-    width: winPxW,
-    height: winPxH,
-    useContentSize: true,   // 内部コンテンツは pt 単位で LAYOUT_W×LAYOUT_H
-    resizable: true,
-    maximizable: true,
-    backgroundColor: '#222',
-    icon: path.join(__dirname, 'assets/icons/icon_256x256.png'),
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-      webSecurity: true,
-      backgroundThrottling: false,
-    },
-  });
-
-  mainWindow.loadFile('index.html');
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-  });
-
-  mainWindow.webContents.once('did-finish-load', () => {
-    if (mainWindow.isDestroyed()) return;
-    // 8. コンテンツ自体も同じズーム
-    mainWindow.webContents.setZoomFactor(finalZoom);
-
-    // 9. フォントサイズは15pxに固定
-    mainWindow.webContents.insertCSS(`html { font-size: 15px !important; }`);
-
-    // 言語通知とタイトル
-    mainWindow.webContents.send('language-changed', global.currentLanguage);
-    mainWindow.setTitle(`VTR-PON2  ver.${app.getVersion()}`);
-  });
-
-  mainWindow.on('closed', () => {
-    if (process.platform !== 'darwin') app.quit();
-  });
-
-  return mainWindow;
-}
+    // 7. BrowserWindow の生成
+    const mainWindow = new BrowserWindow({
+      x: offsetX,
+      y: offsetY,
+      width: winPxW,
+      height: winPxH,
+      minWidth: minWinWidth,   // 追加: CSS ミニマム幅合計を基に下限を設定
+      minHeight: minWinHeight,
+      useContentSize: true,   // 内部コンテンツは pt 単位で LAYOUT_W×LAYOUT_H
+      resizable: true,
+      maximizable: true,
+      backgroundColor: '#222',
+      icon: path.join(__dirname, 'assets/icons/icon_256x256.png'),
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        webSecurity: true,
+        backgroundThrottling: false,
+      },
+    });
+  
+    mainWindow.loadFile('index.html');
+  
+    mainWindow.once('ready-to-show', () => {
+      mainWindow.show();
+    });
+  
+    mainWindow.webContents.once('did-finish-load', () => {
+      if (mainWindow.isDestroyed()) return;
+      // 8. コンテンツ自体も同じズーム
+      mainWindow.webContents.setZoomFactor(finalZoom);
+  
+      // 9. フォントサイズは15pxに固定
+      mainWindow.webContents.insertCSS(`html { font-size: 15px !important; }`);
+  
+      // 言語通知とタイトル
+      mainWindow.webContents.send('language-changed', global.currentLanguage);
+      mainWindow.setTitle(`VTR-PON2  ver.${app.getVersion()}`);
+    });
+  
+    mainWindow.on('closed', () => {
+      if (process.platform !== 'darwin') app.quit();
+    });
+  
+    return mainWindow;
+  }
 
 // フルスクリーンウインドウの生成
 function createFullscreenWindow() {
