@@ -29,18 +29,14 @@ body {
 .grid-container {
     display: grid;
     grid-template-areas: "listedit playlist onair";
-    grid-template-columns: minmax(500px, 1fr) minmax(600px, 1.4fr) minmax(500px, 1.2fr);
-    grid-template-rows:    auto 1fr auto;
-    gap: 0.625rem;;
-
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-
+    grid-template-columns: minmax(400px, 1fr) minmax(620px, 1.4fr) minmax(450px, 1.2fr);
+    grid-template-rows: 1fr;
+    gap: 0.625rem;
+    padding: 0 0.5rem;
     width: calc(100% - 1rem);
-    max-height: 100vh;
+    height: 100vh;
     margin: 0;
     box-sizing: border-box;
-    overflow: hidden;
 }
 
 /* ------------------ */
@@ -55,43 +51,18 @@ body {
     flex-direction: column;
     gap: 1rem;
     box-sizing: border-box;
-    height: 100%;
-    margin-bottom: 0.625rem;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
 }
 
 /* ---------------------------- */
 /*   各セクションの幅と高さ   */
 /* ---------------------------- */
 
-#listedit-section {
-    grid-area: listedit;
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    display: flex;
-    flex-direction: column;
-}
-
-#playlist-section {
-    grid-area: playlist;
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    display: flex;
-    flex-direction: column;
-}
-
-#on-air-section {
-    grid-area: onair;
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    display: flex;
-    flex-direction: column;
-}
-
+#listedit-section { grid-area: listedit; }
+#playlist-section   { grid-area: playlist; }
+#on-air-section     { grid-area: onair; }
 
 /* ---------------------------- */
 /*  ヘッダー・中身・フッター分割 */
@@ -1482,14 +1453,16 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 
 /* ドロップダウンのスタイル */
 #uvcDeviceDropdown {
-    width: 17.5rem;            /* 280px */
-    height: 1.875rem;          /* 30px */
+    width: 100%;
+    max-width: 17.5rem;
+    min-width: 10rem;
+    height: 1.875rem;
     background-color: #2e2e2e;
     color: #ffffff;
-    border: 0.0625rem solid #444444; /* 1px */
-    border-radius: 0.3125rem; /* 5px */
-    font-size: 0.75rem;       /* 12px */
-    padding: 0.3125rem;       /* 5px */
+    border: 0.0625rem solid #444444;
+    border-radius: 0.3125rem;
+    font-size: 0.75rem;
+    padding: 0.3125rem;
     box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
     appearance: none;
     -webkit-appearance: none;
