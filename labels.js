@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.3.0
+//     ver 2.3.6
 // -----------------------
 
 const labels = {
@@ -90,6 +90,7 @@ const labels = {
     "addUVCToPlaylistButton": "リストに追加",
     "still-capture-title": "スチルキャプチャ/PNG動画変換の時間設定",
     "still-button": "キャプチャ",
+    "dsk-title": "ダウンストリームキー",
     "dsk-button": "DSK",
     "fadeInDuration": "変換時間（秒）",
     "list-mode-title": "モード",
@@ -215,6 +216,7 @@ const labels = {
     "still-button": "CAPTURE",
     "fadeInDuration": "Conversion Duration (sec)",
     "dsk-button": "DSK",
+    "dsk-title": "DOWN STREAM KEY",
     "list-mode-title": "MODE",
     "list-repeat-button": "REPEAT-ALL",
     "list-list-button": "LIST",
