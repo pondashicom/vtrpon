@@ -1,15 +1,11 @@
 {
   "name": "VTRPON2",
-  "version": "2.3.5",
+  "version": "2.3.6",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "postinstall": "electron-builder install-app-deps",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
-    "build:all": "npm run build:win && npm run build:mac",
-    "test": "node test/statecontrol.test.js"
+    "postinstall": "electron-rebuild -f -w winax -i @julusian/freetype2 --arch x64 --version 35.0.2"
   },
   "keywords": [],
   "author": "Tetsu Suzuki",
@@ -28,44 +24,25 @@
     "winax": "^3.6.1"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
+    "electron": "^35.0.2",
     "electron-builder": "^24.3.0",
     "electron-rebuild": "^3.2.9"
   },
   "build": {
-    "productName": "VTRPON2",
     "appId": "pondashi.com-vtrpon",
-    "directories": {
-      "output": "dist"
-    },
-    "asarUnpack": [
-      "node_modules/ffmpeg-static/**",
-      "node_modules/ffprobe-static/**"
-    ],
     "win": {
-      "icon": "assets/icons/icon.ico",
-      "target": [
-        "nsis",
-        "zip"
-      ]
+      "icon": "assets/icons/icon.ico"
     },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "mac": {
-      "icon": "assets/icons/icon_512x512.png",
-      "category": "public.app-category.video",
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ]
-    }
+    "extraResources": [
+      {
+        "from": "src/assets/ffmpeg.exe",
+        "to": "ffmpeg.exe"
+      },
+      {
+        "from": "src/assets/ffprobe.exe",
+        "to": "ffprobe.exe"
+      }
+    ],
+    "npmRebuild": false
   }
 }

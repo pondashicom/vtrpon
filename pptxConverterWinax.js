@@ -3,18 +3,24 @@
 //   ver.2.2.4
 // ----------------------------
 
-
 let ActiveXObject;
-let winaxAvailable = true;
+let winaxAvailable = false;
+
 try {
-    ActiveXObject = require('winax').Object;
-} catch (e) {
-    winaxAvailable = false;
+    // winax モジュールを読み込み、Object または ActiveXObject を取得
+    const winax = require('winax');
+    ActiveXObject = winax.Object || winax.ActiveXObject;
+    winaxAvailable = true;
+    console.log('[pptxConverterWinax] Successfully loaded winax module.');
+} catch (err) {
+    console.error('[pptxConverterWinax] winax require failed:', err);
 }
+
 const fs = require('fs');
 const path = require('path');
 
 function available() {
+    console.log('[pptxConverterWinax] Debug: winaxAvailable =', winaxAvailable);
     return winaxAvailable;
 }
 
@@ -41,9 +47,9 @@ async function convertPPTXToPNG(pptxPath) {
             try {
                 pptApp = new ActiveXObject("PowerPoint.Application");
             } catch (innerError) {
-                // エラー発生時にメッセージを表示し、その後エラーとして処理する
-                showMessage('PowerPoint is either not installed or not configured correctly. This feature requires that PowerPoint be installed.', 10000, 'alert');
-                throw innerError;  // または適切にエラー処理を行う
+                // PowerPoint COM オブジェクト生成エラーをログ出力
+                console.error('[pptxConverterWinax] PowerPoint COM object creation failed:', innerError);
+                throw innerError;
             }
 
             // PPTXファイルを開く（ウィンドウ非表示）
