@@ -798,11 +798,11 @@ function createMainWindow() {
     y: offsetY,
     width: winPxW,
     height: winPxH,
+    icon: path.join(__dirname, 'assets/icons/icon.ico'),
     useContentSize: true,   // 内部コンテンツは pt 単位で LAYOUT_W×LAYOUT_H
     resizable: true,
     maximizable: true,
     backgroundColor: '#222',
-    icon: path.join(__dirname, 'assets/icons/icon_256x256.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
