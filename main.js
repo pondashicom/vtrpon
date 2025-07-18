@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.3.5
+//     ver 2.3.7
 // -----------------------
 
 // ---------------------
@@ -680,15 +680,23 @@ function buildMenuTemplate(labels) {
                 {
                     label: labels["menu-fullscreen-toggle-minimize-maximize"],
                     click: () => {
-                        if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
-                            if (fullscreenWindow.isMinimized()) {
-                                fullscreenWindow.restore();
-                            } else {
-                                fullscreenWindow.minimize();
+                        if (!fullscreenWindow || fullscreenWindow.isDestroyed()) return;
+                        // 1) 隠れている（最小化）状態なら復元して再度フルスクリーン
+                        if (fullscreenWindow.isMinimized()) {
+                            fullscreenWindow.restore();
+                            fullscreenWindow.focus();
+                            fullscreenWindow.setFullScreen(true);
+                        }
+                        // 2) 表示中ならフルスクリーン解除して最小化
+                        else {
+                            if (fullscreenWindow.isFullScreen()) {
+                                fullscreenWindow.setFullScreen(false);
                             }
+                            fullscreenWindow.minimize();
                         }
                     }
                 }
+
             ]
         },
         {
