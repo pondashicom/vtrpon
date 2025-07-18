@@ -292,460 +292,455 @@ const { checkForUpdates, checkForUpdatesFromMenu } = initUpdateCheck();
 const config = loadConfig();
 global.currentLanguage = config.language || 'en';
 
-// labels.js からメニュー用ラベルを取得する共通関数
+// メニュー生成
 function buildMenuTemplate(labels) {
-    return [
-        {
-            label: labels["menu-file"],
-            submenu: [
-                {
-                    label: labels["menu-add-file"],
-                    accelerator: 'CommandOrControl+F',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'add-file');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-export-playlist"],
-                    click: () => {
-                        mainWindow.webContents.send('export-playlist');
-                    }
-                },
-                {
-                    label: labels["menu-import-playlist"],
-                    click: () => {
-                        mainWindow.webContents.send('import-playlist');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-device-settings"],
-                    click: () => {
-                        createDeviceSettingsWindow();
-                    }
-                },
-                { type: 'separator' },
-                {
-                  label: labels["menu-recording-settings"],
-                  click: () => {
-                    createRecordingSettingsWindow();
-                  }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-language"],
-                    submenu: [
-                        {
-                            label: "English",
-                            type: 'radio',
-                            checked: global.currentLanguage === 'en',
-                            click: () => {
-                                global.currentLanguage = 'en';
-                                saveConfig({ language: 'en' });
-                                BrowserWindow.getAllWindows().forEach(win => {
-                                    win.webContents.send('language-changed', 'en');
-                                });
-                                rebuildMenu();
-                                console.log('[main.js] Language changed to English.');
-                            }
-                        },
-                        {
-                            label: "Japanese",
-                            type: 'radio',
-                            checked: global.currentLanguage === 'ja',
-                            click: () => {
-                                global.currentLanguage = 'ja';
-                                saveConfig({ language: 'ja' });
-                                BrowserWindow.getAllWindows().forEach(win => {
-                                    win.webContents.send('language-changed', 'ja');
-                                });
-                                rebuildMenu();
-                                console.log('[main.js] Language changed to Japanese.');
-                            }
-                        }
-                    ]
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-exit"],
-                    accelerator: 'CommandOrControl+Q',
-                    click: () => {
-                        app.quit();
-                    }
-                }
-            ]
-        },
-        {
-            label: labels["menu-edit"],
-            submenu: [
-                {
-                    label: labels["menu-toggle-start-mode"],
-                    accelerator: 'Alt+S',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'toggle-start-mode');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-end-mode-off"],
-                    accelerator: 'Alt+O',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'end-mode-off');
-                    }
-                },
-                {
-                    label: labels["menu-end-mode-pause"],
-                    accelerator: 'Alt+P',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'end-mode-pause');
-                    }
-                },
-                {
-                    label: labels["menu-end-mode-ftb"],
-                    accelerator: 'Alt+F',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'end-mode-ftb');
-                    }
-                },
-                {
-                    label: labels["menu-end-mode-repeat"],
-                    accelerator: 'Alt+R',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'end-mode-repeat');
-                    }
-                },
-                {
-                    label: labels["menu-end-mode-next"],
-                    accelerator: 'Alt+N',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'end-mode-next');
-                    }
-                },
-                {
-                    label: labels["menu-reset-edit-area"],
-                    accelerator: 'Right',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'reset-edit-area');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-set-in-point"],
-                    accelerator: 'Shift+Alt+I',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'in-point');
-                    }
-                },
-                {
-                    label: labels["menu-set-out-point"],
-                    accelerator: 'Shift+Alt+O',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'out-point');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-copy-item-state"],
-                    accelerator: 'CommandOrControl+C',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'copy-item-state');
-                    }
-                },
-                {
-                    label: labels["menu-paste-item-state"],
-                    accelerator: 'CommandOrControl+V',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'paste-item-state');
-                    }
-                }
-            ]
-        },
-        {
-            label: labels["menu-playlist"],
-            submenu: [
-                {
-                    label: labels["menu-playlist1"],
-                    accelerator: 'CommandOrControl+1',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', '1');
-                    }
-                },
-                {
-                    label: labels["menu-playlist2"],
-                    accelerator: 'CommandOrControl+2',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', '2');
-                    }
-                },
-                {
-                    label: labels["menu-playlist3"],
-                    accelerator: 'CommandOrControl+3',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', '3');
-                    }
-                },
-                {
-                    label: labels["menu-playlist4"],
-                    accelerator: 'CommandOrControl+4',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', '4');
-                    }
-                },
-                {
-                    label: labels["menu-playlist5"],
-                    accelerator: 'CommandOrControl+5',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', '5');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-save-mode"],
-                    accelerator: 'CommandOrControl+S',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'save');
-                    }
-                },
-                {
-                    label: labels["menu-delete-mode"],
-                    accelerator: 'CommandOrControl+D',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'delete');
-                    }
-                },
-                {
-                    label: labels["menu-clear-playlist"],
-                    accelerator: 'CommandOrControl+K',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'clear');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-select-item-up"],
-                    accelerator: 'Up',
-                    enabled: false
-                },
-                {
-                    label: labels["menu-select-item-down"],
-                    accelerator: 'Down',
-                    enabled: false
-                }
-            ]
-        },
-        {
-            label: labels["menu-on-air"],
-            submenu: [
-                {
-                    label: labels["menu-on-air"],
-                    accelerator: 'Shift+Enter',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Shift+Enter');
-                    }
-                },
-                {
-                    label: labels["menu-off-air"],
-                    accelerator: 'Esc',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Esc');
-                    }
-                },
-                {
-                    label: labels["menu-ftb"],
-                    accelerator: 'Shift+F',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Shift+F');
-                    }
-                },
-                {
-                    label: labels["menu-play-pause"],
-                    accelerator: 'Space',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Space');
-                    }
-                },
-                {
-                    label: labels["menu-audio-fade-in"],
-                    accelerator: 'CommandOrControl+,',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'CommandOrControl+,');
-                    }
-                },
-                {
-                    label: labels["menu-audio-fade-out"],
-                    accelerator: 'CommandOrControl+.',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'CommandOrControl+.');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-capture-fullscreen"],
-                    accelerator: 'Shift+S',
-                    click: () => {
-                        if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
-                            fullscreenWindow.webContents.send('capture-screenshot');
-                            console.log('[main.js] Menu: Capture Screenshot triggered.');
-                        } else {
-                            console.log('[main.js] Menu: Fullscreen window not available for screenshot capture.');
-                        }
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-recording-toggle"],
-                    accelerator: 'Shift+R',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Shift+R');
-                        console.log('[main.js] Menu: Recording Toggle triggered.');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-dsk-toggle"],
-                    accelerator: 'Shift+D',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Shift+D');
-                    }
-                }
-            ]
-        },
-        {
-            label: labels["menu-mode"],
-            submenu: [
-                {
-                    label: labels["menu-list-mode-repeat"],
-                    accelerator: 'CommandOrControl+R',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'repeat');
-                    }
-                },
-                {
-                    label: labels["menu-list-mode-list"],
-                    accelerator: 'CommandOrControl+L',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'list');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: labels["menu-direct-mode"],
-                    accelerator: 'Shift+Alt+D',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Shift+Alt+D');
-                    }
-                },
-                {
-                    label: labels["menu-soundpad-mode"],
-                    accelerator: 'Shift+Alt+S',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Shift+Alt+S');
-                    }
-                },
-                {
-                    label: labels["menu-fillkey-mode"],
-                    accelerator: 'Shift+Alt+F',
-                    click: () => {
-                        mainWindow.webContents.send('shortcut-trigger', 'Shift+Alt+F');
-                    }
-                }
-            ]
-        },
-        {
-            label: labels["menu-window"],
-            submenu: [
-                {
-                    label: labels["menu-debug-mode"],
-                    accelerator: 'F10',
-                    click: () => {
-                        isDebugMode = !isDebugMode;
-                        toggleDebugMode(isDebugMode);
-                    }
-                },
-                {
-                    label: labels["menu-fullscreen"],
-                    accelerator: 'F11',
-                    click: () => {
-                        mainWindow.setFullScreen(!mainWindow.isFullScreen());
-                    }
-                },
-                ...(process.platform === 'darwin' ? [] : [
-                    {
-                        label: labels["menu-move-fullscreen"],
-                        accelerator: 'Alt+W',
-                        click: () => {
-                            moveFullscreenToNextDisplay();
-                        }
-                    }
-                ]),
-                {
-                    label: labels["menu-fullscreen-toggle-minimize-maximize"],
-                    click: () => {
-                        if (!fullscreenWindow || fullscreenWindow.isDestroyed()) return;
-                        // 1) 隠れている（最小化）状態なら復元して再度フルスクリーン
-                        if (fullscreenWindow.isMinimized()) {
-                            fullscreenWindow.restore();
-                            fullscreenWindow.focus();
-                            fullscreenWindow.setFullScreen(true);
-                        }
-                        // 2) 表示中ならフルスクリーン解除して最小化
-                        else {
-                            if (fullscreenWindow.isFullScreen()) {
-                                fullscreenWindow.setFullScreen(false);
-                            }
-                            fullscreenWindow.minimize();
-                        }
-                    }
-                }
+  const isMac = process.platform === 'darwin';
+  const opt = isMac ? 'Option' : 'Alt';
+  const cmd = isMac ? 'Command' : 'Control';
 
-            ]
+  return [
+    {
+      label: labels["menu-file"],
+      submenu: [
+        {
+          label: labels["menu-add-file"],
+          accelerator: `${cmd}+F`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'add-file');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-export-playlist"],
+          click: () => {
+            mainWindow.webContents.send('export-playlist');
+          }
         },
         {
-            label: labels["menu-tools"],
-            submenu: [
-                {
-                    label: labels["menu-tools-atem-connection"],
-                    click: () => {
-                        createAtemSettingsWindow();
-                    }
-                }
-            ]
+          label: labels["menu-import-playlist"],
+          click: () => {
+            mainWindow.webContents.send('import-playlist');
+          }
         },
+        { type: 'separator' },
         {
-            label: labels["menu-help"],
-            submenu: [
-                {
-                    label: labels["menu-check-update"],
-                    click: () => {
-                        if (typeof checkForUpdatesFromMenu === "function") {
-                            checkForUpdatesFromMenu();
-                        } else {
-                            console.error("[main.js] checkForUpdatesFromMenu is not defined.");
-                        }
-                    }
-                },
-                {
-                  label: labels["menu-about"],
-                  click: () => {
-                    dialog.showMessageBox(mainWindow, {
-                      type: 'info',
-                      title: 'About',
-                      message: `VTRPON\nVersion: ${app.getVersion()}\nDeveloped by Tetsu Suzuki.\nReleased under the GNU General Public License (GPL)`,
-                      buttons: ['OK']
-                    });
-                  }
-                },
-                {
-                    label: labels["menu-readme"],
-                    click: () => {
-                        shell.openExternal('https://pondashi.com/vtrpon/');
-                    }
-                }
-            ]
+          label: labels["menu-device-settings"],
+          click: () => {
+            createDeviceSettingsWindow();
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-recording-settings"],
+          click: () => {
+            createRecordingSettingsWindow();
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-language"],
+          submenu: [
+            {
+              label: "English",
+              type: 'radio',
+              checked: global.currentLanguage === 'en',
+              click: () => {
+                global.currentLanguage = 'en';
+                saveConfig({ language: 'en' });
+                BrowserWindow.getAllWindows().forEach(win => {
+                  win.webContents.send('language-changed', 'en');
+                });
+                rebuildMenu();
+                console.log('[main.js] Language changed to English.');
+              }
+            },
+            {
+              label: "Japanese",
+              type: 'radio',
+              checked: global.currentLanguage === 'ja',
+              click: () => {
+                global.currentLanguage = 'ja';
+                saveConfig({ language: 'ja' });
+                BrowserWindow.getAllWindows().forEach(win => {
+                  win.webContents.send('language-changed', 'ja');
+                });
+                rebuildMenu();
+                console.log('[main.js] Language changed to Japanese.');
+              }
+            }
+          ]
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-exit"],
+          accelerator: `${cmd}+Q`,
+          click: () => {
+            app.quit();
+          }
         }
-    ];
+      ]
+    },
+    {
+      label: labels["menu-edit"],
+      submenu: [
+        {
+          label: labels["menu-toggle-start-mode"],
+          accelerator: `${opt}+S`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'toggle-start-mode');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-end-mode-off"],
+          accelerator: `${opt}+O`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'end-mode-off');
+          }
+        },
+        {
+          label: labels["menu-end-mode-pause"],
+          accelerator: `${opt}+P`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'end-mode-pause');
+          }
+        },
+        {
+          label: labels["menu-end-mode-ftb"],
+          accelerator: `${opt}+F`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'end-mode-ftb');
+          }
+        },
+        {
+          label: labels["menu-end-mode-repeat"],
+          accelerator: `${opt}+R`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'end-mode-repeat');
+          }
+        },
+        {
+          label: labels["menu-end-mode-next"],
+          accelerator: `${opt}+N`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'end-mode-next');
+          }
+        },
+        {
+          label: labels["menu-reset-edit-area"],
+          accelerator: 'Right',
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'reset-edit-area');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-set-in-point"],
+          accelerator: `Shift+${opt}+I`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'in-point');
+          }
+        },
+        {
+          label: labels["menu-set-out-point"],
+          accelerator: `Shift+${opt}+O`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'out-point');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-copy-item-state"],
+          accelerator: `${cmd}+C`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'copy-item-state');
+          }
+        },
+        {
+          label: labels["menu-paste-item-state"],
+          accelerator: `${cmd}+V`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'paste-item-state');
+          }
+        }
+      ]
+    },
+    {
+      label: labels["menu-playlist"],
+      submenu: [
+        {
+          label: labels["menu-playlist1"],
+          accelerator: `${cmd}+1`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', '1');
+          }
+        },
+        {
+          label: labels["menu-playlist2"],
+          accelerator: `${cmd}+2`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', '2');
+          }
+        },
+        {
+          label: labels["menu-playlist3"],
+          accelerator: `${cmd}+3`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', '3');
+          }
+        },
+        {
+          label: labels["menu-playlist4"],
+          accelerator: `${cmd}+4`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', '4');
+          }
+        },
+        {
+          label: labels["menu-playlist5"],
+          accelerator: `${cmd}+5`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', '5');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-save-mode"],
+          accelerator: `${cmd}+S`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'save');
+          }
+        },
+        {
+          label: labels["menu-delete-mode"],
+          accelerator: `${cmd}+D`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'delete');
+          }
+        },
+        {
+          label: labels["menu-clear-playlist"],
+          accelerator: `${cmd}+K`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'clear');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-select-item-up"],
+          accelerator: 'Up',
+          enabled: false
+        },
+        {
+          label: labels["menu-select-item-down"],
+          accelerator: 'Down',
+          enabled: false
+        }
+      ]
+    },
+    {
+      label: labels["menu-on-air"],
+      submenu: [
+        {
+          label: labels["menu-on-air"],
+          accelerator: 'Shift+Enter',
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Shift+Enter');
+          }
+        },
+        {
+          label: labels["menu-off-air"],
+          accelerator: 'Esc',
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Esc');
+          }
+        },
+        {
+          label: labels["menu-ftb"],
+          accelerator: 'Shift+F',
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Shift+F');
+          }
+        },
+        {
+          label: labels["menu-play-pause"],
+          accelerator: 'Space',
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Space');
+          }
+        },
+        {
+          label: labels["menu-audio-fade-in"],
+          accelerator: `${cmd}+,`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', `${cmd}+,`);
+          }
+        },
+        {
+          label: labels["menu-audio-fade-out"],
+          accelerator: `${cmd}+.`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', `${cmd}+.`);
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-capture-fullscreen"],
+          accelerator: 'Shift+S',
+          click: () => {
+            if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
+              fullscreenWindow.webContents.send('capture-screenshot');
+              console.log('[main.js] Menu: Capture Screenshot triggered.');
+            } else {
+              console.log('[main.js] Menu: Fullscreen window not available.');
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-recording-toggle"],
+          accelerator: 'Shift+R',
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Shift+R');
+            console.log('[main.js] Menu: Recording Toggle triggered.');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-dsk-toggle"],
+          accelerator: 'Shift+D',
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Shift+D');
+          }
+        }
+      ]
+    },
+    {
+      label: labels["menu-mode"],
+      submenu: [
+        {
+          label: labels["menu-list-mode-repeat"],
+          accelerator: `${cmd}+R`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'repeat');
+          }
+        },
+        {
+          label: labels["menu-list-mode-list"],
+          accelerator: `${cmd}+L`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'list');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-direct-mode"],
+          accelerator: `Shift+${opt}+D`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Shift+Alt+D');
+          }
+        },
+        {
+          label: labels["menu-soundpad-mode"],
+          accelerator: `Shift+${opt}+S`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Shift+Alt+S');
+          }
+        },
+        {
+          label: labels["menu-fillkey-mode"],
+          accelerator: `Shift+${opt}+F`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', 'Shift+Alt+F');
+          }
+        }
+      ]
+    },
+    {
+      label: labels["menu-window"],
+      submenu: [
+        {
+          label: labels["menu-debug-mode"],
+          accelerator: 'F10',
+          click: () => {
+            isDebugMode = !isDebugMode;
+            toggleDebugMode(isDebugMode);
+          }
+        },
+        {
+          label: labels["menu-fullscreen"],
+          accelerator: 'F11',
+          click: () => {
+            mainWindow.setFullScreen(!mainWindow.isFullScreen());
+          }
+        },
+        {
+          label: labels["menu-move-fullscreen"],
+          accelerator: `${opt}+W`,
+          click: () => {
+            moveFullscreenToNextDisplay();
+          }
+        },
+        {
+          label: labels["menu-fullscreen-toggle-minimize-maximize"],
+          click: () => {
+            if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
+              if (fullscreenWindow.isMinimized()) {
+                fullscreenWindow.restore();
+              } else {
+                fullscreenWindow.minimize();
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      label: labels["menu-tools"],
+      submenu: [
+        {
+          label: labels["menu-tools-atem-connection"],
+          click: () => {
+            createAtemSettingsWindow();
+          }
+        }
+      ]
+    },
+    {
+      label: labels["menu-help"],
+      submenu: [
+        {
+          label: labels["menu-check-update"],
+          click: () => {
+            if (typeof checkForUpdatesFromMenu === "function") {
+              checkForUpdatesFromMenu();
+            } else {
+              console.error("[main.js] checkForUpdatesFromMenu is not defined.");
+            }
+          }
+        },
+        {
+          label: labels["menu-about"],
+          click: () => {
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'About',
+              message: `VTRPON\nVersion: ${app.getVersion()}\n…`,
+              buttons: ['OK']
+            });
+          }
+        },
+        {
+          label: labels["menu-readme"],
+          click: () => {
+            shell.openExternal('https://pondashi.com/vtrpon/');
+          }
+        }
+      ]
+    }
+  ];
 }
+
 
 // 初期メニューの生成
 const initialLabels = require('./labels.js')[global.currentLanguage];
@@ -2114,7 +2109,7 @@ function registerShortcuts() {
    // Move Fullscreen Window (macOS: Option+W, Others: Alt+W)
     const moveFSShortcut = process.platform === 'darwin' ? 'Option+W' : 'Alt+W';
     globalShortcut.register(moveFSShortcut, () => {
-        console.log(`[main.js] ${moveFSShortcut} pressed — shortcut handler invoked`);  // ← 追加
+        console.log(`[main.js] ${moveFSShortcut} pressed ? shortcut handler invoked`);  // ← 追加
         moveFullscreenToNextDisplay();
         console.log(`[main.js] ${moveFSShortcut} triggered: Moved fullscreen window to next display.`);
     });
