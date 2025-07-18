@@ -1,6 +1,6 @@
-﻿// -----------------------
+// -----------------------
 //     onair.js
-//     ver 2.3.2
+//     ver 2.3.7
 // -----------------------
 
 // -----------------------
@@ -2563,10 +2563,11 @@ function handleShortcut(action) {
     }
 
     switch (action) {
-        case 'Escape': // ESCキー
-            logDebug('[onair.js] Shortcut: ESC pressed.');
-            onairHandleOffAirButton(); // オフエアボタンの処理を呼び出し
-            break;
+            case 'Escape': // ESCキー（ネイティブ）
+            case 'Esc':    // メニューからのEscも同様に処理
+                logDebug('[onair.js] Shortcut: ESC pressed.');
+                onairHandleOffAirButton();
+                break;
 
         case 'Space': // スペースキー
             logDebug('[onair.js] Shortcut: Space pressed.');
