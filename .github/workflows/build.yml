@@ -34,7 +34,7 @@ jobs:
         run: npm ci
 
       - name: Build macOS
-        run: npm run build:mac
+        run: npm run build -- --mac
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -53,50 +53,51 @@ jobs:
           name: vtrpon-mac
           path: release/
 
-  build-win:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+build-win:
+  runs-on: windows-latest
+  steps:
+    - uses: actions/checkout@v4
 
-      - name: Setup Python 3.9 (with distutils)
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+    - name: Setup Python 3.9 (with distutils)
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
 
-      - name: Install setuptools
-        run: python -m pip install setuptools
+    - name: Install setuptools
+      run: python -m pip install setuptools
 
-      - name: Cache node modules (Windows)
-        uses: actions/cache@v4
-        with:
-          path: C:\\Users\\runneradmin\\AppData\\Roaming\\npm-cache
-          key: windows-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            windows-node-
+    - name: Cache node modules (Windows)
+      uses: actions/cache@v4
+      with:
+        path: C:\\Users\\runneradmin\\AppData\\Roaming\\npm-cache
+        key: windows-node-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          windows-node-
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
 
-      - name: Install dependencies
-        run: npm ci
+    - name: Install dependencies
+      run: npm ci
 
-      - name: Build Windows
-        run: npm run build:win
-        env:
-          GH_TOKEN: ${{ github.token }}
+    - name: Build Windows
+      run: npm run build -- --win
+      env:
+        GH_TOKEN: ${{ github.token }}
 
-      - name: Create release directory
-        run: mkdir -p release
+    - name: Create release directory
+      run: mkdir -p release
 
-      - name: Copy License files
-        run: cp -r LICENSE release/LICENSE
+    - name: Copy License files
+      run: cp -r LICENSE release/LICENSE
 
-      - name: Move built files
-        run: mv dist/*.exe release/
+    - name: Move built files
+      run: mv dist/*.exe release/
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vtrpon-win
-          path: release/
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vtrpon-win
+        path: release/
+
