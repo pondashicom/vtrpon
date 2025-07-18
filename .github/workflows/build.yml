@@ -25,24 +25,27 @@ jobs:
           key: macos-node-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             macos-node-
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - run: npm ci
+
       - name: Build macOS
         run: npm run build:mac
         env:
           GH_TOKEN: ${{ github.token }}
-      - name: mkdir release directory
-        run: mkdir -p release
-      - name: Copy License files
-        run: cp -r LICENSE release/
-      - name: Move built files
-        run: mv dist/*.dmg release/
+
+      - run: mkdir -p release
+      - run: cp -r LICENSE release/
+      - run: mv dist/*.dmg release/
+
       - uses: actions/upload-artifact@v4
         with:
           name: vtrpon-mac
           path: release/
+
 
   build-win:
     runs-on: windows-latest
@@ -61,21 +64,24 @@ jobs:
           key: windows-node-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             windows-node-
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - run: npm ci
+
       - name: Build Windows
         run: npm run build:win
         env:
           GH_TOKEN: ${{ github.token }}
-      - name: mkdir release directory
-        run: mkdir -p release
-      - name: Copy License files
-        run: cp -r LICENSE release/LICENSE
-      - name: Move built files
-        run: mv dist/*.exe release/
+
+      - run: mkdir -p release
+      - run: cp -r LICENSE release/LICENSE
+      - run: mv dist/*.exe release/
+
       - uses: actions/upload-artifact@v4
         with:
           name: vtrpon-win
           path: release/
+
