@@ -8,81 +8,94 @@ on:
   pull_request:
 
 jobs:
-  build-mac:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
+build-mac:
+  runs-on: macos-latest
+  steps:
+    - uses: actions/checkout@v4
 
-      - name: Install Python via Homebrew
-        run: |
-          brew update
-          brew install python
+    - name: Setup Python 3.9 (with distutils)
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
 
-      - name: Cache node modules (macOS)
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: macos-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            macos-node-
+    - name: Cache node modules (macOS)
+      uses: actions/cache@v4
+      with:
+        path: ~/.npm
+        key: macos-node-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          macos-node-
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
 
-      - run: npm ci
+    - name: Install dependencies
+      run: npm ci
 
-      - name: Build macOS
-        run: npm run build:mac
-        env:
-          GH_TOKEN: ${{ github.token }}
+    - name: Build macOS
+      run: npm run build:mac
+      env:
+        GH_TOKEN: ${{ github.token }}
 
-      - run: mkdir -p release
-      - run: cp -r LICENSE release/
-      - run: mv dist/*.dmg release/
+    - name: Create release directory
+      run: mkdir -p release
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: vtrpon-mac
-          path: release/
+    - name: Copy License files
+      run: cp -r LICENSE release/
 
-  build-win:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+    - name: Move built files
+      run: mv dist/*.dmg release/
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vtrpon-mac
+        path: release/
+build-win:
+  runs-on: windows-latest
+  steps:
+    - uses: actions/checkout@v4
 
-      - name: Install setuptools
-        run: python -m pip install setuptools
+    - name: Setup Python 3.9 (with distutils)
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
 
-      - name: Cache node modules (Windows)
-        uses: actions/cache@v4
-        with:
-          path: C:\\Users\\runneradmin\\AppData\\Roaming\\npm-cache
-          key: windows-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            windows-node-
+    - name: Install setuptools
+      run: python -m pip install setuptools
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+    - name: Cache node modules (Windows)
+      uses: actions/cache@v4
+      with:
+        path: C:\\Users\\runneradmin\\AppData\\Roaming\\npm-cache
+        key: windows-node-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          windows-node-
 
-      - run: npm ci
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
 
-      - name: Build Windows
-        run: npm run build:win
-        env:
-          GH_TOKEN: ${{ github.token }}
+    - name: Install dependencies
+      run: npm ci
 
-      - run: mkdir -p release
-      - run: cp -r LICENSE release/LICENSE
-      - run: mv dist/*.exe release/
+    - name: Build Windows
+      run: npm run build:win
+      env:
+        GH_TOKEN: ${{ github.token }}
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: vtrpon-win
-          path: release/
+    - name: Create release directory
+      run: mkdir -p release
+
+    - name: Copy License files
+      run: cp -r LICENSE release/LICENSE
+
+    - name: Move built files
+      run: mv dist/*.exe release/
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vtrpon-win
+        path: release/
