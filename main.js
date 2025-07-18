@@ -1,4 +1,4 @@
-﻿// -----------------------
+// -----------------------
 //     main.js
 //     ver 2.3.5
 // -----------------------
@@ -7,8 +7,9 @@
 // 初期設定
 // ---------------------
 
-const { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, globalShortcut, session, shell, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, globalShortcut, session, shell, powerSaveBlocker, nativeImage } = require('electron');
 
+app.setName('VTR-PON2');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 let ffmpegStatic = require('ffmpeg-static');
@@ -756,6 +757,11 @@ function rebuildMenu() {
 const LAYOUT_W = 1920;  // レイアウト上の横(pt)
 const LAYOUT_H = 1080;  // レイアウト上の縦(pt)
 
+// アイコン設定
+const iconPath = process.platform === 'darwin'
+    ? path.join(__dirname, 'assets/icons/icon_256x256.png')
+    : path.join(__dirname, 'assets/icons/icon.ico');
+
 function createMainWindow() {
   // 1. ディスプレイ情報を取得
   const disp = screen.getPrimaryDisplay();
@@ -793,12 +799,12 @@ function createMainWindow() {
   const offsetY = Math.floor((WA_H - winPxH) / 2) + workArea.y;
 
   // 7. BrowserWindow の生成
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     x: offsetX,
     y: offsetY,
     width: winPxW,
     height: winPxH,
-    icon: path.join(__dirname, 'assets/icons/icon.ico'),
+    icon: iconPath,
     useContentSize: true,   // 内部コンテンツは pt 単位で LAYOUT_W×LAYOUT_H
     resizable: true,
     maximizable: true,
@@ -812,6 +818,10 @@ function createMainWindow() {
       backgroundThrottling: false,
     },
   });
+
+  if (process.platform === 'darwin') {
+      app.dock.setIcon(iconPath);
+  }
 
   mainWindow.loadFile('index.html');
 
@@ -833,11 +843,13 @@ function createMainWindow() {
   });
 
   mainWindow.on('closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    // 操作ウインドウを閉じたら必ずアプリ終了
+    app.quit();
   });
 
   return mainWindow;
 }
+
 // フルスクリーンウインドウの生成
 function createFullscreenWindow() {
     const displays = screen.getAllDisplays();
@@ -878,6 +890,15 @@ function registerSafeFileProtocol() {
 
 // アプリが準備完了したときの処理
 app.whenReady().then(async () => {
+
+    // macOS の Dock アイコンを NativeImage 経由で設定
+    if (process.platform === 'darwin') {
+        const dockIcon = nativeImage.createFromPath(iconPath);
+        if (!dockIcon.isEmpty()) {
+            app.dock.setIcon(dockIcon);
+        }
+    }
+
     const displays = screen.getAllDisplays();
 
     // スクリーンセーバーやディスプレイスリープを防止するために powerSaveBlocker を開始
@@ -2189,9 +2210,4 @@ app.on('before-quit', (e) => {
 // 全てのウインドウが閉じられたときの処理
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
-});
-
-// macOSでウインドウが全て閉じられた後に再度アイコンがクリックされた場合の処理
-app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 });
