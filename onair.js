@@ -2612,15 +2612,17 @@ function handleShortcut(action) {
 // キーボードショートカットの設定（Mac用追加）
 document.addEventListener('keydown', (event) => {
     let action = null;
-    const isMod   = event.ctrlKey || event.metaKey;  // Windows/Linux: Ctrl, Mac: Command
+    const isMod   = event.ctrlKey || event.metaKey;  
     const isAlt   = event.altKey;
     const isShift = event.shiftKey;
 
     // ショートカットキーの判定
-    if (isMod && event.key === '.') {
-        action = 'Ctrl+.';    // Ctrl+. または Cmd+. で反応
-    } else if (isMod && event.key === ',') {
-        action = 'Ctrl+,';    // Ctrl+, または Cmd+, で反応
+    // → Ctrl+.／Cmd+.+Option+. でフェードアウト
+    // → Ctrl+,／Cmd+,／Option+, でフェードイン
+    if ((isMod || isAlt) && event.key === '.') {
+        action = 'Ctrl+.';    // fade out
+    } else if ((isMod || isAlt) && event.key === ',') {
+        action = 'Ctrl+,';    // fade in
     } else if (isShift && isAlt && event.key.toLowerCase() === 'f') {
         action = 'Shift+Alt+F';
     } else if (isShift && event.key.toLowerCase() === 'f') {
@@ -2634,6 +2636,7 @@ document.addEventListener('keydown', (event) => {
         event.preventDefault();
     }
 });
+
 
 
 // メニューからショートカット通知を受信
