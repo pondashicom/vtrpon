@@ -13,10 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python (with distutils)
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+      - name: Install Python via Homebrew
+        run: |
+          brew update
+          brew install python
 
       - name: Cache node modules (macOS)
         uses: actions/cache@v4
@@ -46,16 +46,18 @@ jobs:
           name: vtrpon-mac
           path: release/
 
-
   build-win:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python (with distutils)
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
+
+      - name: Install setuptools
+        run: python -m pip install setuptools
 
       - name: Cache node modules (Windows)
         uses: actions/cache@v4
@@ -84,4 +86,3 @@ jobs:
         with:
           name: vtrpon-win
           path: release/
-
