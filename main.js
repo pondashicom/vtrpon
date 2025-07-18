@@ -670,13 +670,15 @@ function buildMenuTemplate(labels) {
                         mainWindow.setFullScreen(!mainWindow.isFullScreen());
                     }
                 },
-                {
-                    label: labels["menu-move-fullscreen"],
-                    accelerator: 'Alt+W',
-                    click: () => {
-                        moveFullscreenToNextDisplay();
+                ...(process.platform === 'darwin' ? [] : [
+                    {
+                        label: labels["menu-move-fullscreen"],
+                        accelerator: 'Alt+W',
+                        click: () => {
+                            moveFullscreenToNextDisplay();
+                        }
                     }
-                },
+                ]),
                 {
                     label: labels["menu-fullscreen-toggle-minimize-maximize"],
                     click: () => {
@@ -2109,10 +2111,12 @@ function registerShortcuts() {
         }
     });
 
-    // Alt+W - Move Fullscreen Window
-    globalShortcut.register('Alt+W', () => {
-        moveFullscreenToNextDisplay(); // フルスクリーンウィンドウを次のディスプレイに移動
-        console.log('[main.js] Alt+W triggered: Moved fullscreen window to next display.');
+   // Move Fullscreen Window (macOS: Option+W, Others: Alt+W)
+    const moveFSShortcut = process.platform === 'darwin' ? 'Option+W' : 'Alt+W';
+    globalShortcut.register(moveFSShortcut, () => {
+        console.log(`[main.js] ${moveFSShortcut} pressed — shortcut handler invoked`);  // ← 追加
+        moveFullscreenToNextDisplay();
+        console.log(`[main.js] ${moveFSShortcut} triggered: Moved fullscreen window to next display.`);
     });
 
     // Shift＋S- Fullscreen Window Capture
