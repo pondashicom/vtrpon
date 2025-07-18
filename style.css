@@ -30,7 +30,7 @@ body {
 .grid-container {
     display: grid;
     grid-template-areas: "listedit playlist onair";
-    grid-template-columns: minmax(400px, 1fr) minmax(620px, 1.4fr) minmax(450px, 1.2fr);
+    grid-template-columns: minmax(380px, 1fr) minmax(610px, 1.4fr) minmax(450px, 1.2fr);
     grid-template-rows: 1fr;
     gap: 0.625rem;
     padding: 0 0.5rem;
@@ -107,7 +107,7 @@ h2 {
 /* ---------------------------- */
 
 html {
-    font-size: 15px;
+    font-size: 12px;
 }
 
 /* ------------------ */
