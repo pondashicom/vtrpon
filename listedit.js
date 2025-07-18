@@ -1,4 +1,4 @@
-﻿// -----------------------
+// -----------------------
 //     listedit.js
 //     ver 2.2.7
 // -----------------------
@@ -1638,64 +1638,65 @@ document.addEventListener('keydown', (event) => {
           activeElement.isContentEditable
         )) return;
 
-    // キーを大文字で統一
-    const key = event.key.toUpperCase();
+    // キーコードと修飾キーを取得
+    const code = event.code;          // 例: 'KeyS', 'KeyO', ...
+    const isAlt = event.altKey;
+    const isCmd = event.metaKey;
+    const isWinAlt = isAlt && !isCmd;
+    const isMacOptCmd = isAlt && isCmd;
 
-    // ショートカットの判定
-    if (event.altKey) {
-        // Alt+Shift+I / Alt+Shift+O（どちらもShiftの有無にかかわらずIN・OUT設定とする）
-        if (key === 'I') {
+    // Windows の Alt+X または macOS の Cmd+Option+X
+    if (isWinAlt || isMacOptCmd) {
+        // IN 点設定 (Alt+I / Cmd+Option+I)
+        if (code === 'KeyI') {
             event.preventDefault();
             handleShortcutAction('in-point');
             return;
         }
-        if (key === 'O') {
-            // Alt+O（Shiftなし）をエンドモードOFFとして扱う
-            if (!event.shiftKey) {
-                event.preventDefault();
-                handleShortcutAction('end-mode-off');
-                return;
-            }
-            if (event.shiftKey) {
-                event.preventDefault();
-                handleShortcutAction('out-point');
-                return;
-            }
-        }
-        // Alt+S
-        if (key === 'S') {
+        // OUT 点設定 / End OFF (Alt+O / Cmd+Option+O)
+        if (code === 'KeyO') {
             event.preventDefault();
-            handleShortcutAction('toggle-start-mode');
-            logOpe('[listedit.js] Alt+S triggered.');
+            if (event.shiftKey) {
+                handleShortcutAction('out-point');
+            } else {
+                handleShortcutAction('end-mode-off');
+            }
             return;
         }
-        // Alt+P
-        if (key === 'P') {
+        // Start モード切替 (Alt+S / Cmd+Option+S)
+        if (code === 'KeyS') {
+            event.preventDefault();
+            handleShortcutAction('toggle-start-mode');
+            logOpe('[listedit.js] Alt+S or Cmd+Opt+S triggered.');
+            return;
+        }
+        // End PAUSE (Alt+P / Cmd+Option+P)
+        if (code === 'KeyP') {
             event.preventDefault();
             handleShortcutAction('end-mode-pause');
             return;
         }
-        // Alt+F
-        if (key === 'F') {
+        // End FTB (Alt+F / Cmd+Option+F)
+        if (code === 'KeyF') {
             event.preventDefault();
             handleShortcutAction('end-mode-ftb');
             return;
         }
-        // Alt+R
-        if (key === 'R') {
+        // End REPEAT (Alt+R / Cmd+Option+R)
+        if (code === 'KeyR') {
             event.preventDefault();
             handleShortcutAction('end-mode-repeat');
             return;
         }
-        // Alt+N
-        if (key === 'N') {
+        // End NEXT (Alt+N / Cmd+Option+N)
+        if (code === 'KeyN') {
             event.preventDefault();
             handleShortcutAction('end-mode-next');
             return;
         }
     } else {
-        // Altキー未押下の場合
-        if (key === 'ARROWRIGHT') {
+        // 修飾キー未押下時は右矢印でリセット
+        if (code === 'ArrowRight') {
             event.preventDefault();
             event.stopPropagation();
             handleShortcutAction('reset-edit-area');
