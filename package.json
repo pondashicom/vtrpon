@@ -33,6 +33,18 @@
     "win": {
       "icon": "assets/icons/icon.ico"
     },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/icon_512x512.png"
+    },
     "extraResources": [
       {
         "from": "src/assets/ffmpeg.exe",
