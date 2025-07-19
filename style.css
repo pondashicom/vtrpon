@@ -1,4 +1,4 @@
-﻿/* style.css 2.3.6*/
+﻿/* style.css 2.3.7*/
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -30,7 +30,7 @@ body {
 .grid-container {
     display: grid;
     grid-template-areas: "listedit playlist onair";
-    grid-template-columns: minmax(380px, 1fr) minmax(610px, 1.4fr) minmax(450px, 1.2fr);
+    grid-template-columns: minmax(380px, 1fr) minmax(550px, 1.4fr) minmax(430px, 1.2fr);
     grid-template-rows: 1fr;
     gap: 0.625rem;
     padding: 0 0.5rem;
@@ -118,12 +118,12 @@ html {
 .playlist-items {
     display: flex;
     flex-direction: column;
-    gap: 0.3125rem;
+    gap: clamp(0.2rem, 0.5vw, 0.3125rem);
     width: 100%;
     flex: 1 1 0;
     min-height: 0;
     overflow-y: auto;
-    padding-right: 0.9375rem;
+    padding-right: clamp(0.5rem, 1vw, 0.9375rem);
     box-sizing: border-box;
     position: relative;
 }
@@ -137,179 +137,201 @@ html {
     display: flex;
     align-items: center;
     justify-content: space-between; /* 左右に要素を分割 */
-    gap: 0.625rem; /* 10px */
-    padding: 0.3125rem; /* 5px */
+    gap: clamp(0.4rem, 1vw, 0.625rem);
+    padding: clamp(0.25rem, 0.5vw, 0.3125rem);
     background-color: #666666;
-    border-radius: 0.3125rem; /* 5px */
+    border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
     cursor: pointer;
     width: 100%; /* 横幅を親要素に収める */
     box-sizing: border-box;
     overflow: hidden;
-    min-height: 5.625rem; /* 90px */
-    margin-bottom: 0.3125rem; /* 5px */
+    min-height: 5.625rem;
+    margin-bottom: clamp(0.2rem, 0.5vw, 0.3125rem);
+}
+
+/* サムネイルからStart/Endボタンまでの幅を最大化 */
+.file-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto; /* 幅を最大限に伸ばす */
+    min-width: 0;   /* 子要素が縮むように */
+    margin-right: clamp(0.2rem, 0.5vw, 0.625rem);
 }
 
 /* ファイル名表示 */
 .file-name {
-    font-size: 0.9em;
+    flex: 0 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+
+    font-size: clamp(0.7em, 1.2vw, 0.9em);
     font-weight: bold;
-    margin: 0px;
-    margin-bottom: 0.3125rem; /* 5px */
-    flex: 1;
-    min-width: 0; /* 余白を無視して幅を適切に調整 */
-    max-width: 18.75rem; /* 300px */
-    overflow: hidden; /* あふれた部分を隠す */
-    text-overflow: ellipsis; /* 省略記号 (...) を表示 */
-    white-space: nowrap; /* 改行を禁止 */
-    color: orange; /* 文字色をオレンジに設定 */
-    background-color: rgba(50, 50, 50, 0.8); /* 少しグレーがかった背景 */
-    padding: 0.3125rem; /* 5px */
-    border-radius: 0.3125rem; /* 5px */
-    line-height: 0.95em; /* 行の高さを指定 */
+    margin: 0;
+    margin-bottom: clamp(0.2rem, 0.5vw, 0.3125rem);
+
+    overflow: hidden;    /* はみ出しを隠す */
+    text-overflow: ellipsis; /* 省略記号 */
+    white-space: nowrap; /* 改行禁止 */
+
+    color: orange;
+    background-color: rgba(50, 50, 50, 0.8);
+    padding: clamp(0.25rem, 0.5vw, 0.3125rem);
+    border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
+    line-height: clamp(0.8em, 1.5vw, 0.95em);
 }
 
-/* 移動と削除ボタン */
+/* --------------------- */
+/* 移動と削除ボタン      */
+/* --------------------- */
+
 .move-up, .move-down, .delete-button {
-    width: 1.5rem; /* 24px */
-    height: 1.25rem; /* 20px */
-    font-size: 0.7em;
+    width: clamp(1rem, 2vw, 1.5rem);
+    height: clamp(1rem, 2vw, 1.25rem);
+    font-size: clamp(0.6em, 1vw, 0.7em);
     color: #ffffff;
     background-color: #6c757d;
     border: none;
-    border-radius: 0.1875rem; /* 3px */
+    border-radius: clamp(0.15rem, 0.3vw, 0.1875rem);
     cursor: pointer;
     text-align: center;
     line-height: 1;
     padding: 0;
-    box-shadow: 0.0625rem 0.0625rem 0.1875rem rgba(0, 0, 0, 0.3); /* 1px 1px 3px */
+    box-shadow: 0.0625rem 0.0625rem 0.1875rem rgba(0, 0, 0, 0.3);
 }
 
-/* 移動と削除ボタンのホバー時のスタイル */
 .move-up:hover, .move-down:hover, .delete-button:hover {
     background-color: #5a6268;
 }
 
-/* 削除ボタン無効化時のスタイル */
 .delete-button:disabled {
     background-color: #444444;
     cursor: not-allowed;
 }
 
-/* 移動と削除ボタンを縦に並べるための設定 */
 .move-buttons {
     display: flex;
     flex-direction: column;
-    gap: 0.1875rem; /* 3px */
+    gap: clamp(0.1rem, 0.3vw, 0.1875rem);
     align-items: center;
 }
 
-/* ファイル情報グリッド */
+/* --------------------- */
+/* ファイル情報グリッド  */
+/* --------------------- */
+
 .file-details-grid {
     display: grid;
-    font-size: 0.9em;
-    grid-template-columns: repeat(4, auto); /* 最大4列のグリッド */
-    column-gap: 0.9375rem; /* 15px */
-    row-gap: 0.125rem; /* 2px */
-    width: 100%; /* 横幅いっぱいを使用 */
+    font-size: clamp(0.7em, 1vw, 0.9em);
+    grid-template-columns: repeat(4, auto);
+    column-gap: clamp(0.5rem, 1vw, 0.9375rem);
+    row-gap: clamp(0.1rem, 0.3vw, 0.125rem);
+    width: 100%;
     margin: 0;
     padding: 0;
 }
 
 .file-details-row {
-    display: contents; /* 各要素を親グリッドに直接配置 */
+    display: contents;
 }
 
-/* ラベル */
 .label {
     text-align: left;
     color: #ddd;
+    font-size: clamp(0.7em, 1vw, 0.9em);
 }
 
-/* 値 */
 .value {
     font-weight: bold;
     text-align: left;
     color: #fff;
+    font-size: clamp(0.7em, 1vw, 0.9em);
 }
 
-/* サムネイルからStart/Endボタンまでの幅を最大化 */
-.file-info {
-    flex-grow: 1; /* 幅を最大限に伸ばす */
-    margin-right: 0.625rem; /* 10px */
-}
+/* ---------------------------- */
+/* プレイリスト名表示           */
+/* ---------------------------- */
 
-/* プレイリスト名 */
 .playlist-name-display {
-    font-size: 0.9em;
+    font-size: clamp(0.7em, 1vw, 0.9em);
     color: white;
-    margin-top: 0.0625rem; /* 1px */
-    margin-bottom: 0.625rem; /* 10px */
-    padding: 0.3125rem 0.3125rem; /* 5px 5px */
+    margin-top: clamp(0.05rem, 0.2vw, 0.0625rem);
+    margin-bottom: clamp(0.5rem, 1vw, 0.625rem);
+    padding: clamp(0.25rem, 0.5vw, 0.3125rem);
     width: 60%;
-    text-align: center; /* 中央揃え */
-    background-color: rgba(0, 0, 0, 0.5); /* 半透明の背景 */
-    border-radius: 0.3125rem; /* 5px */
-    line-height: 1em; /* 行の高さを指定 */
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
+    line-height: 1em;
 }
 
-/* ステータスエリア全体 */
+/* ----------------------- */
+/* ステータスエリア全体    */
+/* ----------------------- */
+
 .status-container {
     display: flex;
-    flex-direction: column; /* 縦に並べる */
-    gap: 1.875rem; /* 30px */
-    align-items: flex-end; /* 右揃え */
+    flex-direction: column;
+    gap: clamp(1rem, 3vw, 1.875rem);
+    align-items: flex-end;
 }
 
-/* ステータスの行 */
 .status-row {
     display: flex;
-    gap: 0.3125rem; /* 5px */
-    align-items: center; /* 縦方向の中央揃え */
+    gap: clamp(0.2rem, 0.5vw, 0.3125rem);
+    align-items: center;
 }
 
-/* ステータスラベル */
 .status-label {
-    font-size: 0.9em;
+    font-size: clamp(0.7em, 1vw, 0.9em);
     color: #ccc;
 }
 
-/* ステータス値 */
 .status-value {
-    font-size: 0.9em;
+    font-size: clamp(0.7em, 1vw, 0.9em);
     font-weight: bold;
     background-color: #444;
     color: white;
-    padding: 0.25rem 0.5rem; /* 4px 8px */
-    border-radius: 0.25rem; /* 4px */
+    padding: clamp(0.2rem, 0.5vw, 0.25rem) clamp(0.4rem, 1vw, 0.5rem);
+    border-radius: clamp(0.2rem, 0.5vw, 0.25rem);
     text-align: center;
-    min-width: 4.375rem; /* 70px */
+    min-width: clamp(3rem, 8vw, 4.375rem);
 }
 
-/* イン点、アウト点表示 */
-#in-point-time, #out-point-time, #on-air-in-point-time, #on-air-out-point-time {
-    font-size: 0.9em;
+/* ---------------------------- */
+/* イン点・アウト点表示         */
+/* ---------------------------- */
+
+#in-point-time,
+#out-point-time,
+#on-air-in-point-time,
+#on-air-out-point-time {
+    font-size: clamp(0.7em, 1vw, 0.9em);
     color: white;
-    width: 6.25rem; /* 100px */
-    text-align: center; /* 中央揃え */
-    padding: 0.3125rem 0.625rem; /* 5px 10px */
-    background-color: rgba(0, 0, 0, 0.5); /* 半透明の背景 */
-    border-radius: 0.3125rem; /* 5px */
+    width: clamp(4rem, 10vw, 6.25rem);
+    text-align: center;
+    padding: clamp(0.25rem, 0.5vw, 0.625rem);
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
 }
 
+/* ------------------ */
 /* インフォディスプレイ */
+/* ------------------ */
+
 .info-display {
-    font-size: 0.9em;
+    font-size: clamp(0.7em, 1vw, 0.9em);
     color: rgba(0, 0, 0, 0.8);
-    margin-top: 0.0625rem; /* 1px */
-    margin-bottom: 0.125rem; /* 2px */
-    padding: 0.3125rem 0.3125rem; /* 5px 5px */
+    margin-top: clamp(0.05rem, 0.2vw, 0.0625rem);
+    margin-bottom: clamp(0.1rem, 0.3vw, 0.125rem);
+    padding: clamp(0.25rem, 0.5vw, 0.3125rem);
     width: 90%;
     text-align: center;
     background-color: rgba(0, 0, 0, 0.8);
-    border-radius: 0.3125rem; /* 5px */
+    border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
     line-height: 1em;
-    min-height: 3em;         /* 2行分 */
-    overflow: hidden;        /* はみ出たテキストは非表示 */
+    min-height: clamp(2rem, 5vw, 3em);
+    overflow: hidden;
 }
 
 .info-display.info {
@@ -321,15 +343,19 @@ html {
     color: red;
 }
 
-/* メディアオフライン */
+/* ------------------ */
+/* メディアオフライン    */
+/* ------------------ */
+
 .media-offline {
-    background-color: #333333;  /* 濃いグレー */
-    color: red;                 /* 赤いフォント */
-    border: 0.125rem solid red;      /* 2px */
-    padding: 0.3125rem; /* 5px */
-    border-radius: 0.25rem; /* 4px */
-    animation: neonBlink 1s infinite alternate;  /* ネオン風に点滅 */
+    background-color: #333333;
+    color: red;
+    border: clamp(0.1rem, 0.3vw, 0.125rem) solid red;
+    padding: clamp(0.25rem, 0.5vw, 0.3125rem);
+    border-radius: clamp(0.2rem, 0.5vw, 0.25rem);
+    animation: neonBlink 1s infinite alternate;
 }
+
 
 @keyframes neonBlink {
     from {
@@ -437,6 +463,9 @@ html {
     display: flex;
     justify-content: center; /* 水平方向中央揃え */
     align-items: center; /* 垂直方向中央揃え */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     width: 5.9375rem;       /* 95px */
     height: 1.4375rem;      /* 23px */
     padding: 0.625rem;      /* 10px */
@@ -1601,6 +1630,32 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     font-size: 0.9em;
     margin-bottom: 0.3125rem; /* 5px */
 }
+
+/* --------------------- */
+/* レスポンシブフォント */
+/* --------------------- */
+
+/* 幅1200px以下で少し小さく */
+@media (max-width: 1200px) {
+  .button, .control-button {
+    font-size: 0.6em;
+  }
+}
+
+/* 幅900px以下でさらに小さく */
+@media (max-width: 900px) {
+  .button, .control-button {
+    font-size: 0.5em;
+  }
+}
+
+/* 幅600px以下でかなり小さく */
+@media (max-width: 600px) {
+  .button, .control-button {
+    font-size: 0.45em;
+  }
+}
+
 
 /* ------------------ */
 /*         時計       */
