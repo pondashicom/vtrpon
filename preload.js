@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.3.4
+//     ver 2.3.7
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -312,6 +312,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Info Window メッセージ受信
     // ----------------------------
     onInfoMessage: (callback) => ipcRenderer.on('info-message', (event, key) => callback(key)),
+
+
+    // ------------------------------
+    //    時刻同期
+    // ------------------------------
+    onSyncTimeRequest: (callback) => ipcRenderer.on('sync-time', () => callback()),
 
     // ----------------------------
     //  その他の処理

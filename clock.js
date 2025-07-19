@@ -42,3 +42,8 @@ setInterval(syncTime, 10 * 60 * 1000);
 
 // 毎秒更新
 setInterval(updateClock, 1000);
+
+// IPC での同期要求を受信
+window.electronAPI.onSyncTimeRequest(() => {
+  syncTime();
+});

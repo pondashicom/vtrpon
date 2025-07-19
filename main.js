@@ -703,6 +703,14 @@ function buildMenuTemplate(labels) {
           click: () => {
             createAtemSettingsWindow();
           }
+        },
+        {
+          label: 'Clock Sync',
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('sync-time');
+            }
+          }
         }
       ]
     },
