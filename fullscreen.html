@@ -11,20 +11,33 @@
                 margin: 0;
                 overflow: hidden;
                 cursor: none; /* マウスカーソルを非表示にする */
+                background-color: black; /* 起動時の背景を黒に */
             }
 
             video {
                 width: 100vw; /* 画面全体の幅 */
                 height: 100vh; /* 画面全体の高さ */
                 object-fit: contain; /* アスペクト比を保ちながら、フルスクリーンで表示 */
-                background: black !important;
-                mix-blend-mode: lighten; /* 黒背景が見えなくなる */
+                background: black !important;  /* 黒背景を維持 */
+                /* mix-blend-mode: lighten; 削除 */
+            }
+            /* オーバーレイ用キャンバス */
+            #overlay-canvas {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                display: none;
+                background-color: black;
+                z-index: 9999;
             }
         </style>
     <script src="dsk.js" defer></script>
 </head>
 <body>
     <video id="fullscreen-video"></video>
+    <canvas id="overlay-canvas"></canvas>
     <script src="recorder.js" defer></script>
     <script src="fullscreen.js"></script>
 </body>
