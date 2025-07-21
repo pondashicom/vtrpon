@@ -1176,6 +1176,17 @@ function onairHandleEndModeFTB() {
     // キャンバスサイズを調整
     adjustFadeCanvasSize(onairVideoElement, onairFadeCanvas);
 
+    // オーバーレイキャンバスの初期化
+    function initializeOverlayCanvasOnAir() {
+        const canvas = document.getElementById('fade-canvas');
+        if (!canvas) {
+            console.error('[onair.js] fade-canvas element not found.');
+            return null;
+        }
+        // canvas のサイズは adjustFadeCanvasSize で設定するのでそのまま返却
+        return canvas;
+    }
+
     // 画面のフェードアウト処理
     onairFadeToBlack(onairFadeCanvas, ftbRate);
 
@@ -1244,23 +1255,55 @@ function onairFadeToBlack(fadeCanvas, duration) {
 function onairHandleEndModeNext() {
     logInfo('[onair.js] End Mode: NEXT - Requesting next item.');
 
+    try {
+        const elements      = onairGetElements();
+        const videoElement  = elements.onairVideoElement;
+        const overlayCanvas = initializeOverlayCanvasOnAir();
+        if (videoElement && overlayCanvas) {
+            // １）サイズ／位置合わせ
+            adjustFadeCanvasSize(videoElement, overlayCanvas);
+
+            // ２）キャンバス解像度を CSS サイズに同期
+            overlayCanvas.width  = overlayCanvas.clientWidth;
+            overlayCanvas.height = overlayCanvas.clientHeight;
+
+            // ３）黒背景を塗る
+            overlayCanvas.style.backgroundColor = 'black';
+
+            // ４）最終フレームを描画
+            const ctx = overlayCanvas.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            // ５）オーバーレイを表示
+            overlayCanvas.style.visibility = 'visible';
+            overlayCanvas.style.opacity    = 1;
+
+            // ６）次動画の最初のフレーム準備完了(canplay)で非表示＆クリア
+            videoElement.addEventListener('canplay', function hideOverlay() {
+                overlayCanvas.style.visibility = 'hidden';
+                overlayCanvas.style.opacity    = 0;
+                ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                videoElement.removeEventListener('canplay', hideOverlay);
+            });
+        }
+    } catch (e) {
+        console.error('[onair.js] Overlay processing failed:', e);
+    }
+
     const currentItemId = onairCurrentState?.itemId;
     if (!currentItemId) {
-        logInfo('[onair.js] No current On-Air item ID found. Executing Off-Air.');
         onairHandleEndModeOff();
         return;
     }
-
-    // 次のアイテムの選択は playlist.js 側で処理するため、現在のアイテムIDをそのまま通知する
+    // 次のアイテムをリクエスト
     window.electronAPI.notifyNextModeComplete(currentItemId);
-    logInfo(`[onair.js] NEXT mode complete broadcast sent for item ID: ${currentItemId}`);
-
     onairCurrentState = null;
-    onairNowOnAir = false;
-    onairIsPlaying = false;
+    onairNowOnAir    = false;
+    onairIsPlaying   = false;
 
     logInfo('[onair.js] NEXT mode processing completed.');
 }
+
 
 // -------------------------------
 // 再生、一時停止、オフエアボタン
