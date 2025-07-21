@@ -59,6 +59,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     ipInput.value           = cfg.ip         || '';
     chanInput.value         = cfg.input      || 1;
     delayInput.value        = cfg.delay      ?? 0;
+
+    // 次回起動時にも復元チェックの初期化（要素チェック）
+    const restoreInput = document.getElementById('restoreOnStartup');
+    if (restoreInput) {
+        restoreInput.checked = cfg.restoreOnStartup ?? false;
+    }
+
     ipError.textContent     = '';
 
     // 保存処理
@@ -71,16 +78,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             ipInput.focus();
             return;
         }
+
+        const restoreInput    = document.getElementById('restoreOnStartup');
+        const restoreChecked  = restoreInput ? restoreInput.checked : false;
+
         const newCfg = {
-            control:    controlInput.checked,
-            autoSwitch: autoSwitchInput.checked,
-            ip:         ip,
-            input:      parseInt(chanInput.value, 10) || 1,
-            delay:      parseInt(delayInput.value, 10) || 0
+            control:           controlInput.checked,
+            autoSwitch:        autoSwitchInput.checked,
+            ip:                ip,
+            input:             parseInt(chanInput.value, 10) || 1,
+            delay:             parseInt(delayInput.value, 10) || 0,
+            restoreOnStartup:  restoreChecked
         };
+
+        // 常に設定APIを呼び出し（restoreOnStartup フラグで main.js 側が保存／削除を判断）
         window.electronAPI.setATEMConfig(newCfg);
         window.close();
     });
+
 
     // キャンセル
     closeBtn.addEventListener('click', () => {
