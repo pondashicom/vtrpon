@@ -131,6 +131,46 @@ function setInitialData(itemData) {
     logInfo(`[fullscreen.js] Global state initialized with On-Air data: ${JSON.stringify(globalState)}`);
 }
 
+
+
+// ------------------------------------
+// オーバーレイキャンバスの初期化
+// ------------------------------------
+function initializeOverlayCanvas() {
+    const canvas = document.getElementById('overlay-canvas');
+    if (!canvas) {
+        console.error('[fullscreen.js] overlay-canvas element not found.');
+        return null;
+    }
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    return canvas;
+}
+
+// ------------------------------------
+// エンドモード NEXT：最後のフレームをオーバーレイに固定
+// ------------------------------------
+function handleEndModeNEXT() {
+    logInfo('[fullscreen.js] Called endmode:NEXT - capturing last frame');
+    const videoElement   = document.getElementById('fullscreen-video');
+    const overlayCanvas  = initializeOverlayCanvas();
+    if (!videoElement || !overlayCanvas) {
+        logInfo('[fullscreen.js] Cannot execute handleEndModeNEXT due to missing element.');
+        return;
+    }
+    const ctx = overlayCanvas.getContext('2d');
+    // 最終フレームを描画
+    ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+    // オーバーレイ表示
+    overlayCanvas.style.display = 'block';
+    // 次動画再生時にオーバーレイ解除
+    videoElement.addEventListener('loadeddata', function hideOverlay() {
+        overlayCanvas.style.display = 'none';
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        videoElement.removeEventListener('loadeddata', hideOverlay);
+    });
+}
+
 // ---------------------------------------
 // オンエアデータを処理して再生する
 // ---------------------------------------
@@ -613,6 +653,7 @@ function handleEndMode() {
             handleEndModeREPEAT();
             break;
         case 'NEXT':
+            handleEndModeNEXT();
             break;
         case 'UVC':
             break;

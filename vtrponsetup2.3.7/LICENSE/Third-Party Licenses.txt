@@ -1,0 +1,76 @@
+==============================
+  Third-Party Licenses for VTR-PON 2
+==============================
+
+This file contains the license information for third-party components included in the VTR-PON 2 project.
+Please review the following licenses for details regarding the terms under which these components are distributed.
+
+本ファイルは、VTR-PON 2 プロジェクトに含まれるサードパーティコンポーネントのライセンス情報をまとめたものです。
+各コンポーネントの詳細なライセンス条件については、以下をご確認ください。
+
+--------------------------------------------------
+1. Electron
+--------------------------------------------------
+License: MIT License
+
+Electron is distributed under the MIT License. For the full text of the Electron MIT License,
+please refer to the file "electron-license.txt" included in this distribution or visit:
+https://electronjs.org/docs/latest/tutorial/licensing
+
+--------------------------------------------------
+2. Node.js
+--------------------------------------------------
+License: MIT License
+
+Node.js is distributed under the MIT License. For the full text of the Node.js MIT License,
+please refer to the file "nodejs-license.txt" included in this distribution or visit:
+https://github.com/nodejs/node/blob/master/LICENSE
+
+--------------------------------------------------
+3. FFmpeg / ffprobe
+--------------------------------------------------
+License: GNU General Public License (GPL)
+
+The versions of FFmpeg and ffprobe included in this project are distributed under the GNU General Public License.
+For the complete text of the GPL, please refer to the accompanying file "GPL.txt" in this distribution or visit:
+https://www.gnu.org/licenses/gpl-3.0.txt
+
+
+--------------------------------------------------
+4. winax
+--------------------------------------------------
+License: MIT License
+
+winax is distributed under the MIT License. It is a lightweight library for COM automation in Node.js, allowing integration with Windows COM objects (such as Microsoft Office applications). For the full text of the MIT License for winax, please refer to its repository or the file "winax-license.txt" included with the package, or visit: https://github.com/durs/node-winax
+
+--------------------------------------------------
+5. atem-connection
+--------------------------------------------------
+License: MIT License
+
+atem-connection is distributed under the MIT License. It provides an API for controlling Blackmagic Design ATEM switchers from Node.js. For the full text of the MIT License for atem-connection, please refer to its repository or the file "LICENSE" in the atem-connection package, or visit: https://github.com/nrkno/atem-connection/blob/main/LICENSE
+
+--------------------------------------------------
+6. Other Dependencies
+--------------------------------------------------
+For other third-party libraries and components used in this project,
+please refer to their respective documentation or license files included in the distribution.
+
+※ This file is provided for informational purposes only. The full text of each license is available in the respective license files or at the provided URLs.
+
+--------------------------------------------------
+7. Microsoft PowerPoint (Required Software)
+--------------------------------------------------
+License: Proprietary (Microsoft Corporation)
+
+This software utilizes Microsoft PowerPoint for processing PPTX files.  
+Microsoft PowerPoint is proprietary software owned by Microsoft Corporation and is not included in this distribution.  
+Users must have a properly licensed version of Microsoft PowerPoint installed on their system in order to use the PPTX-related features of this software.
+
+For more information on Microsoft PowerPoint and its licensing, please visit:
+https://www.microsoft.com/en-us/microsoft-365/powerpoint
+
+--------------------------------------------------
+
+
+==============================
