@@ -20,6 +20,7 @@ VTR-PON 2 utilizes dual displays, allowing separate operational and fullscreen p
 - Customizable playback points (IN/OUT), fade effects
 - Playlist creation, management, and quick recall
 - Volume management and fullscreen output monitoring
+- Blackmagic ATEM integration: map ATEM inputs , auto-switch and auto-OnAir
 
 [![Watch the video](https://img.youtube.com/vi/mEIB4ZRhXXw/0.jpg)](https://www.youtube.com/watch?v=mEIB4ZRhXXw)
 
