@@ -856,10 +856,26 @@ function createMainWindow() {
     mainWindow.setTitle(`VTR-PON2  ver.${app.getVersion()}`);
   });
 
-  mainWindow.on('closed', () => {
-    // 操作ウインドウを閉じたら必ずアプリ終了
-    app.quit();
-  });
+    mainWindow.on('closed', () => {
+        // 操作ウインドウを閉じたら全ての動作を停止・終了
+
+        // 1) フルスクリーンウインドウが残っていれば閉じる
+        if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
+            fullscreenWindow.close();
+        }
+
+        // 2) powerSaveBlocker を停止
+        if (powerSaveBlocker.isStarted(powerSaveBlockerId)) {
+            powerSaveBlocker.stop(powerSaveBlockerId);
+        }
+
+        // 3) ATEM 監視・制御を停止
+        stopATEMMonitor();
+        disableAtemControl();
+
+        // 4) アプリ全体を終了
+        app.quit();
+    });
 
   return mainWindow;
 }
