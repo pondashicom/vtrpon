@@ -91,21 +91,31 @@ function saveConfig(config) {
 // ATEM 設定取得
 ipcMain.handle('get-atem-config', (event) => {
     const config = loadConfig();
-    return config.atem || {
-        control:    false,
-        autoSwitch: false,
-        ip:         '',
-        input:      1,
-        delay:      0
+    const persisted = config.atem;
+    // 永続化設定があって restoreOnStartup=true のときのみ返却
+    if (persisted && persisted.restoreOnStartup) {
+        return persisted;
+    }
+    // それ以外はデフォルト（復元OFF）
+    return {
+        control:            false,
+        autoSwitch:         false,
+        ip:                  '',
+        input:               1,
+        delay:               0,
+        restoreOnStartup:    false
     };
 });
 
-
 // ATEM 設定保存 ＆ 機能ON/OFFを即時反映
 ipcMain.on('set-atem-config', async (event, atemConfig) => {
-    // 設定永続化
+    // 設定永続化（restoreOnStartup が true のときのみ保存、false のときは削除）
     const config = loadConfig();
-    config.atem = atemConfig;
+    if (atemConfig.restoreOnStartup) {
+        config.atem = atemConfig;
+    } else {
+        delete config.atem;
+    }
     saveConfig(config);
 
     // VTR-PON→ATEM制御のON/OFF
@@ -122,6 +132,7 @@ ipcMain.on('set-atem-config', async (event, atemConfig) => {
         stopATEMMonitor();
     }
 });
+
 
 
 // ATEM 存在チェック
