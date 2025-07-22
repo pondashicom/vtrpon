@@ -744,7 +744,8 @@ function buildMenuTemplate(labels) {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: 'About',
-              message: `VTRPON\nVersion: ${app.getVersion()}\n…`,
+              message: `VTR-PON 2 \nVersion: ${app.getVersion()}\nCopyright (c) 2024-2025 Tetsu Suzuki All Rights Reserved.\n\nThis project "VTR-PON 2" is distributed under the terms of the GNU General Public License
+Version 3 (or, at your option, any later version). The entire distribution (both source code and executable binaries) is subject to the GPL.`,
               buttons: ['OK']
             });
           }
