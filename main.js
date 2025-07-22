@@ -1447,13 +1447,12 @@ ipcMain.on('off-air-event', (event) => {
 
 // オンエアからNEXTモード動画終了イベントを受信
 ipcMain.on('next-mode-complete', (event, currentItemId) => {
+    // メインウインドウが残っていなければ何もしない
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
     console.log(`[main.js] MAIN: NEXT mode complete event received for Item ID: ${currentItemId}`);
-    BrowserWindow.getAllWindows().forEach(win => {
-        if (win && !win.isDestroyed()) {
-            console.log(`[main.js] MAIN: Broadcasting next-mode-complete for Item ID: ${currentItemId}`);
-            win.webContents.send('next-mode-complete-broadcast', currentItemId);
-        }
-    });
+    // メインウインドウだけに通知
+    mainWindow.webContents.send('next-mode-complete-broadcast', currentItemId);
 });
 
 // -----------------------------------------------------
