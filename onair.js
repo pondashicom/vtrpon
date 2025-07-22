@@ -1311,6 +1311,7 @@ function onairHandleEndModeNext() {
 
 // 再生ボタンの処理
 function onairHandlePlayButton() {
+    logOpe('[onair.js] Play button invoked');
     if (!onairNowOnAir) {
         logDebug('[onair.js] Play button clicked, but On-Air is not active.');
         return;
@@ -1396,6 +1397,7 @@ function onairHandlePauseButton() {
 
 // オフエアボタンの処理
 function onairHandleOffAirButton() {
+    logOpe('[onair.js] OffAir button invoked');
     if (isOffAir || isOffAirProcessing) {
         logDebug('[onair.js] Already in off-air state or processing; skipping new off-air processing.');
         return;
@@ -1534,6 +1536,8 @@ let isPlaybackSpeedFixed = false;
 const PLAYBACK_SPEED_RETURN_DURATION = 500;
 
 function setupPlaybackSpeedController() {
+    logOpe('[onair.js] setupPlaybackSpeedController invoked');
+
     const slider = document.getElementById('playback-speed-slider');
     const inputField = document.getElementById('playback-speed-input');
     const video = document.getElementById('on-air-video');
@@ -1563,6 +1567,7 @@ function setupPlaybackSpeedController() {
 
     // スライダー操作中：更新（固定モードでなければ）
     slider.addEventListener('input', () => {
+        logOpe(`[onair.js] Playback speed slider input: ${slider.value}`);
         if (!onairNowOnAir) {
             logDebug('[onair.js] Speed control input ignored: On-Air is not active.');
             return;
@@ -1583,6 +1588,7 @@ function setupPlaybackSpeedController() {
 
     // スライダー操作終了時の処理（既存のまま）
     const releaseHandler = () => {
+        logOpe('[onair.js] Playback speed slider release');
         if (!onairNowOnAir) {
             logDebug('[onair.js] Speed control release ignored: On-Air is not active.');
             return;
@@ -1624,6 +1630,7 @@ function setupPlaybackSpeedController() {
 
     // 入力欄の手動変更時の処理
     inputField.addEventListener('change', () => {
+        logOpe(`[onair.js] Playback speed input changed: ${inputField.value}`);
         if (!onairNowOnAir) {
             logDebug('[onair.js] Speed control change ignored: On-Air is not active.');
             return;
@@ -1650,6 +1657,7 @@ function setupPlaybackSpeedController() {
 
     // スライダーがクリックされた場合、固定モード解除
     slider.addEventListener('mousedown', () => {
+        logOpe('[onair.js] Playback speed slider mousedown ? fixed mode disabled');
         isPlaybackSpeedFixed = false;
     });
 
@@ -1710,6 +1718,7 @@ function onairResetRemainingTimer(elements) {
 
 // 音量スライダーのイベント設定
 function onairSetupVolumeSliderHandler(elements) {
+    logOpe('[onair.js] setupVolumeSliderHandler invoked');
     const { onairItemVolumeSlider, onairMasterVolumeSlider, onairItemVolumeValueDisplay, onairMasterVolumeValueDisplay } = elements;
 
     if (!onairItemVolumeSlider || !onairMasterVolumeSlider) {
@@ -1933,6 +1942,7 @@ function stopFade() {
 
 // フェードイン、フェードアウトボタンのイベントリスナー
 document.getElementById('on-air-fo-button').addEventListener('click', () => {
+    logOpe('[onair.js] Fade Out button clicked');
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
@@ -1948,6 +1958,7 @@ document.getElementById('on-air-fo-button').addEventListener('click', () => {
 });
 
 document.getElementById('on-air-fi-button').addEventListener('click', () => {
+    logOpe('[onair.js] Fade In button clicked');
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
@@ -2039,6 +2050,7 @@ function audioFadeOutItem(duration) {
 
 // アイテムごとのフェードイン・フェードアウト
 document.getElementById('on-air-item-fo-button').addEventListener('click', () => {
+    logOpe('[onair.js] Item Fade Out button clicked');
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
@@ -2053,6 +2065,7 @@ document.getElementById('on-air-item-fo-button').addEventListener('click', () =>
 });
 
 document.getElementById('on-air-item-fi-button').addEventListener('click', () => {
+    logOpe('[onair.js] Item Fade In button clicked');
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
@@ -2431,6 +2444,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const captureBtn = document.getElementById('capture-button');
     if (captureBtn) {
         captureBtn.addEventListener('click', () => {
+            logOpe('[screenshot.js] Capture button clicked');
             window.electronAPI.ipcRenderer.send('request-capture-screenshot');
         });
     }
@@ -2448,13 +2462,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.electronAPI.sendControlToFullscreen({ command: 'start-recording' });
                 window.recorderIsActive = true;
                 recBtn.classList.add('button-recording');
-                logInfo('[onair.js] REC mode started (command sent).');
+                logOpe('[onair.js] REC mode started (command sent).');
             } else {
                 // 録画停止
                 window.electronAPI.sendControlToFullscreen({ command: 'stop-recording' });
                 window.recorderIsActive = false;
                 recBtn.classList.remove('button-recording');
-                logInfo('[onair.js] REC mode ended (command sent).');
+                logOpe('[onair.js] REC mode ended (command sent).');
             }
         });
     }
@@ -2468,6 +2482,7 @@ function onairHandleFTBButton() {
         logDebug('[onair.js] FTB button clicked, but On-Air is not active.');
         return;
     }
+    logOpe('[onair.js] FTB button clicked');
     logInfo('[onair.js] FTB button clicked. Forcing FTB end mode.');
     const elements = onairGetElements();
     fadeButtonBlink(elements.onairFTBButton);
@@ -2502,6 +2517,7 @@ function onairHandleFTBButton() {
     });
     // ボタンにクリックイベントリスナーを登録
     fillKeyButton.addEventListener('click', () => {
+        logOpe('[onair.js] FillKey button clicked');
         if (!isFillKeyMode) {
             isFillKeyMode = true;
             fillKeyButton.classList.add('button-green');
@@ -2608,12 +2624,12 @@ function handleShortcut(action) {
     switch (action) {
             case 'Escape': // ESCキー（ネイティブ）
             case 'Esc':    // メニューからのEscも同様に処理
-                logDebug('[onair.js] Shortcut: ESC pressed.');
+                logOpe('[onair.js] Shortcut: ESC pressed.');
                 onairHandleOffAirButton();
                 break;
 
         case 'Space': // スペースキー
-            logDebug('[onair.js] Shortcut: Space pressed.');
+            logOpe('[onair.js] Shortcut: Space pressed.');
             if (onairIsPlaying) {
                 onairHandlePauseButton(); // 一時停止
             } else {
@@ -2622,27 +2638,27 @@ function handleShortcut(action) {
             break;
 
         case 'Ctrl+,': // CTRL + , (フェードイン)
-            logDebug('[onair.js] Shortcut: CTRL+, (fade in) triggered.');
+            logOpe('[onair.js] Shortcut: CTRL+, (fade in) triggered.');
             document.getElementById('on-air-fi-button').click(); // フェードインボタンをクリック
             break;
 
         case 'Ctrl+.': // CTRL + . (フェードアウト)
-            logDebug('[onair.js] Shortcut: CTRL+. (fade out) triggered.');
+            logOpe('[onair.js] Shortcut: CTRL+. (fade out) triggered.');
             document.getElementById('on-air-fo-button').click(); // フェードアウトボタンをクリック
             break;
 
         case 'Shift+Alt+F': // Shift + Alt + F で FILL-KEY モードをトグル
-            logDebug('[onair.js] Shortcut: Shift+Alt+F triggered.');
+            logOpe('[onair.js] Shortcut: Shift+Alt+F triggered.');
             document.getElementById('fillkey-mode-button').click();
             break;
 
         case 'Shift+F': // Shift+F で FTB ボタンの処理を呼び出し
-            logDebug('[onair.js] Shortcut: Shift+F triggered.');
+            logOpe('[onair.js] Shortcut: Shift+F triggered.');
             onairHandleFTBButton();
             break;
 
         case 'Shift+R': // Shift+R で録画の開始／停止をトグル
-            logDebug('[onair.js] Shortcut: Shift+R (recording toggle) triggered.');
+            logOpe('[onair.js] Shortcut: Shift+R (recording toggle) triggered.');
             document.getElementById('rec-button').click(); // 録画ボタンをクリック
             break;
 
