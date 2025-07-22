@@ -3,6 +3,10 @@
 //   2.3.7
 //------------------------------
 
+// ログ機能の取得
+const logInfo = window.electronAPI.logInfo;
+const logOpe = window.electronAPI.logOpe;
+const logDebug = window.electronAPI.logDebug;
 
 //初期化
 document.addEventListener('DOMContentLoaded', async () => {
@@ -17,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // IP入力は数字とドットのみ
     ipInput.addEventListener('input', () => {
+        logOpe(`IP input changed: ${ipInput.value}`);
         ipInput.value = ipInput.value.replace(/[^0-9.]/g, '');
     });
 
@@ -66,6 +71,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         restoreInput.checked = cfg.restoreOnStartup ?? false;
     }
 
+    // チェックボックス変更時のログ出力
+    controlInput.addEventListener('change', () => {
+        logOpe(`Control toggled: ${controlInput.checked ? 'enabled' : 'disabled'}`);
+    });
+    autoSwitchInput.addEventListener('change', () => {
+        logOpe(`Auto-switch toggled: ${autoSwitchInput.checked ? 'enabled' : 'disabled'}`);
+    });
+    if (restoreInput) {
+        restoreInput.addEventListener('change', () => {
+            logOpe(`Restore on startup toggled: ${restoreInput.checked ? 'enabled' : 'disabled'}`);
+        });
+    }
+
     ipError.textContent     = '';
 
     // 保存処理
@@ -93,12 +111,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 常に設定APIを呼び出し（restoreOnStartup フラグで main.js 側が保存／削除を判断）
         window.electronAPI.setATEMConfig(newCfg);
+        logOpe(`ATEM config saved: ${JSON.stringify(newCfg)}`);
         window.close();
     });
 
 
     // キャンセル
     closeBtn.addEventListener('click', () => {
+        logOpe('ATEM settings dialog closed');
         window.close();
     });
 });

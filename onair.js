@@ -1180,7 +1180,7 @@ function onairHandleEndModeFTB() {
     function initializeOverlayCanvasOnAir() {
         const canvas = document.getElementById('fade-canvas');
         if (!canvas) {
-            console.error('[onair.js] fade-canvas element not found.');
+            logInfo('[onair.js] fade-canvas element not found.');
             return null;
         }
         // canvas のサイズは adjustFadeCanvasSize で設定するのでそのまま返却
@@ -1287,7 +1287,7 @@ function onairHandleEndModeNext() {
             });
         }
     } catch (e) {
-        console.error('[onair.js] Overlay processing failed:', e);
+        logInfo('[onair.js] Overlay processing failed:', e);
     }
 
     const currentItemId = onairCurrentState?.itemId;

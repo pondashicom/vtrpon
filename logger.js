@@ -17,24 +17,30 @@ const LOG_LEVELS = {
 
 let currentLogLevel = LOG_LEVELS.DEBUG; // 共通ログレベル設定
 
+// タイムスタンプ生成
+function getTimestamp() {
+    return new Date().toISOString();
+}
+
 // ログ出力関数
 function logInfo(message) {
     if (currentLogLevel >= LOG_LEVELS.INFO) {
-        console.log("INFO:", message);
-    }
-}
-
-function logDebug(message) {
-    if (currentLogLevel >= LOG_LEVELS.DEBUG) {
-        console.log("DEBUG:", message);
+        console.log(`[${getTimestamp()}] INFO: ${message}`);
     }
 }
 
 function logOpe(message) {
     if (currentLogLevel >= LOG_LEVELS.OPE) {
-        console.log("OPE:", message);
+        console.log(`[${getTimestamp()}] OPE: ${message}`);
     }
 }
+
+function logDebug(message) {
+    if (currentLogLevel >= LOG_LEVELS.DEBUG) {
+        console.log(`[${getTimestamp()}] DEBUG: ${message}`);
+    }
+}
+
 
 // ログレベルの設定関数
 function setLogLevel(level) {

@@ -386,6 +386,7 @@ function setupPlaybackControls(videoElement) {
 
     // 再生ボタン
     controlButtons.play?.addEventListener('click', async () => {
+        logOpe('[listedit.js] Play button clicked');
         if (videoElement.ended || (videoElement.currentTime >= videoElement.duration - 0.05)) {
             videoElement.pause();
             videoElement.currentTime = 0;
@@ -823,6 +824,7 @@ function setupVolumeControl() {
     volumeSlider.style.setProperty('--value', `${volumeSlider.value}%`);
 
     volumeSlider.addEventListener("input", async () => {
+        logOpe(`[listedit.js] Volume slider changed to ${volumeSlider.value}%`);
         const sliderValue = parseInt(volumeSlider.value, 10); 
         volumeSlider.style.setProperty('--value', `${volumeSlider.value}%`);
 
@@ -1005,6 +1007,8 @@ async function stopPFL() {
 // PFL ボタンのクリックイベント設定
 if (pflButton && videoElement) {
     pflButton.addEventListener('click', async () => {
+        logOpe('[listedit.js] PFL button clicked');
+
         // 動画が読み込まれているか確認
         if (!isVideoLoaded) {
             showMessage(getMessage('no-video-loaded'), 5000, 'alert'); 
@@ -1121,11 +1125,13 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     progressSlider.addEventListener("input", function () {
+        logOpe('[listedit.js] Seek bar value changed');
         resetVideoIfEnded(video);
         video.currentTime = parseFloat(progressSlider.value);
     });
 
     progressSlider.addEventListener("keydown", function (event) {
+        logOpe(`[listedit.js] Seek bar keydown: ${event.key}`);
         if (
             event.key === "ArrowLeft" ||
             event.key === "ArrowRight" ||
@@ -1201,6 +1207,7 @@ function setupInOutPoints(videoElement) {
 
     // IN点ボタンの動作
     inPointButton.addEventListener('click', async () => {
+        logOpe('[listedit.js] In point button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] In point button pressed but video is not loaded.');
             return;
@@ -1228,6 +1235,7 @@ function setupInOutPoints(videoElement) {
 
     // OUT点ボタンの動作
     outPointButton.addEventListener('click', async () => {
+        logOpe('[listedit.js] Out point button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] Out point button pressed but video is not loaded.');
             return;
@@ -1332,6 +1340,7 @@ function setupStartModeControls(videoElement) {
     }
 
     startModePauseButton.addEventListener('click', async () => {
+        logOpe('[listedit.js] Start mode PAUSE button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] Start mode PAUSE button pressed but video is not loaded.');
             return;
@@ -1340,6 +1349,7 @@ function setupStartModeControls(videoElement) {
     });
 
     startModePlayButton.addEventListener('click', async () => {
+        logOpe('[listedit.js] Start mode PLAY button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] Start mode PLAY button pressed but video is not loaded.');
             return;
@@ -1348,6 +1358,7 @@ function setupStartModeControls(videoElement) {
     });
 
     startModeFadeinButton.addEventListener('click', async () => {
+        logOpe('[listedit.js] Start mode FADEIN button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] Start mode FADEIN button pressed but video is not loaded.');
             return;
@@ -1420,6 +1431,7 @@ function setupEndModeControls(videoElement) {
     // ボタンのクリックイベントを設定
     Object.entries(modeButtons).forEach(([mode, button]) => {
         button.addEventListener('click', () => {
+            logOpe(`[listedit.js] End mode ${mode} button clicked`);
             if (!isVideoLoaded) {
                 logInfo(`[listedit.js] End mode ${mode} button pressed but video is not loaded.`);
                 return; // 動画が読み込まれていない場合は動作しない

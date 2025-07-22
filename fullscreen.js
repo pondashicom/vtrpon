@@ -139,7 +139,7 @@ function setInitialData(itemData) {
 function initializeOverlayCanvas() {
     const canvas = document.getElementById('overlay-canvas');
     if (!canvas) {
-        console.error('[fullscreen.js] overlay-canvas element not found.');
+        logInfo('[fullscreen.js] overlay-canvas element not found.');
         return null;
     }
     canvas.width  = window.innerWidth;
@@ -378,7 +378,7 @@ function handleStartMode() {
         // 画面側のフェードイン処理を実施（FTBレートを duration として使用）
         const ftbRate = globalState.ftbRate || 1.0;
         fullscreenFadeFromBlack(ftbRate, isFillKeyMode);
-        console.log('[fullscreen.js] FADEIN: Fade from black initiated.');
+        logInfo('[fullscreen.js] FADEIN: Fade from black initiated.');
 
         // 再生開始
         videoElement.play()
@@ -444,7 +444,7 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
         } else {
             fadeCanvas.style.opacity = '0';
             fadeCanvas.style.visibility = 'hidden';
-            console.log('[fullscreen.js] Fade in completed.');
+            logInfo('[fullscreen.js] Fade in completed.');
         }
     }
     requestAnimationFrame(fadeStep);
@@ -459,7 +459,7 @@ window.electronAPI.ipcRenderer.on('control', (event, data) => {
     if (data.command === 'fadein') {
         const ftbRate = data.ftbRate || 1.0;
         const fillKeyMode = data.fillKeyMode || false;
-        console.log('[fullscreen.js] Received fadein command with ftbRate:', ftbRate, 'fillKeyMode:', fillKeyMode);
+        logInfo('[fullscreen.js] Received fadein command with ftbRate:', ftbRate, 'fillKeyMode:', fillKeyMode);
         fullscreenFadeFromBlack(ftbRate, fillKeyMode);
     }
 });
@@ -839,9 +839,9 @@ function setupFullscreenAudio(videoElement) {
             fullscreenGainNode.connect(fullscreenAnalyser);
         } catch (error) {
             if (error.name === 'InvalidStateError') {
-                console.warn('MediaElementSourceNode already exists. Skipping creation.');
+                logInfo('MediaElementSourceNode already exists. Skipping creation.');
             } else {
-                console.error('Error creating MediaElementSourceNode:', error);
+                logInfo('Error creating MediaElementSourceNode:', error);
             }
         }
     }
@@ -1111,7 +1111,7 @@ let fsDSKOverlay = null;
 function initFsDSKOverlay() {
     const container = document.getElementById('fullscreen-video')?.parentElement;
     if (!container) {
-        console.error('[fullscreen.js] フルスクリーン用DSKオーバーレイ コンテナが見つかりません。');
+        logInfo('[fullscreen.js] フルスクリーン用DSKオーバーレイ コンテナが見つかりません。');
         return;
     }
     // 既存のオーバーレイがあれば再利用
@@ -1174,7 +1174,7 @@ function showFullscreenDSK(itemData) {
         });
         video.addEventListener('ended', function loopOnEnded() {
             video.currentTime = inSec;
-            video.play().catch(err => console.error('[fullscreen.js] fsDSK repeat error:', err));
+            video.play().catch(err => logInfo('[fullscreen.js] fsDSK repeat error:', err));
         });
     } else {
         function onFsEnd() {
@@ -1198,7 +1198,7 @@ function showFullscreenDSK(itemData) {
 
     // 再生開始
     video.addEventListener('loadeddata', function() {
-        video.play().catch(err => console.error('[fullscreen.js] fsDSK video.play() error:', err));
+        video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
     });
 
     fsDSKOverlay.appendChild(video);
@@ -1273,7 +1273,7 @@ function playFullscreenDSK() {
     fsDSKOverlay.style.visibility = 'visible';
 
     if (video.paused) {
-        video.play().catch(err => console.error('[fullscreen.js] fsDSK video.play() error:', err));
+        video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
     }
 
     // PAUSE モード時は終了検知リスナを再登録
@@ -1295,7 +1295,7 @@ function handleFullscreenDskEnd(videoEl) {
     switch (mode) {
         case 'REPEAT':
             videoEl.currentTime = inSec;
-            videoEl.play().catch(err => console.error('[fullscreen.js] REPEAT error:', err));
+            videoEl.play().catch(err => logInfo('[fullscreen.js] REPEAT error:', err));
             break;
 
         case 'PAUSE':
