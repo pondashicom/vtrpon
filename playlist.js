@@ -24,6 +24,7 @@ let directOnAirActive = false;
 const convertingFiles = new Set();
 
 // インポートキュー管理
+
 const pendingFiles = [];
 let isImporting = false;
 let totalCount = 0;
@@ -715,10 +716,14 @@ function renderPlaylistItem(file, index) {
     item.setAttribute('data-file-path', file.path);
 
     // アイテムクリック時の処理
-    item.addEventListener('click', () => handlePlaylistItemClick(item, index));
+    item.addEventListener('click', () => {
+        logOpe(`[listedit.js] Playlist item clicked (index: ${index})`);
+        handlePlaylistItemClick(item, index);
+    });
 
     // ダブルクリック時：モードに応じた処理を実行
     item.addEventListener('dblclick', () => {
+        logOpe(`[listedit.js] Playlist item double-clicked (index: ${index})`);
         if (soundPadActive) {
             handleSoundPadOnAir(item, index);
         } else if (directOnAirActive) {
@@ -915,10 +920,10 @@ function adjustPlaylistHeight() {
   const playlist = document.querySelector('.playlist-items');
   if (!playlist) return;
   const top = playlist.getBoundingClientRect().top;
-  // 追加：下部エリアの高さを取得
+  // 下部エリアの高さを取得
   const footer = document.getElementById('important-button-area');
   const footerHeight = footer ? footer.offsetHeight : 0;
-  const margin = 20; // 下部に確保する余白（必要に応じて調整）
+  const margin = 20;
   playlist.style.maxHeight = (window.innerHeight - top - footerHeight - margin) + 'px';
 }
 
@@ -1135,6 +1140,7 @@ async function deletePlaylistItem(itemId) {
 // アイテムを上下に移動して入れ替える(▲▼ボタン）
 // ------------------------------------------------
 async function movePlaylistItem(item, direction) {
+    logOpe(`[playlist.js] movePlaylistItem called: id=${item.playlistItem_id}, direction=${direction}`);
     const playlist = await window.electronAPI.stateControl.getPlaylistState();
 
     // 現在のインデックスを取得
@@ -1163,7 +1169,7 @@ async function movePlaylistItem(item, direction) {
     // 更新
     await window.electronAPI.stateControl.setPlaylistState(playlist);
     await updatePlaylistUI();
-
+    logOpe(`[playlist.js] Moved item id=${item.playlistItem_id} to index=${newIndex}`);
     return true;
 }
 
@@ -1183,6 +1189,7 @@ function initializeOnAirButtonListener() {
     }
 
     onAirButton.addEventListener('click', async () => {
+        logOpe('[playlist.js] On-Air button clicked');
         try {
             const playlist = await stateControl.getPlaylistState();
             const editingItem = playlist.find(item => item.editingState === 'editing'); // 現在編集中のアイテム
@@ -1393,6 +1400,7 @@ function initializePlaylistUI() {
 // SAVEボタンのリスナー
 document.getElementById('playlise-save-button').addEventListener('click', () => {
     const saveButton = document.getElementById('playlise-save-button');
+    logOpe('[playlist.js] Save button clicked');
 
     // プレイリストアイテムがなにもない場合、処理を終了
     if (document.querySelectorAll('.playlist-item').length === 0) {
@@ -1458,11 +1466,13 @@ function enterSaveMode(event) {
     // 保存ボタン処理の登録
     const saveButton = document.getElementById('playlist-name-save');
     saveButton.onclick = () => {
+        logOpe('[playlist.js] Save playlist button clicked');
         savePlaylist(_storeNumber);
         exitSaveMode();
     };
     const cancelButton = document.getElementById('playlist-name-cancel');
     cancelButton.onclick = () => {
+        logOpe('[playlist.js] Cancel playlist save button clicked');
         exitSaveMode();
         hideModal();
     };
@@ -1495,8 +1505,10 @@ function generateUniqueId(prefix = '') {
 
 // プレイリスト保存
 async function savePlaylist(storeNumber) {
+    logOpe(`[playlist.js] savePlaylist called for storeNumber=${storeNumber}`);
     const nameInput = document.getElementById('playlist-name-input');
     const playlistName = nameInput.value.trim();
+    logOpe(`[playlist.js] Playlist name entered: "${playlistName}"`);
 
     if (!playlistName) {
         showMessage(getMessage('enter-playlist-name'), 5000, 'alert'); // 5秒間表示
@@ -1565,6 +1577,7 @@ async function savePlaylist(storeNumber) {
 for (let i = 1; i <= 5; i++) {
     const button = document.getElementById(`playlise${i}-button`);
     button.addEventListener('click', async (event) => {
+        logOpe(`[playlist.js] Playlist number ${i} button clicked`);
 
         // SAVEモード中の判定
         if (document.getElementById('playlise-save-button').classList.contains('button-blink-orange')) {
@@ -1919,6 +1932,7 @@ function updateButtonColors() {
 
 // プレイリストのエクスポート処理
 window.electronAPI.ipcRenderer.on('export-playlist', async () => {
+    logOpe('[playlist.js] Export playlist triggered');
     try {
         const MAX_PLAYLISTS = 5; // 最大プレイリスト数
         const allPlaylists = [];
@@ -1980,6 +1994,7 @@ function validatePlaylistData(data) {
 
 // プレイリストのインポート処理
 window.electronAPI.ipcRenderer.on('import-playlist', async () => {
+    logOpe('[playlist.js] Import playlist triggered');
     try {
         const result = await window.electronAPI.importPlaylist();
         if (!result.success) {
@@ -2069,8 +2084,14 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
 // -----------------------
 
 // リピートとリストボタンのイベントリスナー
-document.getElementById("list-repeat-button").addEventListener("click", setRepeatMode);
-document.getElementById("list-list-button").addEventListener("click", setListMode);
+document.getElementById("list-repeat-button").addEventListener("click", () => {
+    logOpe('[playlist.js] Playlist set to Repeat mode.');
+    setRepeatMode();
+});
+document.getElementById("list-list-button").addEventListener("click", () => {
+    logOpe('[playlist.js] Playlist set to List mode.');
+    setListMode();
+});
 
 // エンターキーによる誤動作防止
 document.getElementById("list-repeat-button").addEventListener("keydown", (event) => {
@@ -2252,8 +2273,6 @@ async function handleSoundPadOnAir(item, index) {
     showMessage(`${getMessage('sound-pad-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
 }
 
-
-
 // -----------------------
 // Direct Onair モード処理
 // -----------------------
@@ -2301,7 +2320,6 @@ async function handleDirectOnAir(item, index) {
     // ユーザーにメッセージを表示
     showMessage(`${getMessage('direct-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
 }
-
 
 // -----------------------
 // ネクストモード処理
@@ -2440,6 +2458,7 @@ function scrollToPlaylistItem(itemId) {
 const dskButton = document.getElementById('dsk-button');
 if (dskButton) {
     dskButton.addEventListener('click', async () => {
+        logOpe('[playlist.js] DSK button clicked');
         // まず、DSKがすでに表示中なら、解除用に toggleOnAirDSK() を呼び出す
         if (window.dskModule.getCurrentDSKItem()) {
             window.dskModule.toggleOnAirDSK();  // 引数なしで呼び出すと内部で解除処理が走る
@@ -2474,7 +2493,7 @@ window.addEventListener('dsk-active-set', async (e) => {
         await stateControl.setPlaylistState(updatedPlaylist);
         await updatePlaylistUI();
     } catch (err) {
-        console.error("Error updating dskActive flag in state:", err);
+        logInfo("Error updating dskActive flag in state:", err);
     }
     const dskButton = document.getElementById('dsk-button');
     if (dskButton) {
@@ -2490,7 +2509,7 @@ window.addEventListener('dsk-active-clear', async () => {
         await stateControl.setPlaylistState(updatedPlaylist);
         await updatePlaylistUI();
     } catch (err) {
-        console.error("Error clearing dskActive flag in state:", err);
+        logInfo("Error clearing dskActive flag in state:", err);
     }
     const dskButton = document.getElementById('dsk-button');
     if (dskButton) {
@@ -2498,12 +2517,12 @@ window.addEventListener('dsk-active-clear', async () => {
     }
 });
 
-
 // 一時停止、再生ボタンイベントリスナー
 const dksPauseButton = document.getElementById('dks-pause-button');
 const dskPlayButton = document.getElementById('dsk-play-button');
 if (dksPauseButton) {
     dksPauseButton.addEventListener('click', () => {
+        logOpe('[playlist.js] DSK Pause button clicked');
         // オンエア側DSKの一時停止処理
         window.dskModule.pauseOnAirDSK();
         // フルスクリーン側DSKも同時に一時停止するためにIPC経由で命令送信
@@ -2512,14 +2531,13 @@ if (dksPauseButton) {
 }
 if (dskPlayButton) {
     dskPlayButton.addEventListener('click', () => {
+        logOpe('[playlist.js] DSK Play button clicked');
         // オンエア側DSKの再生処理
         window.dskModule.playOnAirDSK();
         // フルスクリーン側DSKも同時に再生するためにIPC経由で命令送信
         window.electronAPI.sendControlToFullscreen({ command: 'DSK_PLAY' });
     });
 }
-
-
 
 // -----------------------
 // モーダル処理
@@ -2684,8 +2702,6 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-
-
 // メニューからのショートカットイベント処理
 window.electronAPI.onShortcutTrigger((event, shortcut) => {
     logInfo(`[playlist.js] Shortcut triggered: ${shortcut}`);
@@ -2737,7 +2753,6 @@ window.electronAPI.onShortcutTrigger((event, shortcut) => {
         pasteItemState();
     }
 });
-
 
 // -----------------------
 // アイテム状態のコピー＆ペースト機能
