@@ -412,9 +412,31 @@ async function generateThumbnail(filePath) {
 
         // === 1) 音声ファイル（wav, mp3, flac, aac, m4a）の場合 ===
         if (['wav','mp3','flac','aac','m4a'].includes(extension)) {
-            // ① AudioElement で必ず duration を取得（非同期・ブラウザ処理）
             const audio = new Audio(filePath);
-            await new Promise(resolve => audio.addEventListener('loadedmetadata', resolve));
+
+            // 再生可否を loadedmetadata／error／タイムアウトで判定
+            const playable = await Promise.race([
+                new Promise(res => audio.addEventListener('loadedmetadata', () => res(true))),
+                new Promise(res => audio.addEventListener('error',       () => res(false))),
+                new Promise(res => setTimeout    (() => res(false), 3000))
+            ]);
+
+            if (!playable) {
+                // 再生できないものは赤いサムネイルを返す
+                const canvas = document.createElement('canvas');
+                canvas.width = 112; canvas.height = 63;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'red';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('Loading failed', canvas.width/2, canvas.height/2);
+                resolve(canvas.toDataURL('image/png'));
+                return;
+            }
+
             const durationSec = audio.duration;  // 秒数（小数点あり）
 
             // ② 2時間（7200秒）以上なら波形スキップ
