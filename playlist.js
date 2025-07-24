@@ -274,19 +274,32 @@ async function getValidUpdates(files, currentPlaylist) {
             continue;
         }
 
-        // PPTX → PNG連番 & MP4変換処理（変換中はLoadingエントリを追加）
+        // PPTX → PNG連番 & MP4変換処理
         if (lowerPath.endsWith('.pptx')) {
             logInfo(`[playlist.js] Converting PPTX: ${file.path}`);
             try {
-                // 変換中の仮エントリを追加（"mp4" タイプ指定）
+                // エントリ追加
                 const tempPlaylistItem = await addLoadingEntry(file.path, "mp4");
-                // 非同期でPPTX → MP4変換を開始（fire-and-forget）
-                convertPptxToMp4(file.path, tempPlaylistItem);
+                
+                // 変換開始
+                convertPptxToMp4(file.path, tempPlaylistItem)
+                    .then(() => {
+                        logInfo(`[playlist.js] PPTX conversion succeeded: ${file.path}`);
+                    })
+                    .catch(err => {
+                        logInfo(`[playlist.js] PPTX conversion failed: ${err.message}`);
+                        showMessage(`PPTX変換に失敗しました: ${err.message}`, 5000, 'alert');
+                        // 失敗時は仮エントリをリストから削除
+                        stateControl.getPlaylistState()
+                            .then(list => list.filter(item => item.playlistItem_id !== tempPlaylistItem.playlistItem_id))
+                            .then(filtered => stateControl.setPlaylistState(filtered));
+                    });
             } catch (error) {
-                logInfo(`[playlist.js] Error adding loading entry for PPTX (${file.path}): ${error.message || JSON.stringify(error)}`);
+                logInfo(`[playlist.js] Error adding loading entry for PPTX (${file.path}): ${error.message}`);
             }
             continue;
         }
+
 
         // MOV の透過チェック & 変換
         if (lowerPath.endsWith('.mov')) {
