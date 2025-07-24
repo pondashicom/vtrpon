@@ -1897,6 +1897,37 @@ ipcMain.on('files-dropped', (event, files) => {
     }
 });
 
+// ---------------------------------
+// FLAC の PICTURE ブロックを削除した再生用ファイルを返す
+// ---------------------------------
+ipcMain.handle('getPlayableFlac', async (event, inputPath) => {
+    const { fileURLToPath } = require('url');
+    // file:// URL が渡された場合は実ファイルパスに変換
+    let src = inputPath.startsWith('file://') ? fileURLToPath(inputPath) : inputPath;
+    const dir  = path.dirname(src);
+    const base = path.basename(src, '.flac');
+    const out  = path.join(dir, `${base}_nopic.flac`);
+    await removeFlacPicture(src, out);
+    return out;
+});
+
+// ---------------------------------
+// PICTURE 削除ロジック（metaflac → ffmpeg フォールバック）
+// ---------------------------------
+function removeFlacPicture(input, output) {
+    return new Promise((resolve, reject) => {
+        let cmd = `metaflac --remove --block-type=PICTURE --output="${output}" "${input}"`;
+        exec(cmd, (err, _s, stderr) => {
+            if (!err) return resolve();
+            // metaflac 失敗時は ffmpeg でメタデータクリア＋コピー
+            cmd = `ffmpeg -y -i "${input}" -c:a copy -map_metadata -1 "${output}"`;
+            exec(cmd, (err2, _s2, stderr2) => {
+                if (err2) return reject(stderr2||err2);
+                resolve();
+            });
+        });
+    });
+}
 
 // ---------------------------------
 // FLACの波形生成

@@ -199,6 +199,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     generateWaveformThumbnail: (filePath) => ipcRenderer.invoke('generate-waveform-thumbnail', filePath),
 
     // ------------------------------
+    // PICTURE 削除版 FLAC を取得
+    // ------------------------------
+    getPlayableFlac:        (filePath) => ipcRenderer.invoke('getPlayableFlac', filePath),
+
+    // ------------------------------
     //    PPTX to MP4変換関連
     // ------------------------------
     convertPptxToPngWinax: (pptxPath) => ipcRenderer.invoke('convert-pptx-to-png-winax', pptxPath),

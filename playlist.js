@@ -594,6 +594,13 @@ async function processFileData(file, currentPlaylist) {
             return uvcItem;
         }
 
+        // FLAC ファイルの場合、大容量の PICTURE ブロックを削除した再生用ファイルを生成
+        if (file.path.toLowerCase().endsWith('.flac')) {
+            const playable = await window.electronAPI.getPlayableFlac(file.path);
+            file.path = playable;
+            file.name = playable.split(/[/\\]/).pop();
+        }
+
         // 通常のファイル処理
         const metadata = await getMetadata(file.path);
         
