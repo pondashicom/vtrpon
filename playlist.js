@@ -607,11 +607,20 @@ async function processFileData(file, currentPlaylist) {
             return uvcItem;
         }
 
-        // FLAC ファイルの場合、大容量の PICTURE ブロックを削除した再生用ファイルを生成
+        // FLAC の場合、まずそのまま読み込めるか試す
         if (file.path.toLowerCase().endsWith('.flac')) {
-            const playable = await window.electronAPI.getPlayableFlac(file.path);
-            file.path = playable;
-            file.name = playable.split(/[/\\]/).pop();
+            const testAudio = new Audio(file.path);
+            const canPlay = await new Promise(res => {
+                const t = setTimeout(() => res(false), 3000);
+                testAudio.addEventListener('loadedmetadata', () => { clearTimeout(t); res(true); });
+                testAudio.addEventListener('error',       () => { clearTimeout(t); res(false); });
+            });
+            // 読み込み失敗時のみメタデータ削除版を生成
+            if (!canPlay) {
+                const playable = await window.electronAPI.getPlayableFlac(file.path);
+                file.path = playable;
+                file.name = playable.split(/[/\\]/).pop();
+            }
         }
 
         // 通常のファイル処理
