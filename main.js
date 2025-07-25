@@ -1459,9 +1459,9 @@ ipcMain.on('next-mode-complete', (event, currentItemId) => {
 // -----------------------------------------------------
 // フルスクリーンからオンエアに音量情報を送る
 // -----------------------------------------------------
-// フルスクリーンエリアから送信された音量データをオンエアエリアに転送
+// フルスクリーンからオンエアに音量情報を送る
 ipcMain.on('fullscreen-audio-level', (event, dBFS) => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('fullscreen-audio-level', dBFS);
     }
 });
