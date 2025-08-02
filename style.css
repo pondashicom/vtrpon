@@ -1,4 +1,4 @@
-﻿/* style.css 2.3.7*/
+﻿/* style.css 2.3.8*/
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -1021,6 +1021,7 @@ html {
     gap: 1.25rem;             /* 20px → 1.25rem */
     font-size: 0.9em;
     margin-top: 0.625rem;     /* 10px → 0.625rem */
+    margin-bottom: 0.625rem;
 }
 
 /* シークバー、ボリュームスライダーのトラック部分 */
@@ -1088,7 +1089,7 @@ input[type="range"]::-webkit-slider-thumb {
 .seek-marker {
     position: absolute;
     top: 0.9375rem;           /* 15px → 0.9375rem */
-    font-size: 0.7em;
+    font-size: 0.8em;
     font-weight: bold;
     color: gray;
     z-index: 5;
@@ -1655,7 +1656,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     font-size: 0.45em;
   }
 }
-
 
 /* ------------------ */
 /*         時計       */

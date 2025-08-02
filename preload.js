@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.3.7
+//     ver 2.3.8
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');

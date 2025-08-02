@@ -1,6 +1,6 @@
 {
-  "name": "VTRPON2",
-  "version": "2.3.7",
+  "name": "VTR-PON 2",
+  "version": "2.3.8",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
