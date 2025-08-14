@@ -308,6 +308,25 @@ function parseTimecode(timecode) {
 }
 
 // -----------------------
+// DSK選択状態復元時に再適用する
+// -----------------------
+function setCurrentDSKItemById(itemId) {
+    if (!itemId) return;
+    try {
+        const list = window.electronAPI.stateControl.getPlaylistState();
+        const item = list.find(i => i.playlistItem_id === itemId);
+        if (!item) return;
+        // 現在のDSK対象として記録（再生や表示は開始しない）
+        currentDSKItem = item;
+        // Playlist側にdskActiveを付与してUI（オレンジ枠）を復元
+        window.dispatchEvent(new CustomEvent('dsk-active-set', { detail: { itemId } }));
+    } catch (e) {
+        console.error('[dsk.js] setCurrentDSKItemById error:', e);
+    }
+}
+
+
+// -----------------------
 // モジュールエクスポート
 // -----------------------
 window.dskModule = {
