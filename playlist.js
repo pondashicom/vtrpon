@@ -1582,6 +1582,18 @@ async function savePlaylist(storeNumber) {
             return;
         }
 
+        // 現在のDSK選択中アイテムIDを取得（存在しない場合はnull）
+        let dskCurrentItemId = null;
+        try {
+            const dskItem = window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function'
+                ? window.dskModule.getCurrentDSKItem()
+                : null;
+            dskCurrentItemId = dskItem ? dskItem.playlistItem_id : null;
+        } catch (e) {
+            // 取得失敗時は無視（後方互換）
+            dskCurrentItemId = null;
+        }
+
         // プレイリストデータの構築（DIRECTモードとFILLKEYモードの状態を追加）
         const playlistData = {
             playlist_id, // プレイリストIDを設定
@@ -1589,6 +1601,8 @@ async function savePlaylist(storeNumber) {
             soundPadMode: soundPadActive,        // 現在の SOUND PAD モード状態
             directOnAirMode: directOnAirActive,    // 現在の DIRECT ONAIR モード状態
             fillKeyMode: isFillKeyMode,            // 既存の FILLKEY モード状態
+            // ★追加：DSK選択中アイテムID（復元用のメタ情報）
+            dskCurrentItemId: dskCurrentItemId,
             data: playlist.map((item) => ({
                 ...item,
                 order: item.order, // 元の順序をそのまま保持
@@ -1620,6 +1634,7 @@ async function savePlaylist(storeNumber) {
     // logDebug('Playlist state after save:', savedState);
 }
 
+
 // --------------------------------
 // プレイリストの呼び出し
 // --------------------------------
@@ -1647,7 +1662,7 @@ for (let i = 1; i <= 5; i++) {
         await loadPlaylist(i);
         // プレイリスト名の表示を更新
         const playlistNameDisplay = document.getElementById('playlist-name-display');
-        // 修正：storeNumberではなく、ループ変数iを使用する
+        // storeNumberではなく、ループ変数iを使用する
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
         if (storedPlaylist) {
             const playlistData = JSON.parse(storedPlaylist);
@@ -1721,6 +1736,11 @@ async function loadPlaylist(storeNumber) {
         // FILLKEYモードの状態をオンエア側に通知する
         window.electronAPI.ipcRenderer.send('fillkey-mode-update', isFillKeyMode);
 
+        // ★追加：DSK選択状態（オレンジ枠）の復元
+        if (playlistData.dskCurrentItemId && window.dskModule && typeof window.dskModule.setCurrentDSKItemById === 'function') {
+            window.dskModule.setCurrentDSKItemById(playlistData.dskCurrentItemId);
+        }
+
         } catch (error) {
             logInfo('[playlist.js] Error loading playlist:', error);
         }
@@ -1729,6 +1749,7 @@ async function loadPlaylist(storeNumber) {
         // simulateRightArrowKey();
         logOpe("[playlist.js] edit claer.");
 }
+
 
 // プレイリストの順番を取得
 function getPlaylistOrder() {
@@ -2554,14 +2575,6 @@ window.addEventListener('dsk-active-set', async (e) => {
 
 // DSK送出解除時
 window.addEventListener('dsk-active-clear', async () => {
-    try {
-        const playlist = await stateControl.getPlaylistState();
-        const updatedPlaylist = playlist.map(item => ({ ...item, dskActive: false }));
-        await stateControl.setPlaylistState(updatedPlaylist);
-        await updatePlaylistUI();
-    } catch (err) {
-        logInfo("Error clearing dskActive flag in state:", err);
-    }
     const dskButton = document.getElementById('dsk-button');
     if (dskButton) {
         dskButton.classList.remove('button-recording');
