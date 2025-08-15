@@ -15,6 +15,7 @@ const logDebug = window.electronAPI.logDebug;
 
 // 状態管理の取得
 const stateControl = window.electronAPI.stateControl;
+const __loadState = { token: 0 };
 
 // モード状態管理：SOUND PADモードと DIRECT ONAIRモード
 let soundPadActive = false;
@@ -184,9 +185,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         logInfo('[playlist.js] Error initializing UI:', error);
     }
-
-    // 変換中のファイルを追跡
-    const convertingFiles = new Set();
 
     // 5秒ごとのファイル存在確認処理
     setInterval(async () => {
@@ -666,7 +664,7 @@ function escapeSpecialCharacters(input) {
     return input.replace(/[#&%]/g, (char) => encodeURIComponent(char));
 }
 
-// ローカルファイルパスを安全なファイルURLに変換する関数（修正後）
+// ローカルファイルパスを安全なファイルURLに変換する関数
 // encodeURI() は「#」をエスケープしないため、手動で「#」を%23に変換します
 function getSafeFileURL(filePath) {
     // Windowsの場合、バックスラッシュをスラッシュに変換
@@ -965,8 +963,6 @@ function setCurrentPlaylistId(playlistId) {
     currentPlaylistId = playlistId;
 }
 let currentPlaylistId = null;  // 現在のプレイリストIDを追跡
-// ロード直列化トークン（最後に開始したロードだけが有効）
-let __activeLoadToken = 0;
 
 // 高解像度対応：プレイリスト高さ調整関数を追加
 function adjustPlaylistHeight() {
@@ -1185,8 +1181,8 @@ async function deletePlaylistItem(itemId) {
         logInfo('[playlist.js] Failed to delete playlist item. Not found.');
     }
     // 右矢印キーを自動押下
-    simulateRightArrowKey();
-    logOpe("[playlist.js] edit claer.");
+    await simulateRightArrowKey();
+    logOpe("[playlist.js] edit clear.");
 }
 
 // ------------------------------------------------
@@ -1499,7 +1495,7 @@ function enterSaveMode(event) {
     const storeNumber = button.dataset.storeNumber;
     // 後続のコールバックでも確実に参照できるよう、ローカル変数 _storeNumber に格納
     const _storeNumber = storeNumber;
-    // ★追加：保存先スロット解決のログ（1行）
+    // 保存先スロット解決のログ（1行）
     logOpe(`[playlist.js] SAVE target resolved: slot=${_storeNumber} key=vtrpon_playlist_store_${_storeNumber}`);
 
     const modal = document.getElementById('playlist-name-modal');
@@ -1519,31 +1515,44 @@ function enterSaveMode(event) {
             nameInput.setSelectionRange(length, length);
         }
     }, 100);
-    // 保存ボタン処理の登録
+
+    // 保存ボタン処理の登録（多重実行防止とEnterリスナーリーク防止）
     const saveButton = document.getElementById('playlist-name-save');
-    saveButton.onclick = () => {
-        logOpe('[playlist.js] Save playlist button clicked');
-        // ★追加：savePlaylist 呼出し直前の最終確認ログ（1行）
-        logOpe(`[playlist.js] SAVE dispatch: slot=${_storeNumber} key=vtrpon_playlist_store_${_storeNumber}`);
-        savePlaylist(_storeNumber);
-        exitSaveMode();
-    };
     const cancelButton = document.getElementById('playlist-name-cancel');
-    cancelButton.onclick = () => {
-        logOpe('[playlist.js] Cancel playlist save button clicked');
+
+    // 既存のEnterリスナーがあれば解除
+    if (nameInputKeydownHandler) {
+        nameInput.removeEventListener('keydown', nameInputKeydownHandler);
+        nameInputKeydownHandler = null;
+    }
+
+    // 多重実行ガード
+    let handled = false;
+    const fireSave = () => {
+        if (handled) return;
+        handled = true;
+        logOpe('[playlist.js] Save playlist button clicked');
+        savePlaylist(_storeNumber);
         exitSaveMode();
         hideModal();
     };
-    nameInput.addEventListener('keydown', function onKeyDown(e) {
+
+    saveButton.onclick = fireSave;
+
+    cancelButton.onclick = () => {
+        handled = true;
+        exitSaveMode();
+        hideModal();
+    };
+
+    nameInputKeydownHandler = (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            // ★追加：Enter保存時も同様に最終確認ログ
-            logOpe(`[playlist.js] SAVE dispatch (Enter): slot=${_storeNumber} key=vtrpon_playlist_store_${_storeNumber}`);
-            savePlaylist(_storeNumber);
-            exitSaveMode();
-            nameInput.removeEventListener('keydown', onKeyDown);
+            fireSave();
         }
-    });
+    };
+    nameInput.addEventListener('keydown', nameInputKeydownHandler);
+
 }
 
 // SAVEモードを終了
@@ -1566,7 +1575,7 @@ function generateUniqueId(prefix = '') {
 // プレイリスト保存
 async function savePlaylist(storeNumber) {
     logOpe(`[playlist.js] savePlaylist called for storeNumber=${storeNumber}`);
-    // 追加: 内部インデックスと想定キー名を記録（挙動は一切変更しない）
+    // 内部インデックスと想定キー名を記録（挙動は一切変更しない）
     const __slotIndex = Number(storeNumber) - 1;
     const __slotKey = `vtrpon_playlist_store_${storeNumber}`;
     logOpe(`[playlist.js] SAVE intent: slot=${storeNumber} index=${__slotIndex} key=${__slotKey}`);
@@ -1615,7 +1624,7 @@ async function savePlaylist(storeNumber) {
             soundPadMode: soundPadActive,        // 現在の SOUND PAD モード状態
             directOnAirMode: directOnAirActive,    // 現在の DIRECT ONAIR モード状態
             fillKeyMode: isFillKeyMode,            // 既存の FILLKEY モード状態
-            // ★追加：DSK選択中アイテムID（復元用のメタ情報）
+            // DSK選択中アイテムID（復元用のメタ情報）
             dskCurrentItemId: dskCurrentItemId,
             data: playlist.map((item) => ({
                 ...item,
@@ -1674,7 +1683,7 @@ for (let i = 1; i <= 5; i++) {
         }
         logOpe(`[playlist.js] Button ${i} clicked`);
 
-        // ★追加：ロード意図（スロット→キー解決）を1行だけ記録
+        // ロード意図（スロット→キー解決）を1行だけ記録
         const __loadKey = `vtrpon_playlist_store_${i}`;
         logOpe(`[playlist.js] LOAD intent: slot=${i} key=${__loadKey}`);
 
@@ -1699,8 +1708,7 @@ for (let i = 1; i <= 5; i++) {
 
 // プレイリストの読み込み処理
 async function loadPlaylist(storeNumber) {
-    // 直列化トークン：最後に開始したロードだけが有効
-    const __token = ++__activeLoadToken;
+    const token = ++__loadState.token;  // 直列化トークンは __loadState.token に統一
 
     // 読み込み入口で実引数とキー解決を記録
     logOpe(`[playlist.js] loadPlaylist called with storeNumber=${storeNumber}`);
@@ -1715,31 +1723,40 @@ async function loadPlaylist(storeNumber) {
 
     try {
         const playlistData = JSON.parse(storedPlaylist);
-        // 途中で他のロードが始まっていないか確認
-        if (__token !== __activeLoadToken) return;
-
         // 読み込んだメタ情報を1行で記録（名前/件数/ID）
         logOpe(`[playlist.js] Loaded playlist meta: name="${playlistData.name || ''}" items=${Array.isArray(playlistData.data) ? playlistData.data.length : '?'} id=${playlistData.playlist_id || 'n/a'}`);
 
+        // 再入防止：この時点で最新でなければ中止
+        if (token !== __loadState.token) {
+            logInfo('[playlist.js] Load aborted: newer request detected (after parse).');
+            return;
+        }
+
         // プレイリストIDを設定
         setCurrentPlaylistId(playlistData.playlist_id);
-        if (__token !== __activeLoadToken) return;
 
         // 既存のプレイリスト状態をクリアしてから新しい状態をセットする
         await stateControl.clearState();
-        if (__token !== __activeLoadToken) return;
 
-        // 復元時に order に基づいてソートのみ実行（★元配列を破壊しないようコピーしてソート）
-        const reorderedData = Array.isArray(playlistData.data)
-            ? [...playlistData.data].sort((a, b) => a.order - b.order)
-            : [];
+        // 再入防止：clearState後も最新か確認
+        if (token !== __loadState.token) {
+            logInfo('[playlist.js] Load aborted: newer request detected (after clearState).');
+            return;
+        }
+
+        // 復元時に order に基づいてソートのみ実行
+        const reorderedData = playlistData.data.sort((a, b) => a.order - b.order);
 
         // 状態を設定
         await stateControl.setPlaylistState(reorderedData);
-        if (__token !== __activeLoadToken) return;
+
+        // 再入防止：セット後も最新か確認
+        if (token !== __loadState.token) {
+            logInfo('[playlist.js] Load aborted: newer request detected (after setPlaylistState).');
+            return;
+        }
 
         await updatePlaylistUI();
-        if (__token !== __activeLoadToken) return;
 
         // SOUND PADモードの状態を復元
         soundPadActive = playlistData.soundPadMode || false;
@@ -1779,15 +1796,7 @@ async function loadPlaylist(storeNumber) {
 
         // DSK選択状態（オレンジ枠）の復元
         if (playlistData.dskCurrentItemId && window.dskModule && typeof window.dskModule.setCurrentDSKItemById === 'function') {
-            if (__token !== __activeLoadToken) return;
             window.dskModule.setCurrentDSKItemById(playlistData.dskCurrentItemId);
-        }
-
-        // ロード検証
-        if (__token === __activeLoadToken) {
-            const applied = await stateControl.getPlaylistState();
-            const head = applied.slice(0, 3).map(it => `${it.order}:${it.name}`).join(' | ');
-            logOpe(`[playlist.js] LOAD VERIFY: slot=${storeNumber} pid=${playlistData.playlist_id || 'n/a'} currentPid=${currentPlaylistId || 'n/a'} items=${applied.length} head=${head}`);
         }
 
     } catch (error) {
@@ -1796,9 +1805,7 @@ async function loadPlaylist(storeNumber) {
 
     // 自動選択処理は一旦無効化（※必要に応じて後で見直す）
     // simulateRightArrowKey();
-    if (__token === __activeLoadToken) {
-        logOpe("[playlist.js] edit claer.");
-    }
+    logOpe("[playlist.js] edit clear.");
 }
 
 
@@ -1907,7 +1914,6 @@ document.getElementById('playlisedel-button').addEventListener('click', () => {
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
         if (storedPlaylist) {
             button.classList.remove('button-blue'); // 青色を削除
-            // タイプミス修正: 正しいクラス名 'button-orange' を除去
             button.classList.remove('button-orange'); // オレンジを削除
             button.classList.add('button-purple'); // 紫色に設定
             button.addEventListener('click', enterDeleteMode); // 削除モード処理を登録
@@ -2030,11 +2036,9 @@ document.getElementById('playliseclear-button').addEventListener('click', async 
     logOpe('[playlist.js] playliseclear-button clicked.');
 
     // 右矢印キーを自動押下
-    simulateRightArrowKey();
-    logOpe("[playlist.js] edit claer.");
+    await simulateRightArrowKey();
+    logOpe("[playlist.js] edit clear.");
 });
-
-
 
 // UI更新
 function updateButtonColors() {
@@ -2298,9 +2302,8 @@ async function setListMode() {
     }
 }
 
-// 右矢印キーを自動押下する処理（選択状態を解除するよう修正）
-function simulateRightArrowKey() {
-    // キーボードイベントのシミュレーション（必要に応じて残す）
+// 右矢印キーを自動押下する処理
+async function simulateRightArrowKey() {
     const event = new KeyboardEvent("keydown", {
         key: "ArrowRight",
         code: "ArrowRight",
@@ -2308,30 +2311,22 @@ function simulateRightArrowKey() {
         bubbles: true,
     });
     document.dispatchEvent(event);
-    
-    // プレイリスト状態を取得し、全アイテムの選択状態を解除する
+
     try {
-        const playlist = stateControl.getPlaylistState(); // 同期関数なので.thenは使えない
+        const playlist = await stateControl.getPlaylistState();
         const updatedPlaylist = playlist.map(item => ({
             ...item,
             selectionState: "unselected",
             editingState: null,
         }));
-        // 選択状態解除後、状態を保存しUIを更新
-        stateControl.setPlaylistState(updatedPlaylist).then(() => {
-            updatePlaylistUI();
-            // 現在の選択インデックスもリセット
-            currentSelectedIndex = -1;
-            logOpe('[playlist.js] Playlist selection cleared after right arrow simulation.');
-        }).catch((error) => {
-            logInfo('[playlist.js] Error clearing playlist selection:', error);
-        });
+        await stateControl.setPlaylistState(updatedPlaylist);
+        await updatePlaylistUI();
+        currentSelectedIndex = -1;
+        logOpe('[playlist.js] Playlist selection cleared after right arrow simulation.');
     } catch (error) {
-        logInfo('[playlist.js] Error getting playlist state:', error);
+        logInfo('[playlist.js] Error clearing playlist selection:', error);
     }
 }
-
-
 
 // ボタン更新
 function updateListModeButtons(activeMode) {
@@ -2533,7 +2528,7 @@ async function handleNextModePlaylist(currentItemId) {
             logInfo(`[playlist.js] Next item is a UVC device. Skipping edit area update.`);
             // 右矢印キーを自動押下
             // simulateRightArrowKey();
-            logOpe("[playlist.js] edit claer.");
+            logOpe("[playlist.js] edit clear.");
         } else {
             // エディットに次のアイテムを送る
             await window.electronAPI.updateEditState(nextItem);
@@ -2661,6 +2656,9 @@ if (dskPlayButton) {
 // モーダルの初期値を設定
 let isModalActive = false;
 
+// Enterキーのリスナー参照を保持（リーク防止用）
+let nameInputKeydownHandler = null;
+
 // モーダルの初期状態の取得
 window.electronAPI.getModalState().then((state) => {
     isModalActive = state.isActive;
@@ -2685,9 +2683,15 @@ function showModal() {
     }, 100);
 }
 
-// モーダル停止
 function hideModal() {
     document.getElementById('playlist-name-modal').classList.add('hidden');
+
+    // Enterキーリスナーの掃除（リーク防止）
+    const nameInput = document.getElementById('playlist-name-input');
+    if (nameInput && nameInputKeydownHandler) {
+        nameInput.removeEventListener('keydown', nameInputKeydownHandler);
+        nameInputKeydownHandler = null;
+    }
     
     // モーダルの状態を更新
     window.electronAPI.updateModalState(false); 
