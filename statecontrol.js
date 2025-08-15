@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     statecontrol.js
-//     ver 2.2.5
+//     ver 2.3.9
 // -----------------------
 
 
@@ -31,18 +31,21 @@ function getPlaylistById(playlist_id) {
         'timestamp:', new Date().toISOString()
     );
     const allPlaylists = getAllPlaylists();
-    const playlist = allPlaylists.find(p => p.playlist_id === playlist_id) || null;
-    if (!playlist) {
+    const found = allPlaylists.find(p => p.playlist_id === playlist_id) || null;
+    if (!found) {
         console.warn(`No playlist found for ID: ${playlist_id}`);
-    } else {
-        console.debug(`Playlist found: ${playlist.name}`);
-        playlist.data = playlist.data.map((item, idx) => ({
+        return null;
+    }
+    console.debug(`Playlist found: ${found.name}`);
+    // 整形はコピーに対してのみ行う
+    return {
+        ...found,
+        data: found.data.map(item => ({
             ...item,
             order: item.order,
             path: item.path || (item.name === "UVC_DEVICE" ? "UVC_DEVICE" : ""),
-        }));
-    }
-    return playlist;
+        }))
+    };
 }
 
 
@@ -228,15 +231,29 @@ function recalculateOrder() {
 // -----------------------
 //   プレイリストの保存
 // -----------------------
+// 直近適用の署名を保持して、同一更新の多重適用を抑制
+let __lastWriteSig = { id: null, sig: null, ts: 0 };
+
 function setPlaylistStateWithId(playlist_id, playlistData) {
-    // ===== 追加ログ出力 =====
+    // 署名を作成（プレイリストID、名前、order配列）
+    const orders = Array.isArray(playlistData?.data) ? playlistData.data.map(item => item.order) : [];
+    const sig = `${playlist_id}|${playlistData?.name || ''}|${orders.join(',')}`;
+    const now = Date.now();
+
     console.log(
         '[statecontrol.js] setPlaylistStateWithId',
         'playlist_id:', playlist_id,
         'itemCount:', playlistData.data.length,
-        'orders:', playlistData.data.map(item => item.order),
+        'orders:', orders,
         'timestamp:', new Date().toISOString()
     );
+
+    //★200ms以内に同一署名が連続で来たら2回目以降を抑止（多重呼び出し/二重リスナ対策）
+    if (__lastWriteSig.id === playlist_id && __lastWriteSig.sig === sig && (now - __lastWriteSig.ts) <= 200) {
+        console.warn('[statecontrol.js] Duplicate setPlaylistStateWithId suppressed:', sig);
+        return;
+    }
+    __lastWriteSig = { id: playlist_id, sig, ts: now };
 
     const allPlaylists = getAllPlaylists();
 
@@ -276,6 +293,7 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
     playlists.length = 0;
     playlists.push(...allPlaylists);
 }
+
 
 
 // -----------------------
