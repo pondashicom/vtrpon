@@ -55,8 +55,6 @@ let isOffAirProcessing = false;
 // -----------------------
 
 // 初回読み込み時の初期化実行
-document.addEventListener('DOMContentLoaded', onairInitialize);
-
 document.addEventListener('DOMContentLoaded', () => {
     onairInitialize();
     if (window.dskModule && typeof window.dskModule.initDSKOverlay === 'function') {
@@ -305,14 +303,21 @@ function onairInitialize() {
     setupPlaybackSpeedController();
 
     // モーダル状態の変更を監視するリスナー登録
-    window.electronAPI.onModalStateChange((event, { isActive }) => {
-        isOnAirModalActive = isActive;
-        logDebug(`[onair.js] OnAir Modal state changed: ${isOnAirModalActive}`);
-    });
+    if (!onairModalListenerRegistered) {
+        window.electronAPI.onModalStateChange((event, { isActive }) => {
+            isOnAirModalActive = isActive;
+            if (lastLoggedOnAirModalState !== isActive) {
+                logDebug(`[onair.js] OnAir Modal state changed: ${isOnAirModalActive}`);
+                lastLoggedOnAirModalState = isActive;
+            }
+        });
+        onairModalListenerRegistered = true;
+    }
 
     // 初期モーダル状態取得
     window.electronAPI.getModalState().then((state) => {
         isOnAirModalActive = state.isActive;
+        lastLoggedOnAirModalState = isOnAirModalActive; // 追加: ベースライン
         logDebug(`[onair.js] OnAir Initial modal state: ${isOnAirModalActive}`);
     });
 
@@ -2608,6 +2613,10 @@ window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
 
 // モーダル状態の初期化
 let isOnAirModalActive = false;
+
+// モーダル状態ログ/リスナー重複防止
+let lastLoggedOnAirModalState = null;
+let onairModalListenerRegistered = false;
 
 // ショートカットキーの共通処理関数
 function handleShortcut(action) {
