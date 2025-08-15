@@ -248,7 +248,7 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
         'timestamp:', new Date().toISOString()
     );
 
-    //★200ms以内に同一署名が連続で来たら2回目以降を抑止（多重呼び出し/二重リスナ対策）
+    //200ms以内に同一署名が連続で来たら2回目以降を抑止（多重呼び出し/二重リスナ対策）
     if (__lastWriteSig.id === playlist_id && __lastWriteSig.sig === sig && (now - __lastWriteSig.ts) <= 200) {
         console.warn('[statecontrol.js] Duplicate setPlaylistStateWithId suppressed:', sig);
         return;
