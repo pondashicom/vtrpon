@@ -181,7 +181,7 @@ function initUpdateCheck() {
             .then(response => response.ok ? response.text() : Promise.reject(`HTTP error: ${response.status}`))
             .then(csvText => Papa.parse(csvText, { header: true, skipEmptyLines: true }).data)
             .catch(error => {
-                console.error('[Update Check] バージョン情報取得エラー:', error);
+                console.error('[Update Check] Version info error:', error);
                 return null;
             });
     }
@@ -1003,7 +1003,7 @@ app.whenReady().then(async () => {
         fullscreenVideoOutputDevice: defaultFullscreenVideoOutputDevice,
         uvcAudioInputDevice: ""                   // 空（後で設定予定）
     };
-    console.log('[main.js] 初期デバイス設定:', global.deviceSettings);
+    console.log('[main.js] Initial device setup:', global.deviceSettings);
 
     // ウインドウ初期化を実行
     createFullscreenWindow();
