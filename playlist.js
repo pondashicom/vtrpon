@@ -25,7 +25,6 @@ let directOnAirActive = false;
 const convertingFiles = new Set();
 
 // インポートキュー管理
-
 const pendingFiles = [];
 let isImporting = false;
 let totalCount = 0;
@@ -297,7 +296,6 @@ async function getValidUpdates(files, currentPlaylist) {
             }
             continue;
         }
-
 
         // MOV の透過チェック & 変換
         if (lowerPath.endsWith('.mov')) {
@@ -1424,12 +1422,14 @@ async function selectNextPlaylistItem(currentItemId) {
 // プレイリストの保存
 // --------------------------------
 
+// enterSaveMode の関数参照を保持
+let boundEnterSaveModeHandler = null;
+
 // 初期化用関数
 function initializePlaylistUI() {
     // 保存済みプレイリストを初期化
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
-        // data-store-number 属性を設定
         button.dataset.storeNumber = i;
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
     
@@ -1451,31 +1451,31 @@ document.getElementById('playlise-save-button').addEventListener('click', () => 
     const saveButton = document.getElementById('playlise-save-button');
     logOpe('[playlist.js] Save button clicked');
 
-    // プレイリストアイテムがなにもない場合、処理を終了
     if (document.querySelectorAll('.playlist-item').length === 0) {
         logInfo('[playlist.js] No playlist items to save. Exiting save mode.');
         return;
     }
 
-    // 既にSAVEモードの場合、解除して終了
     if (saveButton.classList.contains('button-blink-orange')) {
         exitSaveMode();
         return;
     }
 
-    // SAVEモードを開始
-    saveButton.classList.add('button-blink-orange'); // SAVEボタンをオレンジに点滅
+    // SAVEモード開始
+    saveButton.classList.add('button-blink-orange');
 
-    // 空いている番号ボタンを水色に変更
+    // 上書き許可：全スロットを SAVE 受付にする（空き/既存の区別なし）
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
-        if (!localStorage.getItem(`vtrpon_playlist_store_${i}`)) {
-            button.classList.add('button-lightblue'); // 水色に設定
-            button.addEventListener('click', enterSaveMode, { once: true }); // SAVEモード処理を登録（一度限り）
-        }
+        // 視覚的にも「保存先選択中」を示すため水色を付与（既存の青と共存してOK）
+        button.classList.add('button-lightblue');
+        if (!boundEnterSaveModeHandler) boundEnterSaveModeHandler = (ev) => enterSaveMode(ev);
+        button.addEventListener('click', boundEnterSaveModeHandler, { once: true });
     }
+
     logOpe('[playlist.js] playlise-save-button clicked.');
 });
+
 
 // SAVEモードの処理
 function enterSaveMode(event) {
@@ -1558,13 +1558,20 @@ function enterSaveMode(event) {
 // SAVEモードを終了
 function exitSaveMode() {
     const saveButton = document.getElementById('playlise-save-button');
-    saveButton.classList.remove('button-blink-orange'); // SAVEボタンの点滅解除
-    // 空いている番号ボタンの水色解除
+    if (saveButton) {
+        saveButton.classList.remove('button-blink-orange'); // SAVEボタンの点滅解除
+    }
+    // 空いている番号ボタンの水色解除 & 安全にリスナー解除
     for (let i = 1; i <= 5; i++) {
         const button = document.getElementById(`playlise${i}-button`);
+        if (!button) continue;
         button.classList.remove('button-lightblue'); // 水色を削除
-        button.removeEventListener('click', enterSaveMode); // SAVEモード処理を解除
+        if (boundEnterSaveModeHandler) {
+            button.removeEventListener('click', boundEnterSaveModeHandler);
+        }
     }
+    // 次回のために参照をクリア
+    boundEnterSaveModeHandler = null;
 }
 
 // プレイリストIDとアイテムIDを生成
@@ -1670,11 +1677,13 @@ for (let i = 1; i <= 5; i++) {
     button.addEventListener('click', async (event) => {
         logOpe(`[playlist.js] Playlist number ${i} button clicked`);
 
-        // SAVEモード中の判定
-        if (document.getElementById('playlise-save-button').classList.contains('button-blink-orange')) {
-            // SAVEモードの処理を実際のイベントオブジェクトを渡して実行
-            enterSaveMode(event);
-            return;
+        // SAVEモード中は恒常リスナーでは何もしない
+        // （空スロットにだけ付与した once の boundEnterSaveModeHandler に委譲）
+        const isSaveMode = document
+            .getElementById('playlise-save-button')
+            ?.classList.contains('button-blink-orange');
+        if (isSaveMode) {
+            return; // ← enterSaveMode(event) を呼ばない
         }
 
         // 通常モードの処理
@@ -1683,15 +1692,12 @@ for (let i = 1; i <= 5; i++) {
         }
         logOpe(`[playlist.js] Button ${i} clicked`);
 
-        // ロード意図（スロット→キー解決）を1行だけ記録
         const __loadKey = `vtrpon_playlist_store_${i}`;
         logOpe(`[playlist.js] LOAD intent: slot=${i} key=${__loadKey}`);
 
-        // プレイリストIDを取得して読み込む
         await loadPlaylist(i);
-        // プレイリスト名の表示を更新
+
         const playlistNameDisplay = document.getElementById('playlist-name-display');
-        // storeNumberではなく、ループ変数iを使用する
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
         if (storedPlaylist) {
             const playlistData = JSON.parse(storedPlaylist);
@@ -1699,9 +1705,8 @@ for (let i = 1; i <= 5; i++) {
         } else {
             playlistNameDisplay.textContent = 'No Playlist Loaded';
         }
-        // ボタンの状態を更新
+
         updateStoreButtons();
-        // クリックしたボタンをオレンジに設定し、他のボタンをリセット
         setActiveButton(i);
     });
 }
