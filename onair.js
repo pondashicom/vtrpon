@@ -2179,150 +2179,164 @@ function audioFadeInItem(duration) {
 // アイテム状態情報の更新
 // -----------------------
 
-// エディットエリアで更新があったら通知を受信するリスナー
+// Listedit 更新は「表示と内部状態のみ」更新する
 window.electronAPI.onListeditUpdated(() => {
     logDebug('[onair.js]  Listedit update received.');
 
-    // 最新状態の取得
+    if (!onairCurrentState?.itemId) {
+        logInfo('[onair.js] No current item. Ignoring listedit update.');
+        return;
+    }
+
     const updatedState = stateControl.getPlaylistState();
-    if (!updatedState || !Array.isArray(updatedState)) {
+    if (!Array.isArray(updatedState)) {
         logInfo('[onair.js] Failed to retrieve updated playlist state.');
         return;
     }
 
-    // 現在のアイテムに対応するデータを取得
-    const currentItem = updatedState.find(item => item.playlistItem_id === onairCurrentState?.itemId);
-    if (!currentItem) {
-        logInfo('[onair.js] No matching item found in updated state.');
+    // 現在On-Airの同一アイテムのみ対象
+    const updated = updatedState.find(it => it.playlistItem_id === onairCurrentState.itemId);
+    if (!updated) {
+        logDebug('[onair.js] Listedit update is for a different item. Ignored.');
         return;
     }
 
-    // 差分を確認
-    compareAndUpdateState(currentItem);
+    compareAndUpdateState(updated, { source: 'listedit' });
 });
 
+
 // 現在の状態と最新状態を比較し、差分を反映する関数
-function compareAndUpdateState(updatedItem) {
+function compareAndUpdateState(updatedItem, { source } = {}) {
     if (!onairCurrentState) {
         logInfo('[onair.js] Current state is not set. Skipping comparison.');
         return;
     }
-
     logDebug('[onair.js] Comparing current state with updated item.');
 
-    // 差分チェックと処理
-    if (onairCurrentState.inPoint !== updatedItem.inPoint) {
-        logInfo(`IN point updated: ${onairCurrentState.inPoint} → ${updatedItem.inPoint}`);
-        onairCurrentState.inPoint = updatedItem.inPoint;
-        handleInPointUpdate(updatedItem.inPoint);
+    // 型を正規化（stateは数値秒、updatedItemは文字列の可能性あり）
+    const normIn  = typeof updatedItem.inPoint  === 'string' ? onairParseTimeToSeconds(updatedItem.inPoint)  : (updatedItem.inPoint  ?? 0);
+    const normOut = typeof updatedItem.outPoint === 'string' ? onairParseTimeToSeconds(updatedItem.outPoint) : (updatedItem.outPoint ?? 0);
+    const normEnd = (updatedItem.endMode || '').toString().toUpperCase() || 'PAUSE';
+    const normFtb = parseFloat(updatedItem.ftbRate ?? onairCurrentState.ftbRate ?? 1.0);
+
+    // IN
+    if (Number(onairCurrentState.inPoint) !== Number(normIn)) {
+        logInfo(`IN point updated: ${onairCurrentState.inPoint} → ${normIn}`);
+        onairCurrentState.inPoint = normIn;
+        handleInPointUpdate(normIn, { source }); // ← transportしない分岐へ
     }
 
-    if (onairCurrentState.outPoint !== updatedItem.outPoint) {
-        logInfo(`OUT point updated: ${onairCurrentState.outPoint} → ${updatedItem.outPoint}`);
-        onairCurrentState.outPoint = updatedItem.outPoint;
-        handleOutPointUpdate(updatedItem.outPoint);
+    // OUT
+    if (Number(onairCurrentState.outPoint) !== Number(normOut)) {
+        logInfo(`OUT point updated: ${onairCurrentState.outPoint} → ${normOut}`);
+        onairCurrentState.outPoint = normOut;
+        handleOutPointUpdate(normOut, { source });
     }
 
-    if (onairCurrentState.endMode !== updatedItem.endMode) {
-        logInfo(`End mode updated: ${onairCurrentState.endMode} → ${updatedItem.endMode}`);
-        onairCurrentState.endMode = updatedItem.endMode;
-        handleEndModeUpdate(updatedItem.endMode);
+    // EndMode
+    if ((onairCurrentState.endMode || '').toString().toUpperCase() !== normEnd) {
+        logInfo(`End mode updated: ${onairCurrentState.endMode} → ${normEnd}`);
+        onairCurrentState.endMode = normEnd;
+        handleEndModeUpdate(normEnd);
     }
 
-    if (onairCurrentState.ftbRate !== updatedItem.ftbRate) {
-        logInfo(`FTB rate updated: ${onairCurrentState.ftbRate} → ${updatedItem.ftbRate}`);
-        onairCurrentState.ftbRate = updatedItem.ftbRate;
-        handleFtbRateUpdate(updatedItem.ftbRate);
+    // FTB rate
+    if (Number(onairCurrentState.ftbRate) !== Number(normFtb)) {
+        logInfo(`FTB rate updated: ${onairCurrentState.ftbRate} → ${normFtb}`);
+        onairCurrentState.ftbRate = normFtb;
+        handleFtbRateUpdate(normFtb);
     }
 
     logDebug('[onair.js] State comparison and update completed.');
 }
 
+
 // IN点の更新処理
-function handleInPointUpdate(newInPoint) {
-    if (!onairCurrentState) {
-        logDebug('[onair.js] No current state available for updating IN point.');
-        return;
-    }
+function handleInPointUpdate(newInPointSeconds, { source } = {}) {
+    if (!onairCurrentState) return;
 
     const elements = onairGetElements();
     const { onairInPointDisplay, onairVideoElement } = elements;
 
-    // 新しいIN点を変換して適用
-    const parsedInPoint = onairParseTimeToSeconds(newInPoint || '00:00:00:00');
-    onairCurrentState.inPoint = parsedInPoint;
+    const inSec = Number(newInPointSeconds) || 0;
+    onairCurrentState.inPoint = inSec;
 
-    // UIの更新
+    // UIのみ更新
     if (onairInPointDisplay) {
-        onairInPointDisplay.textContent = onairFormatTime(parsedInPoint);
+        onairInPointDisplay.textContent = onairFormatTime(inSec);
     }
+    // マーカー再描画
+    onairUpdateSeekBar(elements, onairCurrentState);
 
-    // 現在の再生位置がIN点より前の場合のみ、再生位置を更新
-    if (onairVideoElement && onairVideoElement.currentTime < parsedInPoint) {
-        onairVideoElement.currentTime = parsedInPoint;
-        logDebug(`[onair.js] IN point updated and video seeked to: ${parsedInPoint}s`);
-    } else {
-        logDebug(`[onair.js] IN point updated without seeking: ${parsedInPoint}s`);
-    }
-
-    // フルスクリーン側にもIN点シークを通知
-    window.electronAPI.sendControlToFullscreen({
-      command: 'seek',
-      value: onairCurrentState.inPoint
-    });
-    logDebug(`[onair.js] Sent 'seek' to fullscreen: ${onairCurrentState.inPoint}s`);
-}
-
-// OUT点の更新処理
-function handleOutPointUpdate(newOutPoint) {
-    if (!onairCurrentState) {
-        logDebug('[onair.js] No current state available for updating OUT point.');
+    // listedit 由来では transport を一切触らない
+    if (source === 'listedit') {
+        logDebug('[onair.js] IN updated (visual only, no transport) by listedit.');
         return;
     }
+
+    // それ以外（ユーザー操作/OnAir開始など）で必要な場合のみローカルを合わせる
+    if (onairVideoElement && onairVideoElement.currentTime < inSec) {
+        onairVideoElement.currentTime = inSec;
+        logDebug(`[onair.js] IN point applied to preview video: ${inSec}s`);
+    }
+    // fullscreen への seek は、ユーザー操作のハンドラ（再生ボタン/シークバー）側でのみ送る
+}
+
+
+// OUT点の更新処理
+function handleOutPointUpdate(newOutPointSeconds, { source } = {}) {
+    if (!onairCurrentState) return;
 
     const elements = onairGetElements();
     const { onairOutPointDisplay, onairVideoElement } = elements;
 
-    // 新しいOUT点を変換して適用
-    const parsedOutPoint = onairParseTimeToSeconds(newOutPoint || '00:00:00:00');
-    onairCurrentState.outPoint = parsedOutPoint;
+    const outSecRaw = Number(newOutPointSeconds) || 0;
+    onairCurrentState.outPoint = outSecRaw;
 
-    // UIの更新
     if (onairOutPointDisplay) {
-        onairOutPointDisplay.textContent = onairFormatTime(parsedOutPoint);
+        onairOutPointDisplay.textContent = onairFormatTime(outSecRaw);
+    }
+    // マーカー再描画
+    onairUpdateSeekBar(elements, onairCurrentState);
+
+    // listedit 由来なら“この再生セッションに限った有効OUT”を現再生位置+許容誤差まで後ろ寄せ
+    let effectiveOut = outSecRaw;
+    if (source === 'listedit' && onairIsPlaying && onairVideoElement) {
+        const tol = 0.05 * (onairVideoElement.playbackRate || 1); // 監視側toleranceと整合
+        effectiveOut = Math.max(outSecRaw, onairVideoElement.currentTime + tol);
+        logDebug(`[onair.js] OUT updated by listedit. effectiveOut=${effectiveOut} (raw=${outSecRaw})`);
     }
 
-    logDebug(`[onair.js] OUT point updated: ${parsedOutPoint}s`);
-
-    // 既存の監視を停止
-    if (typeof onairPlaybackMonitor !== 'undefined') {
-        clearInterval(onairPlaybackMonitor);
-    }
-
-    // 再生監視の更新
+    // transport は触らない（監視の付け替えのみ）
     if (onairIsPlaying && onairVideoElement) {
         clearInterval(onairPlaybackMonitor);
-        onairMonitorPlayback(onairVideoElement, parsedOutPoint);
+        onairMonitorPlayback(onairVideoElement, effectiveOut);
     }
 }
 
 // エンドモードの更新処理
-function handleEndModeUpdate(newEndMode) {
+function handleEndModeUpdate(newEndMode, { source } = {}) {
     const elements = onairGetElements();
     const { onairEndModeDisplay } = elements;
 
-    // エンドモードのUI表示を更新
+    // 常に state を先に更新（停止中でも次回再生に反映させる）
+    if (onairCurrentState) {
+        onairCurrentState.endMode = newEndMode;
+    }
+
+    // UI の更新
     if (onairEndModeDisplay) {
         onairEndModeDisplay.textContent = `ENDMODE: ${newEndMode.toUpperCase()}`;
     }
 
-    // 再生中でもエンドモードの動作を即時反映するために設定を変更
-    if (onairIsPlaying && onairCurrentState) {
-        onairCurrentState.endMode = newEndMode;
-        logDebug(`[onair.js] End mode updated to: ${newEndMode} during playback.`);
+    // listedit は“視覚/状態のみ”で終了（transportへは影響なし）
+    if (source === 'listedit') {
+        logDebug(`[onair.js] End mode updated (visual/state only) by listedit: ${newEndMode}`);
+        return;
     }
 
-    logDebug(`[onair.js] End mode updated in UI: ${newEndMode}`);
+    // ユーザー操作や内部処理：transportはここでは何もしない（発火はOUT到達時）
+    logDebug(`[onair.js] End mode updated: ${newEndMode}`);
 }
 
 // FTBレートの更新処理
