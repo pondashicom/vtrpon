@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.3.9
+//     ver 2.4.0
 // -----------------------
 
 // -----------------------
@@ -2644,6 +2644,45 @@ function handleShortcut(action) {
         return;
     }
 
+    // 音量更新の共通処理（ITEM/Master値から最終出力を算出して反映）
+    function syncCombinedVolume() {
+        const itemSlider   = document.getElementById('on-air-item-volume-slider');
+        const masterSlider = document.getElementById('on-air-master-volume-slider');
+        const videoElement = document.getElementById('on-air-video');
+        if (!itemSlider || !masterSlider) return;
+
+        const itemVal   = parseInt(itemSlider.value, 10)   || 0;
+        const masterVal = parseInt(masterSlider.value, 10) || 0;
+
+        // 表示更新
+        const itemDisp   = document.getElementById('on-air-item-volume-value');
+        const masterDisp = document.getElementById('on-air-master-volume-value');
+        if (itemDisp)   itemDisp.textContent   = `${itemVal}%`;
+        if (masterDisp) {
+            masterDisp.textContent = `${masterVal}%`;
+            if (masterVal <= 10) masterDisp.classList.add('neon-warning');
+            else masterDisp.classList.remove('neon-warning');
+        }
+
+        // CSSカスタムプロパティ更新
+        itemSlider.style.setProperty('--value',   `${itemVal}%`);
+        masterSlider.style.setProperty('--value', `${masterVal}%`);
+
+        // 最終出力（ガンマ 2.2 適用）をFullscreenへ送信
+        const finalVolume = (itemVal / 100) * (masterVal / 100);
+        window.electronAPI.sendControlToFullscreen({
+            command: 'set-volume',
+            value: Math.pow(finalVolume, 2.2)
+        });
+
+        // プレビュー側にも反映
+        if (videoElement) videoElement.volume = finalVolume;
+    }
+
+    function clampPercent(v) {
+        return Math.max(0, Math.min(100, Math.round(v)));
+    }
+
     switch (action) {
             case 'Escape': // ESCキー（ネイティブ）
             case 'Esc':    // メニューからのEscも同様に処理
@@ -2685,11 +2724,73 @@ function handleShortcut(action) {
             document.getElementById('rec-button').click(); // 録画ボタンをクリック
             break;
 
+        // 音量ショートカット
+        case 'Alt+]': { // ITEM +3%
+            const s = document.getElementById('on-air-item-volume-slider');
+            if (s) {
+                const before = parseInt(s.value, 10) || 0;
+                const after  = clampPercent(before + 3);
+                s.value = after;
+                // スライダー見た目更新（既存補助関数）
+                if (typeof updateVolumeSliderAppearance === 'function') {
+                    updateVolumeSliderAppearance();
+                } else {
+                    s.style.setProperty('--value', `${after}%`);
+                }
+                syncCombinedVolume();
+                logOpe(`[onair.js] ITEM volume +3% -> ${after}% (Alt+])`);
+            }
+            break;
+        }
+        case 'Alt+[': { // ITEM -3%
+            const s = document.getElementById('on-air-item-volume-slider');
+            if (s) {
+                const before = parseInt(s.value, 10) || 0;
+                const after  = clampPercent(before - 3);
+                s.value = after;
+                if (typeof updateVolumeSliderAppearance === 'function') {
+                    updateVolumeSliderAppearance();
+                } else {
+                    s.style.setProperty('--value', `${after}%`);
+                }
+                syncCombinedVolume();
+                logOpe(`[onair.js] ITEM volume -3% -> ${after}% (Alt+[)`);
+            }
+            break;
+        }
+        case 'Ctrl+Alt+]': { // MAIN +3%
+            const s = document.getElementById('on-air-master-volume-slider');
+            if (s) {
+                const before = parseInt(s.value, 10) || 0;
+                const after  = clampPercent(before + 3);
+                s.value = after;
+                // グローバルの onairMasterVolume も同期
+                onairMasterVolume = after;
+                s.style.setProperty('--value', `${after}%`);
+                syncCombinedVolume();
+                logOpe(`[onair.js] MAIN volume +3% -> ${after}% (Ctrl+Alt+])`);
+            }
+            break;
+        }
+        case 'Ctrl+Alt[': { // MAIN -3%
+            const s = document.getElementById('on-air-master-volume-slider');
+            if (s) {
+                const before = parseInt(s.value, 10) || 0;
+                const after  = clampPercent(before - 3);
+                s.value = after;
+                onairMasterVolume = after;
+                s.style.setProperty('--value', `${after}%`);
+                syncCombinedVolume();
+                logOpe(`[onair.js] MAIN volume -3% -> ${after}% (Ctrl+Alt+[)`);
+            }
+            break;
+        }
         default:
             logDebug(`[onair.js] Unknown shortcut: ${action}`);
             break;
     }
 }
+
 
 // キーボードショートカットの設定（Mac用追加）
 document.addEventListener('keydown', (event) => {
@@ -2701,6 +2802,8 @@ document.addEventListener('keydown', (event) => {
 
     let action = null;
     const isMod   = event.ctrlKey || event.metaKey;
+    const isCtrl  = event.ctrlKey;
+    const isMeta  = event.metaKey;
     const isAlt   = event.altKey;
     const isShift = event.shiftKey;
 
@@ -2718,11 +2821,27 @@ document.addEventListener('keydown', (event) => {
         action = 'Shift+R';
     }
 
+    // 音量ショートカット
+    // ITEM：Alt + ] / Alt + [
+    if (!action && isAlt && !isShift && !isMod && event.key === ']') {
+        action = 'Alt+]';
+    } else if (!action && isAlt && !isShift && !isMod && event.key === '[') {
+        action = 'Alt+[';
+    }
+
+    // MAIN：Ctrl+Alt + ] / [
+    if (!action && isAlt && !isShift && ( (isCtrl && !isMeta) || (!isCtrl && isMeta) ) && event.key === ']') {
+        action = 'Ctrl+Alt+]';
+    } else if (!action && isAlt && !isShift && ( (isCtrl && !isMeta) || (!isCtrl && isMeta) ) && event.key === '[') {
+        action = 'Ctrl+Alt[';
+    }
+
     if (action) {
         handleShortcut(action);
         event.preventDefault();
     }
 });
+
 
 
 // メニューからショートカット通知を受信
