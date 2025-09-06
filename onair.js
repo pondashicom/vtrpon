@@ -2632,6 +2632,42 @@ let isOnAirModalActive = false;
 let lastLoggedOnAirModalState = null;
 let onairModalListenerRegistered = false;
 
+// 音量上下の際のフェード補助関数
+function animateSliderTo(slider, targetValue, {
+    durationMs = 120,
+    syncCombinedVolume,
+    updateAppearance,
+    onStep,
+    onComplete
+} = {}) {
+    if (!slider) return;
+    const startValue = parseFloat(slider.value) || 0;
+    const endValue   = Math.max(0, Math.min(100, targetValue));
+    if (startValue === endValue) {
+        if (typeof onComplete === 'function') onComplete(endValue);
+        return;
+    }
+    const startTime = performance.now();
+
+    function frame(now) {
+        const t = Math.min((now - startTime) / durationMs, 1);
+        const v = startValue + (endValue - startValue) * t;
+        slider.value = v;
+        if (typeof updateAppearance === 'function') updateAppearance(slider, v);
+        if (typeof onStep === 'function') onStep(v);
+        if (typeof syncCombinedVolume === 'function') syncCombinedVolume();
+        if (t < 1) {
+            requestAnimationFrame(frame);
+        } else {
+            slider.value = endValue;
+            if (typeof updateAppearance === 'function') updateAppearance(slider, endValue);
+            if (typeof syncCombinedVolume === 'function') syncCombinedVolume();
+            if (typeof onComplete === 'function') onComplete(endValue);
+        }
+    }
+    requestAnimationFrame(frame);
+}
+
 // ショートカットキーの共通処理関数
 function handleShortcut(action) {
     if (isOnAirModalActive) {
@@ -2725,63 +2761,83 @@ function handleShortcut(action) {
             break;
 
         // 音量ショートカット
-        case 'Alt+]': { // ITEM +3%
+        case 'Alt+]': { // ITEM +3%（ミニフェード）
             const s = document.getElementById('on-air-item-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
                 const after  = clampPercent(before + 3);
-                s.value = after;
-                // スライダー見た目更新（既存補助関数）
-                if (typeof updateVolumeSliderAppearance === 'function') {
-                    updateVolumeSliderAppearance();
-                } else {
-                    s.style.setProperty('--value', `${after}%`);
-                }
-                syncCombinedVolume();
-                logOpe(`[onair.js] ITEM volume +3% -> ${after}% (Alt+])`);
+                animateSliderTo(s, after, {
+                    durationMs: 120,
+                    updateAppearance: (slider, v) => {
+                        if (typeof updateVolumeSliderAppearance === 'function') {
+                            updateVolumeSliderAppearance();
+                        } else {
+                            slider.style.setProperty('--value', `${Math.round(v)}%`);
+                        }
+                    },
+                    syncCombinedVolume: () => syncCombinedVolume(),
+                    onComplete: (v) => logOpe(`[onair.js] ITEM volume +3% -> ${Math.round(v)}% (Alt+])`)
+                });
             }
             break;
         }
-        case 'Alt+[': { // ITEM -3%
+        case 'Alt+[': { // ITEM -3%（ミニフェード）
             const s = document.getElementById('on-air-item-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
                 const after  = clampPercent(before - 3);
-                s.value = after;
-                if (typeof updateVolumeSliderAppearance === 'function') {
-                    updateVolumeSliderAppearance();
-                } else {
-                    s.style.setProperty('--value', `${after}%`);
-                }
-                syncCombinedVolume();
-                logOpe(`[onair.js] ITEM volume -3% -> ${after}% (Alt+[)`);
+                animateSliderTo(s, after, {
+                    durationMs: 120,
+                    updateAppearance: (slider, v) => {
+                        if (typeof updateVolumeSliderAppearance === 'function') {
+                            updateVolumeSliderAppearance();
+                        } else {
+                            slider.style.setProperty('--value', `${Math.round(v)}%`);
+                        }
+                    },
+                    syncCombinedVolume: () => syncCombinedVolume(),
+                    onComplete: (v) => logOpe(`[onair.js] ITEM volume -3% -> ${Math.round(v)}% (Alt+[)`)
+                });
             }
             break;
         }
-        case 'Ctrl+Alt+]': { // MAIN +3%
+        case 'Ctrl+Alt+]': { // MAIN +3%（ミニフェード）
             const s = document.getElementById('on-air-master-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
                 const after  = clampPercent(before + 3);
-                s.value = after;
-                // グローバルの onairMasterVolume も同期
-                onairMasterVolume = after;
-                s.style.setProperty('--value', `${after}%`);
-                syncCombinedVolume();
-                logOpe(`[onair.js] MAIN volume +3% -> ${after}% (Ctrl+Alt+])`);
+                animateSliderTo(s, after, {
+                    durationMs: 120,
+                    updateAppearance: (slider, v) => {
+                        slider.style.setProperty('--value', `${Math.round(v)}%`);
+                    },
+                    onStep: (v) => { onairMasterVolume = Math.round(v); },
+                    syncCombinedVolume: () => syncCombinedVolume(),
+                    onComplete: (v) => {
+                        onairMasterVolume = Math.round(v);
+                        logOpe(`[onair.js] MAIN volume +3% -> ${Math.round(v)}% (Ctrl+Alt+])`);
+                    }
+                });
             }
             break;
         }
-        case 'Ctrl+Alt[': { // MAIN -3%
+        case 'Ctrl+Alt[': { // MAIN -3%（ミニフェード）
             const s = document.getElementById('on-air-master-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
                 const after  = clampPercent(before - 3);
-                s.value = after;
-                onairMasterVolume = after;
-                s.style.setProperty('--value', `${after}%`);
-                syncCombinedVolume();
-                logOpe(`[onair.js] MAIN volume -3% -> ${after}% (Ctrl+Alt+[)`);
+                animateSliderTo(s, after, {
+                    durationMs: 120,
+                    updateAppearance: (slider, v) => {
+                        slider.style.setProperty('--value', `${Math.round(v)}%`);
+                    },
+                    onStep: (v) => { onairMasterVolume = Math.round(v); },
+                    syncCombinedVolume: () => syncCombinedVolume(),
+                    onComplete: (v) => {
+                        onairMasterVolume = Math.round(v);
+                        logOpe(`[onair.js] MAIN volume -3% -> ${Math.round(v)}% (Ctrl+Alt+[)`);
+                    }
+                });
             }
             break;
         }
