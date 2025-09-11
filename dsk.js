@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     dsk.js
-//     ver 2.2.9
+//     ver 2.4.0
 // -----------------------
 
 // -----------------------
@@ -189,10 +189,12 @@ function handleDskEnd() {
             dskOverlay.innerHTML = '';
             dskOverlay.style.opacity = '0';
             dskOverlay.style.visibility = 'hidden';
+            currentDSKItem = null;
             window.dispatchEvent(new CustomEvent('dsk-active-clear'));
             break;
     }
 }
+
 
 // -----------------------
 // DSK非表示
@@ -325,7 +327,6 @@ function setCurrentDSKItemById(itemId) {
     }
 }
 
-
 // -----------------------
 // モジュールエクスポート
 // -----------------------
@@ -337,5 +338,7 @@ window.dskModule = {
     clearOnAirDSK: clearOnAirDSK,
     pauseOnAirDSK: pauseOnAirDSK,
     playOnAirDSK: playOnAirDSK,
-    getCurrentDSKItem: function() { return currentDSKItem; }
+    getCurrentDSKItem: function() { return currentDSKItem; },
+    setCurrentDSKItemById: setCurrentDSKItemById
 };
+

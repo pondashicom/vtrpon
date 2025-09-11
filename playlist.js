@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.3.9
+//     ver 2.4.0
 // -----------------------
 
 
@@ -987,7 +987,44 @@ async function updatePlaylistUI() {
         logInfo('[playlist.js] Playlist is not an array:', playlist);
         return;
     }
-
+    try {
+        const currentDSKItem =
+            window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function'
+                ? window.dskModule.getCurrentDSKItem()
+                : null;
+        let needUpdate = false;
+        if (currentDSKItem && currentDSKItem.playlistItem_id) {
+            const existsHere = playlist.some(it => it.playlistItem_id === currentDSKItem.playlistItem_id);
+            if (existsHere) {
+                for (const it of playlist) {
+                    const should = it.playlistItem_id === currentDSKItem.playlistItem_id;
+                    if ((it.dskActive || false) !== should) {
+                        it.dskActive = should;
+                        needUpdate = true;
+                    }
+                }
+            } else {
+                for (const it of playlist) {
+                    if (it.dskActive) {
+                        it.dskActive = false;
+                        needUpdate = true;
+                    }
+                }
+            }
+        } else {
+            for (const it of playlist) {
+                if (it.dskActive) {
+                    it.dskActive = false;
+                    needUpdate = true;
+                }
+            }
+        }
+        if (needUpdate) {
+            await stateControl.setPlaylistState(playlist);
+        }
+    } catch (e) {
+        logInfo('[playlist.js] DSK reconcile failed:', e);
+    }
     // 並び順を `order` フィールドに基づいてソート
     const sortedPlaylist = playlist.sort((a, b) => a.order - b.order);
 
@@ -2607,12 +2644,10 @@ window.addEventListener('dsk-active-set', async (e) => {
     const activeItemId = e.detail.itemId;
     try {
         const playlist = await stateControl.getPlaylistState();
-        const updatedPlaylist = playlist.map(item => {
-            if (item.playlistItem_id === activeItemId) {
-                return { ...item, dskActive: true };
-            }
-            return item;
-        });
+        const updatedPlaylist = playlist.map(item => ({
+            ...item,
+            dskActive: item.playlistItem_id === activeItemId
+        }));
         await stateControl.setPlaylistState(updatedPlaylist);
         await updatePlaylistUI();
     } catch (err) {
@@ -2626,6 +2661,14 @@ window.addEventListener('dsk-active-set', async (e) => {
 
 // DSK送出解除時
 window.addEventListener('dsk-active-clear', async () => {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        const cleared = playlist.map(item => ({ ...item, dskActive: false }));
+        await stateControl.setPlaylistState(cleared);
+        await updatePlaylistUI();
+    } catch (err) {
+        logInfo("Error clearing dskActive flags:", err);
+    }
     const dskButton = document.getElementById('dsk-button');
     if (dskButton) {
         dskButton.classList.remove('button-recording');
