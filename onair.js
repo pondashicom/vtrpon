@@ -2494,19 +2494,17 @@ function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
                     const segmentDb = 0 - posTopToBottom * 60;
                     if (segmentDb >= -6 || (redHoldActive && segmentDb >= -6)) {
                         segment.style.backgroundColor = '#c05050';
-                        segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
                     } else if (segmentDb >= -18) {
                         segment.style.backgroundColor = 'rgb(210,160,120)';
-                        segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
                     } else {
                         segment.style.backgroundColor = 'rgb(90,130,90)';
-                        segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
                     }
                 } else {
                     segment.style.backgroundColor = '#555';
                     segment.style.boxShadow = 'none';
                 }
             });
+
         } else {
             if (adjustedDb > displayedDbFSR) {
                 displayedDbFSR = Math.min(adjustedDb, displayedDbFSR + upPerMs * dtMs);
@@ -2532,19 +2530,17 @@ function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
                     const segmentDb = 0 - posTopToBottom * 60;
                     if (segmentDb >= -6 || (redHoldActive && segmentDb >= -6)) {
                         segment.style.backgroundColor = '#c05050';
-                        segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
                     } else if (segmentDb >= -18) {
                         segment.style.backgroundColor = 'rgb(210,160,120)';
-                        segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
                     } else {
                         segment.style.backgroundColor = 'rgb(90,130,90)';
-                        segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
                     }
                 } else {
                     segment.style.backgroundColor = '#555';
                     segment.style.boxShadow = 'none';
                 }
             });
+
         }
     };
 
