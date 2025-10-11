@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.3.8
+//     ver 2.3.9
 // -----------------------
 
 // -----------------------
@@ -887,6 +887,35 @@ function setupFullscreenAudio(videoElement) {
     setupFullscreenAudio.initialized = true;
 
     logDebug('[fullscreen.js] Fullscreen audio setup completed with MediaStreamDestination.');
+
+    // 再生再開時に linger をキャンセルし、Gain を復帰して計測を確実に開始
+    const video = document.getElementById('fullscreen-video');
+    if (video) {
+        const resumeMeasure = () => {
+            try {
+                // linger が残っていればキャンセル（存在しない環境でも安全に無視）
+                if (typeof fullscreenLingerTimerId !== 'undefined' && fullscreenLingerTimerId) {
+                    clearTimeout(fullscreenLingerTimerId);
+                    fullscreenLingerTimerId = null;
+                }
+                // Gain を既定値へ即復帰（停止時に 0.0001 まで下げているため）
+                const ctx = FullscreenAudioManager.getContext();
+                if (fullscreenGainNode) {
+                    const t = ctx.currentTime;
+                    const targetGain = Math.max(0.001, (globalState?.defaultVolume ?? 100) / 100);
+                    fullscreenGainNode.gain.cancelScheduledValues(t);
+                    fullscreenGainNode.gain.setValueAtTime(targetGain, t);
+                }
+            } catch (_e) {}
+            // 計測開始（すでに測定中でも問題なし：内部で linger を無効化済み）
+            try { startVolumeMeasurement(60); } catch (_e) {}
+        };
+
+        // 直後オンエア・シーク復帰など複数トリガで確実に再開
+        video.addEventListener('playing',  resumeMeasure, { passive: true });
+        video.addEventListener('canplay',  resumeMeasure, { passive: true });
+        video.addEventListener('seeked',   resumeMeasure, { passive: true });
+    }
 }
 
 // Device Settings 更新時に隠し audio 要素の出力先を更新するリスナー
@@ -946,7 +975,6 @@ function audioFadeIn(duration) {
     fullscreenGainNode.gain.exponentialRampToValueAtTime(targetGain, currentTime + duration);
 }
 
-
 // ------------------------------------
 // 音量測定とデータ送信
 // ------------------------------------
@@ -959,9 +987,13 @@ function startVolumeMeasurement(updateInterval = 60) {
     if (isVolumeMeasurementActive || !fullscreenAnalyser) return;
 
     isVolumeMeasurementActive = true;
-    const dataArray = new Uint8Array(fullscreenAnalyser.frequencyBinCount);
-    let smoothedDbFS = -30;
-    let skipFrames = 10;
+
+    try { fullscreenAnalyser.fftSize = 2048; } catch (_e) {}
+    const timeDomainArray = new Float32Array(fullscreenAnalyser.fftSize);
+
+    let skipFrames = 3;        // 初期安定のみ使用
+    const minDb = -60;
+    const maxDb = 0;
 
     const intervalId = setInterval(() => {
         if (!isVolumeMeasurementActive) {
@@ -969,44 +1001,57 @@ function startVolumeMeasurement(updateInterval = 60) {
             return;
         }
 
-        fullscreenAnalyser.getByteFrequencyData(dataArray);
+        fullscreenAnalyser.getFloatTimeDomainData(timeDomainArray);
 
-        // Raw Max Amplitude の取得
-        const rawMaxAmplitude = Math.max(...dataArray);
-
-        // スケーリング (低音量を広げる)
-        const scaledAmplitude = rawMaxAmplitude / 255;
-        const adjustedAmplitude = Math.pow(scaledAmplitude, 1.5);
-
-        // dBFS 計算
-        let dbFS = 20 * Math.log10(adjustedAmplitude || 1);
-
-        // 初期フレームスキップ
-        if (skipFrames > 0) {
-            skipFrames--;
-            dbFS = -30;
+        // 瞬時ピーク（時間窓内の最大絶対値）
+        let peak = 0.0;
+        for (let i = 0; i < timeDomainArray.length; i++) {
+            const v = Math.abs(timeDomainArray[i]);
+            if (v > peak) peak = v;
         }
 
-        // ノイズ除去: 極端な値を制限
-        if (rawMaxAmplitude < 5) dbFS = -30;
+        // dBFS（補正なし）
+        let db = 20 * Math.log10(Math.max(peak, 1e-9));
 
-        // スムージング処理
-        smoothedDbFS = 0.7 * dbFS + 0.3 * smoothedDbFS;
+        // 初期安定
+        if (skipFrames > 0) { skipFrames--; db = minDb; }
 
-        // クランプ (-30 ～ 0 dBFS)
-        dbFS = Math.max(-30, Math.min(smoothedDbFS, 0));
+        // クランプ（-60?0）
+        if (db > maxDb) db = maxDb;
+        if (db < minDb) db = minDb;
 
-        // メインプロセスに送信
-        window.electronAPI.ipcRenderer.send('fullscreen-audio-level', dbFS);
+        // 送信：瞬時ピーク dBFS
+        window.electronAPI.ipcRenderer.send('fullscreen-audio-level', db);
     }, updateInterval);
 }
 
-// 音量測定を停止する関数
-function stopVolumeMeasurement() {
+
+// 音量測定を停止する関数（**lingerMs** だけ計測を継続してから止める）
+function stopVolumeMeasurement(lingerMs = 200) {
+    // 既存の linger があればまずクリア（多重停止防止）
+    if (fullscreenLingerTimerId) {
+        clearTimeout(fullscreenLingerTimerId);
+        fullscreenLingerTimerId = null;
+    }
+
+    // すでに停止中なら何もしない（linger だけ管理）
     if (!isVolumeMeasurementActive) return;
 
-    isVolumeMeasurementActive = false;
-    logDebug('[fullscreen.js] Volume measurement paused.');
+    const ctx = FullscreenAudioManager.getContext();
+    try {
+        if (fullscreenGainNode) {
+            const t = ctx.currentTime;
+            fullscreenGainNode.gain.cancelScheduledValues(t);
+            fullscreenGainNode.gain.linearRampToValueAtTime(0.0001, t + Math.min(lingerMs, 300) / 1000);
+        }
+    } catch (_e) {}
+
+    // 単一の setTimeout で「linger 後に停止」する。start が呼ばれれば 2) でキャンセルされる
+    fullscreenLingerTimerId = setTimeout(() => {
+        fullscreenLingerTimerId = null;
+        isVolumeMeasurementActive = false;
+        logDebug('[fullscreen.js] Volume measurement stopped after linger.');
+    }, Math.max(0, lingerMs));
 }
 
 // ----------------------------------------
