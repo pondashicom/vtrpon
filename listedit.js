@@ -703,9 +703,9 @@ function updateVolumeMeter(dbFS, sliderValue) {
     // スライダー値を反映した dBFS 値を計算
     const adjustedDbFS = dbFS + 20 * Math.log10(sliderNormalized);
 
-    // adjustedDbFS を 0～1 に正規化（対数スケール）
-    const normalizedVolume = Math.max(0, Math.min(1, Math.pow(10, adjustedDbFS / 20)));
-    const activeSegments = Math.round(normalizedVolume * totalSegments);
+    // ：dBFS(-80?0) をセグメント本数へ直線対応させる
+    const clippedDb = Math.max(-80, Math.min(0, adjustedDbFS));
+    const activeSegments = Math.round(((clippedDb + 80) / 80) * totalSegments);
 
     // メーターを更新
     segments.forEach((segment, index) => {
@@ -729,6 +729,7 @@ function updateVolumeMeter(dbFS, sliderValue) {
         }
     });
 }
+
 
 // -----------------------
 // 音声メーターのセットアップ
@@ -776,20 +777,22 @@ function setupVolumeMeter(videoElement, volumeMeter) {
         }
 
         if (!animationFrameId) {
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const timeData = new Float32Array(analyser.fftSize);
 
             function render() {
-                analyser.getByteFrequencyData(dataArray);
-                const rawMaxAmplitude = Math.max(...dataArray);
+                // 時間波形からRMSを計算してdBFSへ
+                analyser.getFloatTimeDomainData(timeData);
+                let sum = 0;
+                for (let i = 0; i < timeData.length; i++) {
+                    const s = timeData[i];
+                    sum += s * s;
+                }
+                const rms = Math.sqrt(sum / timeData.length);
 
-                if (rawMaxAmplitude === 0) {
-                    updateVolumeMeter(-Infinity, 100); 
+                if (rms <= 1e-8) {
+                    updateVolumeMeter(-Infinity, volumeAdjustmentFactor * 100);
                 } else {
-                    const scaledAmplitude = rawMaxAmplitude / 255;
-                    const adjustedAmplitude = Math.pow(scaledAmplitude, 1.5);
-                    const dbFS = 20 * Math.log10(adjustedAmplitude || 1);
-
-                    // スライダー値を加味したメーター更新
+                    const dbFS = 20 * Math.log10(rms);
                     updateVolumeMeter(dbFS, volumeAdjustmentFactor * 100);
                 }
                 animationFrameId = requestAnimationFrame(render);

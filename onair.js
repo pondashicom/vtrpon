@@ -1,6 +1,10 @@
 // -----------------------
 //     onair.js
+<<<<<<< HEAD
 //     ver 2.4.0
+=======
+//     ver 2.3.9
+>>>>>>> 4f48fb3 (fix(onair): stabilize volume meter with dB-linear mapping, fixed color bands, and peak hold)
 // -----------------------
 
 // -----------------------
@@ -2354,6 +2358,10 @@ function handleFtbRateUpdate(newFtbRate) {
 // -----------------------
 // 音量メーターのセットアップ
 // -----------------------
+
+// 受信停止監視用のウォッチドッグ
+let onAirVolumeWatchdogId = null;
+
 function setupOnAirVolumeMeter() {
     const volumeBar = document.getElementById('on-air-volume-bar');
 
@@ -2369,6 +2377,17 @@ function setupOnAirVolumeMeter() {
         segment.classList.add('volume-segment');
         volumeBar.appendChild(segment);
     }
+
+    // 受信停止監視：一定時間更新が無ければ確実にリセット
+    if (onAirVolumeWatchdogId !== null) {
+        clearInterval(onAirVolumeWatchdogId);
+    }
+    onAirVolumeWatchdogId = setInterval(() => {
+        if (lastVolumeUpdateTime === null) return;
+        if (Date.now() - lastVolumeUpdateTime >= volumeResetThreshold) {
+            resetOnAirVolumeMeter();
+        }
+    }, volumeResetThreshold);
 }
 
 // -----------------------
@@ -2378,6 +2397,20 @@ function setupOnAirVolumeMeter() {
 let lastVolumeUpdateTime = null; 
 const volumeResetThreshold = 100; 
 
+// 表示用のスムージング状態
+let displayedDbFS = -60;          // 表示に使う dB 値（初期は最小）
+let redHoldUntilTs = 0;           // 赤ホールドの期限（ms)
+
+// スムージング設定（必要に応じて調整可）
+const ATTACK_MS  = 30;            // 上がる速さ（小さいほど速い）
+const RELEASE_MS = 180;           // 下がる速さ（大きいほどゆっくり）
+const RED_HOLD_MS = 120;          // 赤域に入った後の保持時間
+
+// 数値表示＆ピークホールド（1秒）
+let peakHoldDbFS = -60;
+let peakHoldUntilTs = 0;
+const PEAK_HOLD_MS = 1000;
+
 function updateOnAirVolumeMeter(dbFS) {
     const volumeBar = document.getElementById('on-air-volume-bar');
     if (!volumeBar) return;
@@ -2385,66 +2418,92 @@ function updateOnAirVolumeMeter(dbFS) {
     const segments = Array.from(volumeBar.querySelectorAll('.volume-segment'));
     const totalSegments = segments.length;
 
-    // 最終出力音量（0～100）を算出
-    const itemSliderValue = parseFloat(document.getElementById('on-air-item-volume-slider').value);
-    const masterSliderValue = parseFloat(document.getElementById('on-air-master-volume-slider').value);
-    const combinedSliderValue = (itemSliderValue / 100) * (masterSliderValue / 100) * 100;
-    const sliderNormalized = combinedSliderValue / 100; 
+    // 最終出力音量（0～100）＝ ITEM × MASTER
+    const itemSliderEl = document.getElementById('on-air-item-volume-slider');
+    const masterSliderEl = document.getElementById('on-air-master-volume-slider');
+    const itemSliderValue = itemSliderEl ? parseFloat(itemSliderEl.value) : 100;
+    const masterSliderValue = masterSliderEl ? parseFloat(masterSliderEl.value) : 100;
+    const sliderNormalized = Math.max(0.01, (itemSliderValue / 100) * (masterSliderValue / 100));
 
-    // 信号が来ていない場合はリセット
+    // 無信号時は元実装どおり即リセット＋表示状態を初期化
     if (dbFS === -Infinity || dbFS < -100) {
         resetOnAirVolumeMeter();
+        displayedDbFS = -60;
+        redHoldUntilTs = 0;
+        const readout = document.getElementById('on-air-volume-readout');
+        if (readout) readout.textContent = '-∞ dBFS';
+        peakHoldDbFS = -60;
+        peakHoldUntilTs = 0;
         return;
     }
 
-    // 2つのスライダーの値を反映したdBFS値を計算
-    const adjustedDbFS = dbFS + 20 * Math.log10(sliderNormalized || 0.01); 
+    // スライダー値を反映した dBFS（20*log10 合成）
+    let adjustedDbFS = dbFS + 20 * Math.log10(sliderNormalized);
 
-    // dBFSを0～1に正規化（対数スケール）
-    const normalizedVolume = Math.max(0, Math.min(1, Math.pow(10, adjustedDbFS / 20)));
-    const activeSegments = Math.round(normalizedVolume * totalSegments);
+    // 表示レンジにクランプ（-60?0 dBFS）
+    if (adjustedDbFS > 0) adjustedDbFS = 0;
+    if (adjustedDbFS < -60) adjustedDbFS = -60;
 
-    // メーターを更新
+    // アタック/リリースで表示を安定化
+    const now = Date.now();
+    const dtMs = lastVolumeUpdateTime ? (now - lastVolumeUpdateTime) : 16;
+    const upPerMs   = 60 / Math.max(1, ATTACK_MS);
+    const downPerMs = 60 / Math.max(1, RELEASE_MS);
+
+    if (adjustedDbFS > displayedDbFS) {
+        displayedDbFS = Math.min(adjustedDbFS, displayedDbFS + upPerMs * dtMs);
+    } else {
+        displayedDbFS = Math.max(adjustedDbFS, displayedDbFS - downPerMs * dtMs);
+    }
+
+    // 赤ホールド（-6 dBFS 以上に入ったらしばらく保持）
+    if (displayedDbFS >= -6) redHoldUntilTs = now + RED_HOLD_MS;
+    const redHoldActive = now < redHoldUntilTs;
+
+    // ピークホールド（1秒）と数値表示
+    if (adjustedDbFS > peakHoldDbFS + 0.1) {
+        peakHoldDbFS = adjustedDbFS;
+        peakHoldUntilTs = now + PEAK_HOLD_MS;
+    } else if (now >= peakHoldUntilTs) {
+        peakHoldDbFS = Math.max(-60, peakHoldDbFS - downPerMs * dtMs);
+    }
+    const readout = document.getElementById('on-air-volume-readout');
+    if (readout) readout.textContent = `${adjustedDbFS.toFixed(1)} dBFS (pk ${peakHoldDbFS.toFixed(1)})`;
+
+    // dB直線（-60?0）→ 点灯本数（下→上）
+    const fillRatioDb = (displayedDbFS + 60) / 60; // 0..1
+    const activeSegments = Math.round(fillRatioDb * totalSegments);
+
+    // 色は位置で固定：下=緑(-60?-18)／中=黄(-18?-6)／上=赤(-6?0)
     segments.forEach((segment, index) => {
         if (index >= totalSegments - activeSegments) {
-            const segmentThreshold = -((index / totalSegments) * 80);
+            const posTopToBottom = index / (totalSegments - 1); // 0..1
+            const segmentDb = 0 - posTopToBottom * 60;          // 0..-60
 
-        if (segmentThreshold >= -10) {
-            segment.style.backgroundColor = '#c05050';
-            segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
-        } else if (segmentThreshold >= -30) {
-            segment.style.backgroundColor = 'rgb(210,160,120)';
-            segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
-        } else {
-            segment.style.backgroundColor = 'rgb(90,130,90)';
-            segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
-        }
+            if (segmentDb >= -6 || (redHoldActive && segmentDb >= -6)) {
+                segment.style.backgroundColor = '#c05050';
+                segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
+            } else if (segmentDb >= -18) {
+                segment.style.backgroundColor = 'rgb(210,160,120)';
+                segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
+            } else {
+                segment.style.backgroundColor = 'rgb(90,130,90)';
+                segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
+            }
         } else {
             segment.style.backgroundColor = '#555';
             segment.style.boxShadow = 'none';
         }
     });
 
-    // 音量更新時間を記録
-    lastVolumeUpdateTime = Date.now();
+    lastVolumeUpdateTime = now;
 
-    // 音量のリセット処理
+    // 元のタイムアウトリセット
     setTimeout(() => {
         if (Date.now() - lastVolumeUpdateTime >= volumeResetThreshold) {
             resetOnAirVolumeMeter();
         }
     }, volumeResetThreshold);
-}
-
-
-function resetOnAirVolumeMeter() {
-    const volumeBar = document.getElementById('on-air-volume-bar');
-    if (!volumeBar) return;
-
-    Array.from(volumeBar.querySelectorAll('.volume-segment')).forEach(segment => {
-        segment.style.backgroundColor = '#555';
-        segment.style.boxShadow = 'none';
-    });
 }
 
 // -----------------------
