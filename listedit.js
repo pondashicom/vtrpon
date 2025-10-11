@@ -788,10 +788,10 @@ function updateVolumeMeterElement(volumeMeterElement, dbFS, sliderValue) {
             const posTopToBottom = index / (totalSegments - 1); // 0..1
             const segmentDb = 0 - posTopToBottom * 60;          // 0..-60
 
-            if (segmentDb >= -6) {
+            if (segmentDb >= -9) {
                 segment.style.backgroundColor = '#c05050';
                 segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
-            } else if (segmentDb >= -18) {
+            } else if (segmentDb >= -20) {
                 segment.style.backgroundColor = 'rgb(210,160,120)';
                 segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
             } else {

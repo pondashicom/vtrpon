@@ -2474,7 +2474,7 @@ function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
             } else {
                 displayedDbFSL = Math.max(adjustedDb, displayedDbFSL - downPerMs * dtMs);
             }
-            if (displayedDbFSL >= -6) redHoldUntilTsL = now + RED_HOLD_MS;
+            if (displayedDbFSL >= -9) redHoldUntilTsL = now + RED_HOLD_MS;
             const redHoldActive = now < redHoldUntilTsL;
 
             if (adjustedDb > peakHoldDbFSL + 0.1) {
@@ -2492,9 +2492,9 @@ function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
                 if (index >= totalSegments - activeSegments) {
                     const posTopToBottom = index / (totalSegments - 1);
                     const segmentDb = 0 - posTopToBottom * 60;
-                    if (segmentDb >= -6 || (redHoldActive && segmentDb >= -6)) {
+                    if (segmentDb >= -9 || (redHoldActive && segmentDb >= -9)) {
                         segment.style.backgroundColor = '#c05050';
-                    } else if (segmentDb >= -18) {
+                    } else if (segmentDb >= -20) {
                         segment.style.backgroundColor = 'rgb(210,160,120)';
                     } else {
                         segment.style.backgroundColor = 'rgb(90,130,90)';
@@ -2511,7 +2511,7 @@ function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
             } else {
                 displayedDbFSR = Math.max(adjustedDb, displayedDbFSR - downPerMs * dtMs);
             }
-            if (displayedDbFSR >= -6) redHoldUntilTsR = now + RED_HOLD_MS;
+            if (displayedDbFSR >= -9) redHoldUntilTsR = now + RED_HOLD_MS;
             const redHoldActive = now < redHoldUntilTsR;
 
             if (adjustedDb > peakHoldDbFSR + 0.1) {
@@ -2528,9 +2528,9 @@ function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
                 if (index >= totalSegments - activeSegments) {
                     const posTopToBottom = index / (totalSegments - 1);
                     const segmentDb = 0 - posTopToBottom * 60;
-                    if (segmentDb >= -6 || (redHoldActive && segmentDb >= -6)) {
+                    if (segmentDb >= -9 || (redHoldActive && segmentDb >= -9)) {
                         segment.style.backgroundColor = '#c05050';
-                    } else if (segmentDb >= -18) {
+                    } else if (segmentDb >= -20) {
                         segment.style.backgroundColor = 'rgb(210,160,120)';
                     } else {
                         segment.style.backgroundColor = 'rgb(90,130,90)';
