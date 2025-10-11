@@ -106,8 +106,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // フルスクリーンからメインに状態通知を受信
     onReceiveFullscreenStatus: (callback) => ipcRenderer.on('fullscreen-status', (event, statusData) => callback(statusData)),
 
-    // フルスクリーンからの音量メーターデータを受信
+    // フルスクリーンからの音量メーターデータを受信（単体：後方互換）
     onReceiveFullscreenVolume: (callback) => ipcRenderer.on('fullscreen-audio-level', (event, volumeLevel) => callback(volumeLevel)),
+
+    // フルスクリーンからの音量メーターデータ（L/R）を受信
+    onReceiveFullscreenVolumeLR: (callback) =>
+      ipcRenderer.on('fullscreen-audio-level-lr', (event, payload) => {
+        const { L, R } = payload || {};
+        callback(L, R);
+      }),
 
     // ----------------------------
     //  オフエア通知

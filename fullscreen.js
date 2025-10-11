@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.3.9
+//     ver 2.4.0
 // -----------------------
 
 // -----------------------
@@ -805,27 +805,40 @@ const FullscreenAudioManager = (function () {
 })();
 
 // 音声処理のフラグ
-let fullscreenAnalyser = null;
+let fullscreenAnalyser = null;     // 互換残置（未使用）
+let fullscreenAnalyserL = null;    // Lチャンネル用
+let fullscreenAnalyserR = null;    // Rチャンネル用
+let fullscreenSplitter = null;     // ChannelSplitter(2)
 let fullscreenGainNode = null;
 let fullscreenSourceNode = null;
 let animationFrameId = null;
 
+// 音量計測停止の遅延用タイマー
+let fullscreenLingerTimerId = null;
+
 // 音声初期化フラグ
 setupFullscreenAudio.initialized = false;
 
-// 音声の初期化関数
+// 音声の初期化関数（LR分割：Gain → Splitter(2) → AnalyserL/R）
 function setupFullscreenAudio(videoElement) {
     if (setupFullscreenAudio.initialized) return;
 
     const audioContext = FullscreenAudioManager.getContext();
 
-    // AnalyserNode と GainNode のセットアップ
-    if (!fullscreenAnalyser) {
-        fullscreenAnalyser = audioContext.createAnalyser();
-        fullscreenAnalyser.fftSize = 128;
+    // L/R 用の AnalyserNode と GainNode のセットアップ
+    if (!fullscreenAnalyserL) {
+        fullscreenAnalyserL = audioContext.createAnalyser();
+        fullscreenAnalyserL.fftSize = 2048;
+    }
+    if (!fullscreenAnalyserR) {
+        fullscreenAnalyserR = audioContext.createAnalyser();
+        fullscreenAnalyserR.fftSize = 2048;
     }
     if (!fullscreenGainNode) {
         fullscreenGainNode = audioContext.createGain();
+    }
+    if (!fullscreenSplitter) {
+        fullscreenSplitter = audioContext.createChannelSplitter(2);
     }
 
     // MediaElementSource の再接続
@@ -835,8 +848,11 @@ function setupFullscreenAudio(videoElement) {
         }
         try {
             fullscreenSourceNode = audioContext.createMediaElementSource(videoElement);
+            // source → gain → splitter → analyserL/R
             fullscreenSourceNode.connect(fullscreenGainNode);
-            fullscreenGainNode.connect(fullscreenAnalyser);
+            fullscreenGainNode.connect(fullscreenSplitter);
+            fullscreenSplitter.connect(fullscreenAnalyserL, 0);
+            fullscreenSplitter.connect(fullscreenAnalyserR, 1);
         } catch (error) {
             if (error.name === 'InvalidStateError') {
                 logInfo('MediaElementSourceNode already exists. Skipping creation.');
@@ -846,12 +862,10 @@ function setupFullscreenAudio(videoElement) {
         }
     }
 
-    // MediaStreamDestination を作成し、隠しの audio 要素で出力する
+    // MediaStreamDestination を作成し、隠し audio へ出力（従来通り）
     const mediaStreamDest = audioContext.createMediaStreamDestination();
-    // fullscreenGainNode から MediaStreamDestination に接続する
     fullscreenGainNode.connect(mediaStreamDest);
 
-    // 隠しの audio 要素を作成
     let hiddenAudio = document.getElementById('fullscreen-hidden-audio');
     if (!hiddenAudio) {
         hiddenAudio = document.createElement('audio');
@@ -859,10 +873,8 @@ function setupFullscreenAudio(videoElement) {
         hiddenAudio.style.display = 'none';
         document.body.appendChild(hiddenAudio);
     }
-    // audio 要素に MediaStreamDestination の stream をセット
     hiddenAudio.srcObject = mediaStreamDest.stream;
 
-    // 音声ストリームをグローバル変数に保存
     window.fullscreenAudioStream = mediaStreamDest.stream;
 
     window.electronAPI.getDeviceSettings().then(settings => {
@@ -878,7 +890,6 @@ function setupFullscreenAudio(videoElement) {
         } else {
             logInfo('[fullscreen.js] hiddenAudio.setSinkId is not supported.');
         }
-        // 再生開始
         hiddenAudio.play().catch(err => {
             logInfo('[fullscreen.js] Hidden audio play failed: ' + err);
         });
@@ -886,19 +897,17 @@ function setupFullscreenAudio(videoElement) {
 
     setupFullscreenAudio.initialized = true;
 
-    logDebug('[fullscreen.js] Fullscreen audio setup completed with MediaStreamDestination.');
+    logDebug('[fullscreen.js] Fullscreen audio setup (LR) completed.');
 
-    // 再生再開時に linger をキャンセルし、Gain を復帰して計測を確実に開始
+    // 再生再開時の計測復帰（従来通り）
     const video = document.getElementById('fullscreen-video');
     if (video) {
         const resumeMeasure = () => {
             try {
-                // linger が残っていればキャンセル（存在しない環境でも安全に無視）
                 if (typeof fullscreenLingerTimerId !== 'undefined' && fullscreenLingerTimerId) {
                     clearTimeout(fullscreenLingerTimerId);
                     fullscreenLingerTimerId = null;
                 }
-                // Gain を既定値へ即復帰（停止時に 0.0001 まで下げているため）
                 const ctx = FullscreenAudioManager.getContext();
                 if (fullscreenGainNode) {
                     const t = ctx.currentTime;
@@ -907,11 +916,9 @@ function setupFullscreenAudio(videoElement) {
                     fullscreenGainNode.gain.setValueAtTime(targetGain, t);
                 }
             } catch (_e) {}
-            // 計測開始（すでに測定中でも問題なし：内部で linger を無効化済み）
             try { startVolumeMeasurement(60); } catch (_e) {}
         };
 
-        // 直後オンエア・シーク復帰など複数トリガで確実に再開
         video.addEventListener('playing',  resumeMeasure, { passive: true });
         video.addEventListener('canplay',  resumeMeasure, { passive: true });
         video.addEventListener('seeked',   resumeMeasure, { passive: true });
@@ -982,14 +989,17 @@ function audioFadeIn(duration) {
 // 音量測定ループフラグ
 let isVolumeMeasurementActive = false;
 
-// 音量測定
+// 音量測定（LR）：AnalyserL/R から独立にピーク→dBFS を算出して送信
 function startVolumeMeasurement(updateInterval = 60) {
-    if (isVolumeMeasurementActive || !fullscreenAnalyser) return;
+    if (isVolumeMeasurementActive || !fullscreenAnalyserL || !fullscreenAnalyserR) return;
 
     isVolumeMeasurementActive = true;
 
-    try { fullscreenAnalyser.fftSize = 2048; } catch (_e) {}
-    const timeDomainArray = new Float32Array(fullscreenAnalyser.fftSize);
+    try { fullscreenAnalyserL.fftSize = 2048; } catch (_e) {}
+    try { fullscreenAnalyserR.fftSize = 2048; } catch (_e) {}
+
+    const bufL = new Float32Array(fullscreenAnalyserL.fftSize);
+    const bufR = new Float32Array(fullscreenAnalyserR.fftSize);
 
     let skipFrames = 3;        // 初期安定のみ使用
     const minDb = -60;
@@ -1001,30 +1011,43 @@ function startVolumeMeasurement(updateInterval = 60) {
             return;
         }
 
-        fullscreenAnalyser.getFloatTimeDomainData(timeDomainArray);
-
-        // 瞬時ピーク（時間窓内の最大絶対値）
-        let peak = 0.0;
-        for (let i = 0; i < timeDomainArray.length; i++) {
-            const v = Math.abs(timeDomainArray[i]);
-            if (v > peak) peak = v;
+        // L
+        fullscreenAnalyserL.getFloatTimeDomainData(bufL);
+        let peakL = 0.0;
+        for (let i = 0; i < bufL.length; i++) {
+            const v = Math.abs(bufL[i]);
+            if (v > peakL) peakL = v;
         }
+        let dbL = 20 * Math.log10(Math.max(peakL, 1e-9));
 
-        // dBFS（補正なし）
-        let db = 20 * Math.log10(Math.max(peak, 1e-9));
+        // R
+        fullscreenAnalyserR.getFloatTimeDomainData(bufR);
+        let peakR = 0.0;
+        for (let i = 0; i < bufR.length; i++) {
+            const v = Math.abs(bufR[i]);
+            if (v > peakR) peakR = v;
+        }
+        let dbR = 20 * Math.log10(Math.max(peakR, 1e-9));
 
         // 初期安定
-        if (skipFrames > 0) { skipFrames--; db = minDb; }
+        if (skipFrames > 0) {
+            skipFrames--;
+            dbL = minDb;
+            dbR = minDb;
+        }
 
         // クランプ（-60?0）
-        if (db > maxDb) db = maxDb;
-        if (db < minDb) db = minDb;
+        dbL = Math.min(maxDb, Math.max(minDb, dbL));
+        dbR = Math.min(maxDb, Math.max(minDb, dbR));
 
-        // 送信：瞬時ピーク dBFS
-        window.electronAPI.ipcRenderer.send('fullscreen-audio-level', db);
+        // 送信：L/R の瞬時ピーク dBFS
+        window.electronAPI.ipcRenderer.send('fullscreen-audio-level-lr', { L: dbL, R: dbR });
+
+        // 互換：従来の単体値も送る（max(L,R)）
+        const dbMax = Math.max(dbL, dbR);
+        window.electronAPI.ipcRenderer.send('fullscreen-audio-level', dbMax);
     }, updateInterval);
 }
-
 
 // 音量測定を停止する関数（**lingerMs** だけ計測を継続してから止める）
 function stopVolumeMeasurement(lingerMs = 200) {
