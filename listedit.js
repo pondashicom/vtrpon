@@ -25,7 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeEditArea() {
     const videoElement = document.getElementById('listedit-video');
     const filenameDisplay = document.getElementById('listedit-filename');
-    const volumeMeter = document.getElementById('listedit-volume-bar');
+    const volumeMeterL = document.getElementById('listedit-volume-bar-L');
+    const volumeMeterR = document.getElementById('listedit-volume-bar-R');
     const volumeSlider = document.getElementById('listedit-volume-slider'); 
     const volumeValue = document.getElementById('volume-value'); 
     const progressSlider = document.getElementById('progress-slider'); 
@@ -67,13 +68,14 @@ function initializeEditArea() {
         filenameDisplay.textContent = "No file loaded";
     }
 
-    // 音量メーターのリセット
-    if (volumeMeter) {
-        Array.from(volumeMeter.querySelectorAll('.volume-segment')).forEach(segment => {
+    // 音量メーターのリセット（L/R）
+    [volumeMeterL, volumeMeterR].forEach(vm => {
+        if (!vm) return;
+        Array.from(vm.querySelectorAll('.volume-segment')).forEach(segment => {
             segment.style.backgroundColor = '#555'; 
             segment.style.boxShadow = 'none'; 
         });
-    }
+    });
 
     // 音量スライダーの初期化
     if (volumeSlider && volumeValue) {
@@ -140,7 +142,7 @@ function initializeEditArea() {
         Object.entries(buttonIds).map(([key, id]) => [key, document.getElementById(id)])
     );
 
-    if (!videoElement || !filenameDisplay || !volumeMeter || Object.values(controlButtons).some(button => !button)) {
+    if (!videoElement || !filenameDisplay || !volumeMeterL || !volumeMeterR || Object.values(controlButtons).some(button => !button)) {
         logInfo('[listedit.js] Edit area elements or control buttons not found.');
         return;
     }
@@ -148,7 +150,7 @@ function initializeEditArea() {
     setupVideoPlayer(videoElement, filenameDisplay);
     setupPlaybackControls(videoElement);
     setupMouseWheelControl(videoElement);
-    setupVolumeMeter(videoElement, volumeMeter);
+    setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR);
     setupInOutPoints(videoElement);
     setupStartModeControls(videoElement);
     setupEndModeControls(videoElement);
@@ -738,8 +740,14 @@ function resetVolumeMeter() {
 function updateVolumeMeter(dbFS, sliderValue) {
     const volumeMeter = document.getElementById('listedit-volume-bar');
     if (!volumeMeter) return;
+    updateVolumeMeterElement(volumeMeter, dbFS, sliderValue);
+}
 
-    const segments = Array.from(volumeMeter.querySelectorAll('.volume-segment'));
+// 要素を直接受け取る共通描画ロジック
+function updateVolumeMeterElement(volumeMeterElement, dbFS, sliderValue) {
+    if (!volumeMeterElement) return;
+
+    const segments = Array.from(volumeMeterElement.querySelectorAll('.volume-segment'));
     const totalSegments = segments.length;
 
     // スライダーが 0 の場合 → 全消灯
@@ -777,7 +785,6 @@ function updateVolumeMeter(dbFS, sliderValue) {
     // 色は位置で固定：下=緑(-60?-18)／中=黄(-18?-6)／上=赤(-6?0)
     segments.forEach((segment, index) => {
         if (index >= totalSegments - activeSegments) {
-            // index: 0=最上段, totalSegments-1=最下段
             const posTopToBottom = index / (totalSegments - 1); // 0..1
             const segmentDb = 0 - posTopToBottom * 60;          // 0..-60
 
@@ -798,82 +805,134 @@ function updateVolumeMeter(dbFS, sliderValue) {
     });
 }
 
+// === 追加：L/R 専用薄いラッパー ===
+function updateVolumeMeterL(dbFS, sliderValue) {
+    const el = document.getElementById('listedit-volume-bar-L');
+    updateVolumeMeterElement(el, dbFS, sliderValue);
+}
+function updateVolumeMeterR(dbFS, sliderValue) {
+    const el = document.getElementById('listedit-volume-bar-R');
+    updateVolumeMeterElement(el, dbFS, sliderValue);
+}
+
 // -----------------------
-// 音声メーターのセットアップ
+// 音声メーターのセットアップ（LR）
 // -----------------------
-function setupVolumeMeter(videoElement, volumeMeter) {
-    let analyser, inputSourceNode;
+function setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR) {
+    let analyserL, analyserR, inputSourceNode, splitter;
     let animationFrameId = null;
 
-    if (!volumeMeter) {
-        logInfo('Volume meter element not found.');
-        return;
-    }
-
-    // 初期化関数
-    function initVolumeMeter() {
-        volumeMeter.innerHTML = '';
+    // 初期化（L/R それぞれ 60セグメント）
+    function initVolumeMeter(el) {
+        if (!el) return;
+        el.innerHTML = '';
         for (let i = 0; i < 60; i++) {
             const segment = document.createElement('div');
             segment.classList.add('volume-segment');
-            volumeMeter.appendChild(segment);
+            el.appendChild(segment);
         }
-        logDebug('[listedit.js] Volume meter initialized with 60 segments.');
     }
 
-    // AudioContextのセットアップ
-    function setupAudioContext() {
+    if (!volumeMeterL || !volumeMeterR) {
+        logInfo('Volume meter elements (L/R) not found.');
+        return;
+    }
+
+    // 2本とも初期化
+    initVolumeMeter(volumeMeterL);
+    initVolumeMeter(volumeMeterR);
+    logDebug('[listedit.js] Volume meter L/R initialized with 60 segments each.');
+
+    function setupAudioContextLR() {
         const audioContext = AudioContextManager.getContext();
 
-        if (!analyser) {
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 2048; // 瞬時ピーク検出を安定させる
+        // Analyser を L/R 用に別々に用意
+        if (!analyserL) {
+            analyserL = audioContext.createAnalyser();
+            analyserL.fftSize = 2048;
+        }
+        if (!analyserR) {
+            analyserR = audioContext.createAnalyser();
+            analyserR.fftSize = 2048;
         }
 
+        // MediaElementSource の作成・分岐
         if (!inputSourceNode || inputSourceNode.mediaElement !== videoElement) {
+            // 既存ノード切断
             if (inputSourceNode) {
-                inputSourceNode.disconnect();
+                try { inputSourceNode.disconnect(); } catch (_) {}
             }
+            if (splitter) {
+                try { splitter.disconnect(); } catch (_) {}
+            }
+
             try {
                 inputSourceNode = audioContext.createMediaElementSource(videoElement);
-                inputSourceNode.connect(analyser);
+                splitter = audioContext.createChannelSplitter(2);
+                // input -> splitter -> L/R analyser
+                inputSourceNode.connect(splitter);
+                splitter.connect(analyserL, 0);
+                splitter.connect(analyserR, 1);
             } catch (error) {
-                logInfo('Error setting up MediaElementSourceNode:', error);
+                logInfo('Error setting up MediaElementSourceNode for LR:', error);
                 return;
             }
         }
 
         if (!animationFrameId) {
-            const timeData = new Float32Array(analyser.fftSize);
+            const timeDataL = new Float32Array(analyserL.fftSize);
+            const timeDataR = new Float32Array(analyserR.fftSize);
 
             function render() {
-                // 時間波形から「瞬時ピーク」を計測して dBFS へ（補正なし）
-                analyser.getFloatTimeDomainData(timeData);
-                let peak = 0.0;
-                for (let i = 0; i < timeData.length; i++) {
-                    const a = Math.abs(timeData[i]);
-                    if (a > peak) peak = a;
+                // L チャンネル
+                analyserL.getFloatTimeDomainData(timeDataL);
+                let peakL = 0.0;
+                for (let i = 0; i < timeDataL.length; i++) {
+                    const a = Math.abs(timeDataL[i]);
+                    if (a > peakL) peakL = a;
                 }
+                const safeL = Math.max(peakL, 1e-9);
+                const dbFSL = 20 * Math.log10(safeL);
 
-                const safe = Math.max(peak, 1e-9); // log(0)回避の数値ガード
-                const dbFS = 20 * Math.log10(safe);
+                // R チャンネル
+                analyserR.getFloatTimeDomainData(timeDataR);
+                let peakR = 0.0;
+                for (let i = 0; i < timeDataR.length; i++) {
+                    const a = Math.abs(timeDataR[i]);
+                    if (a > peakR) peakR = a;
+                }
+                const safeR = Math.max(peakR, 1e-9);
+                const dbFSR = 20 * Math.log10(safeR);
 
-                updateVolumeMeter(peak <= 1e-9 ? -Infinity : dbFS, volumeAdjustmentFactor * 100);
+                // 既存ロジック踏襲で表示（スライダー係数は既存の volumeAdjustmentFactor）
+                const sliderPct = (volumeAdjustmentFactor || 1) * 100;
+                updateVolumeMeterElement(volumeMeterL, (peakL <= 1e-9 ? -Infinity : dbFSL), sliderPct);
+                updateVolumeMeterElement(volumeMeterR, (peakR <= 1e-9 ? -Infinity : dbFSR), sliderPct);
+
                 animationFrameId = requestAnimationFrame(render);
             }
             render();
         }
     }
 
-    // 初期化とイベントのセットアップ
-    if (!setupVolumeMeter.initialized) {
-        initVolumeMeter();
-        videoElement.addEventListener('play', setupAudioContext);
-        videoElement.addEventListener('pause', resetVolumeMeter);
-        setupVolumeMeter.initialized = true;
-        logDebug('[listedit.js] Audio context and volume meter setup complete.');
+    // イベントのセットアップ（LR）
+    if (!setupVolumeMeterLR.initialized) {
+        videoElement.addEventListener('play', setupAudioContextLR);
+        videoElement.addEventListener('pause', () => {
+            // 停止時は両chリセット
+            [volumeMeterL, volumeMeterR].forEach(el => {
+                if (!el) return;
+                Array.from(el.querySelectorAll('.volume-segment')).forEach(segment => {
+                    segment.style.backgroundColor = '#555';
+                    segment.style.boxShadow = 'none';
+                });
+            });
+        });
+        setupVolumeMeterLR.initialized = true;
+        logDebug('[listedit.js] Audio context and volume meter LR setup complete.');
     }
 }
+
 
 // -----------------------
 // 再生時規定音量の設定
@@ -915,9 +974,10 @@ function setupVolumeControl() {
         // 再生中かどうかをチェック（再生中でない場合はメーター更新をスキップ）
         const isPlaying = checkIfPlaying(); 
         if (isPlaying) {
-            // メーターを更新（スライダー値が0の場合はリセット）
+            // メーターを更新（スライダー値が0の場合はリセット）※L/Rとも同様に即時反映
             const dbFS = sliderValue === 0 ? -Infinity : 0;
-            updateVolumeMeter(dbFS, sliderValue);
+            updateVolumeMeterL(dbFS, sliderValue);
+            updateVolumeMeterR(dbFS, sliderValue);
         } else {
             logInfo("[listedit.js] Volume slider adjusted, but playback is not active. Skipping meter update.");
         }

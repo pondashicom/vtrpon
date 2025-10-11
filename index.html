@@ -1,4 +1,4 @@
-﻿<!-- index.html 2.3.7 -->
+﻿<!-- index.html 2.4.0 -->
 
 <!DOCTYPE html>
 <html lang="ja">
@@ -33,7 +33,15 @@
             <!-- 動画表示エリア -->
             <div class="video-container">
                 <video id="listedit-video"></video>
-                <div id="listedit-volume-bar" class="volume-bar"></div>
+                <!-- LR 2分割（左右）：左=L、右=R -->
+                <div class="meter-row" id="listedit-meter-row">
+                    <div class="meter-col">
+                        <div id="listedit-volume-bar-L" class="volume-bar"></div>
+                    </div>
+                    <div class="meter-col">
+                        <div id="listedit-volume-bar-R" class="volume-bar"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- ファイル名表示 -->
