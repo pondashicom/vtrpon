@@ -1,12 +1,7 @@
 // -----------------------
 //     onair.js
-<<<<<<< HEAD
 //     ver 2.4.0
-=======
-//     ver 2.3.9
->>>>>>> 4f48fb3 (fix(onair): stabilize volume meter with dB-linear mapping, fixed color bands, and peak hold)
 // -----------------------
-
 // -----------------------
 // 初期設定
 // -----------------------
