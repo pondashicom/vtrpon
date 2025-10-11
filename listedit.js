@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.3.9
+//     ver 2.4.0
 // -----------------------
 
 // -----------------------
@@ -387,14 +387,30 @@ function setupPlaybackControls(videoElement) {
     // 再生ボタン
     controlButtons.play?.addEventListener('click', async () => {
         logOpe('[listedit.js] Play button clicked');
+
         if (videoElement.ended || (videoElement.currentTime >= videoElement.duration - 0.05)) {
             videoElement.pause();
             videoElement.currentTime = 0;
             videoElement.load();
         }
+
         try {
+            // まず極小音量から開始（mutedは使わない／選択時は触らない）
+            const startVol = 0.001;
+            videoElement.volume = startVol;
+
+            // 無音に近い状態で再生開始 → デバイス起動を待つ
             await videoElement.play();
+            await waitForPlaybackStable(videoElement, 30); // 最大30msだけ待機
+
             isVideoLoaded = true;
+
+            // スライダー値（0-100%）→ 既存カーブ（^2.2）で目標リニア音量(0..1)
+            const targetVol = calcLinearVolumeFromSlider();
+
+            // 0.001 → 目標値へ短フェード（約8ms）
+            await fadeVolume(videoElement, startVol, targetVol, 8);
+
             updateButtonStates({ play: true, pause: false });
             updateUIForVideoState();
         } catch (error) {
@@ -629,6 +645,53 @@ function resetVideoIfEnded(videoElement) {
         updateUIForVideoState();
         logOpe("[listedit.js] Video reset from ended state.");
     }
+}
+
+// -----------------------
+//  再生安定待ち・フェード・音量変換（新規追加）
+// -----------------------
+
+// 再生開始直後の安定を待つ（playing または timeupdate を最初の1回検知、最大 waitMs）
+function waitForPlaybackStable(video, waitMs = 30) {
+    return new Promise((resolve) => {
+        let resolved = false;
+        const done = () => { if (!resolved) { resolved = true; resolve(); } };
+        const onPlaying = () => { video.removeEventListener('playing', onPlaying); done(); };
+        const onTimeupdate = () => { video.removeEventListener('timeupdate', onTimeupdate); done(); };
+        video.addEventListener('playing', onPlaying, { once: true });
+        video.addEventListener('timeupdate', onTimeupdate, { once: true });
+        setTimeout(done, waitMs);
+    });
+}
+
+// 短フェード（durationMs で linear に volume を補間）
+function fadeVolume(video, from, to, durationMs = 8) {
+    return new Promise((resolve) => {
+        const start = performance.now();
+        const step = () => {
+            const t = performance.now() - start;
+            const r = Math.min(1, t / durationMs);
+            video.volume = from + (to - from) * r;
+            if (r < 1) {
+                requestAnimationFrame(step);
+            } else {
+                resolve();
+            }
+        };
+        // 初期値を明示
+        video.volume = from;
+        requestAnimationFrame(step);
+    });
+}
+
+// スライダー(%) → 既存カーブ(Math.pow(norm, 2.2))で 0..1 のリニア音量へ
+function calcLinearVolumeFromSlider() {
+    const slider = document.getElementById('listedit-volume-slider');
+    if (!slider) return 0.001;
+    const v = parseInt(slider.value, 10) || 0;
+    if (v <= 0) return 0.001;
+    const norm = v / 100;
+    return Math.max(0.001, Math.pow(norm, 2.2));
 }
 
 // -----------------------
