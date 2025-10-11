@@ -650,7 +650,7 @@ function resetVideoIfEnded(videoElement) {
 }
 
 // -----------------------
-//  再生安定待ち・フェード・音量変換（新規追加）
+//  再生安定待ち・フェード・音量変換
 // -----------------------
 
 // 再生開始直後の安定を待つ（playing または timeupdate を最初の1回検知、最大 waitMs）
@@ -778,11 +778,11 @@ function updateVolumeMeterElement(volumeMeterElement, dbFS, sliderValue) {
     if (adjustedDbFS > 0) adjustedDbFS = 0;
     if (adjustedDbFS < -60) adjustedDbFS = -60;
 
-    // dB直線（-60?0）→ 点灯本数（下→上へ増える）
+    // dB直線（-60～0）→ 点灯本数（下→上へ増える）
     const fillRatio = (adjustedDbFS + 60) / 60; // 0..1
     const activeSegments = Math.round(fillRatio * totalSegments);
 
-    // 色は位置で固定：下=緑(-60?-18)／中=黄(-18?-6)／上=赤(-6?0)
+    // 色は位置で固定：下=緑(-60～-18)／中=黄(-18～-6)／上=赤(-6～0)
     segments.forEach((segment, index) => {
         if (index >= totalSegments - activeSegments) {
             const posTopToBottom = index / (totalSegments - 1); // 0..1
@@ -805,7 +805,6 @@ function updateVolumeMeterElement(volumeMeterElement, dbFS, sliderValue) {
     });
 }
 
-// === 追加：L/R 専用薄いラッパー ===
 function updateVolumeMeterL(dbFS, sliderValue) {
     const el = document.getElementById('listedit-volume-bar-L');
     updateVolumeMeterElement(el, dbFS, sliderValue);

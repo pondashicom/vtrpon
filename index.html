@@ -215,9 +215,18 @@
             <div class="video-container">
                 <video id="on-air-video" muted></video>
                 <canvas id="fade-canvas"></canvas>
-                <div id="on-air-volume-bar" class="volume-bar"></div>
-                <!--デバッグ用音量数値表示 <div id="on-air-volume-readout" class="small"></div> -->
+
+                <!-- LR 2分割（左右）：左=L、右=R -->
+                <div class="meter-row" id="on-air-meter-row">
+                    <div class="meter-col">
+                        <div id="on-air-volume-bar-L" class="volume-bar"></div>
+                    </div>
+                    <div class="meter-col">
+                        <div id="on-air-volume-bar-R" class="volume-bar"></div>
+                    </div>
+                </div>
             </div>
+
 
             <div class="info-bar">
                 <div id="on-air-filename">No file loaded</div>

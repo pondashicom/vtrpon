@@ -66,7 +66,8 @@ function onairGetElements() {
     return {
         onairVideoElement: document.getElementById('on-air-video'),
         onairFadeCanvas: document.getElementById('fade-canvas'),
-        onairVolumeBar: document.getElementById('on-air-volume-bar'),
+        onairVolumeBarL: document.getElementById('on-air-volume-bar-L'),
+        onairVolumeBarR: document.getElementById('on-air-volume-bar-R'),
         onairFileNameDisplay: document.getElementById('on-air-filename'),
         onairProgressSlider: document.getElementById('on-air-progress-slider'),
         onairStartTimeDisplay: document.getElementById('on-air-start-time'),
@@ -136,18 +137,24 @@ function onairInitializeButtons(elements) {
     }
 }
 
-
 // 音量メーターの初期化
 function onairInitializeVolumeMeter(elements) {
-    const { onairVolumeBar } = elements;
-    if (!onairVolumeBar) return;
+    const { onairVolumeBarL, onairVolumeBarR } = elements;
+    if (!onairVolumeBarL || !onairVolumeBarR) return;
 
     // 音量メーターのセットアップ処理
-    onairVolumeBar.innerHTML = '';
+    onairVolumeBarL.innerHTML = '';
     for (let i = 0; i < 60; i++) {
         const segment = document.createElement('div');
         segment.className = 'volume-segment';
-        onairVolumeBar.appendChild(segment);
+        onairVolumeBarL.appendChild(segment);
+    }
+
+    onairVolumeBarR.innerHTML = '';
+    for (let i = 0; i < 60; i++) {
+        const segment = document.createElement('div');
+        segment.className = 'volume-segment';
+        onairVolumeBarR.appendChild(segment);
     }
 }
 
@@ -524,7 +531,6 @@ function onairGetStateData(itemId) {
     logDebug('[onair.js] State data updated:', onairCurrentState);
     return onairCurrentState;
 }
-
 
 // -----------------------
 // 3 フルスクリーンにデータ送信
@@ -2358,19 +2364,27 @@ function handleFtbRateUpdate(newFtbRate) {
 let onAirVolumeWatchdogId = null;
 
 function setupOnAirVolumeMeter() {
-    const volumeBar = document.getElementById('on-air-volume-bar');
+    const volumeBarL = document.getElementById('on-air-volume-bar-L');
+    const volumeBarR = document.getElementById('on-air-volume-bar-R');
 
-    if (!volumeBar) {
-        logDebug('On-Air Volume Bar element not found.');
+    if (!volumeBarL || !volumeBarR) {
+        logDebug('On-Air Volume Bar elements (L/R) not found.');
         return;
     }
 
     // 初期化
-    volumeBar.innerHTML = ''; // メーターをクリア
+    volumeBarL.innerHTML = '';
     for (let i = 0; i < 60; i++) {
         const segment = document.createElement('div');
         segment.classList.add('volume-segment');
-        volumeBar.appendChild(segment);
+        volumeBarL.appendChild(segment);
+    }
+
+    volumeBarR.innerHTML = '';
+    for (let i = 0; i < 60; i++) {
+        const segment = document.createElement('div');
+        segment.classList.add('volume-segment');
+        volumeBarR.appendChild(segment);
     }
 
     // 受信停止監視：一定時間更新が無ければ確実にリセット
@@ -2393,107 +2407,161 @@ let lastVolumeUpdateTime = null;
 const volumeResetThreshold = 100; 
 
 // 表示用のスムージング状態
-let displayedDbFS = -60;          // 表示に使う dB 値（初期は最小）
-let redHoldUntilTs = 0;           // 赤ホールドの期限（ms)
+let displayedDbFSL = -60;
+let displayedDbFSR = -60;
+let redHoldUntilTsL = 0;
+let redHoldUntilTsR = 0;
 
 // スムージング設定（必要に応じて調整可）
-const ATTACK_MS  = 30;            // 上がる速さ（小さいほど速い）
-const RELEASE_MS = 180;           // 下がる速さ（大きいほどゆっくり）
-const RED_HOLD_MS = 120;          // 赤域に入った後の保持時間
+const ATTACK_MS  = 240;            // 上がる速さ（小さいほど速い）
+const RELEASE_MS = 360;           // 下がる速さ（大きいほどゆっくり）
+const RED_HOLD_MS = 180;          // 赤域に入った後の保持時間
 
 // 数値表示＆ピークホールド（1秒）
-let peakHoldDbFS = -60;
-let peakHoldUntilTs = 0;
-const PEAK_HOLD_MS = 1000;
+let peakHoldDbFSL = -60;
+let peakHoldUntilTsL = 0;
+let peakHoldDbFSR = -60;
+let peakHoldUntilTsR = 0;
+const PEAK_HOLD_MS = 1200;
 
-function updateOnAirVolumeMeter(dbFS) {
-    const volumeBar = document.getElementById('on-air-volume-bar');
-    if (!volumeBar) return;
+function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
+    const volumeBarL = document.getElementById('on-air-volume-bar-L');
+    const volumeBarR = document.getElementById('on-air-volume-bar-R');
+    if (!volumeBarL || !volumeBarR) return;
 
-    const segments = Array.from(volumeBar.querySelectorAll('.volume-segment'));
-    const totalSegments = segments.length;
+    const segmentsL = Array.from(volumeBarL.querySelectorAll('.volume-segment'));
+    const segmentsR = Array.from(volumeBarR.querySelectorAll('.volume-segment'));
+    const totalSegments = segmentsL.length;
 
-    // 最終出力音量（0～100）＝ ITEM × MASTER
     const itemSliderEl = document.getElementById('on-air-item-volume-slider');
     const masterSliderEl = document.getElementById('on-air-master-volume-slider');
     const itemSliderValue = itemSliderEl ? parseFloat(itemSliderEl.value) : 100;
     const masterSliderValue = masterSliderEl ? parseFloat(masterSliderEl.value) : 100;
     const sliderNormalized = Math.max(0.01, (itemSliderValue / 100) * (masterSliderValue / 100));
 
-    // 無信号時は元実装どおり即リセット＋表示状態を初期化
-    if (dbFS === -Infinity || dbFS < -100) {
-        resetOnAirVolumeMeter();
-        displayedDbFS = -60;
-        redHoldUntilTs = 0;
-        const readout = document.getElementById('on-air-volume-readout');
-        if (readout) readout.textContent = '-∞ dBFS';
-        peakHoldDbFS = -60;
-        peakHoldUntilTs = 0;
-        return;
-    }
-
-    // スライダー値を反映した dBFS（20*log10 合成）
-    let adjustedDbFS = dbFS + 20 * Math.log10(sliderNormalized);
-
-    // 表示レンジにクランプ（-60?0 dBFS）
-    if (adjustedDbFS > 0) adjustedDbFS = 0;
-    if (adjustedDbFS < -60) adjustedDbFS = -60;
-
-    // アタック/リリースで表示を安定化
     const now = Date.now();
     const dtMs = lastVolumeUpdateTime ? (now - lastVolumeUpdateTime) : 16;
     const upPerMs   = 60 / Math.max(1, ATTACK_MS);
     const downPerMs = 60 / Math.max(1, RELEASE_MS);
 
-    if (adjustedDbFS > displayedDbFS) {
-        displayedDbFS = Math.min(adjustedDbFS, displayedDbFS + upPerMs * dtMs);
-    } else {
-        displayedDbFS = Math.max(adjustedDbFS, displayedDbFS - downPerMs * dtMs);
-    }
-
-    // 赤ホールド（-6 dBFS 以上に入ったらしばらく保持）
-    if (displayedDbFS >= -6) redHoldUntilTs = now + RED_HOLD_MS;
-    const redHoldActive = now < redHoldUntilTs;
-
-    // ピークホールド（1秒）と数値表示
-    if (adjustedDbFS > peakHoldDbFS + 0.1) {
-        peakHoldDbFS = adjustedDbFS;
-        peakHoldUntilTs = now + PEAK_HOLD_MS;
-    } else if (now >= peakHoldUntilTs) {
-        peakHoldDbFS = Math.max(-60, peakHoldDbFS - downPerMs * dtMs);
-    }
     const readout = document.getElementById('on-air-volume-readout');
-    if (readout) readout.textContent = `${adjustedDbFS.toFixed(1)} dBFS (pk ${peakHoldDbFS.toFixed(1)})`;
 
-    // dB直線（-60?0）→ 点灯本数（下→上）
-    const fillRatioDb = (displayedDbFS + 60) / 60; // 0..1
-    const activeSegments = Math.round(fillRatioDb * totalSegments);
-
-    // 色は位置で固定：下=緑(-60～-18)／中=黄(-18～-6)／上=赤(-6～0)
-    segments.forEach((segment, index) => {
-        if (index >= totalSegments - activeSegments) {
-            const posTopToBottom = index / (totalSegments - 1); // 0..1
-            const segmentDb = 0 - posTopToBottom * 60;          // 0..-60
-
-            if (segmentDb >= -6 || (redHoldActive && segmentDb >= -6)) {
-                segment.style.backgroundColor = '#c05050';
-                segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
-            } else if (segmentDb >= -18) {
-                segment.style.backgroundColor = 'rgb(210,160,120)';
-                segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
+    const processChannel = (side, rawDb, segments, displayedRef, redHoldRef, peakHoldDbRef, peakHoldUntilRef) => {
+        if (rawDb === -Infinity || rawDb < -100) {
+            segments.forEach(s => { s.style.backgroundColor = '#555'; s.style.boxShadow = 'none'; });
+            if (side === 'L') {
+                displayedDbFSL = -60;
+                redHoldUntilTsL = 0;
+                peakHoldDbFSL = -60;
+                peakHoldUntilTsL = 0;
+                if (readout) readout.textContent = '-∞ dBFS';
             } else {
-                segment.style.backgroundColor = 'rgb(90,130,90)';
-                segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
+                displayedDbFSR = -60;
+                redHoldUntilTsR = 0;
+                peakHoldDbFSR = -60;
+                peakHoldUntilTsR = 0;
             }
-        } else {
-            segment.style.backgroundColor = '#555';
-            segment.style.boxShadow = 'none';
+            return;
         }
-    });
+
+        let adjustedDb = rawDb + 20 * Math.log10(sliderNormalized);
+        if (adjustedDb > 0) adjustedDb = 0;
+        if (adjustedDb < -60) adjustedDb = -60;
+
+        if (side === 'L') {
+            if (adjustedDb > displayedDbFSL) {
+                displayedDbFSL = Math.min(adjustedDb, displayedDbFSL + upPerMs * dtMs);
+            } else {
+                displayedDbFSL = Math.max(adjustedDb, displayedDbFSL - downPerMs * dtMs);
+            }
+            if (displayedDbFSL >= -6) redHoldUntilTsL = now + RED_HOLD_MS;
+            const redHoldActive = now < redHoldUntilTsL;
+
+            if (adjustedDb > peakHoldDbFSL + 0.1) {
+                peakHoldDbFSL = adjustedDb;
+                peakHoldUntilTsL = now + PEAK_HOLD_MS;
+            } else if (now >= peakHoldUntilTsL) {
+                peakHoldDbFSL = Math.max(-60, peakHoldDbFSL - downPerMs * dtMs);
+            }
+            if (readout) readout.textContent = `${adjustedDb.toFixed(1)} dBFS (pk ${peakHoldDbFSL.toFixed(1)})`;
+
+            const fillRatioDb = (displayedDbFSL + 60) / 60;
+            const activeSegments = Math.round(fillRatioDb * totalSegments);
+
+            segments.forEach((segment, index) => {
+                if (index >= totalSegments - activeSegments) {
+                    const posTopToBottom = index / (totalSegments - 1);
+                    const segmentDb = 0 - posTopToBottom * 60;
+                    if (segmentDb >= -6 || (redHoldActive && segmentDb >= -6)) {
+                        segment.style.backgroundColor = '#c05050';
+                        segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
+                    } else if (segmentDb >= -18) {
+                        segment.style.backgroundColor = 'rgb(210,160,120)';
+                        segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
+                    } else {
+                        segment.style.backgroundColor = 'rgb(90,130,90)';
+                        segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
+                    }
+                } else {
+                    segment.style.backgroundColor = '#555';
+                    segment.style.boxShadow = 'none';
+                }
+            });
+        } else {
+            if (adjustedDb > displayedDbFSR) {
+                displayedDbFSR = Math.min(adjustedDb, displayedDbFSR + upPerMs * dtMs);
+            } else {
+                displayedDbFSR = Math.max(adjustedDb, displayedDbFSR - downPerMs * dtMs);
+            }
+            if (displayedDbFSR >= -6) redHoldUntilTsR = now + RED_HOLD_MS;
+            const redHoldActive = now < redHoldUntilTsR;
+
+            if (adjustedDb > peakHoldDbFSR + 0.1) {
+                peakHoldDbFSR = adjustedDb;
+                peakHoldUntilTsR = now + PEAK_HOLD_MS;
+            } else if (now >= peakHoldUntilTsR) {
+                peakHoldDbFSR = Math.max(-60, peakHoldDbFSR - downPerMs * dtMs);
+            }
+
+            const fillRatioDb = (displayedDbFSR + 60) / 60;
+            const activeSegments = Math.round(fillRatioDb * totalSegments);
+
+            segments.forEach((segment, index) => {
+                if (index >= totalSegments - activeSegments) {
+                    const posTopToBottom = index / (totalSegments - 1);
+                    const segmentDb = 0 - posTopToBottom * 60;
+                    if (segmentDb >= -6 || (redHoldActive && segmentDb >= -6)) {
+                        segment.style.backgroundColor = '#c05050';
+                        segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
+                    } else if (segmentDb >= -18) {
+                        segment.style.backgroundColor = 'rgb(210,160,120)';
+                        segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
+                    } else {
+                        segment.style.backgroundColor = 'rgb(90,130,90)';
+                        segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
+                    }
+                } else {
+                    segment.style.backgroundColor = '#555';
+                    segment.style.boxShadow = 'none';
+                }
+            });
+        }
+    };
+
+    if (isMono) {
+        processChannel('L', dbFSL, segmentsL);
+        segmentsR.forEach(s => { s.style.backgroundColor = '#555'; s.style.boxShadow = 'none'; });
+        displayedDbFSR = -60;
+        redHoldUntilTsR = 0;
+        peakHoldDbFSR = -60;
+        peakHoldUntilTsR = 0;
+    } else {
+        processChannel('L', dbFSL, segmentsL);
+        processChannel('R', dbFSR, segmentsR);
+    }
 
     lastVolumeUpdateTime = now;
 
-    // 元のタイムアウトリセット
     setTimeout(() => {
         if (Date.now() - lastVolumeUpdateTime >= volumeResetThreshold) {
             resetOnAirVolumeMeter();
@@ -2505,11 +2573,11 @@ function updateOnAirVolumeMeter(dbFS) {
 // フルスクリーンからの音量データ受信
 // -----------------------
 
-window.electronAPI.onReceiveFullscreenVolume((dbFS) => {
-    // logDebug(`Received dBFS: ${dbFS}`);
-    updateOnAirVolumeMeter(dbFS);
+window.electronAPI.onReceiveFullscreenVolumeLR((L, R) => {
+    const l = (typeof L === 'number') ? L : (L && typeof L.dbFS === 'number' ? L.dbFS : -Infinity);
+    const r = (typeof R === 'number') ? R : (R && typeof R.dbFS === 'number' ? R.dbFS : -Infinity);
+    updateOnAirVolumeMeter(l, r, false);
 });
-
 // -----------------------
 // スクリーンショット機能
 // -----------------------

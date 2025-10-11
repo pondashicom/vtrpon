@@ -1466,6 +1466,13 @@ ipcMain.on('fullscreen-audio-level', (event, dBFS) => {
     }
 });
 
+// L/R 版（payload: { L: number, R: number } をそのまま転送）
+ipcMain.on('fullscreen-audio-level-lr', (event, payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('fullscreen-audio-level-lr', payload);
+    }
+});
+
 // -----------------------------------------------------
 // フルスクリーンかshow-messageに情報を送る
 // -----------------------------------------------------
