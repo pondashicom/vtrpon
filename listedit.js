@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.3.8
+//     ver 2.3.9
 // -----------------------
 
 // -----------------------
@@ -679,19 +679,19 @@ function updateVolumeMeter(dbFS, sliderValue) {
     const segments = Array.from(volumeMeter.querySelectorAll('.volume-segment'));
     const totalSegments = segments.length;
 
-    // スライダーが 0 の場合
+    // スライダーが 0 の場合 → 全消灯
     if (sliderValue === 0) {
         segments.forEach((segment) => {
-            segment.style.backgroundColor = '#555'; // 全セグメントを灰色
+            segment.style.backgroundColor = '#555';
             segment.style.boxShadow = 'none';
         });
         return;
     }
 
-    // dBFS が -Infinity の場合（無音）
+    // 無音（-Infinity / 極小） → 全消灯
     if (dbFS === -Infinity || dbFS < -100) {
         segments.forEach((segment) => {
-            segment.style.backgroundColor = '#555'; // 全セグメントを灰色
+            segment.style.backgroundColor = '#555';
             segment.style.boxShadow = 'none';
         });
         return;
@@ -700,36 +700,40 @@ function updateVolumeMeter(dbFS, sliderValue) {
     // スライダー値を正規化（0～1）
     const sliderNormalized = sliderValue / 100;
 
-    // スライダー値を反映した dBFS 値を計算
-    const adjustedDbFS = dbFS + 20 * Math.log10(sliderNormalized);
+    // スライダー値を反映した dBFS（補正なし）
+    let adjustedDbFS = dbFS + 20 * Math.log10(sliderNormalized);
 
-    // ：dBFS(-80?0) をセグメント本数へ直線対応させる
-    const clippedDb = Math.max(-80, Math.min(0, adjustedDbFS));
-    const activeSegments = Math.round(((clippedDb + 80) / 80) * totalSegments);
+    // 表示レンジを -60?0 dBFS に統一
+    if (adjustedDbFS > 0) adjustedDbFS = 0;
+    if (adjustedDbFS < -60) adjustedDbFS = -60;
 
-    // メーターを更新
+    // dB直線（-60?0）→ 点灯本数（下→上へ増える）
+    const fillRatio = (adjustedDbFS + 60) / 60; // 0..1
+    const activeSegments = Math.round(fillRatio * totalSegments);
+
+    // 色は位置で固定：下=緑(-60?-18)／中=黄(-18?-6)／上=赤(-6?0)
     segments.forEach((segment, index) => {
         if (index >= totalSegments - activeSegments) {
-            const segmentThreshold = -((index / totalSegments) * 80);
+            // index: 0=最上段, totalSegments-1=最下段
+            const posTopToBottom = index / (totalSegments - 1); // 0..1
+            const segmentDb = 0 - posTopToBottom * 60;          // 0..-60
 
-        if (segmentThreshold >= -10) {
-            segment.style.backgroundColor = '#c05050';
-            segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
-        } else if (segmentThreshold >= -30) {
-            segment.style.backgroundColor = 'rgb(210,160,120)';
-            segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
-        } else {
-            segment.style.backgroundColor = 'rgb(90,130,90)';
-            segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
-        }
-
+            if (segmentDb >= -6) {
+                segment.style.backgroundColor = '#c05050';
+                segment.style.boxShadow = '0 0 6px rgba(192, 80, 80, 0.6)';
+            } else if (segmentDb >= -18) {
+                segment.style.backgroundColor = 'rgb(210,160,120)';
+                segment.style.boxShadow = '0 0 6px rgba(210, 160, 120, 0.6)';
+            } else {
+                segment.style.backgroundColor = 'rgb(90,130,90)';
+                segment.style.boxShadow = '0 0 6px rgba(90, 130, 90, 0.6)';
+            }
         } else {
             segment.style.backgroundColor = '#555';
             segment.style.boxShadow = 'none';
         }
     });
 }
-
 
 // -----------------------
 // 音声メーターのセットアップ
@@ -760,7 +764,7 @@ function setupVolumeMeter(videoElement, volumeMeter) {
 
         if (!analyser) {
             analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
+            analyser.fftSize = 2048; // 瞬時ピーク検出を安定させる
         }
 
         if (!inputSourceNode || inputSourceNode.mediaElement !== videoElement) {
@@ -780,21 +784,18 @@ function setupVolumeMeter(videoElement, volumeMeter) {
             const timeData = new Float32Array(analyser.fftSize);
 
             function render() {
-                // 時間波形からRMSを計算してdBFSへ
+                // 時間波形から「瞬時ピーク」を計測して dBFS へ（補正なし）
                 analyser.getFloatTimeDomainData(timeData);
-                let sum = 0;
+                let peak = 0.0;
                 for (let i = 0; i < timeData.length; i++) {
-                    const s = timeData[i];
-                    sum += s * s;
+                    const a = Math.abs(timeData[i]);
+                    if (a > peak) peak = a;
                 }
-                const rms = Math.sqrt(sum / timeData.length);
 
-                if (rms <= 1e-8) {
-                    updateVolumeMeter(-Infinity, volumeAdjustmentFactor * 100);
-                } else {
-                    const dbFS = 20 * Math.log10(rms);
-                    updateVolumeMeter(dbFS, volumeAdjustmentFactor * 100);
-                }
+                const safe = Math.max(peak, 1e-9); // log(0)回避の数値ガード
+                const dbFS = 20 * Math.log10(safe);
+
+                updateVolumeMeter(peak <= 1e-9 ? -Infinity : dbFS, volumeAdjustmentFactor * 100);
                 animationFrameId = requestAnimationFrame(render);
             }
             render();
