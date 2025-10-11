@@ -2469,7 +2469,7 @@ function updateOnAirVolumeMeter(dbFS) {
     const fillRatioDb = (displayedDbFS + 60) / 60; // 0..1
     const activeSegments = Math.round(fillRatioDb * totalSegments);
 
-    // 色は位置で固定：下=緑(-60?-18)／中=黄(-18?-6)／上=赤(-6?0)
+    // 色は位置で固定：下=緑(-60～-18)／中=黄(-18～-6)／上=赤(-6～0)
     segments.forEach((segment, index) => {
         if (index >= totalSegments - activeSegments) {
             const posTopToBottom = index / (totalSegments - 1); // 0..1
