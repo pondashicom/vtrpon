@@ -1966,7 +1966,7 @@ document.getElementById('on-air-fo-button').addEventListener('click', () => {
         return;
     }
 
-    const fioRate = parseFloat(document.getElementById('fioRate').value);
+    const fioRate = parseFloat(document.getElementById('mainFioRate').value);
     fadeButtonBlink(document.getElementById('on-air-fo-button'));
     audioFadeOut(fioRate);
 });
@@ -1982,7 +1982,7 @@ document.getElementById('on-air-fi-button').addEventListener('click', () => {
         return;
     }
 
-    const fioRate = parseFloat(document.getElementById('fioRate').value);
+    const fioRate = parseFloat(document.getElementById('mainFioRate').value);
     fadeButtonBlink(document.getElementById('on-air-fi-button')); 
     audioFadeIn(fioRate); 
 });
@@ -2073,7 +2073,12 @@ document.getElementById('on-air-item-fo-button').addEventListener('click', () =>
         logInfo('[onair.js] No video loaded or not ready. Item fade-out operation canceled.');
         return;
     }
-    const fadeDuration = onairCurrentState?.ftbRate || 1.0;
+    // まず #itemFioRate（アイテム専用フェード時間）を優先。未設定/不正なら従来の ftbRate を使用
+    const itemFioRateEl = document.getElementById('itemFioRate');
+    const fadeDuration = (itemFioRateEl && !isNaN(parseFloat(itemFioRateEl.value)))
+        ? parseFloat(itemFioRateEl.value)
+        : (onairCurrentState?.ftbRate || 1.0);
+
     fadeButtonBlink(document.getElementById('on-air-item-fo-button'));
     audioFadeOutItem(fadeDuration);
 });
@@ -2089,12 +2094,15 @@ document.getElementById('on-air-item-fi-button').addEventListener('click', () =>
         return;
     }
 
-    // アイテム固有フェードの時間は ftbRate（アイテムデータから取得）を使用
-    const fadeDuration = onairCurrentState?.ftbRate || 1.0;
+    // まず #itemFioRate（アイテム専用フェード時間）を優先。未設定/不正なら従来の ftbRate を使用
+    const itemFioRateEl = document.getElementById('fioRate');
+    const fadeDuration = (itemFioRateEl && !isNaN(parseFloat(itemFioRateEl.value)))
+        ? parseFloat(itemFioRateEl.value)
+        : (onairCurrentState?.ftbRate || 1.0);
+
     fadeButtonBlink(document.getElementById('on-air-item-fi-button'));
     audioFadeInItem(fadeDuration); 
 });
-
 
 // -----------------------
 // スタートモードFADEIN

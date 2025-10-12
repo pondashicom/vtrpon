@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     tooltips.js
-//     ver 2.2.8
+//     ver 2.4.0
 // -----------------------
 
 
@@ -17,11 +17,12 @@ const tooltips = {
     "end-next-button": "OUT点に到達したらプレイリストの次の動画をオンエアします",
     "end-ftb-button": "OUT点に到達したらフェードアウトしてオフエアします",
     "ftbRate": "FTBやスタートモードFADEINでフェードする時間（秒）を設定します",
+    "fioRate": "マスター音声をフェードする時間（秒）を設定します",
     "pfl-button": "Device Settingsメニューで設定したPFLデバイスを使ってプリフェーダーリッスンします",
     "listedit-volume-slider": "オンエア開始時の規定音量を設定します",
     "addUVCToPlaylistButton": "選択したUVCデバイスをプレイリストに追加します",
     "still-button": "エディットエリアに表示されている動画をキャプチャーしてプレイリストに登録します",
-    "fadeInDuration": "CAPTUREボタン押下時やPNGファイル登録時に指定秒数でMP4動画に変換して登録します",
+    "fadeInDuration": "CAPTUREボタン押下時やPNGファイル、PPTファイルを登録時にここで指定した秒数でMP4動画に変換します",
     "dsk-button": "選択したアイテムをダウンストリームキーとして送出・停止します。IN点とOUT点の間でループ再生します",
     "dks-pause-button": "ダウンストリームキーとして送出されているアイテムを一時停止します",
     "dsk-play-button": "ダウンストリームキーとして送出されているアイテムを再生します",
@@ -62,6 +63,7 @@ const tooltips = {
     "end-next-button": "Air the next video in the playlist when reaching the OUT point",
     "end-ftb-button": "Fade out and turn off air when reaching the OUT point",
     "ftbRate": "Set the fade time (in seconds) for FTB and Start Mode FADEIN.",
+    "fioRate": "Set the fade time (in seconds) for FADE IN/OUT.",
     "pfl-button": "Listen using the PFL device set in the Device Settings menu",
     "listedit-volume-slider": "Set the default volume at air start",
     "addUVCToPlaylistButton": "Add the selected UVC device to the playlist",

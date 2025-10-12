@@ -265,9 +265,9 @@
                     <span id="on-air-item-volume-value" class="volume-value">100%</span>
                 </div>
                 <!-- アイテムフェード操作 -->
-                <div class="controls fade-controls item-fade">
+                <div class="controls fade-controls">
                     <button id="on-air-item-fo-button" class="button button-gray" data-tooltip-id="on-air-item-fo-button" data-label-id="on-air-item-fo-button"></button>
-                    <div class="fifo-dummy"></div>
+                    <input type="number" id="itemFioRate" min="0.1" step="0.1" value="1.0" class="ftb-rate-input" aria-label="ITEM FADE RATE" data-tooltip-id="itemFioRate" data-label-id="itemFioRate">
                     <button id="on-air-item-fi-button" class="button button-gray" data-tooltip-id="on-air-item-fi-button" data-label-id="on-air-item-fi-button"></button>
                 </div>
                 <!-- マスターフェーダー -->
@@ -279,7 +279,7 @@
                 <!-- マスターフェード操作 -->
                 <div class="controls fade-controls">
                     <button id="on-air-fo-button" class="button button-gray" data-tooltip-id="on-air-fo-button" data-label-id="on-air-fo-button"></button>
-                    <input type="number" id="fioRate" min="0.1" step="0.1" value="1.0" class="ftb-rate-input" aria-label="FADEIN/OUT RATE" data-tooltip-id="fioRate" data-label-id="fioRate">
+                    <input type="number" id="mainFioRate" min="0.1" step="0.1" value="1.0" class="ftb-rate-input volume-value" aria-label="FADEIN/OUT RATE" data-tooltip-id="mainFioRate" data-label-id="mainFioRate">
                     <button id="on-air-fi-button" class="button button-gray" data-tooltip-id="on-air-fi-button" data-label-id="on-air-fi-button"></button>
                 </div>
             </div>
