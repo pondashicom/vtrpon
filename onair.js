@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.4.0
+//     ver 2.4.1
 // -----------------------
 // -----------------------
 // 初期設定
@@ -2356,6 +2356,19 @@ function handleEndModeUpdate(newEndMode, { source } = {}) {
     logDebug(`[onair.js] End mode updated: ${newEndMode}`);
 }
 
+// プレイリストモード更新時のエンドモード更新
+if (window?.electronAPI?.ipcRenderer?.on) {
+    window.electronAPI.ipcRenderer.on('sync-onair-endmode', (_e, payload) => {
+        if (!onairCurrentState) return;
+        const id = payload?.editingItemId;
+        if (id && onairCurrentState.itemId !== id) return;
+        const endMode = String(payload.endMode).toUpperCase();
+        if (!endMode) return;
+        handleEndModeUpdate(endMode, { source: 'ipc' });
+    });
+}
+
+
 // FTBレートの更新処理
 function handleFtbRateUpdate(newFtbRate) {
     if (!onairCurrentState) {
@@ -2782,6 +2795,8 @@ window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
     window.electronAPI.sendControlToFullscreen({ command: 'set-fillkey-bg', value: '' });
     logDebug('[onair.js] FillKey mode has been updated to:', isFillKeyMode);
 });
+
+
 
 // -----------------------
 // ショートカットキー管理

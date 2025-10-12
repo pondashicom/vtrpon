@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.4.0
+//     ver 2.4.1
 // -----------------------
 
 // -----------------------
@@ -265,9 +265,6 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
 
             // INOUTマーカー位置を更新
             updateListeditSeekBarMarkers(inPoint, outPoint);
-
-            // プレイリスト経由でモードが変わった場合はオンエアへ同期
-            window.electronAPI.notifyListeditUpdate();
         });
     });
 }

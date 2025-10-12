@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.3.8
+//     ver 2.4.1
 // -----------------------
 
 // ---------------------
@@ -1400,6 +1400,22 @@ ipcMain.on('on-air-item-id', async (event, itemId) => {
         }
     }
 });
+
+// ---------------------------------------------
+// プレイリストモード切り替え時の endMode 同期
+// ---------------------------------------------
+ipcMain.on('sync-onair-endmode', (event, payload) => {
+    try {
+        // payload: { reason: 'mode-change', mode: 'LIST' | 'REPEAT', editingItemId: string }
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('sync-onair-endmode', payload);
+        });
+        console.log('[main.js] Forwarded sync-onair-endmode:', payload);
+    } catch (e) {
+        console.error('[main.js] Error forwarding sync-onair-endmode:', e);
+    }
+});
+
 // ---------------------------------------------
 // オンエアからフルスクリーンにアイテムIDを中継
 // ---------------------------------------------
