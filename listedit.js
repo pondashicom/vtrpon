@@ -171,7 +171,7 @@ let currentEditingItemId = null;
 
 // 動画プレーヤーの初期化
 function setupVideoPlayer(videoElement, filenameDisplay) {
-    window.electronAPI.onUpdateEditState((itemData) => {
+    window.electronAPI.onUpdateEditState(async (itemData) => {
         if (!itemData || !itemData.playlistItem_id) {
             logInfo('[listedit.js] Invalid edit state data received.');
             filenameDisplay.textContent = 'No file loaded';
@@ -197,6 +197,12 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
             videoElement.src = itemData.path;
         }
         videoElement.load();
+
+        // PFLがONなら、ソース切替直後に再バインドを仕込む
+        if (isPFLActive) {
+            await stopPFL();
+            await rebindPFLToCurrentVideo();
+        }
 
         videoElement.addEventListener('loadedmetadata', async () => {
             setVideoLoadedState(true); 
@@ -279,6 +285,7 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
         });
     });
 }
+
 
 // INOUT状態の復元時にフォーマットされた時間を数値に変換
 function parseTime(timeString) {
@@ -1060,6 +1067,8 @@ function updateVolumeDisplay(volume) {
 let isPFLActive = false;
 let pflAudioContext = null;
 let pflAudioElement = null;
+let pflBoundItemId = null;
+let pflSelectedDeviceId = null;
 
 // 要素取得
 const pflButton = document.getElementById('pfl-button');
@@ -1075,6 +1084,11 @@ async function startPFL(selectedDeviceId) {
     if (!videoElement.captureStream) {
         logInfo('[listedit.js] PFL: captureStream() is not supported.');
         return;
+    }
+
+    // 直近の選択デバイスを既定で再利用
+    if (!selectedDeviceId && pflSelectedDeviceId) {
+        selectedDeviceId = pflSelectedDeviceId;
     }
 
     try {
@@ -1110,6 +1124,13 @@ async function startPFL(selectedDeviceId) {
 
         pflAudioElement.srcObject = dest.stream;
         await pflAudioElement.play();
+
+        // 現在のアイテムとデバイスIDを記憶
+        pflBoundItemId = currentEditingItemId || null;
+        if (selectedDeviceId) {
+            pflSelectedDeviceId = selectedDeviceId;
+        }
+
         logInfo('[listedit.js] PFL monitoring started successfully.');
     } catch (error) {
         logInfo('[listedit.js] PFL: Monitoring failed:', error);
@@ -1128,6 +1149,28 @@ async function stopPFL() {
         pflAudioContext = null;
     }
     logInfo('[listedit.js] PFL monitoring stoped');
+}
+
+// 現在の videoElement が再生可能になったタイミングでPFLを再開始
+async function rebindPFLToCurrentVideo() {
+    // video が再生準備できるまで待機（loadedmetadata または canplay のどちらか早い方）
+    await new Promise((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        const onLoaded = () => { videoElement.removeEventListener('loadedmetadata', onLoaded); finish(); };
+        const onCanplay = () => { videoElement.removeEventListener('canplay', onCanplay); finish(); };
+        videoElement.addEventListener('loadedmetadata', onLoaded, { once: true });
+        videoElement.addEventListener('canplay', onCanplay, { once: true });
+        // 既に読み込み済みなら即時解決
+        if (videoElement.readyState >= 1) {
+            finish();
+        }
+    });
+
+    if (isPFLActive) {
+        logInfo('[listedit.js] Rebinding PFL to the new video source.');
+        await startPFL(pflSelectedDeviceId);
+    }
 }
 
 // PFL ボタン
@@ -1166,29 +1209,37 @@ if (pflButton && videoElement) {
 
         // PFLを開始または停止
         if (!isPFLActive) {
-            isPFLActive = true;
-            pflButton.classList.remove('button-gray');
-            pflButton.classList.add('button-green');
-            await startPFL(selectedDeviceId);
+            try {
+                await startPFL(selectedDeviceId);
+                // 成功時のみ状態ON＋点灯
+                isPFLActive = true;
+                pflButton.classList.remove('button-gray');
+                pflButton.classList.add('button-green');
+            } catch (_) {
+                // 失敗したらONにしない（見た目も変更しない）
+                isPFLActive = false;
+            }
         } else {
+            // OFF操作
+            await stopPFL();
             isPFLActive = false;
             pflButton.classList.remove('button-green');
             pflButton.classList.add('button-gray');
-            await stopPFL();
         }
     });
 }
 
-// 動画が再生状態になったとき（playing イベント）に、PFLがONでAudioContextが未初期化の場合、再初期化
+// 動画が再生状態になったとき（playing イベント）に、PFLがONでAudioContext未初期化
+// または、現在のアイテムに未バインドの場合は再初期化
 videoElement.addEventListener('playing', async () => {
     // 動画が終了状態の場合は、currentTimeをリセットしてから再初期化
     if (videoElement.ended) {
         videoElement.currentTime = 0;
         await new Promise(resolve => setTimeout(resolve, 100));
     }
-    if (isPFLActive && !pflAudioContext) {
-        logInfo('[listedit.js] Video is playing: Reinitializing PFL since it is ON');
-        await startPFL();
+    if (isPFLActive && (!pflAudioContext || pflBoundItemId !== currentEditingItemId)) {
+        logInfo('[listedit.js] Video is playing: Reinitializing PFL (context missing or bound item changed)');
+        await startPFL(pflSelectedDeviceId);
     }
 });
 
@@ -1196,6 +1247,14 @@ videoElement.addEventListener('playing', async () => {
 videoElement.addEventListener('ended', async () => {
     if (isPFLActive && pflAudioContext) {
         logInfo('[listedit.js] Video ended: Resetting PFL AudioContext');
+        await stopPFL();
+    }
+});
+
+// 動画ソース差し替え時などに発火する emptied でも念のためクリーンアップ
+videoElement.addEventListener('emptied', async () => {
+    if (isPFLActive && pflAudioContext) {
+        logInfo('[listedit.js] Video emptied: Resetting PFL AudioContext');
         await stopPFL();
     }
 });
