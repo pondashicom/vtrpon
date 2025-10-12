@@ -3,7 +3,6 @@
 //     ver 2.4.0
 // -----------------------
 
-
 const tooltips = {
   "ja": {
     "in-point": "動画の再生を開始するポイントを設定します",
@@ -17,7 +16,8 @@ const tooltips = {
     "end-next-button": "OUT点に到達したらプレイリストの次の動画をオンエアします",
     "end-ftb-button": "OUT点に到達したらフェードアウトしてオフエアします",
     "ftbRate": "FTBやスタートモードFADEINでフェードする時間（秒）を設定します",
-    "fioRate": "マスター音声をフェードする時間（秒）を設定します",
+    "itemFioRate": "アイテム音声をフェードする時間（秒）を設定します。FTB時はFTB秒数が適用されます",
+    "mainFioRate": "メイン音声をフェードする時間（秒）を設定します",
     "pfl-button": "Device Settingsメニューで設定したPFLデバイスを使ってプリフェーダーリッスンします",
     "listedit-volume-slider": "オンエア開始時の規定音量を設定します",
     "addUVCToPlaylistButton": "選択したUVCデバイスをプレイリストに追加します",
@@ -30,7 +30,8 @@ const tooltips = {
     "list-list-button": "プレイリスト上部をスタートモード[PAUSE]、中間を[PLAY]、下部を[PLAY]または[FTB]に設定します",
     "directonair-mode-button": "アイテムをダブルクリックすると即座にスタートモード[PLAY]に設定しオンエアします（エンドモードは保持）",
     "soundpad-mode-button": "アイテムをダブルクリックすると即座にスタートモード[PLAY]、エンドモード[OFF]に設定してオンエアします",
-    "fillkey-mode-button": "ビデオプレーヤーの背景を緑にして透過情報付き動画を送出し、フィルキー信号を出力します",
+    "fillkey-mode-button": "ビデオプレーヤーの背景を指定の背景色にして透過情報付き動画を送出し、フィルキー信号を出力します",
+    "fillkey-color-picker": "フィルキーモードの背景色を選択します",
     "playlise-save-button": "SAVEモード中にプレイリスト番号をクリックしてプレイリストを保存します",
     "playlisedel-button": "DELETEモード中にプレイリスト番号をクリックしてプレイリストを削除します",
     "playliseclear-button": "表示中のプレイリストのアイテムをクリアし、DIRECT、SOUNDPAD、FILLKEYモードも解除します",
@@ -38,10 +39,10 @@ const tooltips = {
     "cue-button": "フルスクリーンにアイテムを投影します",
     "on-air-item-volume-slider": "アイテム固有のボリュームを調整します。ネクストモードや次のオンエアでアイテムごとの音量にリセットされます",
     "on-air-master-volume-slider": "システム全体のボリュームを調整します。ネクストモードや次のオンエアをしても音量は保持されます",
-    "on-air-item-fo-button": "アイテム固有の音声をフェードアウトします。フェード時間はエディットエリアのFTBボタン横の数字で指定します",
-    "on-air-item-fi-button": "アテム固有音声をフェードインします。フェード時間はエディットエリアのFTBボタン横の数字で指定します",
-    "on-air-fo-button": "メイン音声をフェードアウトします。フェード時間はフェードインボタンとフェードアウトボタンの間の数字で指定します",
-    "on-air-fi-button": "メイン音声をフェードインします。フェード時間はフェードインボタンとフェードアウトボタンの間の数字で指定します",
+    "on-air-item-fo-button": "アイテム固有の音声をフェードアウトします。フェード時間はアイテム用のフェード秒数入力欄（FIO）で指定します",
+    "on-air-item-fi-button": "アイテム固有の音声をフェードインします。フェード時間はアイテム用のフェード秒数入力欄（FIO）で指定します",
+    "on-air-fo-button": "メイン音声をフェードアウトします。フェード時間はフェードイン／フェードアウトボタンの間の数値（MAIN FIO）で指定します",
+    "on-air-fi-button": "メイン音声をフェードインします。フェード時間はフェードイン／フェードアウトボタンの間の数値（MAIN FIO）で指定します",
     "playback-speed-slider": "スライダー操作中に動画の再生速度を変更します",
     "playback-speed-input": "動画の再生速度を変更します。スライダー操作でリセット",
     "capture-button": "フルスクリーン動画のスクリーンショットをPNGとして保存します",
@@ -63,7 +64,8 @@ const tooltips = {
     "end-next-button": "Air the next video in the playlist when reaching the OUT point",
     "end-ftb-button": "Fade out and turn off air when reaching the OUT point",
     "ftbRate": "Set the fade time (in seconds) for FTB and Start Mode FADEIN.",
-    "fioRate": "Set the fade time (in seconds) for FADE IN/OUT.",
+    "itemFioRate": "Set the fade time (in seconds) for ITEM audio fade in/out. During FTB, the FTB seconds apply.",
+    "mainFioRate": "Set the fade time (in seconds) for MAIN audio fade in/out.",
     "pfl-button": "Listen using the PFL device set in the Device Settings menu",
     "listedit-volume-slider": "Set the default volume at air start",
     "addUVCToPlaylistButton": "Add the selected UVC device to the playlist",
@@ -76,7 +78,8 @@ const tooltips = {
     "list-list-button": "Set the top item to Start Mode [PAUSE], middle items to [PLAY], and the bottom item to [PLAY] or [FTB]",
     "directonair-mode-button": "Double-click an item to immediately set it to Start Mode [PLAY] for air (End Mode remains unchanged)",
     "soundpad-mode-button": "Double-click an item to immediately set it to Start Mode [PLAY] and End Mode [OFF] for air",
-    "fillkey-mode-button": "Set the video player’s background to green and output a video with transparency for the fill key signal",
+    "fillkey-mode-button": "Set the video player’s background color and output a video with transparency for the fill key signal",
+    "fillkey-color-picker": "Select the background color for Fill-Key mode",
     "playlise-save-button": "Save the playlist by clicking a playlist number while in SAVE mode",
     "playlisedel-button": "Delete the playlist by clicking a playlist number while in DELETE mode",
     "playliseclear-button": "Clear the items of the current playlist and disable DIRECT, SOUNDPAD, and FILLKEY modes",
@@ -84,10 +87,10 @@ const tooltips = {
     "cue-button": "Project the item to the fullscreen display",
     "on-air-item-volume-slider": "Adjust the volume for each item. The volume will reset to the item's level in Next Mode or on the next on-air.",
     "on-air-master-volume-slider": "Adjust the overall system volume. The volume remains even in Next Mode or on the next on-air.",
-    "on-air-item-fo-button": "Fades out the audio specific to the item. The fade time is specified by the number next to the FTB button in the edit area.",
-    "on-air-item-fi-button": "Fades in the audio specific to the item. The fade time is specified by the number next to the FTB button in the edit area.",
-    "on-air-fo-button": "Fade out the main audio. The fade duration is specified by the number between the fade-in and fade-out buttons.",
-    "on-air-fi-button": "Fade in the main audio. The fade duration is specified by the number between the fade-in and fade-out buttons.",
+    "on-air-item-fo-button": "Fade out the item’s audio. The duration is set by the item fade field (FIO).",
+    "on-air-item-fi-button": "Fade in the item’s audio. The duration is set by the item fade field (FIO).",
+    "on-air-fo-button": "Fade out the MAIN audio. The duration is set by the value between the buttons (MAIN FIO).",
+    "on-air-fi-button": "Fade in the MAIN audio. The duration is set by the value between the buttons (MAIN FIO).",
     "playback-speed-slider": "Adjust the playback speed while sliding",
     "playback-speed-input": "Change the playback speed; resets when the slider is used",
     "capture-button": "Capture a screenshot of the fullscreen video and save it as a PNG in the same directory as the video",
@@ -98,13 +101,6 @@ const tooltips = {
     "on-air-play-button": "Play the fullscreen video projection"
   }
 };
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = tooltips;
-} else {
-  window.tooltips = tooltips;
-}
-
 
 // Expose the tooltips object globally
 if (typeof module !== 'undefined' && module.exports) {
