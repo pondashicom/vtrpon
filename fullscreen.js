@@ -18,6 +18,7 @@ let isFillKeyMode = false;
 let fillKeyBgColor = "#00FF00";
 let ftbFadeInterval = null; 
 let fadeCancelled = false;
+let isMonoSource = false;
 
 // ----------------------------------------
 // フルスクリーンエリアの初期化
@@ -240,7 +241,23 @@ function setupVideoPlayer() {
     videoElement.volume = initialVolume;
 
     // 動画メタデータがロードされた後に音声を初期化
-    videoElement.addEventListener('loadedmetadata', () => {
+    videoElement.addEventListener('loadedmetadata', async () => {
+        // 入力チャンネル数
+        isMonoSource = false;
+        try {
+            const stream = videoElement.captureStream?.();
+            const aTrack = stream && stream.getAudioTracks ? stream.getAudioTracks()[0] : null;
+            const ch = aTrack && aTrack.getSettings ? (aTrack.getSettings().channelCount || 0) : 0;
+            if (ch === 1) {
+                isMonoSource = true;
+                logInfo('[fullscreen.js] Detected mono source (channelCount=1). Will upmix to dual-mono.');
+            } else {
+                logInfo('[fullscreen.js] Detected channelCount=' + ch + ' (treat as stereo path).');
+            }
+        } catch (e) {
+            logInfo('[fullscreen.js] channelCount detection failed (fallback to stereo path): ' + e);
+        }
+
         if (!setupFullscreenAudio.initialized) {
             setupFullscreenAudio(videoElement);
             logDebug('[fullscreen.js] Audio initialized during setupVideoPlayer.');
@@ -805,13 +822,19 @@ const FullscreenAudioManager = (function () {
 })();
 
 // 音声処理のフラグ
-let fullscreenAnalyser = null;     // 互換残置（未使用）
-let fullscreenAnalyserL = null;    // Lチャンネル用
-let fullscreenAnalyserR = null;    // Rチャンネル用
-let fullscreenSplitter = null;     // ChannelSplitter(2)
+let fullscreenAnalyser = null;
+let fullscreenAnalyserL = null;
+let fullscreenAnalyserR = null;
+let fullscreenSplitter = null;
+let fullscreenMerger   = null;
 let fullscreenGainNode = null;
 let fullscreenSourceNode = null;
+let fullscreenMediaDest = null;
 let animationFrameId = null;
+let isDualMonoApplied = false;
+
+// メーター用デュアルモノ（表示のみL→R複製）
+let isMeterDualMono = false;
 
 // 音量計測停止の遅延用タイマー
 let fullscreenLingerTimerId = null;
@@ -819,13 +842,12 @@ let fullscreenLingerTimerId = null;
 // 音声初期化フラグ
 setupFullscreenAudio.initialized = false;
 
-// 音声の初期化関数（LR分割：Gain → Splitter(2) → AnalyserL/R）
+// 音声初期化：analyser は常に原音 L/R を計測。mono 時の出力のみ dual-mono。
 function setupFullscreenAudio(videoElement) {
     if (setupFullscreenAudio.initialized) return;
 
     const audioContext = FullscreenAudioManager.getContext();
 
-    // L/R 用の AnalyserNode と GainNode のセットアップ
     if (!fullscreenAnalyserL) {
         fullscreenAnalyserL = audioContext.createAnalyser();
         fullscreenAnalyserL.fftSize = 2048;
@@ -840,15 +862,18 @@ function setupFullscreenAudio(videoElement) {
     if (!fullscreenSplitter) {
         fullscreenSplitter = audioContext.createChannelSplitter(2);
     }
+    if (!fullscreenMerger) {
+        fullscreenMerger = audioContext.createChannelMerger(2);
+    }
 
-    // MediaElementSource の再接続
     if (!fullscreenSourceNode || fullscreenSourceNode.mediaElement !== videoElement) {
         if (fullscreenSourceNode) {
             fullscreenSourceNode.disconnect();
         }
         try {
             fullscreenSourceNode = audioContext.createMediaElementSource(videoElement);
-            // source → gain → splitter → analyserL/R
+
+            // analyser用経路（常に原音）：gain → splitter(2) → analyserL/R
             fullscreenSourceNode.connect(fullscreenGainNode);
             fullscreenGainNode.connect(fullscreenSplitter);
             fullscreenSplitter.connect(fullscreenAnalyserL, 0);
@@ -862,9 +887,23 @@ function setupFullscreenAudio(videoElement) {
         }
     }
 
-    // MediaStreamDestination を作成し、隠し audio へ出力（従来通り）
     const mediaStreamDest = audioContext.createMediaStreamDestination();
-    fullscreenGainNode.connect(mediaStreamDest);
+    fullscreenMediaDest = mediaStreamDest;
+
+    // 出力のみ切替（mono は merger、stereo は gain）
+    try { fullscreenGainNode.disconnect(mediaStreamDest); } catch (_e) {}
+    try { fullscreenMerger.disconnect && fullscreenMerger.disconnect(mediaStreamDest); } catch (_e) {}
+
+    if (isMonoSource && fullscreenMerger) {
+        try { fullscreenMerger.connect(mediaStreamDest); } catch (_e) {}
+        // gain → merger はここで接続
+        try {
+            fullscreenGainNode.connect(fullscreenMerger, 0, 0);
+            fullscreenGainNode.connect(fullscreenMerger, 0, 1);
+        } catch (_e) {}
+    } else {
+        try { fullscreenGainNode.connect(mediaStreamDest); } catch (_e) {}
+    }
 
     let hiddenAudio = document.getElementById('fullscreen-hidden-audio');
     if (!hiddenAudio) {
@@ -881,25 +920,16 @@ function setupFullscreenAudio(videoElement) {
         const outputDeviceId = settings.onairAudioOutputDevice;
         if (hiddenAudio.setSinkId) {
             hiddenAudio.setSinkId(outputDeviceId)
-                .then(() => {
-                    logDebug('[fullscreen.js] Hidden audio output routed to device: ' + outputDeviceId);
-                })
-                .catch(err => {
-                    logInfo('[fullscreen.js] Failed to set hidden audio output device: ' + err);
-                });
+                .then(() => { logDebug('[fullscreen.js] Hidden audio output routed to device: ' + outputDeviceId); })
+                .catch(err => { logInfo('[fullscreen.js] Failed to set hidden audio output device: ' + err); });
         } else {
             logInfo('[fullscreen.js] hiddenAudio.setSinkId is not supported.');
         }
-        hiddenAudio.play().catch(err => {
-            logInfo('[fullscreen.js] Hidden audio play failed: ' + err);
-        });
+        hiddenAudio.play().catch(err => { logInfo('[fullscreen.js] Hidden audio play failed: ' + err); });
     });
 
     setupFullscreenAudio.initialized = true;
 
-    logDebug('[fullscreen.js] Fullscreen audio setup (LR) completed.');
-
-    // 再生再開時の計測復帰（従来通り）
     const video = document.getElementById('fullscreen-video');
     if (video) {
         const resumeMeasure = () => {
@@ -918,12 +948,12 @@ function setupFullscreenAudio(videoElement) {
             } catch (_e) {}
             try { startVolumeMeasurement(60); } catch (_e) {}
         };
-
         video.addEventListener('playing',  resumeMeasure, { passive: true });
         video.addEventListener('canplay',  resumeMeasure, { passive: true });
         video.addEventListener('seeked',   resumeMeasure, { passive: true });
     }
 }
+
 
 // Device Settings 更新時に隠し audio 要素の出力先を更新するリスナー
 window.electronAPI.ipcRenderer.on('device-settings-updated', (event, newSettings) => {
@@ -989,7 +1019,7 @@ function audioFadeIn(duration) {
 // 音量測定ループフラグ
 let isVolumeMeasurementActive = false;
 
-// 音量測定（LR）：AnalyserL/R から独立にピーク→dBFS を算出して送信
+// メーター計測（モノラル時は表示のみL→R複製）
 function startVolumeMeasurement(updateInterval = 60) {
     if (isVolumeMeasurementActive || !fullscreenAnalyserL || !fullscreenAnalyserR) return;
 
@@ -1001,9 +1031,12 @@ function startVolumeMeasurement(updateInterval = 60) {
     const bufL = new Float32Array(fullscreenAnalyserL.fftSize);
     const bufR = new Float32Array(fullscreenAnalyserR.fftSize);
 
-    let skipFrames = 3;        // 初期安定のみ使用
+    let skipFrames = 3;
     const minDb = -60;
     const maxDb = 0;
+
+    const DETECT_WINDOW_FRAMES = Math.max(8, Math.floor(800 / Math.max(1, updateInterval)));
+    let monoLikeFrames = 0;
 
     const intervalId = setInterval(() => {
         if (!isVolumeMeasurementActive) {
@@ -1011,7 +1044,6 @@ function startVolumeMeasurement(updateInterval = 60) {
             return;
         }
 
-        // L
         fullscreenAnalyserL.getFloatTimeDomainData(bufL);
         let peakL = 0.0;
         for (let i = 0; i < bufL.length; i++) {
@@ -1020,7 +1052,6 @@ function startVolumeMeasurement(updateInterval = 60) {
         }
         let dbL = 20 * Math.log10(Math.max(peakL, 1e-9));
 
-        // R
         fullscreenAnalyserR.getFloatTimeDomainData(bufR);
         let peakR = 0.0;
         for (let i = 0; i < bufR.length; i++) {
@@ -1029,22 +1060,28 @@ function startVolumeMeasurement(updateInterval = 60) {
         }
         let dbR = 20 * Math.log10(Math.max(peakR, 1e-9));
 
-        // 初期安定
         if (skipFrames > 0) {
             skipFrames--;
             dbL = minDb;
             dbR = minDb;
         }
 
-        // クランプ（-60?0）
         dbL = Math.min(maxDb, Math.max(minDb, dbL));
         dbR = Math.min(maxDb, Math.max(minDb, dbR));
 
-        // 送信：L/R の瞬時ピーク dBFS
-        window.electronAPI.ipcRenderer.send('fullscreen-audio-level-lr', { L: dbL, R: dbR });
+        // モノラル検出（表示のみL→R複製）
+        if (dbL > -40 && dbR < -50) {
+            monoLikeFrames++;
+            if (monoLikeFrames >= DETECT_WINDOW_FRAMES) isMeterDualMono = true;
+        } else {
+            monoLikeFrames = Math.max(0, monoLikeFrames - 1);
+            if (monoLikeFrames === 0) isMeterDualMono = false;
+        }
 
-        // 互換：従来の単体値も送る（max(L,R)）
-        const dbMax = Math.max(dbL, dbR);
+        const reportR = (isMonoSource || isMeterDualMono) ? dbL : dbR;
+
+        window.electronAPI.ipcRenderer.send('fullscreen-audio-level-lr', { L: dbL, R: reportR });
+        const dbMax = Math.max(dbL, reportR);
         window.electronAPI.ipcRenderer.send('fullscreen-audio-level', dbMax);
     }, updateInterval);
 }

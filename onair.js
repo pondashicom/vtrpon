@@ -2568,12 +2568,12 @@ function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
 // -----------------------
 // フルスクリーンからの音量データ受信
 // -----------------------
-
 window.electronAPI.onReceiveFullscreenVolumeLR((L, R) => {
     const l = (typeof L === 'number') ? L : (L && typeof L.dbFS === 'number' ? L.dbFS : -Infinity);
     const r = (typeof R === 'number') ? R : (R && typeof R.dbFS === 'number' ? R.dbFS : -Infinity);
     updateOnAirVolumeMeter(l, r, false);
 });
+
 // -----------------------
 // スクリーンショット機能
 // -----------------------

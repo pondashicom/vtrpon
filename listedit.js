@@ -818,10 +818,10 @@ function updateVolumeMeterR(dbFS, sliderValue) {
 // 音声メーターのセットアップ（LR）
 // -----------------------
 function setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR) {
-    let analyserL, analyserR, inputSourceNode, splitter;
+    let analyserL, analyserR, inputSourceNode, splitter, upmixNode;
     let animationFrameId = null;
 
-    // 初期化（L/R それぞれ 60セグメント）
+    // 初期化
     function initVolumeMeter(el) {
         if (!el) return;
         el.innerHTML = '';
@@ -836,8 +836,6 @@ function setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR) {
         logInfo('Volume meter elements (L/R) not found.');
         return;
     }
-
-    // 2本とも初期化
     initVolumeMeter(volumeMeterL);
     initVolumeMeter(volumeMeterR);
     logDebug('[listedit.js] Volume meter L/R initialized with 60 segments each.');
@@ -845,7 +843,7 @@ function setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR) {
     function setupAudioContextLR() {
         const audioContext = AudioContextManager.getContext();
 
-        // Analyser を L/R 用に別々に用意
+        // Analyser L/R
         if (!analyserL) {
             analyserL = audioContext.createAnalyser();
             analyserL.fftSize = 2048;
@@ -855,21 +853,31 @@ function setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR) {
             analyserR.fftSize = 2048;
         }
 
-        // MediaElementSource の作成・分岐
         if (!inputSourceNode || inputSourceNode.mediaElement !== videoElement) {
-            // 既存ノード切断
             if (inputSourceNode) {
                 try { inputSourceNode.disconnect(); } catch (_) {}
             }
             if (splitter) {
                 try { splitter.disconnect(); } catch (_) {}
             }
+            if (upmixNode) {
+                try { upmixNode.disconnect(); } catch (_) {}
+            }
 
             try {
                 inputSourceNode = audioContext.createMediaElementSource(videoElement);
+
+                // モノ→ステレオアップミックス
+                upmixNode = audioContext.createGain();
+                upmixNode.channelCountMode = 'explicit';
+                upmixNode.channelCount = 2;
+                upmixNode.channelInterpretation = 'speakers';
+
                 splitter = audioContext.createChannelSplitter(2);
-                // input -> splitter -> L/R analyser
-                inputSourceNode.connect(splitter);
+
+                // input -> upmix(2ch) -> splitter -> analyserL/R
+                inputSourceNode.connect(upmixNode);
+                upmixNode.connect(splitter);
                 splitter.connect(analyserL, 0);
                 splitter.connect(analyserR, 1);
             } catch (error) {
@@ -903,8 +911,8 @@ function setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR) {
                 const safeR = Math.max(peakR, 1e-9);
                 const dbFSR = 20 * Math.log10(safeR);
 
-                // 既存ロジック踏襲で表示（スライダー係数は既存の volumeAdjustmentFactor）
                 const sliderPct = (volumeAdjustmentFactor || 1) * 100;
+
                 updateVolumeMeterElement(volumeMeterL, (peakL <= 1e-9 ? -Infinity : dbFSL), sliderPct);
                 updateVolumeMeterElement(volumeMeterR, (peakR <= 1e-9 ? -Infinity : dbFSR), sliderPct);
 
@@ -918,7 +926,6 @@ function setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR) {
     if (!setupVolumeMeterLR.initialized) {
         videoElement.addEventListener('play', setupAudioContextLR);
         videoElement.addEventListener('pause', () => {
-            // 停止時は両chリセット
             [volumeMeterL, volumeMeterR].forEach(el => {
                 if (!el) return;
                 Array.from(el.querySelectorAll('.volume-segment')).forEach(segment => {
@@ -928,10 +935,9 @@ function setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR) {
             });
         });
         setupVolumeMeterLR.initialized = true;
-        logDebug('[listedit.js] Audio context and volume meter LR setup complete.');
+        logDebug('[listedit.js] Audio context and volume meter LR setup complete (explicit upmix before split).');
     }
 }
-
 
 // -----------------------
 // 再生時規定音量の設定
