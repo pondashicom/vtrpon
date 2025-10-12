@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.4.1
+//     ver 2.4.2
 // -----------------------
 
 
@@ -2409,13 +2409,15 @@ async function handleSoundPadOnAir(item, index) {
     const targetId = item.playlistItem_id;
     logOpe(`[playlist.js] SOUND PAD On-Air triggered for item ID: ${targetId}`);
 
-    // 現在のプレイリスト状態を取得し、対象アイテムの状態を更新（スタートモードを PLAY、エンドモードを OFF に設定）
+    // 現在のプレイリスト状態を取得し、対象アイテムの状態を更新
+    // スタートモードは PAUSE のときのみ PLAY に変更。PLAY/FADEIN は維持。エンドモードは OFF を設定。
     let playlist = await stateControl.getPlaylistState();
     playlist = playlist.map(file => {
         if (file.playlistItem_id === targetId) {
+            const newStartMode = (file.startMode === "PAUSE") ? "PLAY" : file.startMode;
             return {
                 ...file,
-                startMode: "PLAY",
+                startMode: newStartMode,
                 endMode: "OFF",
                 selectionState: "selected",
                 editingState: "editing"
@@ -2457,13 +2459,15 @@ async function handleDirectOnAir(item, index) {
     logOpe(`[playlist.js] DIRECT ONAIR triggered for item ID: ${targetId}`);
 
     // 現在のプレイリスト状態を取得し、対象アイテムの状態を更新
-    // ※ スタートモードを PLAY に設定し、エンドモードは既存の値を保持する
+    // スタートモードは PAUSE のときのみ PLAY に変更。PLAY/FADEIN は維持。
+    // endMode は既存値を保持（変更しない）。
     let playlist = await stateControl.getPlaylistState();
     playlist = playlist.map(file => {
         if (file.playlistItem_id === targetId) {
+            const newStartMode = (file.startMode === "PAUSE") ? "PLAY" : file.startMode;
             return {
                 ...file,
-                startMode: "PLAY", // スタートモードのみ強制設定
+                startMode: newStartMode,
                 // endMode は変更せず既存の値を保持
                 selectionState: "selected",
                 editingState: "editing"
@@ -2495,6 +2499,7 @@ async function handleDirectOnAir(item, index) {
     // ユーザーにメッセージを表示
     showMessage(`${getMessage('direct-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
 }
+
 
 // -----------------------
 // ネクストモード処理
