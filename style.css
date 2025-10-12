@@ -1576,16 +1576,16 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 /* ------------------ */
 
 /* 入力フィールドのスタイル */
-#fadeInDuration, #ftbRate, #fioRate {
-    width: 3.125rem;           /* 50px */
-    height: 1.4375rem;         /* 23px */
+#fadeInDuration, #ftbRate, #fioRate, #itemFioRate, #mainFioRate {
+    width: 4rem;
+    height: 1.6rem;
     background-color: #2e2e2e;
     color: #ffffff;
-    border: 0.0625rem solid #444444; /* 1px */
-    border-radius: 0.3125rem; /* 5px */
-    font-size: 0.75rem;       /* 12px */
-    padding: 0.3125rem;       /* 5px */
-    padding-right: 0.1875rem; /* 3px */
+    border: 0.0625rem solid #444444;
+    border-radius: 0.3125rem;
+    font-size: 0.75rem; 
+    padding: 0.3125rem;
+    padding-right: 0.1875rem;
     box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
     text-align: right;
     cursor: text;
@@ -1596,8 +1596,13 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 #fadeInDuration::-webkit-inner-spin-button,
 #ftbRate::-webkit-inner-spin-button,
 #fioRate::-webkit-inner-spin-button,
+#itemFioRate::-webkit-inner-spin-button,
+#mainFioRate::-webkit-inner-spin-button,
 #fadeInDuration::-webkit-outer-spin-button,
-#ftbRate::-webkit-outer-spin-button {
+#ftbRate::-webkit-outer-spin-button,
+#fioRate::-webkit-outer-spin-button,
+#itemFioRate::-webkit-outer-spin-button,
+#mainFioRate::-webkit-outer-spin-button {
     margin-left: 0.4375rem;    /* 7px */
 }
 
@@ -1611,9 +1616,9 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 }
 
 /* オーディオフェードインアウトRATE */
-#fioDuration, #fioRate {
-    width: 3.125rem;           /* 50px */
-    height: 1.4375rem;         /* 23px */
+#fioDuration, #fioRate, #itemFioRate, #mainFioRate {
+    width: 4rem; 
+    height: 1.6rem;
     background-color: #2e2e2e;
     color: #ffffff;
     border: 0.0625rem solid #444444; /* 1px */
