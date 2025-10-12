@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.3.8
+//     ver 2.4.1
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -83,6 +83,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // メインからオンエア画面にオンエアアイテムIDを通知
     onReceiveOnAirData: (callback) => ipcRenderer.on('on-air-data', (event, onAirData) => callback(onAirData)),
+
+    // ----------------------------
+    //  オンエア endMode 同期
+    // ----------------------------
+
+    // プレイリスト→メイン：オンエア endMode 同期
+    syncOnAirEndMode: (payload) => ipcRenderer.send('sync-onair-endmode', payload),
+
+    // メイン→フルスクリーン：オンエア endMode 同期
+    onSyncOnAirEndMode: (callback) =>
+        ipcRenderer.on('sync-onair-endmode', (event, payload) => callback(payload)),
 
     // ----------------------------
     //  フルスクリーンにもオンエア

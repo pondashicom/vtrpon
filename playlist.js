@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.4.0
+//     ver 2.4.1
 // -----------------------
 
 
@@ -2307,6 +2307,14 @@ async function setRepeatMode() {
     if (editingItem) {
         window.electronAPI.updateEditState(editingItem);
         logOpe(`[playlist.js] Edit area updated after mode change for ID: ${editingItem.playlistItem_id}`);
+
+        // オンエア側へエンドモード同期
+        window.electronAPI.syncOnAirEndMode &&
+            window.electronAPI.syncOnAirEndMode({
+                editingItemId: editingItem.playlistItem_id,
+                endMode: editingItem.endMode
+            });
+        logOpe('[playlist.js] Requested On-Air endMode sync (REPEAT).');
     }
 }
 
@@ -2341,6 +2349,13 @@ async function setListMode() {
     if (editingItem) {
         window.electronAPI.updateEditState(editingItem);
         logOpe(`[playlist.js] Edit area updated after mode change for ID: ${editingItem.playlistItem_id}`);
+        // オンエア側へエンドモード同期
+        window.electronAPI.syncOnAirEndMode &&
+            window.electronAPI.syncOnAirEndMode({
+                editingItemId: editingItem.playlistItem_id,
+                endMode: editingItem.endMode
+            });
+        logOpe('[playlist.js] Requested On-Air endMode sync (LIST).');
     }
 }
 
