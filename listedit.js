@@ -360,7 +360,6 @@ function handleEndedEvent() {
 // -----------------------
 // 再生コントロール設定
 // -----------------------
-
 function setupPlaybackControls(videoElement) {
     const buttonIds = {
         play: 'play-button',
@@ -397,20 +396,12 @@ function setupPlaybackControls(videoElement) {
         }
 
         try {
-            // まず極小音量から開始（mutedは使わない／選択時は触らない）
             const startVol = 0.001;
             videoElement.volume = startVol;
-
-            // 無音に近い状態で再生開始 → デバイス起動を待つ
             await videoElement.play();
-            await waitForPlaybackStable(videoElement, 30); // 最大30msだけ待機
-
+            await waitForPlaybackStable(videoElement, 30);
             isVideoLoaded = true;
-
-            // スライダー値（0-100%）→ 既存カーブ（^2.2）で目標リニア音量(0..1)
             const targetVol = calcLinearVolumeFromSlider();
-
-            // 0.001 → 目標値へ短フェード（約8ms）
             await fadeVolume(videoElement, startVol, targetVol, 8);
 
             updateButtonStates({ play: true, pause: false });
@@ -600,7 +591,7 @@ function setupMouseWheelControl(videoElement) {
         isMouseOverVideo = false;
     });
 
-    // ホイール操作によるシーク処理（既存）
+    // ホイール操作によるシーク処理
     videoElement.addEventListener('wheel', (event) => {
         // 動画が読み込まれていない場合は操作を無効化
         if (!isVideoLoaded) {
@@ -617,7 +608,7 @@ function setupMouseWheelControl(videoElement) {
         logOpe('[listedit.js] Mouse wheel jog moved.');
     });
 
-    // キーボードによる1コマ送り／戻し処理（動画上にマウスが乗っている場合のみ有効）
+    // キーボードによる1コマ送り／戻し処理
     videoElement.addEventListener('keydown', (event) => {
         // マウスオンでなければ処理しない
         if (!isMouseOverVideo) return;
@@ -643,7 +634,7 @@ function resetVideoIfEnded(videoElement) {
     if (videoElement.duration > 0 && (videoElement.ended || (videoElement.currentTime >= videoElement.duration - 0.05))) {
         videoElement.pause();
         videoElement.currentTime = 0;
-        videoElement.load(); // 内部状態をリセット
+        videoElement.load();
         updateUIForVideoState();
         logOpe("[listedit.js] Video reset from ended state.");
     }
@@ -653,7 +644,7 @@ function resetVideoIfEnded(videoElement) {
 //  再生安定待ち・フェード・音量変換
 // -----------------------
 
-// 再生開始直後の安定を待つ（playing または timeupdate を最初の1回検知、最大 waitMs）
+// 再生開始直後の安定を待つ
 function waitForPlaybackStable(video, waitMs = 30) {
     return new Promise((resolve) => {
         let resolved = false;
@@ -666,7 +657,7 @@ function waitForPlaybackStable(video, waitMs = 30) {
     });
 }
 
-// 短フェード（durationMs で linear に volume を補間）
+// 短フェード
 function fadeVolume(video, from, to, durationMs = 8) {
     return new Promise((resolve) => {
         const start = performance.now();
@@ -680,13 +671,11 @@ function fadeVolume(video, from, to, durationMs = 8) {
                 resolve();
             }
         };
-        // 初期値を明示
         video.volume = from;
         requestAnimationFrame(step);
     });
 }
 
-// スライダー(%) → 既存カーブ(Math.pow(norm, 2.2))で 0..1 のリニア音量へ
 function calcLinearVolumeFromSlider() {
     const slider = document.getElementById('listedit-volume-slider');
     if (!slider) return 0.001;
@@ -728,7 +717,7 @@ function resetVolumeMeter() {
     if (!volumeMeter) return;
 
     Array.from(volumeMeter.querySelectorAll('.volume-segment')).forEach(segment => {
-        segment.style.backgroundColor = '#555'; // 灰色
+        segment.style.backgroundColor = '#555';
         segment.style.boxShadow = 'none';
     });
     logDebug('[listedit.js] Volume meter reset.');
@@ -743,7 +732,7 @@ function updateVolumeMeter(dbFS, sliderValue) {
     updateVolumeMeterElement(volumeMeter, dbFS, sliderValue);
 }
 
-// 要素を直接受け取る共通描画ロジック
+// 共通描画ロジック
 function updateVolumeMeterElement(volumeMeterElement, dbFS, sliderValue) {
     if (!volumeMeterElement) return;
 
@@ -759,7 +748,7 @@ function updateVolumeMeterElement(volumeMeterElement, dbFS, sliderValue) {
         return;
     }
 
-    // 無音（-Infinity / 極小） → 全消灯
+    // 無音 → 全消灯
     if (dbFS === -Infinity || dbFS < -100) {
         segments.forEach((segment) => {
             segment.style.backgroundColor = '#555';
@@ -768,21 +757,17 @@ function updateVolumeMeterElement(volumeMeterElement, dbFS, sliderValue) {
         return;
     }
 
-    // スライダー値を正規化（0～1）
+    // スライダー値正規化
     const sliderNormalized = sliderValue / 100;
-
-    // スライダー値を反映した dBFS（補正なし）
     let adjustedDbFS = dbFS + 20 * Math.log10(sliderNormalized);
 
-    // 表示レンジを -60?0 dBFS に統一
+    // 表示レンジ
     if (adjustedDbFS > 0) adjustedDbFS = 0;
     if (adjustedDbFS < -60) adjustedDbFS = -60;
-
-    // dB直線（-60～0）→ 点灯本数（下→上へ増える）
     const fillRatio = (adjustedDbFS + 60) / 60; // 0..1
     const activeSegments = Math.round(fillRatio * totalSegments);
 
-    // 色は位置で固定：下=緑(-60～-18)／中=黄(-18～-6)／上=赤(-6～0)
+    // 下=緑(-60～-18)／中=黄(-18～-6)／上=赤(-6～0)
     segments.forEach((segment, index) => {
         if (index >= totalSegments - activeSegments) {
             const posTopToBottom = index / (totalSegments - 1); // 0..1
@@ -951,7 +936,7 @@ function setupVolumeControl() {
         return;
     }
 
-    // カスタムプロパティをセットする
+    // カスタムプロパティ
     volumeSlider.style.setProperty('--value', `${volumeSlider.value}%`);
 
     volumeSlider.addEventListener("input", async () => {
@@ -959,7 +944,7 @@ function setupVolumeControl() {
         const sliderValue = parseInt(volumeSlider.value, 10); 
         volumeSlider.style.setProperty('--value', `${volumeSlider.value}%`);
 
-        // スライダー値をそのまま保持
+        // スライダー値を保持
         const sliderNormalizedValue = sliderValue / 100;
 
         // 実際の音量変換（対数スケール）
@@ -976,10 +961,9 @@ function setupVolumeControl() {
         // 塗りの表示を更新
         volumeSlider.style.setProperty('--value', `${sliderValue}%`);
 
-        // 再生中かどうかをチェック（再生中でない場合はメーター更新をスキップ）
+        // 再生中かどうか
         const isPlaying = checkIfPlaying(); 
         if (isPlaying) {
-            // メーターを更新（スライダー値が0の場合はリセット）※L/Rとも同様に即時反映
             const dbFS = sliderValue === 0 ? -Infinity : 0;
             updateVolumeMeterL(dbFS, sliderValue);
             updateVolumeMeterR(dbFS, sliderValue);
@@ -987,15 +971,15 @@ function setupVolumeControl() {
             logInfo("[listedit.js] Volume slider adjusted, but playback is not active. Skipping meter update.");
         }
 
-        // 音量の状態を更新（スライダーが0の場合は0を送信）
+        // 音量状態更新
         const volumeToSend = sliderValue === 0 ? 0 : sliderValue;
         await updateVolumeState(volumeToSend);
 
-        // 状態変更後に通知
+        // 状態変更後通知
         window.electronAPI.notifyListeditUpdate();
     });
 
-    // 音量スライダーで矢印キーの動作を無効化（上下左右すべて）
+    // 音量スライダーで矢印キーの動作を無効化
     volumeSlider.addEventListener("keydown", function (event) {
         if (
             event.key === "ArrowLeft" ||
@@ -1003,7 +987,7 @@ function setupVolumeControl() {
             event.key === "ArrowUp" ||
             event.key === "ArrowDown"
         ) {
-            event.preventDefault(); // 矢印キーのデフォルト動作を無効化
+            event.preventDefault();
         }
     });
     logOpe("[listedit.js] Volume slider adjusted.");
@@ -1024,7 +1008,6 @@ function checkIfPlaying() {
 async function updateVolumeState(newVolume) {
     logOpe(`[listedit.js] updateVolumeState called with newVolume: ${newVolume}`);
 
-    // スライダーの値が0の場合、明示的に0を保持
     const adjustedVolume = newVolume === 0 ? 0 : newVolume;
 
     const playlist = await stateControl.getPlaylistState();
@@ -1067,11 +1050,11 @@ let isPFLActive = false;
 let pflAudioContext = null;
 let pflAudioElement = null;
 
-// PFLボタンおよび動画要素の参照を取得
+// 要素取得
 const pflButton = document.getElementById('pfl-button');
 const videoElement = document.getElementById('listedit-video');
 
-// PFL用の AudioContext パイプラインを初期化する関数
+// PFL用AudioContext パイプライン初期化
 async function startPFL(selectedDeviceId) {
     if (!videoElement || !videoElement.src) {
         logInfo('[listedit.js] PFL: Video element or source is not available.');
@@ -1136,12 +1119,11 @@ async function stopPFL() {
     logInfo('[listedit.js] PFL monitoring stoped');
 }
 
-// PFL ボタンのクリックイベント設定
+// PFL ボタン
 if (pflButton && videoElement) {
     pflButton.addEventListener('click', async () => {
         logOpe('[listedit.js] PFL button clicked');
 
-        // 動画が読み込まれているか確認
         if (!isVideoLoaded) {
             showMessage(getMessage('no-video-loaded'), 5000, 'alert'); 
             return;
@@ -1163,7 +1145,7 @@ if (pflButton && videoElement) {
         
         logInfo("[listedit.js] Available audio output devices:", availableOutputDevices.map(d => d.label || d.deviceId));
 
-        // 選択されたデバイスが存在するか厳密に確認
+        // 選択されたデバイスが存在するか
         const isDeviceAvailable = availableOutputDevices.some(device => device.deviceId === selectedDeviceId);
         if (!isDeviceAvailable) {
             logInfo(`[listedit.js] PFL: Selected device (${selectedDeviceId}) is not available. PFL will not start.`);
@@ -1186,9 +1168,9 @@ if (pflButton && videoElement) {
     });
 }
 
-// 動画が再生状態になったとき（playing イベント）に、PFLがONでAudioContextが未初期化の場合、再初期化する処理を追加
+// 動画が再生状態になったとき（playing イベント）に、PFLがONでAudioContextが未初期化の場合、再初期化
 videoElement.addEventListener('playing', async () => {
-    // 動画が終了状態の場合は、currentTimeをリセットしてから再初期化を試みる
+    // 動画が終了状態の場合は、currentTimeをリセットしてから再初期化
     if (videoElement.ended) {
         videoElement.currentTime = 0;
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -1199,7 +1181,7 @@ videoElement.addEventListener('playing', async () => {
     }
 });
 
-// 動画終了時（ended イベント）に、AudioContext をリセットして再初期化可能とする
+// 動画終了時（ended イベント）に、AudioContext をリセットして再初期化
 videoElement.addEventListener('ended', async () => {
     if (isPFLActive && pflAudioContext) {
         logInfo('[listedit.js] Video ended: Resetting PFL AudioContext');
@@ -1207,7 +1189,7 @@ videoElement.addEventListener('ended', async () => {
     }
 });
 
-// メインプロセスからデバイス設定変更の通知を受信し、PFLがONなら再初期化する
+// メインプロセスからデバイス設定変更の通知を受信し、PFLがONなら再初期化
 window.electronAPI.ipcRenderer.on('device-settings-updated', async (event, newSettings) => {
     logInfo('[listedit.js] Device settings updated:', newSettings);
     if (isPFLActive) {
@@ -1292,7 +1274,7 @@ function updateListeditSeekBarMarkers(inPoint, outPoint) {
     const outMarker = document.getElementById("listedit-out-marker");
     if (!video || !slider || !inMarker || !outMarker) return;
     
-    // 動画が未読込の場合（srcが空、readyStateが未満、durationが0以下の場合）はマーカーを非表示にする
+    // 動画が未読込の場合はマーカーを非表示
     if (!video.src || video.src.trim() === "" || video.readyState < 1 || video.duration <= 0) {
         inMarker.style.display = "none";
         outMarker.style.display = "none";
@@ -1302,27 +1284,24 @@ function updateListeditSeekBarMarkers(inPoint, outPoint) {
     inMarker.style.display = "block";
     outMarker.style.display = "block";
 
-    // シークバーの親コンテナが relative でなければ設定
     const container = slider.parentElement;
     if (getComputedStyle(container).position === "static") {
         container.style.position = "relative";
     }
-    
+
     const duration = parseFloat(slider.max);
     if (!duration || duration <= 0) return;
 
-    // シークバーの位置と幅を取得
+    // シークバーの位置と幅
     const sliderRect = slider.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
     const sliderWidth = sliderRect.width;
     const sliderLeftOffset = sliderRect.left - containerRect.left;
-    
-    // ONAIR側と同様にシンプルな計算
     const inPositionRatio = inPoint / duration;
     const outPositionRatio = outPoint / duration;
     const inLeft = sliderLeftOffset + (inPositionRatio * sliderWidth);
     const outLeft = sliderLeftOffset + (outPositionRatio * sliderWidth);
-    
+
     // マーカーの位置を設定
     inMarker.style.left = `${inLeft}px`;
     outMarker.style.left = `${outLeft - 5}px`;
@@ -1432,7 +1411,6 @@ async function updateInOutPoint(pointType, newTime) {
 
     // UI更新
     updateInOutPointUI(pointType, newTime);
-    // グローバル変数の更新
     if (pointType === 'inPoint') {
         inPoint = newTime;
     } else if (pointType === 'outPoint') {
@@ -1440,7 +1418,6 @@ async function updateInOutPoint(pointType, newTime) {
     }
     logOpe(`[listedit.js] ${pointType} updated to: ${newTime.toFixed(2)} seconds`);
     window.electronAPI.notifyListeditUpdate();
-    // マーカー位置を再計算して更新
     updateListeditSeekBarMarkers(inPoint, outPoint);
 }
 
@@ -1566,7 +1543,7 @@ function setupEndModeControls(videoElement) {
             logOpe(`[listedit.js] End mode ${mode} button clicked`);
             if (!isVideoLoaded) {
                 logInfo(`[listedit.js] End mode ${mode} button pressed but video is not loaded.`);
-                return; // 動画が読み込まれていない場合は動作しない
+                return;
             }
             updateEndModeState(mode);
         });
@@ -1590,11 +1567,11 @@ async function updateEndModeState(newMode) {
     await stateControl.setPlaylistState(updatedPlaylist);
     updateEndModeButtons(newMode);
 
-    // 状態更新後に通知
+    // 状態更新後通知
     window.electronAPI.notifyListeditUpdate();
 }
 
-// ボタンのアクティブ状態を更新
+// ボタンのアクティブ状態更新
 function updateEndModeButtons(activeMode) {
     const buttons = document.querySelectorAll('#end-mode-area .button');
     buttons.forEach(button => {
@@ -1656,7 +1633,7 @@ function setupFtbRateListener(ftbRateInput) {
         });
 
         await stateControl.setPlaylistState(updatedPlaylist);
-        window.electronAPI.notifyListeditUpdate(); // リスナへの通知
+        window.electronAPI.notifyListeditUpdate();
     });
 }
 
@@ -1701,18 +1678,15 @@ async function handleShortcutAction(action) {
     switch (action) {
         case 'reset-edit-area':
             logOpe("[listedit.js] Reset Edit Area triggered.");
-            // PFLがONの場合は停止して初期化する
             if (isPFLActive) {
                 await stopPFL();
                 isPFLActive = false;
-                // PFLボタンの状態も更新
                 if (pflButton) {
                     pflButton.classList.remove('button-green');
                     pflButton.classList.add('button-gray');
                 }
             }
             await clearPlaylistSelection();
-            // プレイリストUI更新の通知を送信して、選択状態の解除を反映させる
             window.electronAPI.notifyListeditUpdate();
             disableAllButtons(controlButtons);
             setVideoLoadedState(false);
@@ -1783,7 +1757,7 @@ document.addEventListener('keydown', (event) => {
         )) return;
 
     // キーコードと修飾キーを取得
-    const code = event.code;          // 例: 'KeyS', 'KeyO', ...
+    const code = event.code;
     const isAlt = event.altKey;
     const isCmd = event.metaKey;
     const isWinAlt = isAlt && !isCmd;

@@ -12,7 +12,6 @@ const logInfo = window.electronAPI.logInfo;
 const logOpe = window.electronAPI.logOpe;
 const logDebug = window.electronAPI.logDebug;
 
-
 // グローバル変数
 let isFillKeyMode = false;
 let fillKeyBgColor = "#00FF00";
@@ -131,8 +130,6 @@ function setInitialData(itemData) {
     };
     logInfo(`[fullscreen.js] Global state initialized with On-Air data: ${JSON.stringify(globalState)}`);
 }
-
-
 
 // ------------------------------------
 // オーバーレイキャンバスの初期化
@@ -291,7 +288,6 @@ function getSafeFileURL(filePath) {
     return encoded;
 }
 
-
 // ----------------------------------------
 // UVC デバイスストリームをビデオプレーヤーにセット
 // ----------------------------------------
@@ -330,7 +326,6 @@ async function setupUVCDevice() {
         logDebug(`[fullscreen.js] Error: ${error.message}`);
     }
 }
-
 
 // ---------------------------------------
 // スタートモードにそって再生を開始
@@ -728,7 +723,6 @@ function handleEndModeFTB() {
     // FILL-KEY モードの場合は、グローバル変数 fillKeyBgColor（ユーザー選択の色）を使用し、それ以外は黒に設定する
     fadeCanvas.style.backgroundColor = isFillKeyMode && fillKeyBgColor ? fillKeyBgColor : "black";
 
-
     let opacity = 0;
     const frameRate = 60;
     const step = 1 / (fadeDuration * frameRate);
@@ -833,7 +827,7 @@ let fullscreenMediaDest = null;
 let animationFrameId = null;
 let isDualMonoApplied = false;
 
-// メーター用デュアルモノ（表示のみL→R複製）
+// メーター用デュアルモノ
 let isMeterDualMono = false;
 
 // 音量計測停止の遅延用タイマー
@@ -873,7 +867,7 @@ function setupFullscreenAudio(videoElement) {
         try {
             fullscreenSourceNode = audioContext.createMediaElementSource(videoElement);
 
-            // analyser用経路（常に原音）：gain → splitter(2) → analyserL/R
+            // analyser用経路
             fullscreenSourceNode.connect(fullscreenGainNode);
             fullscreenGainNode.connect(fullscreenSplitter);
             fullscreenSplitter.connect(fullscreenAnalyserL, 0);
@@ -896,7 +890,6 @@ function setupFullscreenAudio(videoElement) {
 
     if (isMonoSource && fullscreenMerger) {
         try { fullscreenMerger.connect(mediaStreamDest); } catch (_e) {}
-        // gain → merger はここで接続
         try {
             fullscreenGainNode.connect(fullscreenMerger, 0, 0);
             fullscreenGainNode.connect(fullscreenMerger, 0, 1);
@@ -953,7 +946,6 @@ function setupFullscreenAudio(videoElement) {
         video.addEventListener('seeked',   resumeMeasure, { passive: true });
     }
 }
-
 
 // Device Settings 更新時に隠し audio 要素の出力先を更新するリスナー
 window.electronAPI.ipcRenderer.on('device-settings-updated', (event, newSettings) => {
@@ -1069,7 +1061,7 @@ function startVolumeMeasurement(updateInterval = 60) {
         dbL = Math.min(maxDb, Math.max(minDb, dbL));
         dbR = Math.min(maxDb, Math.max(minDb, dbR));
 
-        // モノラル検出（表示のみL→R複製）
+        // モノラル検出
         if (dbL > -40 && dbR < -50) {
             monoLikeFrames++;
             if (monoLikeFrames >= DETECT_WINDOW_FRAMES) isMeterDualMono = true;
@@ -1086,15 +1078,12 @@ function startVolumeMeasurement(updateInterval = 60) {
     }, updateInterval);
 }
 
-// 音量測定を停止する関数（**lingerMs** だけ計測を継続してから止める）
+// 音量測定を停止する関数
 function stopVolumeMeasurement(lingerMs = 200) {
-    // 既存の linger があればまずクリア（多重停止防止）
     if (fullscreenLingerTimerId) {
         clearTimeout(fullscreenLingerTimerId);
         fullscreenLingerTimerId = null;
     }
-
-    // すでに停止中なら何もしない（linger だけ管理）
     if (!isVolumeMeasurementActive) return;
 
     const ctx = FullscreenAudioManager.getContext();
@@ -1106,7 +1095,6 @@ function stopVolumeMeasurement(lingerMs = 200) {
         }
     } catch (_e) {}
 
-    // 単一の setTimeout で「linger 後に停止」する。start が呼ばれれば 2) でキャンセルされる
     fullscreenLingerTimerId = setTimeout(() => {
         fullscreenLingerTimerId = null;
         isVolumeMeasurementActive = false;
@@ -1358,7 +1346,6 @@ function hideFullscreenDSK() {
     });
 }
 
-
 // フルスクリーンDSK映像の一時停止処理
 function pauseFullscreenDSK() {
     if (!fsDSKOverlay) return;
@@ -1387,7 +1374,6 @@ function playFullscreenDSK() {
         if (video._onFsEnd)        video.addEventListener('ended',      video._onFsEnd);
     }
 }
-
 
 // DSK終了時の EndMode 分岐処理
 function handleFullscreenDskEnd(videoEl) {
