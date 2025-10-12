@@ -1149,6 +1149,8 @@ function onairHandleEndModePause() {
 
     onairIsPlaying = false;
     onairUpdatePlayPauseButtons(elements);
+    resetOnAirVolumeMeter();
+    lastVolumeUpdateTime = null;
 
     // フルスクリーンエリアにも停止を通知
     window.electronAPI.sendControlToFullscreen({
@@ -1208,6 +1210,7 @@ function onairHandleEndModeFTB() {
         onairVideoElement.pause();
         onairIsPlaying = false;
         onairUpdatePlayPauseButtons(elements);
+
         logInfo('[onair.js] FTB complete - Paused at the last frame.');
 
         // 0.5秒後にオフエアボタンをクリックし、FTBボタンの点滅を停止
@@ -1221,7 +1224,6 @@ function onairHandleEndModeFTB() {
             stopFadeButtonBlink(document.getElementById('ftb-off-button'));
         }, 500);
     }, (ftbRate + 0.5) * 1000);
-
     onairIsPlaying = false;
 }
 
@@ -1400,6 +1402,8 @@ function onairHandlePauseButton() {
     onairUpdatePlayPauseButtons(elements); 
     onairStopRemainingTimer(); 
     logOpe('[onair.js] Playback paused.');
+    resetOnAirVolumeMeter();
+    lastVolumeUpdateTime = null;
 
     // Fullscreen.jsに通知
     window.electronAPI.sendControlToFullscreen({ command: 'pause' });
@@ -2566,6 +2570,43 @@ function updateOnAirVolumeMeter(dbFSL, dbFSR, isMono) {
 }
 
 // -----------------------
+// 音量メーターリセット
+// -----------------------
+function resetOnAirVolumeMeter() {
+    const volumeBarL = document.getElementById('on-air-volume-bar-L');
+    const volumeBarR = document.getElementById('on-air-volume-bar-R');
+
+    if (volumeBarL) {
+        Array.from(volumeBarL.querySelectorAll('.volume-segment')).forEach(s => {
+            s.style.backgroundColor = '#555';
+            s.style.boxShadow = 'none';
+        });
+    }
+    if (volumeBarR) {
+        Array.from(volumeBarR.querySelectorAll('.volume-segment')).forEach(s => {
+            s.style.backgroundColor = '#555';
+            s.style.boxShadow = 'none';
+        });
+    }
+
+    // 内部状態の初期化
+    displayedDbFSL = -60;
+    displayedDbFSR = -60;
+    redHoldUntilTsL = 0;
+    redHoldUntilTsR = 0;
+    peakHoldDbFSL = -60;
+    peakHoldDbFSR = -60;
+    peakHoldUntilTsL = 0;
+    peakHoldUntilTsR = 0;
+
+    // 数値表示があれば無音表示へ
+    const readout = document.getElementById('on-air-volume-readout');
+    if (readout) readout.textContent = '-∞ dBFS';
+
+    // ウォッチドッグの再発火ループを避ける
+    lastVolumeUpdateTime = null;
+}
+// -----------------------
 // フルスクリーンからの音量データ受信
 // -----------------------
 window.electronAPI.onReceiveFullscreenVolumeLR((L, R) => {
@@ -2625,15 +2666,10 @@ function onairHandleFTBButton() {
     fadeButtonBlink(elements.onairFTBButton);
     const currentTime = elements.onairVideoElement ? elements.onairVideoElement.currentTime : 0;
 
-    // フルスクリーン側に FTB コマンドを送信
-    window.electronAPI.sendControlToFullscreen({
-        command: 'trigger-endMode',
-        value: 'FTB',
-        currentTime: currentTime,
-    });
-    logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: FTB, currentTime: ${currentTime} }`);
+    // ローカルでFTB処理（映像フェード・音声フェード）を開始
     onairHandleEndModeFTB();
 }
+
 
 // -----------------------
 // FILL-KEY MODE
