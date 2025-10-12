@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     statecontrol.js
-//     ver 2.3.9
+//     ver 2.4.2
 // -----------------------
 
 
@@ -89,6 +89,9 @@ function setPlaylistState(newState) {
             ftbRate: typeof newItem.ftbRate !== 'undefined'
                 ? newItem.ftbRate
                 : (existingItem?.ftbRate || 1.0),
+            startFadeInSec: typeof newItem.startFadeInSec !== 'undefined'
+                ? newItem.startFadeInSec
+                : (existingItem?.startFadeInSec ?? 1.0),
             order: typeof newItem.order !== 'undefined' ? newItem.order : (existingItem?.order ?? index),
             inPoint: typeof newItem.inPoint !== 'undefined' 
                 ? newItem.inPoint 
@@ -124,6 +127,8 @@ function addFileToState(file) {
             startMode: "PAUSE",
             endMode: "PAUSE",
             defaultVolume: 100,
+            // 追加：スタート時フェードイン秒（既定 1.0s）
+            startFadeInSec: 1.0,
             order: file.order ?? nextOrder
         });
     }

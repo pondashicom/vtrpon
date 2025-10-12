@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.4.1
+//     ver 2.4.2
 // -----------------------
 // -----------------------
 // 初期設定
@@ -525,7 +525,9 @@ function onairGetStateData(itemId) {
         endMode: itemData.endMode || 'PAUSE',
         defaultVolume: itemData.defaultVolume !== undefined ? itemData.defaultVolume : 100,
         ftbRate: parseFloat(itemData.ftbRate || 1.0),
-        fillKeyMode: typeof itemData.fillKeyMode !== 'undefined' ? itemData.fillKeyMode : false, // FILLKEYモード状態
+        startFadeInSec: (itemData.startFadeInSec !== undefined && !isNaN(parseFloat(itemData.startFadeInSec)))
+            ? parseFloat(itemData.startFadeInSec) : undefined,
+        fillKeyMode: typeof itemData.fillKeyMode !== 'undefined' ? itemData.fillKeyMode : false,
     };
 
     logDebug('[onair.js] State data updated:', onairCurrentState);
@@ -557,6 +559,7 @@ async function onairSendToFullscreen(itemData) {
             inPoint: itemData.inPoint,
             outPoint: itemData.outPoint,
             ftbRate: itemData.ftbRate,
+            startFadeInSec: itemData.startFadeInSec,
             fillKeyMode: itemData.fillKeyMode
         };
 
@@ -965,20 +968,20 @@ function onairStartPlayback(itemData) {
             itemSlider.style.setProperty('--value', `0%`);
         }
         // 映像面：フェードイン開始
-        const ftbRate = itemData.ftbRate || 1.0;
-        onairFadeFromBlack(ftbRate);
+        const fadeDuration = (itemData.startFadeInSec !== undefined && !isNaN(parseFloat(itemData.startFadeInSec))) ? parseFloat(itemData.startFadeInSec) : (itemData.ftbRate || 1.0);
+        onairFadeFromBlack(fadeDuration);
         
         onairIsPlaying = true;
         onairVideoElement.play()
             .then(() => {
                 // 音声フェードイン処理
-                audioFadeInItem(ftbRate);
+                audioFadeInItem(fadeDuration);
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via FADEIN start mode with fade in effect.');
                 window.electronAPI.sendControlToFullscreen({
                     command: 'fadein',
-                    ftbRate: ftbRate,
+                    ftbRate: fadeDuration,
                     currentTime: onairVideoElement.currentTime
                 });
             })
@@ -2235,6 +2238,7 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
     const normOut = typeof updatedItem.outPoint === 'string' ? onairParseTimeToSeconds(updatedItem.outPoint) : (updatedItem.outPoint ?? 0);
     const normEnd = (updatedItem.endMode || '').toString().toUpperCase() || 'PAUSE';
     const normFtb = parseFloat(updatedItem.ftbRate ?? onairCurrentState.ftbRate ?? 1.0);
+    const normStartFi = (updatedItem.startFadeInSec !== undefined && !isNaN(parseFloat(updatedItem.startFadeInSec))) ? parseFloat(updatedItem.startFadeInSec) : onairCurrentState.startFadeInSec;
 
     // IN
     if (Number(onairCurrentState.inPoint) !== Number(normIn)) {
@@ -2264,7 +2268,20 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
         handleFtbRateUpdate(normFtb);
     }
 
+    // startFadeInSec
+    if (Number(onairCurrentState.startFadeInSec ?? NaN) !== Number(normStartFi ?? NaN)) {
+        logInfo(`Start Fade-in sec updated: ${onairCurrentState.startFadeInSec} → ${normStartFi}`);
+        onairCurrentState.startFadeInSec = normStartFi;
+        handleStartFadeInSecUpdate(normStartFi);
+    }
     logDebug('[onair.js] State comparison and update completed.');
+}
+
+function handleStartFadeInSecUpdate(newSec) {
+    if (!onairCurrentState) return;
+    const v = (newSec !== undefined && !isNaN(parseFloat(newSec))) ? parseFloat(newSec) : undefined;
+    onairCurrentState.startFadeInSec = v;
+    logDebug(`[onair.js] startFadeInSec updated to: ${v}`);
 }
 
 
