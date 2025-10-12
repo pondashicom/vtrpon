@@ -1,4 +1,4 @@
-﻿/* style.css 2.4.0 */
+﻿/* style.css 2.4.2 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -1576,7 +1576,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 /* ------------------ */
 
 /* 入力フィールドのスタイル */
-#fadeInDuration, #ftbRate, #fioRate, #itemFioRate, #mainFioRate {
+#fadeInDuration, #startFadeInSec, #ftbRate, #fioRate, #itemFioRate, #mainFioRate {
     width: 4rem;
     height: 1.6rem;
     background-color: #2e2e2e;
@@ -1594,6 +1594,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 
 /* スピンボタン部分の余白調整 */
 #fadeInDuration::-webkit-inner-spin-button,
+#startFadeInSec::-webkit-inner-spin_button,
 #ftbRate::-webkit-inner-spin-button,
 #fioRate::-webkit-inner-spin-button,
 #itemFioRate::-webkit-inner-spin-button,
@@ -1608,6 +1609,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 
 /* フォーカス時のスタイル */
 #fadeInDuration:focus,
+#startFadeInSec:focus,
 #ftbRate:focus,
 #fioRate:focus {
     outline: none;

@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.4.1
+//     ver 2.4.2
 // -----------------------
 
 // -----------------------
@@ -37,7 +37,8 @@ function initializeEditArea() {
     const inPointButton = document.getElementById('in-point');
     const outPointButton = document.getElementById('out-point');
     const ftbRateInput = document.getElementById('ftbRate'); 
-    
+    const startFadeInInput = document.getElementById('startFadeInSec');
+
     const startModeButtons = [
         document.getElementById('start-pause-button'),
         document.getElementById('start-play-button'),
@@ -156,6 +157,7 @@ function initializeEditArea() {
     setupEndModeControls(videoElement);
     setupFtbRate(ftbRateInput); 
     setupFtbRateListener(ftbRateInput);
+    setupStartFadeInSecListener(startFadeInInput);
     setupVolumeControl();
     setVideoLoadedState(false);
 }
@@ -180,6 +182,8 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
 
         // 新たなアイテムに切り替える際に、前回のFTBレート値をリセット
         lastFtbRateUIValue = null;
+        // 新たなアイテムに切り替える際に、前回の Start Fade-in 値のキャッシュもリセット
+        lastStartFadeInUIValue = null;
 
         // 現在編集中のアイテムIDを記憶
         currentEditingItemId = itemData.playlistItem_id;
@@ -207,7 +211,10 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
                         outPoint: file.outPoint || formatTime(videoElement.duration),
                         startMode: file.startMode || "PAUSE",
                         endMode: file.endMode || "OFF",
-                        defaultVolume: file.defaultVolume ?? 100
+                        defaultVolume: file.defaultVolume ?? 100,
+                        startFadeInSec: (typeof file.startFadeInSec === 'number' && file.startFadeInSec >= 0)
+                            ? parseFloat(file.startFadeInSec.toFixed(1))
+                            : 1.0
                     };
                 }
                 return file;
@@ -262,6 +269,10 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
             // FTB Rate の UI を更新
             const ftbRateInput = document.getElementById('ftbRate');
             updateFtbRateUI(ftbRateInput);
+
+            // Start Fade-in 秒数の UI を更新
+            const startFadeInInput = document.getElementById('startFadeInSec');
+            updateStartFadeInSecUI(startFadeInInput);
 
             // INOUTマーカー位置を更新
             updateListeditSeekBarMarkers(inPoint, outPoint);
@@ -1610,8 +1621,14 @@ function setupFtbRateListener(ftbRateInput) {
         return;
     }
 
-    // FTBレート変更イベントの設定
+    // FTBレート変更イベントの設定（未ロード時は無効）
     ftbRateInput.addEventListener('input', async (event) => {
+        if (!isVideoLoaded || !currentEditingItemId) {
+            // エディットエリア未ロード時は変更を受け付けない
+            logInfo('[listedit.js] FTB Rate change ignored because no item is loaded.');
+            return;
+        }
+
         const newRate = parseFloat(event.target.value);
         if (isNaN(newRate) || newRate <= 0) {
             ftbRateInput.value = '1.0';
@@ -1671,6 +1688,110 @@ function updateFtbRateUI(ftbRateInput) {
 }
 
 // --------------------------------
+//  Start Fade-in 秒数の設定
+// --------------------------------
+
+// 前回UIに反映した Start Fade-in 値
+let lastStartFadeInUIValue = null;
+
+// Start Fade-in 初期化（プレイリスト値→UI）
+function setupStartFadeInSec(startFadeInInput) {
+    if (!startFadeInInput) {
+        logInfo('[listedit.js] Start Fade-in input element not found.');
+        return;
+    }
+    const playlist = stateControl.getPlaylistState();
+    const currentItem = playlist.find(item => item.playlistItem_id === currentEditingItemId);
+    // 小数1桁表示、既定は 1.0 秒
+    startFadeInInput.value = currentItem?.startFadeInSec?.toFixed(1) || '1.0';
+}
+
+// Start Fade-in 入力のイベントリスナー（UI→プレイリスト値保存）
+function setupStartFadeInSecListener(startFadeInInput) {
+    if (!startFadeInInput) return;
+
+    startFadeInInput.addEventListener('input', async (event) => {
+        if (!isVideoLoaded || !currentEditingItemId) {
+            // エディットエリア未ロード時は変更を受け付けない
+            logInfo('[listedit.js] Start Fade-in change ignored because no item is loaded.');
+            return;
+        }
+
+        let sec = parseFloat(event.target.value);
+        if (isNaN(sec) || sec < 0) {
+            startFadeInInput.value = '1.0';
+            sec = 1.0;
+        }
+        // 小数1桁に丸め
+        sec = parseFloat(sec.toFixed(1));
+        logOpe(`[listedit.js] Start Fade-in seconds updated to: ${sec.toFixed(1)}`);
+
+        const playlist = await stateControl.getPlaylistState();
+        const updated = playlist.map(item => {
+            if (item.playlistItem_id === currentEditingItemId) {
+                return { ...item, startFadeInSec: sec };
+            }
+            return item;
+        });
+        await stateControl.setPlaylistState(updated);
+        window.electronAPI.notifyListeditUpdate();
+    });
+}
+
+// Start Fade-in の UI をプレイリスト値で更新
+function updateStartFadeInSecUI(startFadeInInput) {
+    if (!startFadeInInput) {
+        logInfo('[listedit.js] Start Fade-in input element not found.');
+        return;
+    }
+    const playlist = stateControl.getPlaylistState();
+    const currentItem = playlist.find(item => item.playlistItem_id === currentEditingItemId);
+
+    let newValue = '1.0';
+    if (currentItem && typeof currentItem.startFadeInSec !== 'undefined') {
+        newValue = currentItem.startFadeInSec.toFixed(1);
+    }
+
+    if (newValue === lastStartFadeInUIValue) {
+        return; // 同一値なら更新不要
+    }
+    lastStartFadeInUIValue = newValue;
+    startFadeInInput.value = newValue;
+
+    logOpe(`[listedit.js] Start Fade-in UI updated: ${newValue}`);
+}
+
+// アイテムの ftbRate / startFadeInSec をリセットするヘルパー
+async function resetFadeParamsForCurrentItem() {
+    if (!currentEditingItemId) {
+        logInfo('[listedit.js] No currentEditingItemId. Skip resetting fade params.');
+        return;
+    }
+    const playlist = await stateControl.getPlaylistState();
+    const updated = playlist.map(item => {
+        if (item.playlistItem_id === currentEditingItemId) {
+            return {
+                ...item,
+                ftbRate: 1.0,
+                startFadeInSec: 1.0,
+            };
+        }
+        return item;
+    });
+    await stateControl.setPlaylistState(updated);
+
+    // UI要素もあれば既定表示へ
+    const ftbRateInput = document.getElementById('ftbRate');
+    if (ftbRateInput) ftbRateInput.value = '1.0';
+    const startFadeInInput = document.getElementById('startFadeInSec');
+    if (startFadeInInput) startFadeInInput.value = '1.0';
+
+    logOpe('[listedit.js] Reset ftbRate and startFadeInSec to defaults (1.0).');
+}
+
+
+
+// --------------------------------
 //  キーボードショートカット
 // --------------------------------
 
@@ -1686,6 +1807,7 @@ async function handleShortcutAction(action) {
                     pflButton.classList.add('button-gray');
                 }
             }
+            await resetFadeParamsForCurrentItem();
             await clearPlaylistSelection();
             window.electronAPI.notifyListeditUpdate();
             disableAllButtons(controlButtons);

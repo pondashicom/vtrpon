@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     tooltips.js
-//     ver 2.4.0
+//     ver 2.4.2
 // -----------------------
 
 const tooltips = {
@@ -9,13 +9,14 @@ const tooltips = {
     "out-point": "動画の再生を終了するポイントを設定します",
     "start-pause-button": "IN点で一時停止した状態でオンエアします",
     "start-play-button": "オンエアと同時にIN点から再生を開始します",
-    "start-fadein-button": "オンエアと同時にIN点から音声、映像をフェードインしながら再生を開始します。フェードイン時間はエディットエリアのFTB秒数で設定",
+    "start-fadein-button": "オンエアと同時にIN点から音声・映像をフェードインして再生を開始します。フェードイン時間はスタートモードの秒数入力で設定（FTBとは独立）",
+    "startFadeInSec": "スタート時のフェードイン時間（秒）を設定します",
     "end-off-button": "OUT点に到達したらオフエアします",
     "end-pause-button": "OUT点に到達したら一時停止します",
     "end-repeat-button": "OUT点に到達したらIN点に戻って再生を繰り返します",
     "end-next-button": "OUT点に到達したらプレイリストの次の動画をオンエアします",
     "end-ftb-button": "OUT点に到達したらフェードアウトしてオフエアします",
-    "ftbRate": "FTBやスタートモードFADEINでフェードする時間（秒）を設定します",
+    "ftbRate": "FTBでフェードする時間（秒）を設定します",
     "itemFioRate": "アイテム音声をフェードする時間（秒）を設定します。FTB時はFTB秒数が適用されます",
     "mainFioRate": "メイン音声をフェードする時間（秒）を設定します",
     "pfl-button": "Device Settingsメニューで設定したPFLデバイスを使ってプリフェーダーリッスンします",
@@ -57,13 +58,14 @@ const tooltips = {
     "out-point": "Set the end point for video playback",
     "start-pause-button": "Air on pause at the IN point",
     "start-play-button": "Start playback at the IN point on air",
-    "start-fadein-button": "Begin playback with audio and video fading in from the IN point simultaneously with going on-air. The fade-in duration is set by the seconds specified next to the FTB button in the edit area",
+    "start-fadein-button": "Begin playback with audio and video fading in from the IN point when going on-air. The fade-in duration is set by the Start Fade-in seconds (independent from FTB)",
+    "startFadeInSec": "Fade-in time (seconds) for start.",
     "end-off-button": "Turn off air when reaching the OUT point",
     "end-pause-button": "Pause when reaching the OUT point",
     "end-repeat-button": "Repeat playback from the IN point upon reaching the OUT point",
     "end-next-button": "Air the next video in the playlist when reaching the OUT point",
     "end-ftb-button": "Fade out and turn off air when reaching the OUT point",
-    "ftbRate": "Set the fade time (in seconds) for FTB and Start Mode FADEIN.",
+    "ftbRate": "Set the fade time (in seconds) for FTB.",
     "itemFioRate": "Set the fade time (in seconds) for ITEM audio fade in/out. During FTB, the FTB seconds apply.",
     "mainFioRate": "Set the fade time (in seconds) for MAIN audio fade in/out.",
     "pfl-button": "Listen using the PFL device set in the Device Settings menu",
