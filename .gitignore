@@ -4,3 +4,17 @@ readme/
 src/
 start_vtrpon.bat
 release/
+.DS_Store
+*.pub
+id_*
+*.pem
+*.key
+*_rsa
+*_ed25519
+.DS_Store
+*.pub
+id_*
+*.pem
+*.key
+*_rsa
+*_ed25519

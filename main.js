@@ -1,13 +1,14 @@
 // -----------------------
 //     main.js
-//     ver 2.4.1
+//     ver 2.4.2
 // -----------------------
 
 // ---------------------
 // 初期設定
 // ---------------------
 
-const { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, globalShortcut, session, shell, powerSaveBlocker, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, Menu, globalShortcut, session, shell, powerSaveBlocker, nativeImage } = require('electron');
+let screen;
 
 app.setName('VTR-PON2');
 const path = require('path');
@@ -132,8 +133,6 @@ ipcMain.on('set-atem-config', async (event, atemConfig) => {
         stopATEMMonitor();
     }
 });
-
-
 
 // ATEM 存在チェック
 ipcMain.handle('check-atem-device', async (event, ip) => {
@@ -896,11 +895,18 @@ function createMainWindow() {
 function createFullscreenWindow() {
     const displays = screen.getAllDisplays();
     const externalDisplay = displays.find((display) => display.bounds.x !== 0 || display.bounds.y !== 0);
+    const target = externalDisplay || displays[0];
+
+    // mac
+    const isMac = process.platform === 'darwin';
 
     fullscreenWindow = new BrowserWindow({
-        fullscreen: true,
-        x: externalDisplay ? externalDisplay.bounds.x : undefined,
-        y: externalDisplay ? externalDisplay.bounds.y : undefined,
+        fullscreen: isMac ? false : true, 
+        frame: isMac ? false : undefined, 
+        backgroundColor: '#000', 
+        x: isMac ? undefined : target.bounds.x, 
+        y: isMac ? undefined : target.bounds.y,
+        fullscreenable: isMac ? false : true, 
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -909,12 +915,17 @@ function createFullscreenWindow() {
         }
     });
 
-    fullscreenWindow.loadFile('fullscreen.html'); 
+    fullscreenWindow.loadFile('fullscreen.html');
     fullscreenWindow.setMenuBarVisibility(false);
 
+    if (isMac) {
+        macEnterFakeFullscreen(fullscreenWindow, target);
+        fullscreenWindow.setAlwaysOnTop(true, 'screen-saver');
+    }
+
+    // win/linux
     fullscreenWindow.on('closed', () => {
         fullscreenWindow = null; // フルスクリーンウィンドウが閉じられたらリセット
-        // フルスクリーンウィンドウが閉じられた場合、アプリ全体を終了する
         if (process.platform !== 'darwin') {
             app.quit();
         }
@@ -932,6 +943,7 @@ function registerSafeFileProtocol() {
 
 // アプリが準備完了したときの処理
 app.whenReady().then(async () => {
+    screen = require('electron').screen;
 
     // macOS の Dock アイコンを NativeImage 経由で設定
     if (process.platform === 'darwin') {
@@ -1009,6 +1021,45 @@ app.whenReady().then(async () => {
     createFullscreenWindow();
     createMainWindow();
     registerSafeFileProtocol();
+
+    // mac 前面復帰時に擬似フルスクリーンを再適用
+    app.on('activate', () => {
+        if (process.platform !== 'darwin') return;
+        if (!fullscreenWindow || fullscreenWindow.isDestroyed()) return;
+
+        const displays2 = screen.getAllDisplays();
+        const target2 = displays2.find(d => d.bounds.x !== 0 || d.bounds.y !== 0) || displays2[0];
+        macEnterFakeFullscreen(fullscreenWindow, target2);
+    });
+
+    // mac ディスプレイ構成変化で再適用
+    if (process.platform === 'darwin') {
+        const reenterFakeFS = () => {
+            if (!fullscreenWindow || fullscreenWindow.isDestroyed()) return;
+            const displays3 = screen.getAllDisplays();
+
+            // 外部ディスプレイが無くなった（1枚になった）ら即退避
+            if (displays3.length < 2) {
+                collapseFullscreenSafely();   // ← 追加（下の #2 で定義）
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.focus();
+                }
+                return;
+            }
+
+            // 設定で希望の出力先があれば優先
+            const preferId = (global.deviceSettings && global.deviceSettings.fullscreenVideoOutputDevice) || null;
+            const target3 =
+                displays3.find(d => d.id === preferId) ||
+                displays3.find(d => d.bounds.x !== 0 || d.bounds.y !== 0) ||
+                displays3[0];
+
+            macEnterFakeFullscreen(fullscreenWindow, target3);
+        };
+        screen.on('display-added', reenterFakeFS);
+        screen.on('display-removed', reenterFakeFS);
+        screen.on('display-metrics-changed', reenterFakeFS);
+    }
 
     // ディスプレイが1枚の場合、mainWindow を親にしてモーダルでダイアログを表示
     if (displays.length < 2) {
@@ -2134,19 +2185,124 @@ function formatTimeWithFrames(seconds, fps) {
 
 // フルスクリーンウインドウを次のディスプレイに移動する関数（ALT+W）
 function moveFullscreenToNextDisplay() {
-    const displays = screen.getAllDisplays();
-    const currentDisplayIndex = displays.findIndex(display =>
-        display.bounds.x === fullscreenWindow.getBounds().x &&
-        display.bounds.y === fullscreenWindow.getBounds().y
-    );
-    const nextDisplay = displays[(currentDisplayIndex + 1) % displays.length];
+  if (!fullscreenWindow || fullscreenWindow.isDestroyed()) return;
+
+  const displays = screen.getAllDisplays();
+  const b = fullscreenWindow.getBounds();
+  const currentDisplayIndex = displays.findIndex(d => d.bounds.x === b.x && d.bounds.y === b.y);
+  const nextDisplay = displays[(currentDisplayIndex + 1) % displays.length];
+
+  if (process.platform === 'darwin') {
+    // 擬似フルスクリーン前提：Spaceは跨がない
+    macEnterFakeFullscreen(fullscreenWindow, nextDisplay);
+  } else {
+    // 既存（Windows等）はそのまま
     fullscreenWindow.setBounds({
-        x: nextDisplay.bounds.x,
-        y: nextDisplay.bounds.y,
-        width: nextDisplay.bounds.width,
-        height: nextDisplay.bounds.height
+      x: nextDisplay.bounds.x,
+      y: nextDisplay.bounds.y,
+      width: nextDisplay.bounds.width,
+      height: nextDisplay.bounds.height
     });
-    fullscreenWindow.setFullScreen(true); // フルスクリーン状態を保持
+    fullscreenWindow.setFullScreen(true);
+  }
+}
+
+// --- mac only helpers ---
+function macEnterFakeFullscreen(win, display) {
+  try {
+    // すでにネイティブFSの場合のみ解除（毎回はやらない）
+    if (win.isFullScreen && win.isFullScreen()) {
+      win.setFullScreen(false);
+    }
+
+    // 対象ディスプレイ全面にサイズ合わせ（ここは毎回OK）
+    win.setBounds({
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height
+    }, false);
+
+    // simple fullscreen は未適用のときだけ適用（毎回トグルしない）
+    if (win.isSimpleFullScreen && !win.isSimpleFullScreen()) {
+      win.setSimpleFullScreen(true);
+    }
+
+    // 一貫して強めに最前面（他所と競合しないよう 'screen-saver' に統一）
+    win.setAlwaysOnTop(true, 'screen-saver');
+
+    win.show();
+    win.focus();
+  } catch (e) {
+    console.warn('[main.js] macEnterFakeFullscreen failed:', e);
+  }
+}
+
+function collapseFullscreenSafely() {
+    if (!fullscreenWindow || fullscreenWindow.isDestroyed()) return;
+    try {
+        // simple fullscreen を解除（適用時のみ）
+        if (fullscreenWindow.isSimpleFullScreen && fullscreenWindow.isSimpleFullScreen()) {
+            fullscreenWindow.setSimpleFullScreen(false);
+        }
+        // ネイティブFSなら解除
+        if (fullscreenWindow.isFullScreen && fullscreenWindow.isFullScreen()) {
+            fullscreenWindow.setFullScreen(false);
+        }
+        // 最前面解除してから退避
+        fullscreenWindow.setAlwaysOnTop(false);
+
+        // ひとまず隠す（最小化でもOK）
+        // fullscreenWindow.minimize();
+        fullscreenWindow.hide();
+
+        // 万一前面に残っても邪魔しないよう、プライマリに小さく退避
+        const primary = screen.getPrimaryDisplay();
+        const wa = primary.workArea || primary.bounds;
+        fullscreenWindow.setBounds({
+            x: (wa.x || 0) + 50,
+            y: (wa.y || 0) + 50,
+            width: 640,
+            height: 360
+        }, false);
+    } catch (e) {
+        console.warn('[main.js] collapseFullscreenSafely failed:', e);
+    }
+}
+
+function macRecreateFullscreenWindow(html = 'fullscreen.html') {
+  try {
+    if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
+      fullscreenWindow.destroy();
+    }
+    const displays = screen.getAllDisplays();
+    const target = displays.find(d => d.bounds.x !== 0 || d.bounds.y !== 0) || displays[0];
+
+    fullscreenWindow = new BrowserWindow({
+      fullscreen: false,
+      frame: true,
+      resizable: true,
+      show: false,
+      backgroundColor: '#000',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false
+      }
+    });
+
+    fullscreenWindow.loadFile(html);
+    fullscreenWindow.setMenuBarVisibility(false);
+
+    // 擬似フルスクリーンに入れる
+    macEnterFakeFullscreen(fullscreenWindow, target);
+
+    // 事故時にすぐ復旧できるよう、閉じたら参照クリア
+    fullscreenWindow.on('closed', () => { fullscreenWindow = null; });
+  } catch (e) {
+    console.error('[main.js] macRecreateFullscreenWindow failed:', e);
+  }
 }
 
 // デバッグモードを切り替える関数（F10)
