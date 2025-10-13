@@ -62,7 +62,6 @@ if (ffprobePath && fs.existsSync(ffprobePath)) {
     console.error('[main.js] ffprobe not found via ffprobe-static:', ffprobePath);
 }
 
-
 // 設定ファイルの読み込み
 function loadConfig() {
     const configPath = path.join(app.getPath('userData'), 'config.json');
@@ -164,7 +163,6 @@ ipcMain.handle('check-atem-device', async (event, ip) => {
     return { found: false, error: error.message };
   }
 });
-
 
 // ---------------------
 // 更新の確認
