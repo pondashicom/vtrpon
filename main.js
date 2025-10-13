@@ -44,24 +44,24 @@ if (!gotTheLock) {
 }
 
 // ffmpeg とffprobe のパス指定
-let ffmpegPath = ffmpegStatic;
-if (ffmpegPath.includes('app.asar')) {
-  ffmpegPath = ffmpegStatic.replace('app.asar', 'app.asar.unpacked');
-}
-if (!fs.existsSync(ffmpegPath)) {
-    console.error('[main.js] ffmpeg path does not exist:', ffmpegPath);
-} else {
+const fixAsar = (p) => (p && p.includes('app.asar')) ? p.replace('app.asar', 'app.asar.unpacked') : p;
+
+// ffmpeg（ffmpeg-static を使用）
+let ffmpegPath = fixAsar(ffmpegStatic);
+if (ffmpegPath && fs.existsSync(ffmpegPath)) {
     ffmpeg.setFfmpegPath(path.normalize(ffmpegPath));
+} else {
+    console.error('[main.js] ffmpeg not found via ffmpeg-static:', ffmpegPath);
 }
 
-if (ffprobeStatic.path.includes('app.asar')) {
-    ffprobeStatic.path = ffprobeStatic.path.replace('app.asar', 'app.asar.unpacked');
-}
-if (!fs.existsSync(ffprobeStatic.path)) {
-    console.error('[main.js] ffprobe path still does not exist after fallback:', ffprobeStatic.path);
+// ffprobe（ffprobe-static を使用）
+let ffprobePath = fixAsar(ffprobeStatic.path);
+if (ffprobePath && fs.existsSync(ffprobePath)) {
+    ffmpeg.setFfprobePath(path.normalize(ffprobePath));
 } else {
-    ffmpeg.setFfprobePath(path.normalize(ffprobeStatic.path));
+    console.error('[main.js] ffprobe not found via ffprobe-static:', ffprobePath);
 }
+
 
 // 設定ファイルの読み込み
 function loadConfig() {

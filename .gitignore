@@ -18,3 +18,5 @@ id_*
 *.key
 *_rsa
 *_ed25519
+src/assets/ffmpeg*
+src/assets/ffprobe*
