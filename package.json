@@ -38,29 +38,23 @@
     "build": {
         "appId": "pondashi.com-vtrpon",
         "win": {
-            "icon": "assets/icons/icon.ico"
+          "icon": "assets/icons/icon.ico"
         },
         "mac": {
-            "target": [
-                {
-                    "target": "dmg",
-                    "arch": [
-                        "x64",
-                        "arm64"
-                    ]
-                }
-            ],
-            "icon": "assets/icons/icon_512x512.png"
-        },
-        "extraResources": [
+          "target": [
             {
-                "from": "src/assets/ffmpeg.exe",
-                "to": "ffmpeg.exe"
-            },
-            {
-                "from": "src/assets/ffprobe.exe",
-                "to": "ffprobe.exe"
+              "target": "dmg",
+              "arch": [
+                "x64",
+                "arm64"
+              ]
             }
+          ],
+          "icon": "assets/icons/icon_512x512.png"
+        },
+        "asarUnpack": [
+          "**/node_modules/ffmpeg-static/**",
+          "**/node_modules/ffprobe-static/**"
         ],
         "npmRebuild": false
     }
