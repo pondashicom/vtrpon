@@ -5,7 +5,7 @@
     "scripts": {
         "start": "electron .",
         "build": "electron-builder",
-        "rebuild:win": "npx @electron/rebuild -f -w winax -i @julusian/freetype2 --arch=x64"
+        "rebuild:win": "npx @electron/rebuild -f -w winax -i @julusian/freetype2 --arch=x64",
         "dist:win": "npm run rebuild:win && electron-builder --win",
         "deps:mac-arm64": "electron-builder install-app-deps --platform=darwin --arch=arm64",
         "deps:mac-x64": "electron-builder install-app-deps --platform=darwin --arch=x64",
