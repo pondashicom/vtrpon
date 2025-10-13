@@ -1769,13 +1769,13 @@ function onairSetupVolumeSliderHandler(elements) {
         logInfo(`[onair.js] Combined volume updated: Item ${itemVal}%, Master ${masterVal}% -> Final ${(finalVolume * 100).toFixed(0)}%`);
     }
 
-    // アイテムスライダー（フェード機能なし）
+    // アイテムスライダー
     onairItemVolumeSlider.addEventListener("input", () => {
         updateCombinedVolume();
         updateVolumeSliderAppearance();
     });
 
-    // マスターフェーダー（フェード機能を持つ）
+    // マスターフェーダー
     onairMasterVolumeSlider.addEventListener("input", () => {
         if (fadeInInProgress || fadeOutInProgress) {
             stopFade();
@@ -2098,7 +2098,7 @@ document.getElementById('on-air-item-fi-button').addEventListener('click', () =>
     }
 
     // まず #itemFioRate（アイテム専用フェード時間）を優先。未設定/不正なら従来の ftbRate を使用
-    const itemFioRateEl = document.getElementById('fioRate');
+    const itemFioRateEl = document.getElementById('itemFioRate');
     const fadeDuration = (itemFioRateEl && !isNaN(parseFloat(itemFioRateEl.value)))
         ? parseFloat(itemFioRateEl.value)
         : (onairCurrentState?.ftbRate || 1.0);
@@ -2106,7 +2106,6 @@ document.getElementById('on-air-item-fi-button').addEventListener('click', () =>
     fadeButtonBlink(document.getElementById('on-air-item-fi-button'));
     audioFadeInItem(fadeDuration); 
 });
-
 // -----------------------
 // スタートモードFADEIN
 // -----------------------
