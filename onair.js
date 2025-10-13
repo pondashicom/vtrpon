@@ -45,8 +45,10 @@ let isFillKeyMode = false;
 let ftbMainTimeout = null;
 let ftbOffAirTimeout = null;
 let onairMasterVolume = 100;
-let fadeOutInProgress = false;
-let fadeInInProgress = false;
+let fadeOutInProgressMain = false;
+let fadeInInProgressMain = false;
+let fadeOutInProgressItem = false;
+let fadeInInProgressItem = false;
 let isOffAirProcessing = false;
 
 // -----------------------
@@ -1771,8 +1773,8 @@ function onairSetupVolumeSliderHandler(elements) {
 
     // アイテムスライダー
     onairItemVolumeSlider.addEventListener("input", () => {
-        if (fadeInInProgress || fadeOutInProgress) {
-            stopFade();
+        if (fadeInInProgressItem || fadeOutInProgressItem) {
+            stopItemFade(); // ITEM側だけ停止
         }
         updateCombinedVolume();
         updateVolumeSliderAppearance();
@@ -1780,8 +1782,8 @@ function onairSetupVolumeSliderHandler(elements) {
 
     // マスターフェーダー
     onairMasterVolumeSlider.addEventListener("input", () => {
-        if (fadeInInProgress || fadeOutInProgress) {
-            stopFade();
+        if (fadeInInProgressMain || fadeOutInProgressMain) {
+            stopMainFade(); // MAIN側だけ停止
         }
         const masterVal = parseInt(onairMasterVolumeSlider.value, 10);
         onairMasterVolume = masterVal;
@@ -1789,14 +1791,13 @@ function onairSetupVolumeSliderHandler(elements) {
         onairMasterVolumeSlider.style.setProperty('--value', `${onairMasterVolumeSlider.value}%`);
     });
 
-    // 矢印キーによる操作の無効化（アイテムスライダー）
+    // 矢印キー無効化
     onairItemVolumeSlider.addEventListener('keydown', (event) => {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
             event.preventDefault();
             logDebug(`[onair.js] Key "${event.key}" input disabled on Item Volume Slider.`);
         }
     });
-    // 矢印キーによる操作の無効化（マスターフェーダー）
     onairMasterVolumeSlider.addEventListener('keydown', (event) => {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
             event.preventDefault();
@@ -1806,21 +1807,21 @@ function onairSetupVolumeSliderHandler(elements) {
     logDebug('[onair.js] Volume slider handlers for item and master set up.');
 }
 
+
 // ------------------------------
 // フェードイン・フェードアウト
 // ------------------------------
 
 // フェードアウト処理
 function audioFadeOut(duration) {
-    if (fadeOutInProgress || fadeInInProgress) return;
-    fadeOutInProgress = true;
+    if (fadeOutInProgressMain || fadeInInProgressMain) return;
+    fadeOutInProgressMain = true;
 
     const masterSlider = document.getElementById('on-air-master-volume-slider');
     let startTime = null;
     let currentValue = masterSlider.value;
     let targetValue = 0; 
 
-    // スライダーの値を変更する
     function setSliderValue(value) {
         masterSlider.value = value;
         const roundedValue = Math.round(value);
@@ -1828,14 +1829,12 @@ function audioFadeOut(duration) {
         masterVolumeDisplay.textContent = `${roundedValue}%`;
         masterSlider.style.setProperty('--value', `${roundedValue}%`);
 
-        // マスターボリュームが10%以下の場合、警告用クラスを付与
         if (roundedValue <= 10) {
             masterVolumeDisplay.classList.add('neon-warning');
         } else {
             masterVolumeDisplay.classList.remove('neon-warning');
         }
 
-        // 再計算して最終出力音量を更新
         const itemVal = parseInt(document.getElementById('on-air-item-volume-slider').value, 10);
         const masterVal = parseInt(masterSlider.value, 10);
         const finalVolume = (itemVal / 100) * (masterVal / 100);
@@ -1845,12 +1844,11 @@ function audioFadeOut(duration) {
         });
     }
 
-    // フェードアウト処理
     function fadeStep(timestamp) {
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
 
-        if (!fadeOutInProgress) return;
+        if (!fadeOutInProgressMain) return;
 
         const newValue = Math.max(targetValue, currentValue - (elapsed / (duration * 1000)) * currentValue);
 
@@ -1860,44 +1858,33 @@ function audioFadeOut(duration) {
             requestAnimationFrame(fadeStep);
         } else {
             setSliderValue(targetValue);
-            // フェードアウト完了時にグローバル変数を更新
             onairMasterVolume = targetValue;
-            fadeOutInProgress = false;
+            fadeOutInProgressMain = false;
             stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
         }
     }
     requestAnimationFrame(fadeStep);
 }
 
-// フェードイン処理
+// MAIN フェードイン
 function audioFadeIn(duration) {
-    if (fadeInInProgress || fadeOutInProgress) return;
-    fadeInInProgress = true;
+    if (fadeInInProgressMain || fadeOutInProgressMain) return;
+    fadeInInProgressMain = true;
 
     const masterSlider = document.getElementById('on-air-master-volume-slider');
     if (!masterSlider) {
         logInfo('[onair.js] Error: on-air-master-volume-slider not found. Aborting fadeIn.');
-        fadeInInProgress = false;
-        return;
-    }
-    const itemSlider = document.getElementById('on-air-item-volume-slider');
-    if (!itemSlider) {
-        logInfo('[onair.js] Error: on-air-item-volume-slider not found. Aborting fadeIn.');
-        fadeInInProgress = false;
+        fadeInInProgressMain = false;
         return;
     }
     const masterValueElement = document.getElementById('on-air-master-volume-value');
     if (!masterValueElement) {
         logInfo('[onair.js] Error: on-air-master-volume-value not found. Aborting fadeIn.');
-        fadeInInProgress = false;
+        fadeInInProgressMain = false;
         return;
     }
+    const itemSlider = document.getElementById('on-air-item-volume-slider');
     const videoElement = document.getElementById('on-air-video');
-    if (!videoElement) {
-        logInfo('[onair.js] Error: on-air-video element not found. Aborting fadeIn.');
-        fadeInInProgress = false;
-        return;
-    }
 
     let startTime = null;
     const currentValue = parseFloat(masterSlider.value);
@@ -1908,36 +1895,80 @@ function audioFadeIn(duration) {
         const roundedValue = Math.round(value);
         masterValueElement.textContent = `${roundedValue}%`;
         masterSlider.style.setProperty('--value', `${roundedValue}%`);
+        if (roundedValue <= 10) masterValueElement.classList.add('neon-warning');
+        else masterValueElement.classList.remove('neon-warning');
 
-        if (roundedValue <= 10) {
-            masterValueElement.classList.add('neon-warning');
-        } else {
-            masterValueElement.classList.remove('neon-warning');
-        }
+        const itemVal = itemSlider ? parseInt(itemSlider.value, 10) : 100;
+        const finalLinear = (itemVal / 100) * (roundedValue / 100);
+        const finalGamma = Math.pow(finalLinear, 2.2);
 
-        const itemVal = parseInt(itemSlider.value, 10);
-        const masterVal = parseInt(masterSlider.value, 10);
-        const finalVolume = (itemVal / 100) * (masterVal / 100);
-        window.electronAPI.sendControlToFullscreen({
-            command: 'set-volume',
-            value: Math.pow(finalVolume, 2.2)
-        });
+        window.electronAPI.sendControlToFullscreen({ command: 'set-volume', value: finalGamma });
+        if (videoElement) videoElement.volume = finalLinear;
     }
 
-    function fadeStep(timestamp) {
-        if (!fadeInInProgress) return; // ← 途中停止に対応
-        if (!startTime) startTime = timestamp;
-        const elapsed = timestamp - startTime;
-        const progress = Math.min(elapsed / (duration * 1000), 1);
-        const newValue = currentValue + (targetValue - currentValue) * progress;
+    function fadeStep(ts) {
+        if (!fadeInInProgressMain) return;
+        if (!startTime) startTime = ts;
+        const elapsed = ts - startTime;
+        const p = Math.min(elapsed / (duration * 1000), 1);
+        const newValue = currentValue + (targetValue - currentValue) * p;
         setSliderValue(newValue);
-        if (progress < 1) {
+        if (p < 1) {
             requestAnimationFrame(fadeStep);
         } else {
             setSliderValue(targetValue);
             onairMasterVolume = targetValue;
-            fadeInInProgress = false;
+            fadeInInProgressMain = false;
             stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
+        }
+    }
+    requestAnimationFrame(fadeStep);
+}
+
+// フェードイン処理
+function audioFadeOutItem(duration) {
+    if (fadeOutInProgressItem || fadeInInProgressItem) return;
+    fadeOutInProgressItem = true;
+
+    const itemSlider = document.getElementById('on-air-item-volume-slider');
+    let startTime = null;
+    let currentValue = itemSlider.value;
+    let targetValue = 0;
+
+    function setSliderValue(value) {
+        itemSlider.value = value;
+        const roundedValue = Math.round(value);
+        const itemVolumeDisplay = document.getElementById('on-air-item-volume-value');
+        itemVolumeDisplay.textContent = `${roundedValue}%`;
+        itemSlider.style.setProperty('--value', `${roundedValue}%`);
+
+        const masterVal = parseInt(document.getElementById('on-air-master-volume-slider').value, 10);
+        const finalVolume = (roundedValue / 100) * (masterVal / 100);
+        window.electronAPI.sendControlToFullscreen({
+            command: 'set-volume',
+            value: Math.pow(finalVolume, 2.2)
+        });
+        const videoElement = document.getElementById('on-air-video');
+        if (videoElement) {
+            videoElement.volume = finalVolume;
+        }
+    }
+
+    function fadeStep(timestamp) {
+        if (!startTime) startTime = timestamp;
+        const elapsed = timestamp - startTime;
+
+        if (!fadeOutInProgressItem) return;
+
+        const newValue = Math.max(targetValue, currentValue - (elapsed / (duration * 1000)) * currentValue);
+        setSliderValue(newValue);
+
+        if (elapsed < duration * 1000) {
+            requestAnimationFrame(fadeStep);
+        } else {
+            setSliderValue(targetValue);
+            fadeOutInProgressItem = false;
+            stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
         }
     }
     requestAnimationFrame(fadeStep);
@@ -1946,18 +1977,36 @@ function audioFadeIn(duration) {
 
 // フェードイン・フェードアウトの処理を中断する関数
 function stopFade() {
-    if (fadeInInProgress) {
-        fadeInInProgress = false;
-        logInfo('[onair.js] Fade In stopped');
-    }
-    if (fadeOutInProgress) {
-        fadeOutInProgress = false;
-        logInfo('[onair.js] Fade Out stopped');
-    }
+    // 互換用：MAIN/ITEM 両方を止める
+    fadeInInProgressMain = false;
+    fadeOutInProgressMain = false;
+    fadeInInProgressItem = false;
+    fadeOutInProgressItem = false;
+    logInfo('[onair.js] All fades stopped');
 
-    // ボタンの点滅を止める（メイン＋アイテム）
+    // ボタンの点滅を止める（MAIN/ITEM 両方）
     stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
     stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
+}
+
+// MAIN だけ止める
+function stopMainFade() {
+    const wasRunning = fadeInInProgressMain || fadeOutInProgressMain;
+    fadeInInProgressMain = false;
+    fadeOutInProgressMain = false;
+    if (wasRunning) logInfo('[onair.js] Main fade stopped');
+    stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
+}
+
+// ITEM だけ止める
+function stopItemFade() {
+    const wasRunning = fadeInInProgressItem || fadeOutInProgressItem;
+    fadeInInProgressItem = false;
+    fadeOutInProgressItem = false;
+    if (wasRunning) logInfo('[onair.js] Item fade stopped');
     stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
     stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
 }
@@ -1974,7 +2023,7 @@ document.getElementById('on-air-fo-button').addEventListener('click', () => {
     }
 
     const fioRate = parseFloat(document.getElementById('mainFioRate').value);
-    stopFade();
+    stopMainFade();
     fadeButtonBlink(document.getElementById('on-air-fo-button'));
     audioFadeOut(fioRate);
 });
@@ -1990,7 +2039,7 @@ document.getElementById('on-air-fi-button').addEventListener('click', () => {
     }
 
     const fioRate = parseFloat(document.getElementById('mainFioRate').value);
-    stopFade();
+    stopMainFade();
     fadeButtonBlink(document.getElementById('on-air-fi-button')); 
     audioFadeIn(fioRate); 
 });
@@ -2018,25 +2067,26 @@ function updateVolumeSliderAppearance() {
 }
 
 // アイテム固有の音量フェードアウト処理
-function audioFadeOutItem(duration) {
-    if (fadeOutInProgress || fadeInInProgress) return;
-    fadeOutInProgress = true;
+function audioFadeInItem(duration) {
+    if (fadeInInProgressItem || fadeOutInProgressItem) return;
+    fadeInInProgressItem = true;
 
     const itemSlider = document.getElementById('on-air-item-volume-slider');
+    if (!itemSlider) {
+        logInfo('[onair.js] Error: on-air-item-volume-slider not found. Aborting fadeInItem.');
+        fadeInInProgressItem = false;
+        return;
+    }
+    const targetValue = onairCurrentState?.defaultVolume !== undefined ? onairCurrentState.defaultVolume : 100;
     let startTime = null;
-    let currentValue = itemSlider.value;
-    let targetValue = 0;
+    const currentValue = parseFloat(itemSlider.value);
 
-    // アイテムスライダーの値を更新する補助関数
     function setSliderValue(value) {
         itemSlider.value = value;
         const roundedValue = Math.round(value);
         const itemVolumeDisplay = document.getElementById('on-air-item-volume-value');
         itemVolumeDisplay.textContent = `${roundedValue}%`;
-        // カスタムプロパティ --value を更新
         itemSlider.style.setProperty('--value', `${roundedValue}%`);
-
-        // 再計算して最終出力音量を更新（マスタースライダーの値はそのまま）
         const masterVal = parseInt(document.getElementById('on-air-master-volume-slider').value, 10);
         const finalVolume = (roundedValue / 100) * (masterVal / 100);
         window.electronAPI.sendControlToFullscreen({
@@ -2049,22 +2099,19 @@ function audioFadeOutItem(duration) {
         }
     }
 
-    // フェードアウト処理
     function fadeStep(timestamp) {
+        if (!fadeInInProgressItem) return; // 個別停止に対応
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
-
-        if (!fadeOutInProgress) return;
-
-        const newValue = Math.max(targetValue, currentValue - (elapsed / (duration * 1000)) * currentValue);
+        const progress = Math.min(elapsed / (duration * 1000), 1);
+        const newValue = currentValue + (targetValue - currentValue) * progress;
         setSliderValue(newValue);
-
-        if (elapsed < duration * 1000) {
+        if (progress < 1) {
             requestAnimationFrame(fadeStep);
         } else {
             setSliderValue(targetValue);
-            fadeOutInProgress = false;
-            stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
+            fadeInInProgressItem = false;
+            stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
         }
     }
     requestAnimationFrame(fadeStep);
@@ -2085,7 +2132,7 @@ document.getElementById('on-air-item-fo-button').addEventListener('click', () =>
         ? parseFloat(itemFioRateEl.value)
         : (onairCurrentState?.ftbRate || 1.0);
 
-    stopFade();
+    stopItemFade(); 
     fadeButtonBlink(document.getElementById('on-air-item-fo-button'));
     audioFadeOutItem(fadeDuration);
 });
@@ -2105,7 +2152,7 @@ document.getElementById('on-air-item-fi-button').addEventListener('click', () =>
         ? parseFloat(itemFioRateEl.value)
         : (onairCurrentState?.ftbRate || 1.0);
 
-    stopFade();
+    stopItemFade();
     fadeButtonBlink(document.getElementById('on-air-item-fi-button'));
     audioFadeInItem(fadeDuration); 
 });
@@ -2142,57 +2189,6 @@ function onairFadeFromBlack(duration) {
             onairFadeCanvas.style.opacity = 0;
             onairFadeCanvas.style.visibility = 'hidden';
             logInfo(`[onair.js] Fade from ${selectedColor} completed.`);
-        }
-    }
-    requestAnimationFrame(fadeStep);
-}
-
-// アイテム固有の音量フェードイン処理
-function audioFadeInItem(duration) {
-    if (fadeInInProgress || fadeOutInProgress) return;
-    fadeInInProgress = true;
-
-    const itemSlider = document.getElementById('on-air-item-volume-slider');
-    if (!itemSlider) {
-        logInfo('[onair.js] Error: on-air-item-volume-slider not found. Aborting fadeInItem.');
-        fadeInInProgress = false;
-        return;
-    }
-    const targetValue = onairCurrentState?.defaultVolume !== undefined ? onairCurrentState.defaultVolume : 100;
-    let startTime = null;
-    const currentValue = parseFloat(itemSlider.value);
-
-    function setSliderValue(value) {
-        itemSlider.value = value;
-        const roundedValue = Math.round(value);
-        const itemVolumeDisplay = document.getElementById('on-air-item-volume-value');
-        itemVolumeDisplay.textContent = `${roundedValue}%`;
-        itemSlider.style.setProperty('--value', `${roundedValue}%`);
-        const masterVal = parseInt(document.getElementById('on-air-master-volume-slider').value, 10);
-        const finalVolume = (roundedValue / 100) * (masterVal / 100);
-        window.electronAPI.sendControlToFullscreen({
-            command: 'set-volume',
-            value: Math.pow(finalVolume, 2.2)
-        });
-        const videoElement = document.getElementById('on-air-video');
-        if (videoElement) {
-            videoElement.volume = finalVolume;
-        }
-    }
-
-    function fadeStep(timestamp) {
-        if (!fadeInInProgress) return;
-        if (!startTime) startTime = timestamp;
-        const elapsed = timestamp - startTime;
-        const progress = Math.min(elapsed / (duration * 1000), 1);
-        const newValue = currentValue + (targetValue - currentValue) * progress;
-        setSliderValue(newValue);
-        if (progress < 1) {
-            requestAnimationFrame(fadeStep);
-        } else {
-            setSliderValue(targetValue);
-            fadeInInProgress = false;
-            stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
         }
     }
     requestAnimationFrame(fadeStep);
@@ -3094,8 +3090,6 @@ document.addEventListener('keydown', (event) => {
         event.preventDefault();
     }
 });
-
-
 
 // メニューからショートカット通知を受信
 window.electronAPI.onShortcutTrigger((event, action) => {
