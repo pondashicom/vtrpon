@@ -12,7 +12,7 @@
         "dist:mac-arm64": "npm run deps:mac-arm64 && electron-builder --mac --arm64",
         "dist:mac-x64": "npm run deps:mac-x64 && electron-builder --mac --x64",
         "dist": "node -e \"const {execSync}=require('child_process'); const os=process.platform; if(os==='win32'){execSync('npm run dist:win',{stdio:'inherit'})} else if(os==='darwin'){execSync('npm run dist:mac-arm64',{stdio:'inherit'})} else {execSync('electron-builder -l',{stdio:'inherit'})}\"",
-        "postinstall": "node -e \"const {execSync}=require('child_process'); if(process.platform==='win32'){execSync('electron-rebuild -f -w winax -i @julusian/freetype2 --arch x64 --version 35.0.2',{stdio:'inherit'})} else {console.log('postinstall: skip electron-rebuild on non-Windows');}\""
+        "postinstall": "node -e \"if(process.platform==='win32'){try{require('child_process').execSync('npx @electron/rebuild -f -w winax -i @julusian/freetype2 --arch=x64',{stdio:'inherit'})}catch(e){console.warn('postinstall: rebuild skipped:',e && e.message)}}else{console.log('postinstall: skip on non-Windows')}\""
     },
     "keywords": [],
     "author": "Tetsu Suzuki",
