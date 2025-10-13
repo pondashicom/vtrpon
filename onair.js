@@ -1771,6 +1771,9 @@ function onairSetupVolumeSliderHandler(elements) {
 
     // アイテムスライダー
     onairItemVolumeSlider.addEventListener("input", () => {
+        if (fadeInInProgress || fadeOutInProgress) {
+            stopFade();
+        }
         updateCombinedVolume();
         updateVolumeSliderAppearance();
     });
@@ -1906,7 +1909,6 @@ function audioFadeIn(duration) {
         masterValueElement.textContent = `${roundedValue}%`;
         masterSlider.style.setProperty('--value', `${roundedValue}%`);
 
-        // マスターボリュームが10%以下なら警告用クラスを付与、それ以外の場合は削除
         if (roundedValue <= 10) {
             masterValueElement.classList.add('neon-warning');
         } else {
@@ -1923,6 +1925,7 @@ function audioFadeIn(duration) {
     }
 
     function fadeStep(timestamp) {
+        if (!fadeInInProgress) return; // ← 途中停止に対応
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
         const progress = Math.min(elapsed / (duration * 1000), 1);
@@ -1932,7 +1935,6 @@ function audioFadeIn(duration) {
             requestAnimationFrame(fadeStep);
         } else {
             setSliderValue(targetValue);
-            // フェードイン完了時にグローバル変数を更新
             onairMasterVolume = targetValue;
             fadeInInProgress = false;
             stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
@@ -1940,6 +1942,7 @@ function audioFadeIn(duration) {
     }
     requestAnimationFrame(fadeStep);
 }
+
 
 // フェードイン・フェードアウトの処理を中断する関数
 function stopFade() {
@@ -1952,9 +1955,11 @@ function stopFade() {
         logInfo('[onair.js] Fade Out stopped');
     }
 
-    // ボタンの点滅を止める
+    // ボタンの点滅を止める（メイン＋アイテム）
     stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
     stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
 }
 
 // フェードイン、フェードアウトボタンのイベントリスナー
@@ -1963,13 +1968,13 @@ document.getElementById('on-air-fo-button').addEventListener('click', () => {
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
-    // 動画がロードされているかチェック
     if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
         logInfo('[onair.js] No video loaded or not ready. Fade out operation canceled.');
         return;
     }
 
     const fioRate = parseFloat(document.getElementById('mainFioRate').value);
+    stopFade();
     fadeButtonBlink(document.getElementById('on-air-fo-button'));
     audioFadeOut(fioRate);
 });
@@ -1979,13 +1984,13 @@ document.getElementById('on-air-fi-button').addEventListener('click', () => {
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
-    // 動画がロードされているかチェック
     if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
         logInfo('[onair.js] No video loaded or not ready. Fade in operation canceled.');
         return;
     }
 
     const fioRate = parseFloat(document.getElementById('mainFioRate').value);
+    stopFade();
     fadeButtonBlink(document.getElementById('on-air-fi-button')); 
     audioFadeIn(fioRate); 
 });
@@ -2071,17 +2076,16 @@ document.getElementById('on-air-item-fo-button').addEventListener('click', () =>
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
-    // 動画がロードされているか確認
     if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
         logInfo('[onair.js] No video loaded or not ready. Item fade-out operation canceled.');
         return;
     }
-    // まず #itemFioRate（アイテム専用フェード時間）を優先。未設定/不正なら従来の ftbRate を使用
     const itemFioRateEl = document.getElementById('itemFioRate');
     const fadeDuration = (itemFioRateEl && !isNaN(parseFloat(itemFioRateEl.value)))
         ? parseFloat(itemFioRateEl.value)
         : (onairCurrentState?.ftbRate || 1.0);
 
+    stopFade();
     fadeButtonBlink(document.getElementById('on-air-item-fo-button'));
     audioFadeOutItem(fadeDuration);
 });
@@ -2091,21 +2095,22 @@ document.getElementById('on-air-item-fi-button').addEventListener('click', () =>
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
-    // 動画がロードされているか確認
     if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
         logInfo('[onair.js] No video loaded or not ready. Item fade-in operation canceled.');
         return;
     }
 
-    // まず #itemFioRate（アイテム専用フェード時間）を優先。未設定/不正なら従来の ftbRate を使用
     const itemFioRateEl = document.getElementById('itemFioRate');
     const fadeDuration = (itemFioRateEl && !isNaN(parseFloat(itemFioRateEl.value)))
         ? parseFloat(itemFioRateEl.value)
         : (onairCurrentState?.ftbRate || 1.0);
 
+    stopFade();
     fadeButtonBlink(document.getElementById('on-air-item-fi-button'));
     audioFadeInItem(fadeDuration); 
 });
+
+
 // -----------------------
 // スタートモードFADEIN
 // -----------------------
@@ -2157,7 +2162,6 @@ function audioFadeInItem(duration) {
     let startTime = null;
     const currentValue = parseFloat(itemSlider.value);
 
-    // アイテムスライダーの値を更新する補助関数
     function setSliderValue(value) {
         itemSlider.value = value;
         const roundedValue = Math.round(value);
@@ -2176,8 +2180,8 @@ function audioFadeInItem(duration) {
         }
     }
 
-    // フェードイン処理
     function fadeStep(timestamp) {
+        if (!fadeInInProgress) return;
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
         const progress = Math.min(elapsed / (duration * 1000), 1);
