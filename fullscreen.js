@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.4.0
+//     ver 2.4.2
 // -----------------------
 
 // -----------------------
@@ -822,6 +822,7 @@ let fullscreenAnalyserR = null;
 let fullscreenSplitter = null;
 let fullscreenMerger   = null;
 let fullscreenGainNode = null;
+let fullscreenUpmixNode = null;
 let fullscreenSourceNode = null;
 let fullscreenMediaDest = null;
 let animationFrameId = null;
@@ -869,7 +870,16 @@ function setupFullscreenAudio(videoElement) {
 
             // analyser用経路
             fullscreenSourceNode.connect(fullscreenGainNode);
-            fullscreenGainNode.connect(fullscreenSplitter);
+
+            // （新規）解析用：明示的に2chへアップミックスしてからSplit（listedit.jsと同等）
+            if (!fullscreenUpmixNode) {
+                fullscreenUpmixNode = audioContext.createGain();
+                fullscreenUpmixNode.channelCountMode = 'explicit';
+                fullscreenUpmixNode.channelCount = 2;
+                fullscreenUpmixNode.channelInterpretation = 'speakers';
+            }
+            fullscreenGainNode.connect(fullscreenUpmixNode);
+            fullscreenUpmixNode.connect(fullscreenSplitter);
             fullscreenSplitter.connect(fullscreenAnalyserL, 0);
             fullscreenSplitter.connect(fullscreenAnalyserR, 1);
         } catch (error) {
@@ -1011,7 +1021,7 @@ function audioFadeIn(duration) {
 // 音量測定ループフラグ
 let isVolumeMeasurementActive = false;
 
-// メーター計測（モノラル時は表示のみL→R複製）
+// メーター計測
 function startVolumeMeasurement(updateInterval = 60) {
     if (isVolumeMeasurementActive || !fullscreenAnalyserL || !fullscreenAnalyserR) return;
 
@@ -1062,15 +1072,7 @@ function startVolumeMeasurement(updateInterval = 60) {
         dbR = Math.min(maxDb, Math.max(minDb, dbR));
 
         // モノラル検出
-        if (dbL > -40 && dbR < -50) {
-            monoLikeFrames++;
-            if (monoLikeFrames >= DETECT_WINDOW_FRAMES) isMeterDualMono = true;
-        } else {
-            monoLikeFrames = Math.max(0, monoLikeFrames - 1);
-            if (monoLikeFrames === 0) isMeterDualMono = false;
-        }
-
-        const reportR = (isMonoSource || isMeterDualMono) ? dbL : dbR;
+        const reportR = isMonoSource ? dbL : dbR;
 
         window.electronAPI.ipcRenderer.send('fullscreen-audio-level-lr', { L: dbL, R: reportR });
         const dbMax = Math.max(dbL, reportR);
