@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- UVC カメラのみ許可（マイクは付けない） -->
+	<key>com.apple.security.device.camera</key>
+	<true/>
+
+	<!-- Electron 実行に必要な JIT 関連（Hardened Runtime 環境での動作安定化） -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+
+	<!-- ユーザーがダイアログで選んだファイル/フォルダの読書き -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+
+	<!-- ネットワーククライアント（更新確認や外部取得などで使用） -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>
