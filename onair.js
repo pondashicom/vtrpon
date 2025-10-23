@@ -945,7 +945,7 @@ function onairStartPlayback(itemData) {
     onairVideoElement.volume = itemData.defaultVolume / 100;
 
     // スタートモードに応じた処理分岐
-    if (itemData.startMode === 'PLAY' || onairRepeatFlag) {
+    if (itemData.startMode === 'PLAY' || (onairRepeatFlag && itemData.startMode === 'PAUSE')) {
         onairIsPlaying = true; 
         onairVideoElement.play()
             .then(() => {
@@ -978,6 +978,7 @@ function onairStartPlayback(itemData) {
             .then(() => {
                 // 音声フェードイン処理
                 audioFadeInItem(fadeDuration);
+                onairRepeatFlag = false;
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via FADEIN start mode with fade in effect.');
@@ -999,7 +1000,6 @@ function onairStartPlayback(itemData) {
         onairStopRemainingTimer();
         logOpe('[onair.js] Playback paused via start mode.');
     }
-
     // 最後に再生監視を開始
     onairMonitorPlayback(onairVideoElement, outPoint);
 }
