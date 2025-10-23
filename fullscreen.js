@@ -18,6 +18,10 @@ let fillKeyBgColor = "#00FF00";
 let ftbFadeInterval = null; 
 let fadeCancelled = false;
 let isMonoSource = false;
+let preFtbActive = false;
+let preFtbRaf = null;
+let preFtbStartTime = null;
+let preFtbDuration = 0;
 
 // ----------------------------------------
 // フルスクリーンエリアの初期化
@@ -462,6 +466,61 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
     requestAnimationFrame(fadeStep);
 }
 
+// OUT時に黒100%になる事前FTB（停止はしない）
+function startPreFTB(durationSec, fillKeyMode) {
+    let fadeCanvas = document.getElementById('fadeCanvas');
+    if (!fadeCanvas) fadeCanvas = initializeFadeCanvas();
+
+    // 初期化
+    preFtbActive = true;
+    preFtbDuration = Math.max(durationSec, 0.05);
+    preFtbStartTime = null;
+
+    // 背景色（FILLKEY時は背景色、通常は黒）
+    fadeCanvas.style.backgroundColor = (fillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+    fadeCanvas.style.opacity = '0';
+    fadeCanvas.style.display = 'block';
+    fadeCanvas.style.visibility = 'visible';
+
+    // 既存のアニメーション停止
+    if (preFtbRaf) {
+        cancelAnimationFrame(preFtbRaf);
+        preFtbRaf = null;
+    }
+
+    function step(ts) {
+        if (!preFtbActive) return;
+        if (!preFtbStartTime) preFtbStartTime = ts;
+        const elapsed = ts - preFtbStartTime;
+        const progress = Math.min(elapsed / (preFtbDuration * 1000), 1);
+        fadeCanvas.style.opacity = progress.toFixed(2);
+
+        if (progress < 1) {
+            preFtbRaf = requestAnimationFrame(step);
+        } else {
+            // OUT時点で黒=100%だが、ここでは停止しない（停止や初期化はエンドモードFTB側で実施）
+            logInfo('[fullscreen.js] Pre-FTB reached full black.');
+            preFtbRaf = null;
+        }
+    }
+    preFtbRaf = requestAnimationFrame(step);
+}
+
+// 事前FTBのキャンセル（巻き戻しなど）
+function cancelPreFTB() {
+    preFtbActive = false;
+    if (preFtbRaf) {
+        cancelAnimationFrame(preFtbRaf);
+        preFtbRaf = null;
+    }
+    const fadeCanvas = document.getElementById('fadeCanvas');
+    if (fadeCanvas) {
+        fadeCanvas.style.opacity = '0';
+        fadeCanvas.style.display = 'none';
+    }
+    logInfo('[fullscreen.js] Pre-FTB canceled.');
+}
+
 // onair.js から送信された指令を受け取る
 window.electronAPI.ipcRenderer.on('control', (event, data) => {
     if (data.command === 'cancel-fadeout') {
@@ -600,16 +659,36 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
             case 'trigger-endMode':
                 const receivedEndMode = value || 'PAUSE';
                 logInfo(`[fullscreen.js]  Triggering end mode: ${receivedEndMode}`);
-
-                // 受信したエンドモードが現在のものと異なる場合、更新
                 if (globalState.endMode !== receivedEndMode) {
                     logDebug(`[fullscreen.js] Updating globalState.endMode from ${globalState.endMode} to ${receivedEndMode}`);
                     globalState.endMode = receivedEndMode;
                 }
                 handleEndMode(receivedEndMode);
                 break;
+            case 'start-pre-ftb':
+                {
+                    const dur = (value && typeof value.duration === 'number') ? value.duration : (globalState.ftbRate || 1.0);
+                    const fk  = (value && !!value.fillKeyMode) ? true : false;
+                    logInfo(`[fullscreen.js] start-pre-ftb: duration=${dur}s, fillKeyMode=${fk}`);
+                    startPreFTB(dur, fk);
+                }
+                break;
+            case 'cancel-pre-ftb':
+                cancelPreFTB();
+                break;
+            case 'fade-from-black':
+                {
+                    const dur = (value && typeof value.duration === 'number') ? value.duration : (globalState.ftbRate || 0.3);
+                    const fk  = (value && !!value.fillKeyMode) ? true : false;
+                    logInfo(`[fullscreen.js] fade-from-black: duration=${dur}s, fillKeyMode=${fk}`);
+                    cancelPreFTB();
+                    fullscreenFadeFromBlack(dur, fk);
+                }
+                break;
+
             case 'start-recording':
                 {
+
                     const videoElement = document.getElementById('fullscreen-video');
                     if (videoElement) {
                         window.recorder.startRecording(videoElement);
@@ -705,6 +784,8 @@ function handleEndModePAUSE() {
 // ------------------------------------
 // エンドモードFTB
 // ------------------------------------
+// エンドモードFTB
+// ------------------------------------
 function handleEndModeFTB() {
     const fadeDuration = globalState.ftbRate || 1;
 
@@ -715,6 +796,21 @@ function handleEndModeFTB() {
     if (!fadeCanvas) {
         logInfo('[fullscreen.js] Fade canvas not found. Reinitializing canvas.');
         fadeCanvas = initializeFadeCanvas();
+    }
+
+    // 事前FTBが既に完了している場合は即時最終化（動画停止・キャンバス非表示）
+    if (preFtbActive || (fadeCanvas && parseFloat(fadeCanvas.style.opacity) >= 0.99)) {
+        preFtbActive = false;
+        if (preFtbRaf) {
+            cancelAnimationFrame(preFtbRaf);
+            preFtbRaf = null;
+        }
+        initializeFullscreenArea();       // 停止・リセット
+        fadeCanvas.style.opacity = '0';
+        fadeCanvas.style.display = 'none';
+        stopVolumeMeasurement();
+        logInfo('[fullscreen.js] FTB complete: Pre-FTB already at black. Finalized immediately.');
+        return;
     }
 
     // フェードキャンバスの設定
