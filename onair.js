@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.4.2
+//     ver 2.4.3
 // -----------------------
 // -----------------------
 // 初期設定
@@ -50,6 +50,7 @@ let fadeInInProgressMain = false;
 let fadeOutInProgressItem = false;
 let fadeInInProgressItem = false;
 let isOffAirProcessing = false;
+let onairPreFtbStarted = false;
 
 // -----------------------
 // 初期化
@@ -391,7 +392,6 @@ window.electronAPI.onReceiveOffAirNotify(() => {
     logDebug('[onair.js] Received an off-air notification. Starting off-air processing.');
     onairHandleOffAirButton();
 });
-
 
 // ----------------------------------
 // 1 オンエアエリアのリセット
@@ -1039,6 +1039,7 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
     }
 
     // 再生監視の設定
+    onairPreFtbStarted = false;
     onairPlaybackMonitor = setInterval(() => {
         if (!onairIsPlaying) {
             clearInterval(onairPlaybackMonitor);
@@ -1047,10 +1048,81 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
 
         const remainingTime = outPoint - onairVideoElement.currentTime;
 
-        // 残り時間が許容誤差以下ならエンドモードを発火
         if (remainingTime <= tolerance) {
             clearInterval(onairPlaybackMonitor);
+            onairPreFtbStarted = false;
             handleRemainingTimeTimerComplete();
+            return;
+        }
+
+        // 事前FTBが進行中に EndMode が FTB 以外へ切替わった場合は逆フェードで復帰
+        if (onairPreFtbStarted
+            && (onairCurrentState?.endMode !== 'FTB')
+            && (remainingTime > (tolerance + 0.10))) {
+
+            const els2 = onairGetElements();
+            let currentOpacity = 0;
+            try {
+                if (els2?.onairFadeCanvas) {
+                    currentOpacity = parseFloat(window.getComputedStyle(els2.onairFadeCanvas).opacity) || 0;
+                }
+            } catch (_) { currentOpacity = 0; }
+            const ftbRateForBack = onairCurrentState?.ftbRate || 1.0;
+            const backDur = Math.max(Math.min(currentOpacity * ftbRateForBack, 0.4), 0.2);
+
+            if (els2?.onairFadeCanvas) onairFadeFromBlack(backDur);
+            audioFadeInItem(backDur);
+
+            // フルスクリーンにも逆フェード指示（内部で事前FTBを停止→黒→可視へ）
+            window.electronAPI.sendControlToFullscreen({
+                command: 'fade-from-black',
+                value: { duration: backDur, fillKeyMode: isFillKeyMode }
+            });
+
+            onairPreFtbStarted = false;
+            logInfo(`[onair.js] Pre-FTB reversed due to endMode change (duration=${backDur.toFixed(2)}s).`);
+        }
+
+        // FTBRATE > 0 かつ EndMode=FTB のとき、OUT-FTBRATE から事前FTB（映像/音声）開始
+        const ftbRate = onairCurrentState?.ftbRate || 1.0;
+        if (!onairPreFtbStarted
+            && (onairCurrentState?.endMode === 'FTB')
+            && (ftbRate > 0)
+            && (remainingTime <= ftbRate)
+            && (remainingTime > tolerance)) {
+
+            const fadeDur = Math.max(remainingTime, 0.05); // 短尺対策：最小0.05s
+            const els = onairGetElements();
+
+            // offsetParent基準を実施してからフェード開始
+            if (els?.onairFadeCanvas && els?.onairVideoElement) {
+                const vRect = els.onairVideoElement.getBoundingClientRect();
+                const pRect = (els.onairFadeCanvas.offsetParent
+                    ? els.onairFadeCanvas.offsetParent.getBoundingClientRect()
+                    : document.body.getBoundingClientRect());
+                els.onairFadeCanvas.style.position = 'absolute';
+                els.onairFadeCanvas.style.pointerEvents = 'none';
+                els.onairFadeCanvas.style.margin = '0';
+                els.onairFadeCanvas.style.border = '0';
+                els.onairFadeCanvas.style.padding = '0';
+                els.onairFadeCanvas.style.width  = `${vRect.width}px`;
+                els.onairFadeCanvas.style.height = `${vRect.height}px`;
+                els.onairFadeCanvas.style.left   = `${vRect.left - pRect.left}px`;
+                els.onairFadeCanvas.style.top    = `${vRect.top  - pRect.top }px`;
+
+                onairFadeToBlack(els.onairFadeCanvas, fadeDur); 
+            }
+
+            audioFadeOutItem(fadeDur); // アイテム音量をOUTで0%に
+
+            // フルスクリーン側にも事前FTB開始を指示（OUT時に黒=100%）
+            window.electronAPI.sendControlToFullscreen({
+                command: 'start-pre-ftb',
+                value: { duration: fadeDur, fillKeyMode: isFillKeyMode }
+            });
+
+            onairPreFtbStarted = true;
+            logDebug(`[onair.js] Pre-FTB started: remaining=${remainingTime.toFixed(2)}s, duration=${fadeDur.toFixed(2)}s`);
         }
 
         // 残り時間タイマーの更新
@@ -1192,25 +1264,27 @@ function onairHandleEndModeFTB() {
 
     // キャンバスサイズを調整
     adjustFadeCanvasSize(onairVideoElement, onairFadeCanvas);
+    let overlayOpacity = 0;
+    try {
+        overlayOpacity = parseFloat(window.getComputedStyle(onairFadeCanvas).opacity) || 0;
+    } catch (_) { overlayOpacity = 0; }
+    const alreadyBlack = (onairPreFtbStarted === true) || (overlayOpacity >= 0.95);
 
-    // オーバーレイキャンバスの初期化
-    function initializeOverlayCanvasOnAir() {
-        const canvas = document.getElementById('fade-canvas');
-        if (!canvas) {
-            logInfo('[onair.js] fade-canvas element not found.');
-            return null;
-        }
-        // canvas のサイズは adjustFadeCanvasSize で設定するのでそのまま返却
-        return canvas;
+    if (!alreadyBlack) {
+        // 画面のフェードアウト処理
+        onairFadeToBlack(onairFadeCanvas, ftbRate);
+        // 音声のフェードアウト処理
+        audioFadeOutItem(ftbRate);
+    } else {
+        const selectedColor = isFillKeyMode ? (document.getElementById('fillkey-color-picker')?.value || "#00FF00") : "black";
+        onairFadeCanvas.style.backgroundColor = selectedColor;
+        onairFadeCanvas.style.visibility = 'visible';
+        onairFadeCanvas.style.opacity = 1;
+        logInfo('[onair.js] Skipped second visual fade because overlay is already black.');
     }
 
-    // 画面のフェードアウト処理
-    onairFadeToBlack(onairFadeCanvas, ftbRate);
-
-    // 音声のフェードアウト処理
-    audioFadeOutItem(ftbRate);
-
-    // フェードアウト完了後に一時停止
+    // フェード（または保持）後に一時停止
+    const pauseDelayMs = alreadyBlack ? 500 : (ftbRate + 0.5) * 1000;
     ftbMainTimeout = setTimeout(() => {
         onairVideoElement.pause();
         onairIsPlaying = false;
@@ -1222,15 +1296,16 @@ function onairHandleEndModeFTB() {
         ftbOffAirTimeout = setTimeout(() => {
             if (onairOffAirButton) {
                 logInfo('[onair.js] Clicking Off-Air button automatically after FTB.');
-                onairOffAirButton.click(); // ボタンクリックをトリガー
+                onairOffAirButton.click();
             } else {
                 logInfo('[onair.js] Off-Air button not found. Automatic click skipped.');
             }
             stopFadeButtonBlink(document.getElementById('ftb-off-button'));
         }, 500);
-    }, (ftbRate + 0.5) * 1000);
+    }, pauseDelayMs);
     onairIsPlaying = false;
 }
+
 
 // キャンバスサイズ調整
 function adjustFadeCanvasSize(videoElement, fadeCanvas) {
@@ -1504,8 +1579,18 @@ function onairHandleSeekBarChange(event, elements) {
             value: newTime,
         });
         logDebug('[onair.js] Seek command sent to Fullscreen.');
+
+        // シーク時に進行中の事前FTBをキャンセル
+        if (onairPreFtbStarted) {
+            window.electronAPI.sendControlToFullscreen({ command: 'cancel-pre-ftb' });
+            onairFadeFromBlack(0.2);
+            audioFadeInItem(0.2);
+            onairPreFtbStarted = false;
+            logDebug('[onair.js] Pre-FTB canceled due to seek.');
+        }
     }
 }
+
 
 // シークバーのハンドラ設定
 function onairSetupSeekBarHandlers(elements) {
