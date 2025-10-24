@@ -1154,19 +1154,19 @@ function handleGlobalEndedEvent(videoElement) {
 // エンドモード
 // -----------------------
 
-// エンドモード処理の呼び出し
 function onairHandleEndMode() {
     const endMode = onairCurrentState?.endMode || 'PAUSE';
     logDebug(`[onair.js] Calling handleEndMode with endMode: ${endMode}`);
     
-    // フルスクリーンにエンドモード通知
+    // フルスクリーンにエンドモード通知（startModeも同送）
     const currentTime = onairGetElements().onairVideoElement?.currentTime || 0;
     window.electronAPI.sendControlToFullscreen({
         command: 'trigger-endMode',
         value: endMode,
         currentTime: currentTime,
+        startMode: (onairCurrentState?.startMode || 'PAUSE')
     });
-    logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: ${endMode}, currentTime: ${currentTime} }`);
+    logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: ${endMode}, currentTime: ${currentTime}, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
     
     onairExecuteEndMode(endMode);
 }
@@ -1242,9 +1242,23 @@ function onairHandleEndModePause() {
 function onairHandleEndModeRepeat() {
     logInfo('[onair.js] End Mode: REPEAT - Restarting playback.');
 
+    const sm = (onairCurrentState?.startMode || 'PAUSE').toUpperCase();
+    if (sm === 'OFF') {
+        logInfo('[onair.js] StartMode is OFF -> do not repeat; going Off-Air.');
+        onairHandleEndModeOff();
+        return;
+    }
+    if (sm === 'PAUSE') {
+        logInfo('[onair.js] StartMode is PAUSE -> do not repeat; pausing at OUT.');
+        onairHandleEndModePause();
+        return;
+    }
+
+    // PLAY または FADEIN の場合のみリピート
     onairRepeatFlag = true;
     onairStartPlayback(onairCurrentState);
 }
+
 
 // エンドモードFTB
 function onairHandleEndModeFTB() {
@@ -2309,7 +2323,6 @@ window.electronAPI.onListeditUpdated(() => {
 });
 
 
-// 現在の状態と最新状態を比較し、差分を反映する関数
 function compareAndUpdateState(updatedItem, { source } = {}) {
     if (!onairCurrentState) {
         logInfo('[onair.js] Current state is not set. Skipping comparison.');
@@ -2323,6 +2336,7 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
     const normEnd = (updatedItem.endMode || '').toString().toUpperCase() || 'PAUSE';
     const normFtb = parseFloat(updatedItem.ftbRate ?? onairCurrentState.ftbRate ?? 1.0);
     const normStartFi = (updatedItem.startFadeInSec !== undefined && !isNaN(parseFloat(updatedItem.startFadeInSec))) ? parseFloat(updatedItem.startFadeInSec) : onairCurrentState.startFadeInSec;
+    const normStart = (updatedItem.startMode || onairCurrentState.startMode || 'PAUSE').toString().toUpperCase();
 
     // IN
     if (Number(onairCurrentState.inPoint) !== Number(normIn)) {
@@ -2336,6 +2350,13 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
         logInfo(`OUT point updated: ${onairCurrentState.outPoint} → ${normOut}`);
         onairCurrentState.outPoint = normOut;
         handleOutPointUpdate(normOut, { source });
+    }
+
+    // StartMode
+    if ((onairCurrentState.startMode || '').toString().toUpperCase() !== normStart) {
+        logInfo(`Start mode updated: ${onairCurrentState.startMode} → ${normStart}`);
+        onairCurrentState.startMode = normStart;
+        handleStartModeUpdate(normStart, { source });
     }
 
     // EndMode
@@ -2366,6 +2387,13 @@ function handleStartFadeInSecUpdate(newSec) {
     const v = (newSec !== undefined && !isNaN(parseFloat(newSec))) ? parseFloat(newSec) : undefined;
     onairCurrentState.startFadeInSec = v;
     logDebug(`[onair.js] startFadeInSec updated to: ${v}`);
+}
+
+function handleStartModeUpdate(newStartMode, { source } = {}) {
+    if (!onairCurrentState) return;
+    const mode = (newStartMode || 'PAUSE').toUpperCase();
+    onairCurrentState.startMode = mode;
+    logDebug(`[onair.js] startMode updated to: ${mode} (source=${source || 'unknown'})`);
 }
 
 

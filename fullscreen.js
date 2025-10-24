@@ -136,7 +136,6 @@ function setInitialData(itemData) {
     logInfo(`[fullscreen.js] Global state initialized with On-Air data: ${JSON.stringify(globalState)}`);
 }
 
-
 // ------------------------------------
 // オーバーレイキャンバスの初期化
 // ------------------------------------
@@ -344,69 +343,75 @@ function handleStartMode() {
         return;
     }
 
-    // リピートフラグを取り出してすぐに降ろす
-    const isRepeat = !!globalState.repeatFlag;
-    if (isRepeat) {
-        logInfo('[fullscreen.js] Repeat mode triggered. Will follow startMode (PAUSE is ignored).');
-        globalState.repeatFlag = false;
-    }
+    // リピートフラグが立っている場合は、現在の startMode を尊重して分岐
+    if (globalState.repeatFlag) {
+        const sm = (globalState.startMode || 'PAUSE').toUpperCase();
 
-    // フェード秒数は startFadeInSec を優先、なければ ftbRate
-    const fadeDuration = (globalState.startFadeInSec !== undefined && !isNaN(globalState.startFadeInSec))
-        ? globalState.startFadeInSec
-        : (globalState.ftbRate || 1.0);
+        if (sm === 'OFF') {
+            logInfo('[fullscreen.js] Repeat requested but startMode=OFF -> do not repeat; going Off-Air.');
+            globalState.repeatFlag = false;
+            handleEndModeOFF();
+            return;
+        }
+        if (sm === 'PAUSE') {
+            logInfo('[fullscreen.js] Repeat requested but startMode=PAUSE -> do not repeat; pause at OUT.');
+            globalState.repeatFlag = false;
+            videoElement.pause();
+            videoElement.currentTime = globalState.outPoint;
+            stopVolumeMeasurement();
+            return;
+        }
 
-    // スタートモードが FADEIN の場合（リピート時も同様に実行）
-    if (globalState.startMode === 'FADEIN') {
-        logInfo('[fullscreen.js] Start mode is FADEIN. Initiating fade in playback.');
-
-        videoElement.currentTime = globalState.inPoint;
-        videoElement.volume = 0;
-
-        fullscreenFadeFromBlack(fadeDuration, isFillKeyMode);
-        logInfo('[fullscreen.js] FADEIN: Fade from black initiated.');
-
-        videoElement.play()
-            .then(() => {
-                audioFadeIn(fadeDuration);
-                startVolumeMeasurement();
-                logInfo('[fullscreen.js] Playback started with FADEIN effect.');
-                window.electronAPI.sendControlToFullscreen({
-                    command: 'fadein',
-                    ftbRate: fadeDuration,
-                    fillKeyMode: isFillKeyMode,
-                    currentTime: videoElement.currentTime
-                });
-            })
-            .catch(error => logDebug(`[fullscreen.js] Playback failed to start in FADEIN mode: ${error.message}`));
-
-        monitorVideoPlayback();
-        return;
-    }
-
-    // スタートモードが PAUSE の場合：リピート時は無視して再生、それ以外は従来通り停止状態で待機
-    if (globalState.startMode === 'PAUSE') {
-        if (isRepeat) {
-            logInfo('[fullscreen.js] Repeat with startMode=PAUSE -> ignored. Starting playback from IN point.');
+        // PLAY/FADEIN のときのみループ再生
+        if (sm === 'PLAY') {
+            logInfo('[fullscreen.js] Repeat with startMode=PLAY.');
             videoElement.currentTime = globalState.inPoint;
             videoElement.play()
                 .then(() => {
+                    logInfo('[fullscreen.js] Repeat playback started successfully.');
                     startVolumeMeasurement();
-                    logInfo('[fullscreen.js] Playback started (PAUSE ignored on repeat).');
                 })
-                .catch(error => logDebug(`[fullscreen.js] Repeat(PAUSE ignored) playback failed: ${error.message}`));
+                .catch(error => logDebug(`[fullscreen.js] Repeat playback failed to start: ${error.message}`));
             monitorVideoPlayback();
-        } else {
-            logInfo('[fullscreen.js] Start mode is PAUSE. Video is ready to play.');
-            videoElement.currentTime = globalState.inPoint;
-            stopVolumeMeasurement();
+            globalState.repeatFlag = false;
+            return;
         }
+
+        if (sm === 'FADEIN') {
+            logInfo('[fullscreen.js] Repeat with startMode=FADEIN.');
+
+            // IN 点にシークし、初期音量を 0 に設定
+            videoElement.currentTime = globalState.inPoint;
+            videoElement.volume = 0;
+
+            // フェードイン（映像/音声）
+            const fadeDur = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec))
+                ? globalState.startFadeInSec
+                : 1.0;
+            fullscreenFadeFromBlack(fadeDur, isFillKeyMode);
+
+            videoElement.play()
+                .then(() => {
+                    audioFadeIn(fadeDur);
+                    startVolumeMeasurement();
+                    logInfo('[fullscreen.js] Repeat playback started with FADEIN.');
+                })
+                .catch(error => logDebug(`[fullscreen.js] Repeat FADEIN failed to start: ${error.message}`));
+            monitorVideoPlayback();
+            globalState.repeatFlag = false;
+            return;
+        }
+
+        // 未知は何もしない
+        logInfo(`[fullscreen.js] Repeat requested but unknown startMode=${sm}. No action taken.`);
+        globalState.repeatFlag = false;
         return;
     }
 
-    // スタートモードが PLAY の場合
+    // 通常のスタートモード処理
     if (globalState.startMode === 'PLAY') {
         logInfo('[fullscreen.js] Start mode is PLAY. Starting playback.');
+
         videoElement.currentTime = globalState.inPoint;
         videoElement.play()
             .then(() => {
@@ -415,11 +420,44 @@ function handleStartMode() {
                 window.electronAPI.sendControlToFullscreen({ command: 'play' });
             })
             .catch(error => logDebug(`[fullscreen.js] Playback failed to start: ${error.message}`));
-        monitorVideoPlayback();
-        return;
-    }
 
-    logInfo(`[fullscreen.js] Unknown start mode: ${globalState.startMode}. No action taken.`);
+        monitorVideoPlayback();
+
+    } else if (globalState.startMode === 'PAUSE') {
+        logInfo('[fullscreen.js] Start mode is PAUSE. Video is ready to play.');
+        videoElement.currentTime = globalState.inPoint;
+        stopVolumeMeasurement();
+
+    } else if (globalState.startMode === 'FADEIN') {
+        logInfo('[fullscreen.js] Start mode is FADEIN. Initiating fade in playback.');
+
+        videoElement.currentTime = globalState.inPoint;
+        videoElement.volume = 0;
+
+        const fadeDur = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec))
+            ? globalState.startFadeInSec
+            : 1.0;
+        fullscreenFadeFromBlack(fadeDur, isFillKeyMode);
+
+        videoElement.play()
+            .then(() => {
+                audioFadeIn(fadeDur);
+                startVolumeMeasurement();
+                logInfo('[fullscreen.js] Playback started with FADEIN effect.');
+                window.electronAPI.sendControlToFullscreen({
+                    command: 'fadein',
+                    startFadeInSec: fadeDur,
+                    fillKeyMode: isFillKeyMode,
+                    currentTime: videoElement.currentTime
+                });
+            })
+            .catch(error => logDebug(`[fullscreen.js] Playback failed to start in FADEIN mode: ${error.message}`));
+
+        monitorVideoPlayback();
+
+    } else {
+        logInfo(`[fullscreen.js] Unknown start mode: ${globalState.startMode}. No action taken.`);
+    }
 }
 
 // ------------------------------------
@@ -531,10 +569,15 @@ window.electronAPI.ipcRenderer.on('control', (event, data) => {
         return;
     }
     if (data.command === 'fadein') {
-        const ftbRate = data.ftbRate || 1.0;
-        const fillKeyMode = data.fillKeyMode || false;
-        logInfo('[fullscreen.js] Received fadein command with ftbRate:', ftbRate, 'fillKeyMode:', fillKeyMode);
-        fullscreenFadeFromBlack(ftbRate, fillKeyMode);
+        let fadeDur = 1.0;
+        if (typeof data.startFadeInSec === 'number' && !isNaN(data.startFadeInSec)) {
+            fadeDur = data.startFadeInSec;
+        } else if (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec)) {
+            fadeDur = globalState.startFadeInSec;
+        }
+        const fillKeyMode = !!data.fillKeyMode;
+        logInfo('[fullscreen.js] Received fadein command with duration(sec):', fadeDur, 'fillKeyMode:', fillKeyMode);
+        fullscreenFadeFromBlack(fadeDur, fillKeyMode);
     }
 });
 
@@ -662,11 +705,28 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
             case 'trigger-endMode':
                 const receivedEndMode = value || 'PAUSE';
                 logInfo(`[fullscreen.js]  Triggering end mode: ${receivedEndMode}`);
+                if (typeof commandData.startMode === 'string' && commandData.startMode.trim() !== '') {
+                    const newStart = commandData.startMode.toUpperCase();
+                    if ((globalState.startMode || '').toUpperCase() !== newStart) {
+                        logDebug(`[fullscreen.js] Updating globalState.startMode to ${newStart} (via trigger-endMode)`);
+                        globalState.startMode = newStart;
+                    }
+                }
                 if (globalState.endMode !== receivedEndMode) {
                     logDebug(`[fullscreen.js] Updating globalState.endMode from ${globalState.endMode} to ${receivedEndMode}`);
                     globalState.endMode = receivedEndMode;
                 }
-                handleEndMode(receivedEndMode);
+                if (receivedEndMode === 'REPEAT') {
+                    if ((globalState.startMode || '').toUpperCase() === 'OFF') {
+                        handleEndModeOFF();
+                    } else if ((globalState.startMode || '').toUpperCase() === 'PAUSE') {
+                        handleEndModePAUSE();
+                    } else {
+                        handleEndMode('REPEAT');
+                    }
+                } else {
+                    handleEndMode(receivedEndMode);
+                }
                 break;
             case 'start-pre-ftb':
                 {
