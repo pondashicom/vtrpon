@@ -51,6 +51,7 @@ let fadeOutInProgressItem = false;
 let fadeInInProgressItem = false;
 let isOffAirProcessing = false;
 let onairPreFtbStarted = false;
+let onairFtbLocked = false;
 
 // -----------------------
 // 初期化
@@ -487,6 +488,10 @@ function onairReset() {
         clearTimeout(ftbOffAirTimeout);
         ftbOffAirTimeout = null;
     }
+
+    // FTB再入ロック解除
+    onairFtbLocked = false;
+
 
     // 残り時間タイマーのリセット（タイマー表示を初期状態（オレンジ）に戻す）
     onairResetRemainingTimer(elements);
@@ -1050,7 +1055,6 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
 
         if (remainingTime <= tolerance) {
             clearInterval(onairPlaybackMonitor);
-            onairPreFtbStarted = false;
             handleRemainingTimeTimerComplete();
             return;
         }
@@ -1157,6 +1161,22 @@ function handleGlobalEndedEvent(videoElement) {
 function onairHandleEndMode() {
     const endMode = onairCurrentState?.endMode || 'PAUSE';
     logDebug(`[onair.js] Calling handleEndMode with endMode: ${endMode}`);
+
+    // FTBは最初の1回だけ許可。以降は即スキップ
+    if (endMode === 'FTB') {
+        if (onairFtbLocked) {
+            logDebug('[onair.js] FTB already processing. Skip duplicate trigger.');
+            return;
+        }
+        onairFtbLocked = true;
+
+        // 直ちに再生監視を止め、再生フラグも下げる（二重発火防止）
+        if (typeof onairPlaybackMonitor !== 'undefined' && onairPlaybackMonitor) {
+            clearInterval(onairPlaybackMonitor);
+            onairPlaybackMonitor = null;
+        }
+        onairIsPlaying = false;
+    }
     
     // フルスクリーンにエンドモード通知（startModeも同送）
     const currentTime = onairGetElements().onairVideoElement?.currentTime || 0;
@@ -1167,9 +1187,10 @@ function onairHandleEndMode() {
         startMode: (onairCurrentState?.startMode || 'PAUSE')
     });
     logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: ${endMode}, currentTime: ${currentTime}, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
-    
+
     onairExecuteEndMode(endMode);
 }
+
 
 // エンドモードの振り分け
 function onairExecuteEndMode(endMode) {
@@ -1278,27 +1299,43 @@ function onairHandleEndModeFTB() {
 
     // キャンバスサイズを調整
     adjustFadeCanvasSize(onairVideoElement, onairFadeCanvas);
+
+    // いまのキャンバス不透明度を取得
     let overlayOpacity = 0;
     try {
         overlayOpacity = parseFloat(window.getComputedStyle(onairFadeCanvas).opacity) || 0;
     } catch (_) { overlayOpacity = 0; }
-    const alreadyBlack = (onairPreFtbStarted === true) || (overlayOpacity >= 0.95);
+
+    // 事前FTB中または 90%以上黒なら「もう黒扱い」
+    const isPreFtb = (onairPreFtbStarted === true);
+    const alreadyBlack = isPreFtb || (overlayOpacity >= 0.90);
+
+    // 仕上げに必要な残りフェード時間（すでに黒に近いなら0）
+    let finishDur = 0;
 
     if (!alreadyBlack) {
-        // 画面のフェードアウト処理
-        onairFadeToBlack(onairFadeCanvas, ftbRate);
-        // 音声のフェードアウト処理
-        audioFadeOutItem(ftbRate);
+        // いまの黒さ(overlayOpacity)から最終的な黒(1.0)までを ftbRate に合わせて詰める
+        const remain = Math.max(0, 1 - overlayOpacity);
+        finishDur = Math.max(0.05, remain * ftbRate);
+
+        // 画面のフェードアウト処理（残り分だけ）
+        onairFadeToBlack(onairFadeCanvas, finishDur);
+
+        // 音声のフェードアウト処理（残り分だけ）
+        audioFadeOutItem(finishDur);
     } else {
-        const selectedColor = isFillKeyMode ? (document.getElementById('fillkey-color-picker')?.value || "#00FF00") : "black";
+        // すでにほぼ黒なので、色だけ正しく揃えて完全黒状態に固定
+        const selectedColor = isFillKeyMode
+            ? (document.getElementById('fillkey-color-picker')?.value || "#00FF00")
+            : "black";
         onairFadeCanvas.style.backgroundColor = selectedColor;
         onairFadeCanvas.style.visibility = 'visible';
         onairFadeCanvas.style.opacity = 1;
-        logInfo('[onair.js] Skipped second visual fade because overlay is already black.');
+        logInfo('[onair.js] FTB: pre-FTB already near black. Skipping second fade.');
     }
 
     // フェード（または保持）後に一時停止
-    const pauseDelayMs = alreadyBlack ? 500 : (ftbRate + 0.5) * 1000;
+    const pauseDelayMs = alreadyBlack ? 500 : (finishDur + 0.5) * 1000;
     ftbMainTimeout = setTimeout(() => {
         onairVideoElement.pause();
         onairIsPlaying = false;
@@ -1317,7 +1354,11 @@ function onairHandleEndModeFTB() {
             stopFadeButtonBlink(document.getElementById('ftb-off-button'));
         }, 500);
     }, pauseDelayMs);
+
     onairIsPlaying = false;
+
+    // この時点で事前FTBフラグは不要になるのでクリア
+    onairPreFtbStarted = false;
 }
 
 
