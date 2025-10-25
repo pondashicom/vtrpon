@@ -251,6 +251,11 @@ function onairInitializeFadeCanvas(elements) {
     adjustFadeCanvasSize(onairVideoElement, onairFadeCanvas);
 
     // キャンバスの初期状態を設定
+    onairFadeCanvas.style.position = 'absolute';
+    onairFadeCanvas.style.pointerEvents = 'none';
+    onairFadeCanvas.style.margin = '0';
+    onairFadeCanvas.style.border = '0';
+    onairFadeCanvas.style.padding = '0';
     onairFadeCanvas.style.opacity = 0;
     onairFadeCanvas.style.visibility = 'hidden';
 
@@ -1364,14 +1369,25 @@ function onairHandleEndModeFTB() {
     onairPreFtbStarted = false;
 }
 
-
 // キャンバスサイズ調整
 function adjustFadeCanvasSize(videoElement, fadeCanvas) {
-    const extraMargin = 1;
-    fadeCanvas.width = videoElement.clientWidth + extraMargin;
-    fadeCanvas.height = videoElement.clientHeight + extraMargin;
-    fadeCanvas.style.left = `${videoElement.offsetLeft}px`;
-    fadeCanvas.style.top = `${videoElement.offsetTop}px`;
+    if (!videoElement || !fadeCanvas) return;
+
+    const vRect = videoElement.getBoundingClientRect();
+    const pRect = (fadeCanvas.offsetParent
+        ? fadeCanvas.offsetParent.getBoundingClientRect()
+        : document.body.getBoundingClientRect());
+
+    const left   = Math.round(vRect.left - pRect.left);
+    const top    = Math.round(vRect.top  - pRect.top);
+    const width  = Math.round(vRect.width);
+    const height = Math.round(vRect.height);
+
+    fadeCanvas.style.position = 'absolute';
+    fadeCanvas.style.left = `${left}px`;
+    fadeCanvas.style.top = `${top}px`;
+    fadeCanvas.style.width = `${width}px`;
+    fadeCanvas.style.height = `${height}px`;
 }
 
 // フェードアウト処理
