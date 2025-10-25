@@ -975,7 +975,10 @@ function onairStartPlayback(itemData) {
             itemSlider.style.setProperty('--value', `0%`);
         }
         // 映像面：フェードイン開始
-        const fadeDuration = (itemData.startFadeInSec !== undefined && !isNaN(parseFloat(itemData.startFadeInSec))) ? parseFloat(itemData.startFadeInSec) : (itemData.ftbRate || 1.0);
+        let fadeDuration = (itemData.startFadeInSec !== undefined && !isNaN(parseFloat(itemData.startFadeInSec))) ? parseFloat(itemData.startFadeInSec) : (itemData.ftbRate || 1.0);
+        const totalSpan = Math.max(0, (itemData.outPoint || 0) - (itemData.inPoint || 0));
+        const maxFade = Math.max(0.05, totalSpan - 0.1);
+        fadeDuration = Math.min(fadeDuration, maxFade);
         onairFadeFromBlack(fadeDuration);
         
         onairIsPlaying = true;
@@ -1093,12 +1096,13 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
             && (onairCurrentState?.endMode === 'FTB')
             && (ftbRate > 0)
             && (remainingTime <= ftbRate)
-            && (remainingTime > tolerance)) {
+            && (remainingTime > tolerance)
+            && !fadeInInProgressItem
+            && !fadeInInProgressMain) {
 
-            const fadeDur = Math.max(remainingTime, 0.05); // 短尺対策：最小0.05s
+            const fadeDur = Math.max(remainingTime, 0.05);
             const els = onairGetElements();
 
-            // offsetParent基準を実施してからフェード開始
             if (els?.onairFadeCanvas && els?.onairVideoElement) {
                 const vRect = els.onairVideoElement.getBoundingClientRect();
                 const pRect = (els.onairFadeCanvas.offsetParent
@@ -1117,9 +1121,8 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
                 onairFadeToBlack(els.onairFadeCanvas, fadeDur); 
             }
 
-            audioFadeOutItem(fadeDur); // アイテム音量をOUTで0%に
+            audioFadeOutItem(fadeDur);
 
-            // フルスクリーン側にも事前FTB開始を指示（OUT時に黒=100%）
             window.electronAPI.sendControlToFullscreen({
                 command: 'start-pre-ftb',
                 value: { duration: fadeDur, fillKeyMode: isFillKeyMode }
