@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.4.2
+//     ver 2.4.3
 // -----------------------
 
 
@@ -904,12 +904,14 @@ function createFileInfo(file) {
 function createStatusContainer(file) {
     const statusContainer = document.createElement('div');
     statusContainer.classList.add('status-container');
+    const startVal = file.startMode;
 
-    // startModeはfile.startModeをそのまま表示
-    // endModeはfile.endMode || 'OFF'で初期化済みなのでそのままでOK
+    const baseEnd = file.endMode || 'OFF';
+    const endVal = file.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
+
     const statusList = [
-        { label: 'START', value: file.startMode },
-        { label: 'END', value: file.endMode || 'OFF' },
+        { label: 'START', value: startVal },
+        { label: 'END', value: endVal },
     ];
 
     statusList.forEach(({ label, value }) => {
@@ -2325,10 +2327,13 @@ async function setListMode() {
         if (item.startMode === "PLAY" && item.endMode === "UVC") {
             return item; // 条件に一致するアイテムはそのままにする
         }
+        const isLast = (index === playlist.length - 1);
         return {
             ...item,
             startMode: index === 0 ? "PAUSE" : "PLAY",
-            endMode: index === playlist.length - 1 ? "FTB" : "NEXT",
+            // 旧: 最終アイテム endMode:"FTB" → 新: endMode:"OFF" + ftbEnabled:true
+            endMode: isLast ? "OFF" : "NEXT",
+            ftbEnabled: isLast ? true : (item.ftbEnabled ?? false),
         };
     });
     const normalizedPlaylist = updatedPlaylist.map(item => ({
@@ -2349,7 +2354,7 @@ async function setListMode() {
     if (editingItem) {
         window.electronAPI.updateEditState(editingItem);
         logOpe(`[playlist.js] Edit area updated after mode change for ID: ${editingItem.playlistItem_id}`);
-        // オンエア側へエンドモード同期
+        // オンエア側へエンドモード同期（現状は endMode のみ送る仕様を維持）
         window.electronAPI.syncOnAirEndMode &&
             window.electronAPI.syncOnAirEndMode({
                 editingItemId: editingItem.playlistItem_id,
@@ -2957,7 +2962,8 @@ function copyItemState() {
     copiedItemState = {
         startMode: item.startMode,
         endMode: item.endMode,
-        ftbRate: item.ftbRate
+        ftbRate: item.ftbRate,
+        ftbEnabled: !!item.ftbEnabled
     };
     logOpe(`[playlist.js] Copied state: ${JSON.stringify(copiedItemState)}`);
     showMessage(getMessage('item-state-copied'), 3000, 'success');
@@ -2980,6 +2986,9 @@ async function pasteItemState() {
     item.startMode = copiedItemState.startMode;
     item.endMode = copiedItemState.endMode;
     item.ftbRate = copiedItemState.ftbRate;
+    if (typeof copiedItemState.ftbEnabled !== 'undefined') {
+        item.ftbEnabled = !!copiedItemState.ftbEnabled;
+    }
     await stateControl.setPlaylistState(playlist);
     await updatePlaylistUI();
     // Notify the edit area to update its UI

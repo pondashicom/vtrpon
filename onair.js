@@ -20,17 +20,14 @@ function onairFormatTime(seconds) {
 // 型の変換: 時間文字列を秒数に変換
 function onairParseTimeToSeconds(timeString) {
     if (!timeString) return 0;
-
     const parts = timeString.split(':').map(parseFloat);
     let hours = 0, minutes = 0, seconds = 0;
-
     if (parts.length === 3) { // hh:mm:ss
         [hours, minutes, seconds] = parts;
     } else if (parts.length === 4) { // hh:mm:ss:cs
         [hours, minutes, seconds] = parts.slice(0, 3);
         seconds += parts[3] / 100; 
     }
-
     return (hours * 3600) + (minutes * 60) + seconds;
 }
 
@@ -536,6 +533,7 @@ function onairGetStateData(itemId) {
         startMode: itemData.startMode || 'PAUSE',
         endMode: itemData.endMode || 'PAUSE',
         defaultVolume: itemData.defaultVolume !== undefined ? itemData.defaultVolume : 100,
+        ftbEnabled: !!itemData.ftbEnabled,
         ftbRate: parseFloat(itemData.ftbRate || 1.0),
         startFadeInSec: (itemData.startFadeInSec !== undefined && !isNaN(parseFloat(itemData.startFadeInSec)))
             ? parseFloat(itemData.startFadeInSec) : undefined,
@@ -737,9 +735,13 @@ function onairUpdateUI(itemData) {
 
     // エンドモード表示の更新
     if (elements.onairEndModeDisplay) {
-        elements.onairEndModeDisplay.textContent = itemData.endMode
-            ? `ENDMODE: ${itemData.endMode.toUpperCase()}`
-            : 'ENDMODE';
+        if (itemData.endMode) {
+            const baseEnd = String(itemData.endMode).toUpperCase();
+            const label = itemData.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
+            elements.onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
+        } else {
+            elements.onairEndModeDisplay.textContent = 'ENDMODE';
+        }
     }
 
     // 音量スライダーと音量表示の更新（アイテムスライダーのみ更新。マスターフェーダーはグローバル状態を維持）
@@ -912,6 +914,21 @@ function onairStartPlayback(itemData) {
         return;
     }
 
+    // 直前のFTBによる黒を「即時撤去」
+    try {
+        const elsFTB = onairGetElements();
+        const canvas = elsFTB?.onairFadeCanvas;
+        if (canvas) {
+            canvas.style.opacity = 0;
+            canvas.style.visibility = 'hidden';
+        }
+        // フルスクリーン側にも即時撤去を指示（最短フェード）
+        window.electronAPI.sendControlToFullscreen({
+            command: 'fade-from-black',
+            value: { duration: 0.05, fillKeyMode: isFillKeyMode }
+        });
+    } catch (_) {}
+
     // 既存の監視を停止
     if (typeof onairPlaybackMonitor !== 'undefined') {
         clearInterval(onairPlaybackMonitor);
@@ -951,11 +968,30 @@ function onairStartPlayback(itemData) {
     // IN点にシーク
     onairSeekToInPoint(onairVideoElement, inPoint);
 
-    // 音量をデフォルトボリュームにセット
-    onairVideoElement.volume = itemData.defaultVolume / 100;
+    // 進行中のFADE状態をリセット（前アイテムのFADE-OUT残りで 0% 固着を防ぐ）
+    if (typeof stopItemFade === 'function') {
+        try { stopItemFade(); } catch (_) {}
+    }
+
+    // 規定音量（%）を算出
+    const targetVolPct = (typeof itemData.defaultVolume === 'number') ? itemData.defaultVolume : 100;
+    const applySliderValue = (pct) => {
+        const itemSlider = document.getElementById('on-air-item-volume-slider');
+        if (!itemSlider) return;
+        itemSlider.value = String(pct);
+        const valEl = document.getElementById('on-air-item-volume-value');
+        if (valEl) valEl.textContent = `${pct}%`;
+        itemSlider.style.setProperty('--value', `${pct}%`);
+        // 既存のスライダーhandler（WebAudio適用）を走らせる
+        try { itemSlider.dispatchEvent(new Event('input')); } catch (_) {}
+    };
 
     // スタートモードに応じた処理分岐
     if (itemData.startMode === 'PLAY' || (onairRepeatFlag && itemData.startMode === 'PAUSE')) {
+        // 非FADEIN開始：開始直前に規定音量へ明示復帰（UI＋内部オーディオを同期）
+        onairVideoElement.volume = targetVolPct / 100;
+        applySliderValue(targetVolPct);
+
         onairIsPlaying = true; 
         onairVideoElement.play()
             .then(() => {
@@ -971,14 +1007,10 @@ function onairStartPlayback(itemData) {
                 onairUpdatePlayPauseButtons(elements);
             });
     } else if (itemData.startMode === 'FADEIN') {
+        // FADEIN開始：0%からフェードイン
         onairVideoElement.volume = 0;
-        // アイテムボリュームのスライダーをリセット
-        const itemSlider = document.getElementById('on-air-item-volume-slider');
-        if (itemSlider) {
-            itemSlider.value = 0;
-            document.getElementById('on-air-item-volume-value').textContent = '0%';
-            itemSlider.style.setProperty('--value', `0%`);
-        }
+        applySliderValue(0);
+
         // 映像面：フェードイン開始
         let fadeDuration = (itemData.startFadeInSec !== undefined && !isNaN(parseFloat(itemData.startFadeInSec))) ? parseFloat(itemData.startFadeInSec) : (itemData.ftbRate || 1.0);
         const totalSpan = Math.max(0, (itemData.outPoint || 0) - (itemData.inPoint || 0));
@@ -989,7 +1021,7 @@ function onairStartPlayback(itemData) {
         onairIsPlaying = true;
         onairVideoElement.play()
             .then(() => {
-                // 音声フェードイン処理
+                // 音声フェードイン処理（0% → 既定音量へ）
                 audioFadeInItem(fadeDuration);
                 onairRepeatFlag = false;
                 onairUpdatePlayPauseButtons(elements);
@@ -1007,7 +1039,11 @@ function onairStartPlayback(itemData) {
                 onairUpdatePlayPauseButtons(elements);
             });
     } else {
+        // PAUSE開始：再生はしないが規定音量へ復帰しておく
         onairVideoElement.pause();
+        onairVideoElement.volume = targetVolPct / 100;
+        applySliderValue(targetVolPct);
+
         onairIsPlaying = false;
         onairUpdatePlayPauseButtons(elements);
         onairStopRemainingTimer();
@@ -1016,6 +1052,7 @@ function onairStartPlayback(itemData) {
     // 最後に再生監視を開始
     onairMonitorPlayback(onairVideoElement, outPoint);
 }
+
 
 // 再生開始時にIN点にシーク
 function onairSeekToInPoint(onairVideoElement, inPoint) {
@@ -1067,9 +1104,9 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
             return;
         }
 
-        // 事前FTBが進行中に EndMode が FTB 以外へ切替わった場合は逆フェードで復帰
+        // 事前FTBが進行中に FTB付加が外れた場合は逆フェードで復帰
         if (onairPreFtbStarted
-            && (onairCurrentState?.endMode !== 'FTB')
+            && (!onairCurrentState?.ftbEnabled)
             && (remainingTime > (tolerance + 0.10))) {
 
             const els2 = onairGetElements();
@@ -1092,13 +1129,13 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
             });
 
             onairPreFtbStarted = false;
-            logInfo(`[onair.js] Pre-FTB reversed due to endMode change (duration=${backDur.toFixed(2)}s).`);
+            logInfo(`[onair.js] Pre-FTB reversed due to ftbEnabled=false (duration=${backDur.toFixed(2)}s).`);
         }
 
-        // FTBRATE > 0 かつ EndMode=FTB のとき、OUT-FTBRATE から事前FTB（映像/音声）開始
+        // FTBRATE > 0 かつ FTB付加 のとき、OUT-FTBRATE から事前FTB（映像/音声）開始
         const ftbRate = onairCurrentState?.ftbRate || 1.0;
         if (!onairPreFtbStarted
-            && (onairCurrentState?.endMode === 'FTB')
+            && (onairCurrentState?.ftbEnabled === true)
             && (ftbRate > 0)
             && (remainingTime <= ftbRate)
             && (remainingTime > tolerance)
@@ -1165,25 +1202,25 @@ function handleGlobalEndedEvent(videoElement) {
 // -----------------------
 // エンドモード
 // -----------------------
-
 function onairHandleEndMode() {
     const endMode = onairCurrentState?.endMode || 'PAUSE';
     logDebug(`[onair.js] Calling handleEndMode with endMode: ${endMode}`);
 
-    // FTBは最初の1回だけ許可。以降は即スキップ
-    if (endMode === 'FTB') {
-        if (onairFtbLocked) {
-            logDebug('[onair.js] FTB already processing. Skip duplicate trigger.');
-            return;
+    // FTBは“付加フラグ”。エンド動作の前段で黒化のみ行う（黒の撤去は次の開始側に委ねる）
+    if (onairCurrentState?.ftbEnabled === true) {
+        const elsFTB = onairGetElements();
+        const canvas = elsFTB?.onairFadeCanvas;
+        const video  = elsFTB?.onairVideoElement;
+        if (canvas && video) {
+            try {
+                const selectedColor = isFillKeyMode
+                    ? (document.getElementById('fillkey-color-picker')?.value || "#00FF00")
+                    : "black";
+                canvas.style.backgroundColor = selectedColor;
+                canvas.style.visibility = 'visible';
+                canvas.style.opacity = 1;
+            } catch (_) {}
         }
-        onairFtbLocked = true;
-
-        // 直ちに再生監視を止め、再生フラグも下げる（二重発火防止）
-        if (typeof onairPlaybackMonitor !== 'undefined' && onairPlaybackMonitor) {
-            clearInterval(onairPlaybackMonitor);
-            onairPlaybackMonitor = null;
-        }
-        onairIsPlaying = false;
     }
     
     // フルスクリーンにエンドモード通知（startModeも同送）
@@ -1194,11 +1231,10 @@ function onairHandleEndMode() {
         currentTime: currentTime,
         startMode: (onairCurrentState?.startMode || 'PAUSE')
     });
-    logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: ${endMode}, currentTime: ${currentTime}, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
+    logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: ${endMode}, currentTime: ${currentTime} }, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
 
     onairExecuteEndMode(endMode);
 }
-
 
 // エンドモードの振り分け
 function onairExecuteEndMode(endMode) {
@@ -1213,9 +1249,6 @@ function onairExecuteEndMode(endMode) {
             break;
         case 'REPEAT':
             onairHandleEndModeRepeat();
-            break;
-        case 'FTB':
-            onairHandleEndModeFTB();
             break;
         case 'NEXT':
             onairHandleEndModeNext();
@@ -1285,9 +1318,12 @@ function onairHandleEndModeRepeat() {
 
     // PLAY または FADEIN の場合のみリピート
     onairRepeatFlag = true;
+
+    // 進行中の音声FADEの状態をリセット（2周目以降のFADE-INが拒否されるのを防ぐ）
+    stopItemFade();
+
     onairStartPlayback(onairCurrentState);
 }
-
 
 // エンドモードFTB
 function onairHandleEndModeFTB() {
@@ -1491,6 +1527,74 @@ function onairHandlePlayButton() {
         return;
     }
 
+    // FTB+PAUSE で最終フレーム停止後の再開: 黒撤去 → INへ → 規定音量 → 再生
+    const nearOut =
+        Math.abs(onairVideoElement.currentTime - (onairCurrentState.outPoint || onairVideoElement.duration)) <
+        (0.05 * (onairVideoElement.playbackRate || 1));
+    if (
+        !onairIsPlaying &&
+        nearOut &&
+        (String(onairCurrentState.endMode || '').toUpperCase() === 'PAUSE') &&
+        (onairCurrentState.ftbEnabled === true)
+    ) {
+        logDebug('[onair.js] Resuming from FTB+PAUSE at last frame: clearing black, seek to IN, restore volume.');
+
+        // 黒の即時撤去（ローカル）
+        try {
+            const elsFTB = onairGetElements();
+            const canvas = elsFTB?.onairFadeCanvas;
+            if (canvas) {
+                canvas.style.opacity = 0;
+                canvas.style.visibility = 'hidden';
+            }
+        } catch (_) {}
+        // 黒の即時撤去（フルスクリーン）
+        window.electronAPI.sendControlToFullscreen({
+            command: 'fade-from-black',
+            value: { duration: 0.05, fillKeyMode: isFillKeyMode }
+        });
+
+        // 残留FADE状態をクリア
+        try { if (typeof stopItemFade === 'function') stopItemFade(); } catch (_) {}
+
+        // INへシーク（ローカル＋フルスクリーン）
+        onairSeekToInPoint(onairVideoElement, onairCurrentState.inPoint);
+        window.electronAPI.sendControlToFullscreen({
+            command: 'seek',
+            value: onairCurrentState.inPoint,
+        });
+
+        // 規定音量へ復帰（video.volume とスライダーを同期）
+        const targetVol = (typeof onairCurrentState.defaultVolume === 'number')
+            ? onairCurrentState.defaultVolume : 100;
+        onairVideoElement.volume = targetVol / 100;
+        const itemSlider = document.getElementById('on-air-item-volume-slider');
+        if (itemSlider) {
+            itemSlider.value = String(targetVol);
+            const valEl = document.getElementById('on-air-item-volume-value');
+            if (valEl) valEl.textContent = `${targetVol}%`;
+            itemSlider.style.setProperty('--value', `${targetVol}%`);
+            try { itemSlider.dispatchEvent(new Event('input')); } catch (_) {}
+        }
+
+        // 再生開始
+        onairVideoElement.play()
+            .then(() => {
+                onairIsPlaying = true;
+                onairUpdatePlayPauseButtons(elements);
+                onairStartRemainingTimer(elements, onairCurrentState);
+                logOpe('[onair.js] Playback started (resume from FTB+PAUSE).');
+                window.electronAPI.sendControlToFullscreen({ command: 'play' });
+            })
+            .catch(error => {
+                logInfo(`[onair.js] Playback failed: ${error.message}`);
+            });
+
+        onairRepeatFlag = false;
+        onairMonitorPlayback(onairVideoElement, onairCurrentState.outPoint);
+        return; // ここで完了
+    }
+
     // 短尺ファイルの場合、動画の総尺が3秒未満なら動画要素をリセットして再初期化する
     if ((onairCurrentState.outPoint < 3) &&
         Math.abs(onairVideoElement.currentTime - (onairCurrentState.outPoint || onairVideoElement.duration)) < (0.05 * onairVideoElement.playbackRate)) {
@@ -1534,6 +1638,7 @@ function onairHandlePlayButton() {
     onairRepeatFlag = false;
     onairMonitorPlayback(onairVideoElement, onairCurrentState.outPoint);
 }
+
 
 // 一時停止ボタンの処理
 function onairHandlePauseButton() {
@@ -2397,6 +2502,7 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
     const normFtb = parseFloat(updatedItem.ftbRate ?? onairCurrentState.ftbRate ?? 1.0);
     const normStartFi = (updatedItem.startFadeInSec !== undefined && !isNaN(parseFloat(updatedItem.startFadeInSec))) ? parseFloat(updatedItem.startFadeInSec) : onairCurrentState.startFadeInSec;
     const normStart = (updatedItem.startMode || onairCurrentState.startMode || 'PAUSE').toString().toUpperCase();
+    const normFtbEnabled = !!updatedItem.ftbEnabled;
 
     // IN
     if (Number(onairCurrentState.inPoint) !== Number(normIn)) {
@@ -2439,6 +2545,13 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
         onairCurrentState.startFadeInSec = normStartFi;
         handleStartFadeInSecUpdate(normStartFi);
     }
+
+    // FTB付加フラグ
+    if (Boolean(onairCurrentState.ftbEnabled) !== Boolean(normFtbEnabled)) {
+        logInfo(`FTB enabled updated: ${onairCurrentState.ftbEnabled} → ${normFtbEnabled}`);
+        handleFtbEnabledUpdate(normFtbEnabled, { source });
+    }
+
     logDebug('[onair.js] State comparison and update completed.');
 }
 
@@ -2456,6 +2569,28 @@ function handleStartModeUpdate(newStartMode, { source } = {}) {
     logDebug(`[onair.js] startMode updated to: ${mode} (source=${source || 'unknown'})`);
 }
 
+function handleFtbEnabledUpdate(enabled, { source } = {}) {
+    if (!onairCurrentState) return;
+    onairCurrentState.ftbEnabled = !!enabled;
+
+    // 表示を更新（ENDMODEラベルを再構成）
+    const elements = onairGetElements();
+    const { onairEndModeDisplay } = elements;
+    if (onairEndModeDisplay) {
+        const baseEnd = String(onairCurrentState.endMode || 'PAUSE').toUpperCase();
+        const label = onairCurrentState.ftbEnabled ? `FTB/${baseEnd}` : baseEnd;
+        onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
+    }
+
+    // listedit 由来は視覚のみ更新・transportは触らない
+    if (source === 'listedit') {
+        logDebug(`[onair.js] ftbEnabled updated (visual/state only) by listedit: ${onairCurrentState.ftbEnabled}`);
+        return;
+    }
+
+    // それ以外（ユーザー操作/内部）はここでは transport 触らず、必要時にOUT時の分岐で反映
+    logDebug(`[onair.js] ftbEnabled updated: ${onairCurrentState.ftbEnabled}`);
+}
 
 // IN点の更新処理
 function handleInPointUpdate(newInPointSeconds, { source } = {}) {
@@ -2532,8 +2667,11 @@ function handleEndModeUpdate(newEndMode, { source } = {}) {
 
     // UI の更新
     if (onairEndModeDisplay) {
-        onairEndModeDisplay.textContent = `ENDMODE: ${newEndMode.toUpperCase()}`;
+        const baseEnd = String(newEndMode || 'PAUSE').toUpperCase();
+        const label = onairCurrentState?.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
+        onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
     }
+
 
     // listedit は“視覚/状態のみ”で終了（transportへは影響なし）
     if (source === 'listedit') {
