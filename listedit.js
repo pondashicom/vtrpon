@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.4.2
+//     ver 2.4.3
 // -----------------------
 
 // -----------------------
@@ -236,6 +236,7 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
 
             updateStartModeButtons(startMode);
             updateEndModeButtons(endMode);
+            updateFtbButton(!!currentItem?.ftbEnabled);
 
             // 音量の復元処理
             const volumeSlider = document.getElementById('listedit-volume-slider');
@@ -1593,21 +1594,22 @@ function updateStartModeButtons(mode) {
 //  エンドモードの処理
 // -----------------------
 function setupEndModeControls(videoElement) {
+    // EndModeの排他セット（FTBは含めない）
     const modeButtons = {
         OFF: document.getElementById('end-off-button'),
         PAUSE: document.getElementById('end-pause-button'),
-        FTB: document.getElementById('end-ftb-button'),
         REPEAT: document.getElementById('end-repeat-button'),
         NEXT: document.getElementById('end-next-button'),
-        NEXT: document.getElementById('end-next-button'),
     };
+    // FTBは独立トグル
+    const ftbButton = document.getElementById('end-ftb-button');
 
-    if (Object.values(modeButtons).some(button => !button)) {
+    if (Object.values(modeButtons).some(button => !button) || !ftbButton) {
         logInfo('[listedit.js] One or more END MODE buttons are missing.');
         return;
     }
 
-    // ボタンのクリックイベントを設定
+    // EndModeボタンは従来通り排他で更新
     Object.entries(modeButtons).forEach(([mode, button]) => {
         button.addEventListener('click', () => {
             logOpe(`[listedit.js] End mode ${mode} button clicked`);
@@ -1617,6 +1619,40 @@ function setupEndModeControls(videoElement) {
             }
             updateEndModeState(mode);
         });
+    });
+
+    // FTBはトグル（EndModeと共存）
+    ftbButton.addEventListener('click', async () => {
+        logOpe('[listedit.js] FTB toggle button clicked');
+        if (!isVideoLoaded) {
+            logInfo('[listedit.js] FTB toggle pressed but video is not loaded.');
+            return;
+        }
+
+        const playlist = await stateControl.getPlaylistState();
+        let nextFtb = null;
+
+        const updatedPlaylist = playlist.map(file => {
+            if (file.playlistItem_id === currentEditingItemId) {
+                nextFtb = !Boolean(file.ftbEnabled);
+                // ① 視覚フィードバックを即時に出す（state 反映前でも点灯させる）
+                updateFtbButton(nextFtb);
+                return { ...file, ftbEnabled: nextFtb };
+            }
+            return file;
+        });
+
+        // state 反映（非同期）
+        await stateControl.setPlaylistState(updatedPlaylist);
+
+        // 念のため最終状態で再同期（UIはすでに切替済みなので薄い処理）
+        const currentItem = updatedPlaylist.find(f => f.playlistItem_id === currentEditingItemId);
+        if (typeof currentItem?.ftbEnabled !== 'undefined') {
+            updateFtbButton(Boolean(currentItem.ftbEnabled));
+        }
+
+        // 通知（従来と同じ）
+        window.electronAPI.notifyListeditUpdate();
     });
 }
 
@@ -1646,6 +1682,12 @@ function updateEndModeButtons(activeMode) {
     const buttons = document.querySelectorAll('#end-mode-area .button');
     buttons.forEach(button => {
         const mode = button.id.replace('end-', '').replace('-button', '').toUpperCase();
+
+        // FTBは排他ハイライトの対象外（専用関数で制御）
+        if (mode === 'FTB') {
+            return;
+        }
+
         if (mode === activeMode) {
             button.classList.remove('button-gray');
             button.classList.add('button-green');
@@ -1655,6 +1697,20 @@ function updateEndModeButtons(activeMode) {
         }
     });
 }
+
+// FTBトグルの見た目更新（ON: 緑 / OFF: 灰）
+function updateFtbButton(enabled) {
+    const ftbBtn = document.getElementById('end-ftb-button');
+    if (!ftbBtn) return;
+    if (enabled) {
+        ftbBtn.classList.remove('button-gray');
+        ftbBtn.classList.add('button-green');
+    } else {
+        ftbBtn.classList.remove('button-green');
+        ftbBtn.classList.add('button-gray');
+    }
+}
+
 
 // -----------------------
 //  FTBレートの設定

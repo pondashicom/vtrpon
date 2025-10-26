@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     statecontrol.js
-//     ver 2.4.2
+//     ver 2.4.3
 // -----------------------
 
 
@@ -86,6 +86,9 @@ function setPlaylistState(newState) {
             startMode: newItem.startMode || existingItem?.startMode || "PAUSE",
             endMode: newItem.endMode || existingItem?.endMode || "PAUSE",
             defaultVolume: newItem.defaultVolume ?? existingItem?.defaultVolume ?? 100,
+            ftbEnabled: typeof newItem.ftbEnabled !== 'undefined'
+                ? newItem.ftbEnabled
+                : (existingItem?.ftbEnabled || false),
             ftbRate: typeof newItem.ftbRate !== 'undefined'
                 ? newItem.ftbRate
                 : (existingItem?.ftbRate || 1.0),
@@ -127,7 +130,7 @@ function addFileToState(file) {
             startMode: "PAUSE",
             endMode: "PAUSE",
             defaultVolume: 100,
-            // 追加：スタート時フェードイン秒（既定 1.0s）
+            ftbEnabled: false,
             startFadeInSec: 1.0,
             order: file.order ?? nextOrder
         });
@@ -277,6 +280,7 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
                 path: item.path || (item.name === "UVC_DEVICE" ? "UVC_DEVICE" : ""),
                 directMode: typeof item.directMode !== 'undefined' ? item.directMode : false,
                 fillKeyMode: typeof item.fillKeyMode !== 'undefined' ? item.fillKeyMode : false,
+                ftbEnabled: typeof item.ftbEnabled !== 'undefined' ? item.ftbEnabled : false,
             }))
         };
     } else {
@@ -290,6 +294,7 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
                 order: item.order !== undefined ? item.order : allPlaylists.length,
                 directMode: typeof item.directMode !== 'undefined' ? item.directMode : false,
                 fillKeyMode: typeof item.fillKeyMode !== 'undefined' ? item.fillKeyMode : false,
+                ftbEnabled: typeof item.ftbEnabled !== 'undefined' ? item.ftbEnabled : false,
             }))
         });
     }
@@ -298,8 +303,6 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
     playlists.length = 0;
     playlists.push(...allPlaylists);
 }
-
-
 
 // -----------------------
 //   UVCデバイスの状態
@@ -318,6 +321,7 @@ function createUVCDeviceItem(selectedDevice) {
         inPoint: "UVC",
         outPoint: "UVC",
         defaultVolume: 0,
+        ftbEnabled: false,
         selectionState: "unselected",
         editingState: null,
         order: playlist.length, // 現在のリストの長さを順序として設定
