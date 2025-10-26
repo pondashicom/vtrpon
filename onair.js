@@ -914,20 +914,23 @@ function onairStartPlayback(itemData) {
         return;
     }
 
-    // 直前のFTBによる黒を「即時撤去」
+    // 直前のFTB黒の扱い：
     try {
-        const elsFTB = onairGetElements();
-        const canvas = elsFTB?.onairFadeCanvas;
-        if (canvas) {
-            canvas.style.opacity = 0;
-            canvas.style.visibility = 'hidden';
+        const startModeUpper = String(itemData?.startMode || 'PAUSE').toUpperCase();
+        if (startModeUpper !== 'FADEIN') {
+            const elsFTB = onairGetElements();
+            const canvas = elsFTB?.onairFadeCanvas;
+            if (canvas) {
+                canvas.style.opacity = 0;
+                canvas.style.visibility = 'hidden';
+            }
+            window.electronAPI.sendControlToFullscreen({
+                command: 'fade-from-black',
+                value: { duration: 0.05, fillKeyMode: isFillKeyMode }
+            });
         }
-        // フルスクリーン側にも即時撤去を指示（最短フェード）
-        window.electronAPI.sendControlToFullscreen({
-            command: 'fade-from-black',
-            value: { duration: 0.05, fillKeyMode: isFillKeyMode }
-        });
     } catch (_) {}
+
 
     // 既存の監視を停止
     if (typeof onairPlaybackMonitor !== 'undefined') {
@@ -1016,8 +1019,26 @@ function onairStartPlayback(itemData) {
         const totalSpan = Math.max(0, (itemData.outPoint || 0) - (itemData.inPoint || 0));
         const maxFade = Math.max(0.05, totalSpan - 0.1);
         fadeDuration = Math.min(fadeDuration, maxFade);
+
+        // ローカル側は必ず黒から開始して抜く
+        try {
+            const elsFTB = onairGetElements();
+            const canvas = elsFTB?.onairFadeCanvas;
+            if (canvas) {
+                canvas.style.visibility = 'visible';
+                canvas.style.opacity = 1;
+            }
+        } catch (_) {}
+
+        // ローカルの黒をフェードアウト
         onairFadeFromBlack(fadeDuration);
-        
+
+        // フルスクリーン側にも「黒から抜ける」明示コマンドを送る
+        window.electronAPI.sendControlToFullscreen({
+            command: 'fade-from-black',
+            value: { duration: fadeDuration, fillKeyMode: isFillKeyMode }
+        });
+
         onairIsPlaying = true;
         onairVideoElement.play()
             .then(() => {
@@ -1027,6 +1048,8 @@ function onairStartPlayback(itemData) {
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via FADEIN start mode with fade in effect.');
+
+                // 既存の実装互換のため 'fadein' も送信（どちらかに反応する環境を想定）
                 window.electronAPI.sendControlToFullscreen({
                     command: 'fadein',
                     ftbRate: fadeDuration,
@@ -1310,13 +1333,8 @@ function onairHandleEndModeRepeat() {
         onairHandleEndModeOff();
         return;
     }
-    if (sm === 'PAUSE') {
-        logInfo('[onair.js] StartMode is PAUSE -> do not repeat; pausing at OUT.');
-        onairHandleEndModePause();
-        return;
-    }
 
-    // PLAY または FADEIN の場合のみリピート
+    // REPEAT時は startMode に関係なく必ず再開する
     onairRepeatFlag = true;
 
     // 進行中の音声FADEの状態をリセット（2周目以降のFADE-INが拒否されるのを防ぐ）
@@ -1324,6 +1342,7 @@ function onairHandleEndModeRepeat() {
 
     onairStartPlayback(onairCurrentState);
 }
+
 
 // エンドモードFTB
 function onairHandleEndModeFTB() {
