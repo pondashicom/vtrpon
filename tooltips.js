@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     tooltips.js
-//     ver 2.4.2
+//     ver 2.4.3
 // -----------------------
 
 const tooltips = {
@@ -15,7 +15,7 @@ const tooltips = {
     "end-pause-button": "OUT点に到達したら一時停止します",
     "end-repeat-button": "OUT点に到達したらIN点に戻って再生を繰り返します",
     "end-next-button": "OUT点に到達したらプレイリストの次の動画をオンエアします",
-    "end-ftb-button": "OUT点に到達したらフェードアウトしてオフエアします",
+    "end-ftb-button": "OUT点の手前で指定秒数で映像と音声をフェードアウトします。フェードアウト後の動作を指定するために他のエンドモードと必ず組み合わせて使用します。",
     "ftbRate": "FTBでフェードする時間（秒）を設定します",
     "itemFioRate": "アイテム音声をフェードする時間（秒）を設定します。FTB時はFTB秒数が適用されます",
     "mainFioRate": "メイン音声をフェードする時間（秒）を設定します",
@@ -64,7 +64,7 @@ const tooltips = {
     "end-pause-button": "Pause when reaching the OUT point",
     "end-repeat-button": "Repeat playback from the IN point upon reaching the OUT point",
     "end-next-button": "Air the next video in the playlist when reaching the OUT point",
-    "end-ftb-button": "Fade out and turn off air when reaching the OUT point",
+    "end-ftb-button": "Fades out video and audio before the OUT point for the specified duration. Must be used in combination with another End Mode to determine the post-fade behavior.",
     "ftbRate": "Set the fade time (in seconds) for FTB.",
     "itemFioRate": "Set the fade time (in seconds) for ITEM audio fade in/out. During FTB, the FTB seconds apply.",
     "mainFioRate": "Set the fade time (in seconds) for MAIN audio fade in/out.",
