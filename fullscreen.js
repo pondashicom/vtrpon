@@ -22,6 +22,7 @@ let preFtbActive = false;
 let preFtbRaf = null;
 let preFtbStartTime = null;
 let preFtbDuration = 0;
+let holdBlackUntilFadeIn = false;
 
 // ----------------------------------------
 // フルスクリーンエリアの初期化
@@ -72,8 +73,11 @@ function initializeFullscreenArea() {
 function initializeFadeCanvas() {
     const existingCanvas = document.getElementById('fadeCanvas');
     if (existingCanvas) {
-        existingCanvas.style.opacity = '0';
-        existingCanvas.style.display = 'none';
+        // 黒保持中は状態を崩さない
+        if (!holdBlackUntilFadeIn) {
+            existingCanvas.style.opacity = '0';
+            existingCanvas.style.display = 'none';
+        }
         return existingCanvas;
     }
 
@@ -155,6 +159,14 @@ function initializeOverlayCanvas() {
 // ------------------------------------
 function handleEndModeNEXT() {
     logInfo('[fullscreen.js] Called endmode:NEXT - capturing last frame');
+
+    // FTB黒保持中は最終フレーム固定を行わない（黒一本化）
+    const fc = document.getElementById('fadeCanvas');
+    if (holdBlackUntilFadeIn || (fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9)) {
+        logInfo('[fullscreen.js] NEXT skipped overlay capture due to black hold.');
+        return;
+    }
+
     const videoElement   = document.getElementById('fullscreen-video');
     const overlayCanvas  = initializeOverlayCanvas();
     if (!videoElement || !overlayCanvas) {
@@ -484,10 +496,39 @@ if (!fadeCanvas) {
 
 // Fullscreen 側のフェードイン処理（映像）
 function fullscreenFadeFromBlack(duration, fillKeyMode) {
-    // キャンバスをフェードイン処理用に設定
+    // 黒保持中は fadeCanvas をそのまま1→0にフェードして解除
+    if (holdBlackUntilFadeIn) {
+        let fc = document.getElementById('fadeCanvas');
+        if (!fc) fc = initializeFadeCanvas();
+
+        fc.style.visibility = 'visible';
+        fc.style.display = 'block';
+        fc.style.opacity = '1';
+        fc.style.backgroundColor = (fillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+
+        let startTime = null;
+        function step(ts) {
+            if (!startTime) startTime = ts;
+            const elapsed = ts - startTime;
+            const newOpacity = Math.max(1 - (elapsed / (duration * 1000)), 0);
+            fc.style.opacity = newOpacity.toString();
+            if (elapsed < duration * 1000) {
+                requestAnimationFrame(step);
+            } else {
+                fc.style.opacity = '0';
+                fc.style.display = 'none';
+                fc.style.visibility = 'hidden';
+                holdBlackUntilFadeIn = false;  // 黒保持解除
+                logInfo('[fullscreen.js] Fade in completed (held black released).');
+            }
+        }
+        requestAnimationFrame(step);
+        return;
+    }
+
+    // 通常時は fullscreen-fade-canvas を使用
     fadeCanvas.style.visibility = 'visible';
     fadeCanvas.style.opacity = '1';
-    // FILLKEY モードの場合、グローバルに保存した fillKeyBgColor を使用。なければ黒
     fadeCanvas.style.backgroundColor = (fillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
 
     let startTime = null;
@@ -539,13 +580,15 @@ function startPreFTB(durationSec, fillKeyMode) {
         if (progress < 1) {
             preFtbRaf = requestAnimationFrame(step);
         } else {
-            // OUT時点で黒=100%だが、ここでは停止しない（停止や初期化はエンドモードFTB側で実施）
-            logInfo('[fullscreen.js] Pre-FTB reached full black.');
+            // OUT時点で黒=100%
             preFtbRaf = null;
+            holdBlackUntilFadeIn = true;  // 黒を保持
+            logInfo('[fullscreen.js] Pre-FTB reached full black. Holding until fade-in.');
         }
     }
     preFtbRaf = requestAnimationFrame(step);
 }
+
 
 // 事前FTBのキャンセル（巻き戻しなど）
 function cancelPreFTB() {
@@ -554,6 +597,7 @@ function cancelPreFTB() {
         cancelAnimationFrame(preFtbRaf);
         preFtbRaf = null;
     }
+    holdBlackUntilFadeIn = false;  // 黒保持解除
     const fadeCanvas = document.getElementById('fadeCanvas');
     if (fadeCanvas) {
         fadeCanvas.style.opacity = '0';
