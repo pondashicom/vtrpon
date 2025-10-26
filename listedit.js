@@ -1967,7 +1967,7 @@ async function handleShortcutAction(action) {
             break;
         case 'end-mode-ftb':
             document.getElementById('end-ftb-button')?.click();
-            logOpe('[listedit.js] End mode FTB triggered.');
+            logOpe('[listedit.js] FTB flag toggled.');
             break;
         case 'end-mode-repeat':
             document.getElementById('end-repeat-button')?.click();
@@ -2056,6 +2056,27 @@ document.addEventListener('keydown', (event) => {
             event.stopPropagation();
             handleShortcutAction('reset-edit-area');
         }
+    }
+});
+
+// 「set-ftb-enabled」を受信してUIと内部状態を同期
+window.electronAPI.onShortcutTrigger((_, action, payload) => {
+    if (action !== 'set-ftb-enabled') return;
+
+    const btn = document.getElementById('end-ftb-button');
+    if (!btn) {
+        logInfo('[listedit.js] end-ftb-button not found. Cannot apply FTB flag.');
+        return;
+    }
+    const wantEnabled = !!(payload && payload.enabled);
+    const isEnabledNow = btn.classList.contains('button-green'); // FTB ON 表示判定（あなたのUIルールに合わせる）
+
+    // 期待状態と不一致のときのみ click() で既存トグル処理を呼び出す
+    if (wantEnabled !== isEnabledNow) {
+        btn.click();
+        logOpe(`[listedit.js] FTB flag ${wantEnabled ? 'ENABLED' : 'DISABLED'} via menu (synced).`);
+    } else {
+        logDebug('[listedit.js] FTB flag already in desired state. No action.');
     }
 });
 

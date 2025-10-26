@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.4.2
+//     ver 2.4.3
 // -----------------------
 
 // ---------------------
@@ -414,13 +414,6 @@ function buildMenuTemplate(labels) {
           }
         },
         {
-          label: labels["menu-end-mode-ftb"],
-          accelerator: `${opt}+F`,
-          click: () => {
-            mainWindow.webContents.send('shortcut-trigger', 'end-mode-ftb');
-          }
-        },
-        {
           label: labels["menu-end-mode-repeat"],
           accelerator: `${opt}+R`,
           click: () => {
@@ -432,6 +425,15 @@ function buildMenuTemplate(labels) {
           accelerator: `${opt}+N`,
           click: () => {
             mainWindow.webContents.send('shortcut-trigger', 'end-mode-next');
+          }
+        },
+        {
+          label: labels["menu-end-mode-ftb"],
+          accelerator: `${opt}+F`,
+          type: 'checkbox',
+          checked: false,
+          click: (menuItem) => {
+            mainWindow.webContents.send('shortcut-trigger', 'set-ftb-enabled', { enabled: menuItem.checked });
           }
         },
         {
