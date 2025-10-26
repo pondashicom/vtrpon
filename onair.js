@@ -1639,7 +1639,6 @@ function onairHandlePlayButton() {
     onairMonitorPlayback(onairVideoElement, onairCurrentState.outPoint);
 }
 
-
 // 一時停止ボタンの処理
 function onairHandlePauseButton() {
     if (!onairNowOnAir) {
@@ -1663,6 +1662,16 @@ function onairHandlePauseButton() {
     logOpe('[onair.js] Playback paused.');
     resetOnAirVolumeMeter();
     lastVolumeUpdateTime = null;
+
+    // フェード中であれば即時停止
+    if (fadeInInProgressMain || fadeOutInProgressMain || fadeInInProgressItem || fadeOutInProgressItem) {
+        logDebug('[onair.js] Pause button pressed during fade ? stopping fade process.');
+        stopFade();
+        fadeInInProgressMain = false;
+        fadeOutInProgressMain = false;
+        fadeInInProgressItem = false;
+        fadeOutInProgressItem = false;
+    }
 
     // Fullscreen.jsに通知
     window.electronAPI.sendControlToFullscreen({ command: 'pause' });
