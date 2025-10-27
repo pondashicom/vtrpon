@@ -778,20 +778,25 @@ function renderPlaylistItem(file, index) {
         }
     });
 
-    // 操作ボタンの生成
+    // ▲▼DELの生成
     const moveButtons = createMoveButtons(item);
+
+    // ▲▼DEL用ラッパー
+    const controlsWrapper = document.createElement('div');
+    controlsWrapper.classList.add('playlist-controls');
+    controlsWrapper.appendChild(moveButtons);
 
     // サムネイルの生成
     const thumbnailContainer = createThumbnail(file);
 
-    // ファイル情報の生成
-    const fileInfo = createFileInfo(file);
+    // ファイル情報の生成（←ここで index を渡すように変更）
+    const fileInfo = createFileInfo(file, index);
 
     // ステータスエリアの生成
     const statusContainer = createStatusContainer(file);
 
-    // アイテムにボタン、サムネイル、ファイル情報、ステータスを追加
-    item.appendChild(moveButtons);
+    // アイテムにコントロール群、サムネイル、ファイル情報、ステータスを追加
+    item.appendChild(controlsWrapper);
     item.appendChild(thumbnailContainer);
     item.appendChild(fileInfo);
     item.appendChild(statusContainer);
@@ -854,9 +859,8 @@ function createThumbnail(file) {
     return thumbnailContainer;
 }
 
-
 // ファイル情報を生成
-function createFileInfo(file) {
+function createFileInfo(file, index) {
     const fileInfo = document.createElement('div');
     fileInfo.classList.add('file-info');
 
@@ -875,8 +879,14 @@ function createFileInfo(file) {
         fileType = file.type || file.path.split('.').pop().toUpperCase();
     }
 
+    // ファイル名の左に番号ラベルをつける
+    // 番号ラベルは2桁ぶん固定幅 (CSS側で制御) の .playlist-index-label を再利用する
+    // index は0始まりなので +1 して表示する
     fileInfo.innerHTML = `
-        <p class="${fileNameClass}">${fileName}</p>
+        <div class="file-header-row">
+            <div class="playlist-index-label">${String(index + 1)}</div>
+            <p class="${fileNameClass}">${fileName}</p>
+        </div>
         <div class="file-details-grid">
             <div class="file-details-grid">
                 <div class="file-details-row">
@@ -2505,6 +2515,41 @@ async function handleDirectOnAir(item, index) {
     showMessage(`${getMessage('direct-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
 }
 
+// Shift+数字で即オンエアする処理
+// idx は 0始まりのインデックス（0 = 画面上の「1番目」）
+async function triggerQuickOnAirByIndex(idx) {
+    try {
+        // 現在描画中のプレイリストDOMから対象アイテムを取得
+        const playlistItems = Array.from(document.querySelectorAll('.playlist-item'));
+        if (idx < 0 || idx >= playlistItems.length) {
+            // 指定の番号に対応するアイテムが存在しない場合は何もしない
+            return;
+        }
+
+        const itemEl = playlistItems[idx];
+        // 再描画後にも追跡できるように playlistItem_id を取っておく
+        const targetId = itemEl.getAttribute('data-playlist-item-id');
+
+        // まず通常のクリック処理を利用して「選択＆編集エリアに送る」
+        await handlePlaylistItemClick(itemEl, idx);
+
+        // モードに応じてオンエア動作を呼ぶ
+        if (soundPadActive) {
+            await handleSoundPadOnAir(itemEl, idx);
+        } else if (directOnAirActive) {
+            await handleDirectOnAir(itemEl, idx);
+        } else {
+            // どのモードもONでなければ何もしない
+        }
+
+        // その番号のアイテムが画面にちゃんと見える位置までスクロール
+        if (targetId) {
+            scrollToPlaylistItem(targetId);
+        }
+    } catch (error) {
+        logInfo('[playlist.js] triggerQuickOnAirByIndex error:', error);
+    }
+}
 
 // -----------------------
 // ネクストモード処理
@@ -2829,18 +2874,20 @@ function handlePlaylistShortcut(action) {
     }
 }
 
-// キーボードショートカットの設定(Mac用追加）
+// キーボードショートカットの設定
 document.addEventListener('keydown', (event) => {
     if (isModalActive) {
         return; // モーダルが開いている場合はショートカットを無視
     }
-    const key     = event.key.toLowerCase();
-    const isMod   = event.ctrlKey || event.metaKey;    // Windows/Linux: Ctrl, Mac: Cmd
-    const isShift = event.shiftKey;
-    const isAlt   = event.altKey;
-    const isEnter = event.key === 'Enter';
 
-    // Shift+Enter
+    const keyLower = event.key.toLowerCase(); // 例: "!", "1", "d"
+    const code     = event.code;              // 例: "Digit1", "Numpad1", "Enter"
+    const isMod    = event.ctrlKey || event.metaKey; // Windows/Linux: Ctrl, Mac: Cmd
+    const isShift  = event.shiftKey;
+    const isAlt    = event.altKey;
+    const isEnter  = event.key === 'Enter';
+
+    // Shift+Enter → 現状どおり On-Air ボタンを押す
     if (isShift && isEnter) {
         event.preventDefault();
         const cueButton = document.getElementById('cue-button');
@@ -2851,44 +2898,100 @@ document.addEventListener('keydown', (event) => {
         return;
     }
 
-    // Mod (Ctrl または Cmd)、Shift、Alt キーの組み合わせを処理
+    // ===========================================
+    // 即オンエアキー判定（Shift+数字 / テンキー）
+    // ===========================================
+    // quickOnAirIdx が null でなければ、その番号のアイテムを即オンエア対象にする
+    let quickOnAirIdx = null;
+
+    // パターンA: キーボード上段の数字キー (Digit1?Digit0) を Shift付きで押した場合
+    // 例: Shift+1 => code="Digit1", isShift=true
+    if (!isMod && !isAlt && isShift && code.startsWith('Digit')) {
+        const digitChar = code.replace('Digit', ''); // "1"?"9" or "0"
+        if (/^[0-9]$/.test(digitChar)) {
+            if (digitChar === '0') {
+                quickOnAirIdx = 9; // 0は10番目
+            } else {
+                quickOnAirIdx = parseInt(digitChar, 10) - 1; // "1"→0, "2"→1...
+            }
+        }
+    }
+
+    // パターンB: テンキー (Numpad1?Numpad0) を押した場合
+    // テンキーはShift無しでも番号として扱いたいので、isShiftは条件に入れない
+    if (!isMod && !isAlt && code.startsWith('Numpad') && quickOnAirIdx === null) {
+        const digitChar = code.replace('Numpad', ''); // "1"?"9" or "0"
+        if (/^[0-9]$/.test(digitChar)) {
+            if (digitChar === '0') {
+                quickOnAirIdx = 9; // 0は10番目
+            } else {
+                quickOnAirIdx = parseInt(digitChar, 10) - 1;
+            }
+        }
+    }
+
+    // quickOnAirIdx が決まったら、その番号を即オンエア処理
+    if (quickOnAirIdx !== null) {
+        event.preventDefault();
+
+        // ログ（ユーザーへのポップアップは出さない）
+        logOpe(
+            `[playlist.js] QuickOnAir key detected. code=${code}, idx=${quickOnAirIdx}, ` +
+            `soundPadActive=${soundPadActive}, directOnAirActive=${directOnAirActive}`
+        );
+
+        // どちらのモードもOFFなら何もしない（仕様どおりメッセージも出さない）
+        if (!(soundPadActive || directOnAirActive)) {
+            logOpe('[playlist.js] QuickOnAir ignored because both modes are OFF.');
+            return;
+        }
+
+        logOpe(`[playlist.js] triggerQuickOnAirByIndex(${quickOnAirIdx}) called.`);
+        triggerQuickOnAirByIndex(quickOnAirIdx);
+        return;
+    }
+
+    // ===========================================
+    // それ以外のショートカット (モード切替など)
+    // ===========================================
     if (isMod || isShift || isAlt) {
         event.preventDefault();
-        if (isShift && isAlt && key === 'd') {
+
+        if (isShift && isAlt && keyLower === 'd') {
             handlePlaylistShortcut('Shift+Alt+D');
-        } else if (isShift && !isAlt && !isMod && key === 'd') {
+        } else if (isShift && !isAlt && !isMod && keyLower === 'd') {
             handlePlaylistShortcut('Shift+D');
-        } else if (isMod && key === '.') {
-            handlePlaylistShortcut('Mod+.');   // Mod+. (Ctrl+. または Cmd+.)
-        } else if (isMod && key === ',') {
-            handlePlaylistShortcut('Mod+,');   // Mod+, (Ctrl+, または Cmd+,)
-        } else if (isMod && key === '1') {
+        } else if (isMod && keyLower === '.') {
+            handlePlaylistShortcut('Mod+.');
+        } else if (isMod && keyLower === ',') {
+            handlePlaylistShortcut('Mod+,');
+        } else if (isMod && keyLower === '1') {
             handlePlaylistShortcut('1');
-        } else if (isMod && key === '2') {
+        } else if (isMod && keyLower === '2') {
             handlePlaylistShortcut('2');
-        } else if (isMod && key === '3') {
+        } else if (isMod && keyLower === '3') {
             handlePlaylistShortcut('3');
-        } else if (isMod && key === '4') {
+        } else if (isMod && keyLower === '4') {
             handlePlaylistShortcut('4');
-        } else if (isMod && key === '5') {
+        } else if (isMod && keyLower === '5') {
             handlePlaylistShortcut('5');
-        } else if (isMod && key === 's') {
+        } else if (isMod && keyLower === 's') {
             handlePlaylistShortcut('save');
-        } else if (isMod && key === 'd') {
+        } else if (isMod && keyLower === 'd') {
             handlePlaylistShortcut('delete');
-        } else if (isMod && key === 'k') {
+        } else if (isMod && keyLower === 'k') {
             handlePlaylistShortcut('clear');
-        } else if (isMod && key === 'r') {
+        } else if (isMod && keyLower === 'r') {
             handlePlaylistShortcut('repeat');
-        } else if (isMod && key === 'l') {
+        } else if (isMod && keyLower === 'l') {
             handlePlaylistShortcut('list');
-        } else if (isMod && key === 'e') {
+        } else if (isMod && keyLower === 'e') {
             handlePlaylistShortcut('edit');
-        } else if (isMod && key === 'f') {
+        } else if (isMod && keyLower === 'f') {
             handlePlaylistShortcut('add-file');
-        } else if (isMod && key === 'c') {  // Mod+C
+        } else if (isMod && keyLower === 'c') {  // Mod+C
             copyItemState();
-        } else if (isMod && key === 'v') {  // Mod+V
+        } else if (isMod && keyLower === 'v') {  // Mod+V
             pasteItemState();
         }
     }
