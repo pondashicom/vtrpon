@@ -2290,20 +2290,32 @@ document.getElementById("list-list-button").addEventListener("keydown", (event) 
 // リピートモードに設定
 async function setRepeatMode() {
     const playlist = await stateControl.getPlaylistState();
-    const updatedPlaylist = playlist.map((item, index) => {
+
+    const updatedPlaylist = playlist.map((item) => {
+        // 特例: PLAY + UVC のアイテムはそのまま
         if (item.startMode === "PLAY" && item.endMode === "UVC") {
-            return item; // 条件に一致するアイテムはそのままにする
+            return item;
         }
+
+        // startMode は "PAUSE" のときだけ "PLAY" に変更
+        const newStartMode = (item.startMode === "PAUSE") ? "PLAY" : item.startMode;
+
+        // endMode はリピートでは常に "NEXT"
+        const newEndMode = "NEXT";
+
         return {
             ...item,
-            startMode: "PLAY",
-            endMode: "NEXT",
+            startMode: newStartMode,
+            endMode: newEndMode
+            // ftbEnabled 等のフラグは触らずそのまま保持
         };
     });
+
     const normalizedPlaylist = updatedPlaylist.map(item => ({
         ...item,
         order: Number(item.order), // 数値形式に変換して保存
     }));
+
     await stateControl.setPlaylistState(normalizedPlaylist);
 
     updateListModeButtons("REPEAT");
@@ -2333,23 +2345,34 @@ async function setRepeatMode() {
 // リストモードに設定
 async function setListMode() {
     const playlist = await stateControl.getPlaylistState();
+
     const updatedPlaylist = playlist.map((item, index) => {
+        // 特例: PLAY + UVC はそのまま
         if (item.startMode === "PLAY" && item.endMode === "UVC") {
-            return item; // 条件に一致するアイテムはそのままにする
+            return item;
         }
+
         const isLast = (index === playlist.length - 1);
+
+        // startMode は "PAUSE" のときだけ "PLAY" に変更
+        const newStartMode = (item.startMode === "PAUSE") ? "PLAY" : item.startMode;
+
+        // endMode は最後だけ "OFF"、それ以外は "NEXT"
+        const newEndMode = isLast ? "OFF" : "NEXT";
+
         return {
             ...item,
-            startMode: index === 0 ? "PAUSE" : "PLAY",
-            // 旧: 最終アイテム endMode:"FTB" → 新: endMode:"OFF" + ftbEnabled:true
-            endMode: isLast ? "OFF" : "NEXT",
-            ftbEnabled: isLast ? true : (item.ftbEnabled ?? false),
+            startMode: newStartMode,
+            endMode: newEndMode
+            // ftbEnabled 等のフラグは保持するのでここでは触らない
         };
     });
+
     const normalizedPlaylist = updatedPlaylist.map(item => ({
         ...item,
         order: Number(item.order), // 数値形式に変換して保存
     }));
+
     await stateControl.setPlaylistState(normalizedPlaylist);
     updateListModeButtons("LIST");
     await updatePlaylistUI();
@@ -2364,6 +2387,7 @@ async function setListMode() {
     if (editingItem) {
         window.electronAPI.updateEditState(editingItem);
         logOpe(`[playlist.js] Edit area updated after mode change for ID: ${editingItem.playlistItem_id}`);
+
         // オンエア側へエンドモード同期（現状は endMode のみ送る仕様を維持）
         window.electronAPI.syncOnAirEndMode &&
             window.electronAPI.syncOnAirEndMode({
@@ -2373,6 +2397,7 @@ async function setListMode() {
         logOpe('[playlist.js] Requested On-Air endMode sync (LIST).');
     }
 }
+
 
 // 右矢印キーを自動押下する処理
 async function simulateRightArrowKey() {
@@ -2424,18 +2449,23 @@ async function handleSoundPadOnAir(item, index) {
     const targetId = item.playlistItem_id;
     logOpe(`[playlist.js] SOUND PAD On-Air triggered for item ID: ${targetId}`);
 
-    // 現在のプレイリスト状態を取得し、対象アイテムの状態を更新
-    // スタートモードは PAUSE のときのみ PLAY に変更。PLAY/FADEIN は維持。エンドモードは OFF を設定。
+    // 対象アイテムだけ書き換える
     let playlist = await stateControl.getPlaylistState();
     playlist = playlist.map(file => {
         if (file.playlistItem_id === targetId) {
+            // startMode: "PAUSE" → "PLAY"、それ以外は変更なし
             const newStartMode = (file.startMode === "PAUSE") ? "PLAY" : file.startMode;
+
+            // endMode はサウンドパッドでは常に "OFF"
+            const newEndMode = "OFF";
+
             return {
                 ...file,
                 startMode: newStartMode,
-                endMode: "OFF",
+                endMode: newEndMode,
                 selectionState: "selected",
                 editingState: "editing"
+                // ftbEnabled 等はここでいじらない
             };
         }
         return file;
@@ -2474,8 +2504,6 @@ async function handleDirectOnAir(item, index) {
     logOpe(`[playlist.js] DIRECT ONAIR triggered for item ID: ${targetId}`);
 
     // 現在のプレイリスト状態を取得し、対象アイテムの状態を更新
-    // スタートモードは PAUSE のときのみ PLAY に変更。PLAY/FADEIN は維持。
-    // endMode は既存値を保持（変更しない）。
     let playlist = await stateControl.getPlaylistState();
     playlist = playlist.map(file => {
         if (file.playlistItem_id === targetId) {
@@ -2516,7 +2544,6 @@ async function handleDirectOnAir(item, index) {
 }
 
 // Shift+数字で即オンエアする処理
-// idx は 0始まりのインデックス（0 = 画面上の「1番目」）
 async function triggerQuickOnAirByIndex(idx) {
     try {
         // 現在描画中のプレイリストDOMから対象アイテムを取得
@@ -2898,14 +2925,10 @@ document.addEventListener('keydown', (event) => {
         return;
     }
 
-    // ===========================================
     // 即オンエアキー判定（Shift+数字 / テンキー）
-    // ===========================================
-    // quickOnAirIdx が null でなければ、その番号のアイテムを即オンエア対象にする
     let quickOnAirIdx = null;
 
     // パターンA: キーボード上段の数字キー (Digit1?Digit0) を Shift付きで押した場合
-    // 例: Shift+1 => code="Digit1", isShift=true
     if (!isMod && !isAlt && isShift && code.startsWith('Digit')) {
         const digitChar = code.replace('Digit', ''); // "1"?"9" or "0"
         if (/^[0-9]$/.test(digitChar)) {
@@ -2918,7 +2941,6 @@ document.addEventListener('keydown', (event) => {
     }
 
     // パターンB: テンキー (Numpad1?Numpad0) を押した場合
-    // テンキーはShift無しでも番号として扱いたいので、isShiftは条件に入れない
     if (!isMod && !isAlt && code.startsWith('Numpad') && quickOnAirIdx === null) {
         const digitChar = code.replace('Numpad', ''); // "1"?"9" or "0"
         if (/^[0-9]$/.test(digitChar)) {
