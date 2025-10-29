@@ -2118,28 +2118,72 @@ window.electronAPI.ipcRenderer.on('export-playlist', async () => {
         const MAX_PLAYLISTS = 5; // 最大プレイリスト数
         const allPlaylists = [];
 
-        // ローカルストレージからプレイリストを収集
+        // 0番プレイリストとして、"現在編集中のプレイリスト" を必ず含める
+        const liveState = stateControl.getPlaylistState(); // 現在メモリにあるプレイリストアイテム一覧
+        const nameLabel = document.getElementById('playlist-name-display');
+        const liveName = (nameLabel && nameLabel.textContent && nameLabel.textContent.trim() !== "")
+            ? nameLabel.textContent.trim()
+            : 'プレイリスト0';
+
+        // liveState を正規化（FTB・フェード・モード情報も含める）
+        const normalizedLiveData = liveState.map(item => ({
+            ...item,
+            order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
+            startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
+            endMode: (item.endMode !== undefined && item.endMode !== null) ? item.endMode : "PAUSE",
+            defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null) ? item.defaultVolume : 100,
+            ftbEnabled: item.ftbEnabled === true,
+            ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
+            startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
+        }));
+
+        allPlaylists.push({
+            index: 0,
+            name: liveName,
+            endMode: undefined, // 現在の全体モードが取れるならここに入れる。なければ undefined のままでOK
+            data: normalizedLiveData,
+        });
+
+        // ローカルストレージからプレイリストを収集（1?5番）
         for (let i = 1; i <= MAX_PLAYLISTS; i++) {
             const storedData = localStorage.getItem(`vtrpon_playlist_store_${i}`);
-            if (storedData) {
-                try {
-                    const parsedData = JSON.parse(storedData);
+            if (!storedData) continue;
 
-                    // データの整合性を確認
-                    if (validatePlaylistData(parsedData)) {
-                        allPlaylists.push({ index: i, ...parsedData });
-                    } else {
-                        logInfo(`[playlist.js] Playlist ${i} has invalid data and will be skipped.`);
-                    }
-                } catch (parseError) {
-                    logInfo(`[playlist.js] Failed to parse playlist ${i}:`, parseError);
+            try {
+                const parsedData = JSON.parse(storedData);
+
+                if (validatePlaylistData(parsedData)) {
+                    // 各アイテムを正規化してFTB等を保持
+                    const normalizedData = parsedData.data.map(item => ({
+                        ...item,
+                        order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
+                        startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
+                        endMode: (item.endMode !== undefined && item.endMode !== null) ? item.endMode : "PAUSE",
+                        defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null) ? item.defaultVolume : 100,
+                        ftbEnabled: item.ftbEnabled === true,
+                        ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
+                        startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
+                    }));
+
+                    allPlaylists.push({
+                        index: i,
+                        name: parsedData.name,
+                        endMode: parsedData.endMode,
+                        data: normalizedData,
+                    });
+                } else {
+                    logInfo(`[playlist.js] Playlist ${i} has invalid data and will be skipped.`);
                 }
+            } catch (parseError) {
+                logInfo(`[playlist.js] Failed to parse playlist ${i}:`, parseError);
             }
         }
 
         // エクスポートデータの構築
+        // activePlaylistIndex は 0（今編集中のプレイリスト0を優先して復元したいから）
         const exportData = {
             playlists: allPlaylists,
+            activePlaylistIndex: 0,
         };
 
         // メインプロセスにデータを送信
@@ -2148,7 +2192,6 @@ window.electronAPI.ipcRenderer.on('export-playlist', async () => {
             showMessage(`${getMessage('playlist-exported-successfully')} ${result.path}`, 5000, 'info');
         } else if (result.error && result.error.includes('User canceled')) {
             logInfo('[playlist.js] Export canceled by user.');
-            // キャンセル時はエラーメッセージを表示せず、単にログ出力のみ
         } else {
             logInfo('[playlist.js] Failed to export playlist:', result.error);
             showMessage(getMessage('failed-to-export-playlist'), 5000, 'alert');
@@ -2184,14 +2227,14 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
                 return;
             }
             const errorDetails = result.error ? `Reason: ${result.error}` : 'Invalid playlist file format.';
-            showMessage(`${getMessage('failed-to-import-playlist')}\n${errorDetails}`, 5000, 'alert'); // 5秒間表示
+            showMessage(`${getMessage('failed-to-import-playlist')}\n${errorDetails}`, 5000, 'alert');
             return;
         }
 
         const { playlists, activePlaylistIndex } = result.data;
         const missingFiles = [];
 
-        const newPlaylists = []; // インポートした新しいプレイリストデータを一時保存
+        const newPlaylists = []; // インポート後に使う形へ正規化したものを保持
 
         for (const playlist of playlists) {
             const { index, name, data, endMode } = playlist;
@@ -2199,8 +2242,20 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
             const validData = [];
             for (const file of data) {
                 const exists = await window.electronAPI.checkFileExists(file.path);
-                if (exists || (typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE'))) {
-                    validData.push(file);
+                const isUVC = (typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE'));
+
+                if (exists || isUVC) {
+                    // FTB, フェード、音量、モード情報を含めて復元
+                    const restoredFile = {
+                        ...file,
+                        ftbEnabled: file.ftbEnabled === true,
+                        ftbRate: (file.ftbRate !== undefined && file.ftbRate !== null) ? file.ftbRate : 1.0,
+                        startFadeInSec: (file.startFadeInSec !== undefined && file.startFadeInSec !== null) ? file.startFadeInSec : 1.0,
+                        startMode: (file.startMode !== undefined && file.startMode !== null) ? file.startMode : "PAUSE",
+                        endMode: (file.endMode !== undefined && file.endMode !== null) ? file.endMode : "PAUSE",
+                        defaultVolume: (file.defaultVolume !== undefined && file.defaultVolume !== null) ? file.defaultVolume : 100,
+                    };
+                    validData.push(restoredFile);
                 } else {
                     logInfo(`File not found: ${file.path}`);
                     missingFiles.push(file.path || file.name || 'Unknown file');
@@ -2213,40 +2268,70 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
                 endMode,
             };
 
-            newPlaylists.push({ index, playlistData, active: index === activePlaylistIndex });
+            newPlaylists.push({
+                index,
+                playlistData,
+                active: index === activePlaylistIndex
+            });
         }
 
         // 成功したらUIを初期化
         document.getElementById('playliseclear-button').click();
 
-        // 新しいプレイリストを保存してUIに反映
+        // 復元したデータを localStorage に書き戻し
+        // index:0 も含めて書き戻す
         for (const { index, playlistData, active } of newPlaylists) {
             localStorage.setItem(`vtrpon_playlist_store_${index}`, JSON.stringify(playlistData));
 
             if (active) {
+                // まずUI上のプレイリスト名を反映
                 document.getElementById('playlist-name-display').textContent = playlistData.name;
 
+                // 表示中のリストDOMをクリア
                 const playlistItemsContainer = document.querySelector('.playlist-items');
-                playlistItemsContainer.innerHTML = ''; // 既存のリストをクリア
+                playlistItemsContainer.innerHTML = '';
 
-                for (const file of playlistData.data) {
-                    logInfo(`[playlist.js] File added to playlist: ${file.name}`);
+                // stateControl 側のプレイリスト本体にも反映（←これが復元の核心）
+                try {
+                    // orderが欠けている場合はインデックスで補う
+                    const normalizedForState = playlistData.data.map((f, idx) => ({
+                        ...f,
+                        order: (f.order !== undefined && f.order !== null) ? f.order : idx,
+                    }));
+
+                    stateControl.setPlaylistState(normalizedForState);
+                    await updatePlaylistUI(); // 画面に並びを再描画
+                    logOpe('[playlist.js] Playlist restored to stateControl and UI after import.');
+                } catch (e) {
+                    logInfo('[playlist.js] Failed to restore playlist into stateControl:', e);
                 }
 
+                // 各ファイル名をログ出力（デバッグ用）
+                for (const f of playlistData.data) {
+                    logInfo(`[playlist.js] File added to playlist: ${f.name}`);
+                }
+
+                // モード復元（endModeがundefinedでも送っておく）
                 await window.electronAPI.ipcRenderer.send('setMode', playlistData.endMode);
             }
         }
 
+        // ボタン等の見た目更新
         updateButtonColors();
+
+        // activePlaylistIndex が 1?5 のときだけストアボタンのハイライトを想定
+        // 0の場合はスロットに属さない一時プレイリストなので、setActiveStoreButton(0)しても
+        // 何も起こらない/おかしく見える場合がある。そのまま呼んでも問題ないなら残してOK。
         setActiveStoreButton(activePlaylistIndex);
 
         logDebug('[playlist.js] All playlists imported successfully');
+
         setTimeout(() => {
-            showMessage(getMessage('playlists-imported-successfully'), 5000, 'info'); // 5秒間表示
+            showMessage(getMessage('playlists-imported-successfully'), 5000, 'info');
 
             if (missingFiles.length > 0) {
                 const missingList = missingFiles.join('\n');
-                showMessage(`${getMessage('files-not-found')}\n${missingList}`, 20000, 'alert'); // 5秒間表示
+                showMessage(`${getMessage('files-not-found')}\n${missingList}`, 20000, 'alert');
             }
         }, 200);
     } catch (error) {
