@@ -48,7 +48,6 @@ function getPlaylistById(playlist_id) {
     };
 }
 
-
 // -----------------------
 //   プレイリストアイテム
 // -----------------------
@@ -265,37 +264,86 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
 
     const allPlaylists = getAllPlaylists();
 
+    // アイテム正規化ロジック（共通化）
+    function normalizeItemForSave(item, fallbackOrder) {
+        return {
+            ...item,
+            playlistItem_id: item.playlistItem_id || generateUniqueId('item_'),
+
+            // 順番
+            order: (item.order !== undefined && item.order !== null)
+                ? item.order
+                : fallbackOrder,
+
+            // パス（UVC_DEVICE の場合は path を強制的に UVC_DEVICE にする）
+            path: item.path || (item.name === "UVC_DEVICE" ? "UVC_DEVICE" : ""),
+
+            // 再生モード関連
+            startMode: (item.startMode !== undefined && item.startMode !== null)
+                ? item.startMode
+                : "PAUSE",
+            endMode: (item.endMode !== undefined && item.endMode !== null)
+                ? item.endMode
+                : "PAUSE",
+
+            // 音量など
+            defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null)
+                ? item.defaultVolume
+                : 100,
+
+            // FTB関連（ここが今回特に重要）
+            ftbEnabled: item.ftbEnabled === true,
+            ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null)
+                ? item.ftbRate
+                : 1.0,
+
+            // フェードイン秒数（サウンドパッド等で使う開始フェード）
+            startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null)
+                ? item.startFadeInSec
+                : 1.0,
+
+            // 他のフラグ類も維持
+            directMode: (typeof item.directMode !== 'undefined')
+                ? item.directMode
+                : false,
+            fillKeyMode: (typeof item.fillKeyMode !== 'undefined')
+                ? item.fillKeyMode
+                : false,
+        };
+    }
+
     // 既に保存されているプレイリストの中に、渡された playlist_id と一致するものがあるかを確認
     const existingIndex = allPlaylists.findIndex(p => p.playlist_id === playlist_id);
 
     if (existingIndex !== -1) {
-        // 更新時：既存の playlist_id をそのまま維持し、データを上書きする
+        // 既存プレイリストを上書き更新
         allPlaylists[existingIndex] = {
             ...allPlaylists[existingIndex],
             name: playlistData.name,
-            data: playlistData.data.map(item => ({
-                ...item,
-                playlistItem_id: item.playlistItem_id || generateUniqueId('item_'),
-                order: item.order !== undefined ? item.order : (allPlaylists[existingIndex].data.length),
-                path: item.path || (item.name === "UVC_DEVICE" ? "UVC_DEVICE" : ""),
-                directMode: typeof item.directMode !== 'undefined' ? item.directMode : false,
-                fillKeyMode: typeof item.fillKeyMode !== 'undefined' ? item.fillKeyMode : false,
-                ftbEnabled: typeof item.ftbEnabled !== 'undefined' ? item.ftbEnabled : false,
-            }))
+            data: playlistData.data.map((item, idx) =>
+                normalizeItemForSave(
+                    item,
+                    // 既存データ長を使っていた旧ロジックを踏襲
+                    (item.order !== undefined && item.order !== null)
+                        ? item.order
+                        : allPlaylists[existingIndex].data.length + idx
+                )
+            ),
         };
     } else {
+        // 新規プレイリストとして追加
         const newId = playlistData.playlist_id || playlist_id;
         allPlaylists.push({
             playlist_id: newId,
             name: playlistData.name,
-            data: playlistData.data.map(item => ({
-                ...item,
-                playlistItem_id: item.playlistItem_id || generateUniqueId('item_'),
-                order: item.order !== undefined ? item.order : allPlaylists.length,
-                directMode: typeof item.directMode !== 'undefined' ? item.directMode : false,
-                fillKeyMode: typeof item.fillKeyMode !== 'undefined' ? item.fillKeyMode : false,
-                ftbEnabled: typeof item.ftbEnabled !== 'undefined' ? item.ftbEnabled : false,
-            }))
+            data: playlistData.data.map((item, idx) =>
+                normalizeItemForSave(
+                    item,
+                    (item.order !== undefined && item.order !== null)
+                        ? item.order
+                        : (allPlaylists.length + idx)
+                )
+            ),
         });
     }
 
