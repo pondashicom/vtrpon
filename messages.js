@@ -1,7 +1,7 @@
 ﻿
 // -----------------------
 //     messages.js
-//     ver 2.3.4
+//     ver 2.4.3
 // -----------------------
 
 const messages = {
@@ -33,8 +33,8 @@ const messages = {
     "failed-to-import-playlist": "プレイリストのインポートに失敗しました.",
     "playlists-imported-successfully": "プレイリストが正常にインポートされました。",
     "files-not-found": "以下のファイルが見つかりませんでした:",
-    "repeat-mode-activated": "リピートモードが有効になりました: 全アイテムがスタートモードPLAY、エンドモードNEXTに設定されました。",
-    "list-mode-activated": "リストモードが有効になりました: 編集は一時停止、順次再生、終了はFTBです。",
+    "repeat-mode-activated": "リピートモードが有効になりました: 各アイテムのスタートモードと、エンドモードが変更されました。",
+    "list-mode-activated": "リストモードが有効になりました: 各アイテムのスタートモードと、エンドモードが変更されました。",
     "sound-pad-on-air-triggered": "SOUND PAD On-Airがトリガーされました。アイテム:",
     "direct-on-air-triggered": "DIRECT ONAIRがトリガーされました。アイテム:",
     "no-item-to-copy": "コピー可能なアイテムがありません。",
@@ -82,8 +82,8 @@ const messages = {
     "failed-to-import-playlist": "Failed to import playlist.",
     "playlists-imported-successfully": "Playlists successfully imported",
     "files-not-found": "The following files were not found:",
-    "repeat-mode-activated": "Repeat mode activated: all items set to start mode PLAY and end mode NEXT.",
-    "list-mode-activated": "List mode activated: starts paused, plays sequentially, ends with FTB.",
+    "repeat-mode-activated": "Repeat mode activated.",
+    "list-mode-activated": "List mode activated.",
     "sound-pad-on-air-triggered": "SOUND PAD On-Air triggered for item:",
     "direct-on-air-triggered": "DIRECT ONAIR triggered for item:",
     "no-item-to-copy": "No item available to copy.",
