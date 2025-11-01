@@ -154,12 +154,33 @@ function initializeEditArea() {
     setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR);
     setupInOutPoints(videoElement);
     setupStartModeControls(videoElement);
-    setupEndModeControls(videoElement);
+    rebindEndModeControls(videoElement);
     setupFtbRate(ftbRateInput); 
     setupFtbRateListener(ftbRateInput);
     setupStartFadeInSecListener(startFadeInInput);
     setupVolumeControl();
     setVideoLoadedState(false);
+}
+
+// エンドモード系ボタンの安全な再バインド
+function rebindEndModeControls(videoElement) {
+    const ids = [
+        'end-ftb-button',
+        'end-next-button',
+        'end-repeat-button',
+        'end-off-button',
+        'end-pause-button'
+    ];
+
+    ids.forEach((id) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            const cloned = btn.cloneNode(true); // リスナを持たないクローン
+            btn.replaceWith(cloned);
+        }
+    });
+    // クリーンなボタンに対して改めてハンドラを登録
+    setupEndModeControls(videoElement);
 }
 
 // -----------------------
