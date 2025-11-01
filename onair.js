@@ -995,6 +995,13 @@ function onairStartPlayback(itemData) {
         onairVideoElement.volume = targetVolPct / 100;
         applySliderValue(targetVolPct);
 
+        // リピート時はフルスクリーン側が誤って停止しないよう、先行してplayを送る
+        if (onairRepeatFlag) {
+            try {
+                window.electronAPI.sendControlToFullscreen({ command: 'play' });
+            } catch (_) {}
+        }
+
         onairIsPlaying = true; 
         onairVideoElement.play()
             .then(() => {
@@ -1002,6 +1009,7 @@ function onairStartPlayback(itemData) {
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via PLAY start mode.');
+                // 再度送信して確実化（先行送信との二重化で競合吸収）
                 window.electronAPI.sendControlToFullscreen({ command: 'play' });
             })
             .catch(error => {
@@ -1071,11 +1079,17 @@ function onairStartPlayback(itemData) {
         onairUpdatePlayPauseButtons(elements);
         onairStopRemainingTimer();
         logOpe('[onair.js] Playback paused via start mode.');
+
+        // 初回のみフルスクリーンへpauseを明示（リピート時は送らない）
+        if (!onairRepeatFlag) {
+            try {
+                window.electronAPI.sendControlToFullscreen({ command: 'pause' });
+            } catch (_) {}
+        }
     }
     // 最後に再生監視を開始
     onairMonitorPlayback(onairVideoElement, outPoint);
 }
-
 
 // 再生開始時にIN点にシーク
 function onairSeekToInPoint(onairVideoElement, inPoint) {
