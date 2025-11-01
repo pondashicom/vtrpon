@@ -366,11 +366,27 @@ function handleStartMode() {
             return;
         }
         if (sm === 'PAUSE') {
-            logInfo('[fullscreen.js] Repeat requested but startMode=PAUSE -> do not repeat; pause at OUT.');
+            logInfo('[fullscreen.js] Repeat with startMode=PAUSE -> auto-play from IN on repeat.');
+
+            const initialVol = (typeof globalState.volume === 'number')
+                ? Math.max(0, Math.min(1, globalState.volume))
+                : (typeof globalState.defaultVolume === 'number'
+                    ? Math.max(0, Math.min(1, globalState.defaultVolume / 100))
+                    : 1);
+
+            videoElement.currentTime = globalState.inPoint;
+            videoElement.muted = false;
+            videoElement.volume = initialVol;
+
+            videoElement.play()
+                .then(() => {
+                    startVolumeMeasurement();
+                    logInfo('[fullscreen.js] Repeat playback started (PAUSE overridden to PLAY on repeat).');
+                })
+                .catch(error => logDebug(`[fullscreen.js] Repeat playback (PAUSE->PLAY) failed: ${error.message}`));
+
+            monitorVideoPlayback();
             globalState.repeatFlag = false;
-            videoElement.pause();
-            videoElement.currentTime = globalState.outPoint;
-            stopVolumeMeasurement();
             return;
         }
 
@@ -763,9 +779,8 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 if (receivedEndMode === 'REPEAT') {
                     if ((globalState.startMode || '').toUpperCase() === 'OFF') {
                         handleEndModeOFF();
-                    } else if ((globalState.startMode || '').toUpperCase() === 'PAUSE') {
-                        handleEndModePAUSE();
                     } else {
+                        // REPEAT処理に統一（PAUSEでも繰り返す：案A）
                         handleEndMode('REPEAT');
                     }
                 } else {
