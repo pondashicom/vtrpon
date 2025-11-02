@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.4.3
+//     ver 2.4.4
 // -----------------------
 
 // -----------------------
@@ -23,6 +23,10 @@ let preFtbRaf = null;
 let preFtbStartTime = null;
 let preFtbDuration = 0;
 let holdBlackUntilFadeIn = false;
+let seamlessGuardActive = false;
+let suppressFadeUntilPlaying = false;
+let pendingUvcFadeInSec = 0;
+let overlayForceBlack = false;
 
 // ----------------------------------------
 // フルスクリーンエリアの初期化
@@ -103,12 +107,77 @@ function initializeFadeCanvas() {
 window.electronAPI.onReceiveFullscreenData((itemData) => {
     logInfo(`[fullscreen.js] Received On-Air data in fullscreen: ${JSON.stringify(itemData)}`);
 
-    // 既存のストリームや動画を初期化
-    resetFullscreenState();
+    const nextIsUVC   = isUVCItem(itemData);
+    const nextIsPause = (itemData.startMode === 'PAUSE');
 
-    // メインプロセスを開始
-    handleOnAirData(itemData);
+    // 次ソースがUVCなら、映像黒フェードを一時抑止
+    suppressFadeUntilPlaying = nextIsUVC;
+
+    // 次ソースがUVCかつスタートモードがFADEINなら、フェード秒を保持（0なら無効）
+    pendingUvcFadeInSec = (nextIsUVC && itemData.startMode === 'FADEIN' && Number(itemData.startFadeInSec) > 0)
+        ? Number(itemData.startFadeInSec)
+        : 0;
+
+    // 次ソースがUVCのときは前フレームを見せず、即黒を被せて保持
+    if (nextIsUVC) {
+        const fc = initializeFadeCanvas();
+        if (fc) {
+            holdBlackUntilFadeIn = true;
+            fc.style.display = 'block';
+            fc.style.opacity = '1';
+        }
+    }
+
+    // オーバーレイキャプチャ（前フレーム固定）は、
+    // 1) 現在ソースがUVC
+    // 2) 次ソースがUVC
+    // 3) 次ソースのスタートモードがPAUSE
+    // のいずれかに該当するときはスキップする
+    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsPause;
+
+    if (!skipOverlayCapture) {
+        try {
+            // 黒フラ抑止：前フレームをオーバーレイに固定（FTB黒保持中は自動スキップ）
+            captureLastFrameAndHoldUntilNextReady(true);
+        } catch (e) {
+            logDebug(`[fullscreen.js] overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
+        }
+    } else {
+        if (nextIsUVC) {
+            logInfo('[fullscreen.js] Overlay capture skipped because next source is UVC.');
+        } else if (isCurrentSourceUVC()) {
+            logInfo('[fullscreen.js] Overlay capture skipped because current source is UVC.');
+        } else if (nextIsPause) {
+            logInfo('[fullscreen.js] Overlay capture skipped because next startMode is PAUSE.');
+        }
+    }
+
+    // いきなりresetせず、次の描画フレームで実施（オーバーレイ描画の確定を保証）
+    requestAnimationFrame(() => {
+        // 既存のストリームや動画を初期化
+        resetFullscreenState();
+
+        // メインプロセスを開始
+        handleOnAirData(itemData);
+    });
 });
+
+// UVCソース判定（itemData から判定）
+function isUVCItem(itemData) {
+    // パスで判定 or deviceId/flags 等で判定（既存ルールに合わせる）
+    if (!itemData) return false;
+    if (itemData.path && typeof itemData.path === 'string' && itemData.path.startsWith('UVC_DEVICE')) return true;
+    if (itemData.deviceId && itemData.deviceId !== null) return true;
+    return false;
+}
+
+// 現在のグローバルステートから「今見えているのがUVCか」判定
+function isCurrentSourceUVC() {
+    if (!globalState) return false;
+    if (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE')) return true;
+    if (globalState.deviceId && globalState.deviceId !== null) return true;
+    return false;
+}
 
 // --------------------------------------------
 // 受け取った時点のデータを初期値として設定
@@ -149,13 +218,45 @@ function initializeOverlayCanvas() {
         logInfo('[fullscreen.js] overlay-canvas element not found.');
         return null;
     }
+    // 画面全体にフィット（既存前提：fullscreen領域＝ウインドウ全体）
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
+
+    // fadeCanvas より必ず前面へ
+    try {
+        const fc = document.getElementById('fadeCanvas');
+        const baseZ = fc && fc.style && fc.style.zIndex ? (parseInt(fc.style.zIndex, 10) || 1000) : 1000;
+        canvas.style.zIndex = String(baseZ + 1);
+    } catch (_) {
+        canvas.style.zIndex = '1001';
+    }
+
+    // マウスは透過・既定は非表示
+    canvas.style.pointerEvents = 'none';
+    if (!canvas.style.display) {
+        canvas.style.display = 'none';
+        canvas.style.opacity = '1';
+    }
+
+    if (!CanvasRenderingContext2D.prototype.__vtrpon_drawImagePatched) {
+        CanvasRenderingContext2D.prototype.__vtrpon_drawImagePatched = true;
+        const __origDrawImage = CanvasRenderingContext2D.prototype.drawImage;
+        CanvasRenderingContext2D.prototype.drawImage = function(...args) {
+            try {
+                // overlayForceBlack 中は overlay-canvas への drawImage を無効化
+                if (overlayForceBlack && this && this.canvas && this.canvas.id === 'overlay-canvas') {
+                    return; // 何も描かない
+                }
+            } catch (_) { /* no-op */ }
+            return __origDrawImage.apply(this, args);
+        };
+        logDebug('[fullscreen.js] drawImage patched for overlay-canvas safety.');
+    }
     return canvas;
 }
 
 // ------------------------------------
-// エンドモード NEXT：最後のフレームをオーバーレイに固定
+// エンドモード NEXT
 // ------------------------------------
 function handleEndModeNEXT() {
     logInfo('[fullscreen.js] Called endmode:NEXT - capturing last frame');
@@ -166,24 +267,162 @@ function handleEndModeNEXT() {
         logInfo('[fullscreen.js] NEXT skipped overlay capture due to black hold.');
         return;
     }
+    try {
+        captureLastFrameAndHoldUntilNextReady(true);
+    } catch (e) {
+        logDebug(`[fullscreen.js] handleEndModeNEXT overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
+    }
+}
 
-    const videoElement   = document.getElementById('fullscreen-video');
-    const overlayCanvas  = initializeOverlayCanvas();
+// ------------------------------------
+// 前フレームをオーバーレイに固定し、次ソースの“実描画”確認まで保持
+// ------------------------------------
+function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
+    // FTB黒保持中は黒一本化のためスキップ
+    if (respectBlackHold) {
+        const fc = document.getElementById('fadeCanvas');
+        if (typeof holdBlackUntilFadeIn !== 'undefined' &&
+            (holdBlackUntilFadeIn || (fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9))) {
+            logInfo('[fullscreen.js] Overlay capture skipped due to black hold.');
+            return;
+        }
+    }
+
+    const videoElement  = document.getElementById('fullscreen-video');
+    const overlayCanvas = initializeOverlayCanvas();
     if (!videoElement || !overlayCanvas) {
-        logInfo('[fullscreen.js] Cannot execute handleEndModeNEXT due to missing element.');
+        logInfo('[fullscreen.js] Overlay capture skipped due to missing element.');
         return;
     }
+
+    // 前フレームを描画（drawImage失敗時は何もしない＝黒は出さない）
     const ctx = overlayCanvas.getContext('2d');
-    // 最終フレームを描画
-    ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
-    // オーバーレイ表示
-    overlayCanvas.style.display = 'block';
-    // 次動画再生時にオーバーレイ解除
-    videoElement.addEventListener('loadeddata', function hideOverlay() {
-        overlayCanvas.style.display = 'none';
-        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-        videoElement.removeEventListener('loadeddata', hideOverlay);
-    });
+    try {
+        // UVC FADEIN中は最初から黒だけを使う（前フレームは描かない）
+        if (typeof pendingUvcFadeInSec === 'number' && pendingUvcFadeInSec > 0) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            ctx.restore();
+            overlayForceBlack = true; // 念のためここでも drawImage を無効化
+            overlayCanvas.style.opacity = '1';
+            overlayCanvas.style.display = 'block';
+            seamlessGuardActive = true;
+            logDebug('[fullscreen.js] Overlay pre-black (no last frame) for UVC FADEIN.');
+        } else {
+            // 通常ケースのみ前フレームを描画
+            ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            overlayCanvas.style.display = 'block';
+            seamlessGuardActive = true;
+        }
+    } catch (e) {
+        logDebug(`[fullscreen.js] overlay draw skipped: ${e && e.message ? e.message : String(e)}`);
+        return;
+    }
+
+    // 解除処理：新ソースが“実際に描画された”ことを確認してから非表示
+    let cleared = false;
+    const clearOverlay = () => {
+        if (cleared) return;
+        cleared = true;
+
+        try {
+            const ctx = overlayCanvas.getContext('2d');
+
+            if (typeof pendingUvcFadeInSec === 'number' && pendingUvcFadeInSec > 0) {
+                const durMs = Math.max(1, Math.floor(pendingUvcFadeInSec * 1000));
+                let startTs = null;
+                overlayCanvas.style.display = 'block';
+                overlayCanvas.style.opacity = '1';
+
+                const raf = (ts) => {
+                    if (startTs === null) startTs = ts;
+                    const t = ts - startTs;
+                    const p = Math.min(1, t / durMs);
+                    overlayCanvas.style.opacity = String(1 - p);
+                    if (p < 1) {
+                        requestAnimationFrame(raf);
+                    } else {
+                        overlayCanvas.style.display = 'none';
+                        overlayCanvas.style.opacity = '1';
+                        try {
+                            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                        } catch (_) {}
+                        // 後始末
+                        pendingUvcFadeInSec = 0;
+                        seamlessGuardActive = false;
+                        suppressFadeUntilPlaying = false;
+                        overlayForceBlack = false; // ★ drawImage 無効化を解除
+                        logDebug('[fullscreen.js] Overlay black faded out for UVC FADEIN.');
+                        detach();
+                    }
+                };
+                requestAnimationFrame(raf);
+                return;
+            }
+
+            // 通常ケース
+            overlayCanvas.style.display = 'none';
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        } catch (_) {}
+
+        seamlessGuardActive = false;
+        overlayForceBlack = false; // 念のため通常クリアでも解除
+        logDebug('[fullscreen.js] Overlay cleared after next frame ready.');
+        detach();
+    };
+
+    // rVFCが使えるなら2フレーム待つ（より確実）
+    const useRVFC = !!(videoElement && typeof videoElement.requestVideoFrameCallback === 'function');
+    let rvfcCount = 0;
+    const rvfc = useRVFC ? (ts, md) => {
+        rvfcCount += 1;
+        if (rvfcCount >= 2) {
+            clearOverlay();
+        } else {
+            videoElement.requestVideoFrameCallback(rvfc);
+        }
+    } : null;
+
+    // フォールバック：timeupdate/playingでも解除
+    const onPlaying = () => {
+        // 次ソースがUVCの起動待ちで映像黒フェードを抑止している場合は、playing到達で抑止解除
+        if (typeof suppressFadeUntilPlaying !== 'undefined' && suppressFadeUntilPlaying) {
+            suppressFadeUntilPlaying = false;
+            logInfo('[fullscreen.js] incoming UVC playing detected; fade suppression released.');
+        }
+
+        if (useRVFC) {
+            videoElement.requestVideoFrameCallback(rvfc);
+        } else {
+            // 少なくとも表示が進んだイベントを一度観測してから解除
+            const onceTimeupdate = () => {
+                clearOverlay();
+            };
+            videoElement.addEventListener('timeupdate', onceTimeupdate, { once: true });
+        }
+    };
+
+    const onLoadedData = () => {
+        // loadeddata時点では解除しない（黒が見える原因）。実描画まで待つ。
+    };
+
+    const detach = () => {
+        videoElement.removeEventListener('playing', onPlaying);
+        videoElement.removeEventListener('loadeddata', onLoadedData);
+    };
+
+    videoElement.addEventListener('playing', onPlaying);
+    videoElement.addEventListener('loadeddata', onLoadedData);
+
+    // セーフティタイムアウト（万一描画が来ない場合にリーク防止）
+    setTimeout(() => {
+        if (seamlessGuardActive) {
+            logInfo('[fullscreen.js] Overlay auto-cleared by safety timeout.');
+            clearOverlay();
+        }
+    }, 2500);
 }
 
 // ---------------------------------------
@@ -780,7 +1019,6 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     if ((globalState.startMode || '').toUpperCase() === 'OFF') {
                         handleEndModeOFF();
                     } else {
-                        // REPEAT処理に統一（PAUSEでも繰り返す：案A）
                         handleEndMode('REPEAT');
                     }
                 } else {
@@ -802,12 +1040,23 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 {
                     const dur = (value && typeof value.duration === 'number') ? value.duration : (globalState.ftbRate || 0.3);
                     const fk  = (value && !!value.fillKeyMode) ? true : false;
+
+                    // シームレスガード（前フレーム掲出）中は映像黒フェードを禁止（黒一本化）
+                    if (seamlessGuardActive) {
+                        logInfo('[fullscreen.js] fade-from-black skipped due to seamless guard.');
+                        break;
+                    }
+                    // 次ソースがUVCで再生開始（playing）前は、黒フェードを抑止（UVCの初期遅延と競合させない）
+                    if (suppressFadeUntilPlaying) {
+                        logInfo('[fullscreen.js] fade-from-black skipped due to incoming UVC.');
+                        break;
+                    }
+
                     logInfo(`[fullscreen.js] fade-from-black: duration=${dur}s, fillKeyMode=${fk}`);
                     cancelPreFTB();
                     fullscreenFadeFromBlack(dur, fk);
                 }
                 break;
-
             case 'start-recording':
                 {
 
