@@ -112,10 +112,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 soundPadButton.classList.add('button-green');
 
-                // ここで全アイテムを書き換える（PAUSE→PLAY、endModeは常にOFF）
+                // ここで全アイテムを書き換える
+                // 例外：start=PLAY && end=UVC は変更しない
+                // それ以外は PAUSE→PLAY、endMode は常に OFF
                 try {
                     const playlist = await stateControl.getPlaylistState();
                     const updatedPlaylist = playlist.map(item => {
+                        if (item.startMode === "PLAY" && item.endMode === "UVC") {
+                            return {
+                                ...item,
+                                order: Number(item.order)
+                            };
+                        }
                         const newStartMode = (item.startMode === "PAUSE") ? "PLAY" : item.startMode;
                         const newEndMode = "OFF";
                         return {
@@ -150,6 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             logOpe(`[playlist.js] SOUND PAD mode toggled: ${soundPadActive}`);
             soundPadButton.blur();
         });
+
     } else {
         logInfo('[playlist.js] SOUND PAD mode button not found.');
     }
