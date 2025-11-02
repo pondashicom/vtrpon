@@ -311,8 +311,27 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             seamlessGuardActive = true;
             logDebug('[fullscreen.js] Overlay pre-black (no last frame) for UVC FADEIN.');
         } else {
-            // 通常ケースのみ前フレームを描画
-            ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            // 通常ケースのみ前フレームを描画（アスペクト維持・レターボックス／ピラーボックス）
+            const vw = videoElement.videoWidth || 0;
+            const vh = videoElement.videoHeight || 0;
+            const cw = overlayCanvas.width;
+            const ch = overlayCanvas.height;
+
+            if (vw > 0 && vh > 0 && cw > 0 && ch > 0) {
+                const scale = Math.min(cw / vw, ch / vh);
+                const dw = Math.round(vw * scale);
+                const dh = Math.round(vh * scale);
+                const dx = Math.floor((cw - dw) / 2);
+                const dy = Math.floor((ch - dh) / 2);
+
+                // 余白クリア後、中央にアスペクト維持で描画
+                ctx.clearRect(0, 0, cw, ch);
+                ctx.drawImage(videoElement, 0, 0, vw, vh, dx, dy, dw, dh);
+            } else {
+                // 安全策：従来通り全面描画（情報不足時）
+                ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            }
+
             overlayCanvas.style.display = 'block';
             seamlessGuardActive = true;
         }
@@ -328,8 +347,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         cleared = true;
 
         try {
-            const ctx = overlayCanvas.getContext('2d');
-
+            // UVC FADEIN 指定があればオーバーレイ自身を黒→透明にフェードアウト
             if (typeof pendingUvcFadeInSec === 'number' && pendingUvcFadeInSec > 0) {
                 const durMs = Math.max(1, Math.floor(pendingUvcFadeInSec * 1000));
                 let startTs = null;
@@ -364,7 +382,9 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
             // 通常ケース
             overlayCanvas.style.display = 'none';
-            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            try {
+                ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            } catch (_) {}
         } catch (_) {}
 
         seamlessGuardActive = false;
@@ -385,7 +405,12 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         }
     } : null;
 
-    // フォールバック：timeupdate/playingでも解除
+    // 可能なら即座にrVFCを予約（playing待ちで遅延する個体対策）
+    if (useRVFC) {
+        try { videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
+    }
+
+    // フォールバック：timeupdate/playing/canplay/seeked でも解除
     const onPlaying = () => {
         // 次ソースがUVCの起動待ちで映像黒フェードを抑止している場合は、playing到達で抑止解除
         if (typeof suppressFadeUntilPlaying !== 'undefined' && suppressFadeUntilPlaying) {
@@ -406,15 +431,34 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
     const onLoadedData = () => {
         // loadeddata時点では解除しない（黒が見える原因）。実描画まで待つ。
+        // ただしrVFC非対応環境では canplay/seeked を拾う
+    };
+
+    const onCanPlay = () => {
+        if (useRVFC) {
+            // すでにrVFC予約済み。ここでは何もしない。
+        } else {
+            clearOverlay();
+        }
+    };
+
+    const onSeeked = () => {
+        if (!useRVFC) {
+            clearOverlay();
+        }
     };
 
     const detach = () => {
         videoElement.removeEventListener('playing', onPlaying);
         videoElement.removeEventListener('loadeddata', onLoadedData);
+        videoElement.removeEventListener('canplay', onCanPlay);
+        videoElement.removeEventListener('seeked', onSeeked);
     };
 
     videoElement.addEventListener('playing', onPlaying);
     videoElement.addEventListener('loadeddata', onLoadedData);
+    videoElement.addEventListener('canplay', onCanPlay);
+    videoElement.addEventListener('seeked', onSeeked);
 
     // セーフティタイムアウト（万一描画が来ない場合にリーク防止）
     setTimeout(() => {
@@ -422,8 +466,9 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             logInfo('[fullscreen.js] Overlay auto-cleared by safety timeout.');
             clearOverlay();
         }
-    }, 2500);
+    }, 1200);
 }
+
 
 // ---------------------------------------
 // オンエアデータを処理して再生する
@@ -448,8 +493,15 @@ function handleOnAirData(itemData) {
     cancelAudioFade();
     setInitialData(itemData);
 
-    // 動画とUVCの振り分け
-    if (globalState.deviceId) {
+    // 動画とUVCの振り分け（path からのUVC判定も許容し、deviceId を補完）
+    if (globalState.deviceId || (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE:'))) {
+        if (!globalState.deviceId && typeof globalState.path === 'string') {
+            const id = globalState.path.substring('UVC_DEVICE:'.length);
+            if (id) {
+                globalState.deviceId = id;
+                logInfo(`[fullscreen.js] deviceId complemented from path: ${id}`);
+            }
+        }
         logInfo('[fullscreen.js] Detected UVC device. Setting up UVC device stream.');
         setupUVCDevice();
     } else if (globalState.path) {
@@ -479,12 +531,14 @@ function setupVideoPlayer() {
         return;
     }
 
-    // UVCデバイスでない場合は、安全なURLに変換してセットする
-    if (typeof globalState.path === 'string' && !globalState.path.startsWith("UVC_DEVICE")) {
-        videoElement.src = getSafeFileURL(globalState.path);
-    } else {
-        videoElement.src = globalState.path;
+    // UVCパスが来ている場合は file URL を一切適用しない（UVCは別経路で初期化）
+    if (typeof globalState.path === 'string' && globalState.path.startsWith("UVC_DEVICE")) {
+        logInfo('[fullscreen.js] UVC path detected in setupVideoPlayer; skipping file URL.');
+        return;
     }
+
+    // 通常ファイルのみ、安全なURLに変換してセットする
+    videoElement.src = getSafeFileURL(globalState.path);
 
     // IN点から再生を開始する準備
     videoElement.currentTime = globalState.inPoint;
@@ -567,12 +621,20 @@ async function setupUVCDevice() {
             video: { deviceId: { exact: deviceId } }
         });
 
-        // ビデオ要素にストリームを設定
+        // 初期音量（ファイル再生と同等のロジック）
+        const initialVolume = (globalState.volume !== undefined ? globalState.volume : (globalState.defaultVolume / 100));
+        videoElement.volume = initialVolume;
+
+        // ストリームをセット
         videoElement.srcObject = stream;
-        videoElement.addEventListener('canplay', function handleCanPlay() {
+
+        // 「動き出し」を保証する playing でフェード開始（canplay だと静止フレームのままの可能性）
+        const handlePlaying = () => {
             fullscreenFadeFromBlack(0.3, isFillKeyMode);
-            videoElement.removeEventListener('canplay', handleCanPlay);
-        });
+            videoElement.removeEventListener('playing', handlePlaying);
+        };
+        videoElement.addEventListener('playing', handlePlaying, { once: true });
+
         await videoElement.play();
         globalState.stream = stream;
         logInfo('[fullscreen.js] UVC device stream initialized successfully.');
