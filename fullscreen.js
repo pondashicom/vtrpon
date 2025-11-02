@@ -295,23 +295,22 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         return;
     }
 
-    // 前フレームを描画（drawImage失敗時は何もしない＝黒は出さない）
+    // 前フレームを描画（黒は挟まない）
     const ctx = overlayCanvas.getContext('2d');
     try {
-        // UVC FADEIN中は最初から黒だけを使う（前フレームは描かない）
         if (typeof pendingUvcFadeInSec === 'number' && pendingUvcFadeInSec > 0) {
+            // UVCフェード指定時は従来通り黒→フェード（方針据え置き）
             ctx.save();
             ctx.globalCompositeOperation = 'source-over';
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             ctx.restore();
-            overlayForceBlack = true; // 念のためここでも drawImage を無効化
+            overlayForceBlack = true;
             overlayCanvas.style.opacity = '1';
             overlayCanvas.style.display = 'block';
             seamlessGuardActive = true;
             logDebug('[fullscreen.js] Overlay pre-black (no last frame) for UVC FADEIN.');
         } else {
-            // 通常ケースのみ前フレームを描画（アスペクト維持・レターボックス／ピラーボックス）
             const vw = videoElement.videoWidth || 0;
             const vh = videoElement.videoHeight || 0;
             const cw = overlayCanvas.width;
@@ -324,11 +323,9 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
                 const dx = Math.floor((cw - dw) / 2);
                 const dy = Math.floor((ch - dh) / 2);
 
-                // 余白クリア後、中央にアスペクト維持で描画
                 ctx.clearRect(0, 0, cw, ch);
                 ctx.drawImage(videoElement, 0, 0, vw, vh, dx, dy, dw, dh);
             } else {
-                // 安全策：従来通り全面描画（情報不足時）
                 ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
             }
 
@@ -340,14 +337,14 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         return;
     }
 
-    // 解除処理：新ソースが“実際に描画された”ことを確認してから非表示
+    // 解除処理：実描画を確認してからだけ非表示（黒を挟まない）
     let cleared = false;
+
     const clearOverlay = () => {
         if (cleared) return;
         cleared = true;
 
         try {
-            // UVC FADEIN 指定があればオーバーレイ自身を黒→透明にフェードアウト
             if (typeof pendingUvcFadeInSec === 'number' && pendingUvcFadeInSec > 0) {
                 const durMs = Math.max(1, Math.floor(pendingUvcFadeInSec * 1000));
                 let startTs = null;
@@ -364,14 +361,11 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
                     } else {
                         overlayCanvas.style.display = 'none';
                         overlayCanvas.style.opacity = '1';
-                        try {
-                            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                        } catch (_) {}
-                        // 後始末
+                        try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
                         pendingUvcFadeInSec = 0;
                         seamlessGuardActive = false;
                         suppressFadeUntilPlaying = false;
-                        overlayForceBlack = false; // ★ drawImage 無効化を解除
+                        overlayForceBlack = false;
                         logDebug('[fullscreen.js] Overlay black faded out for UVC FADEIN.');
                         detach();
                     }
@@ -380,20 +374,18 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
                 return;
             }
 
-            // 通常ケース
+            // 通常ケース（即時非表示）
             overlayCanvas.style.display = 'none';
-            try {
-                ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            } catch (_) {}
+            try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
         } catch (_) {}
 
         seamlessGuardActive = false;
-        overlayForceBlack = false; // 念のため通常クリアでも解除
+        overlayForceBlack = false;
         logDebug('[fullscreen.js] Overlay cleared after next frame ready.');
         detach();
     };
 
-    // rVFCが使えるなら2フレーム待つ（より確実）
+    // rVFCで“実際に描画された”ことを待つ
     const useRVFC = !!(videoElement && typeof videoElement.requestVideoFrameCallback === 'function');
     let rvfcCount = 0;
     const rvfc = useRVFC ? (ts, md) => {
@@ -405,48 +397,27 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         }
     } : null;
 
-    // 可能なら即座にrVFCを予約（playing待ちで遅延する個体対策）
     if (useRVFC) {
         try { videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
     }
 
-    // フォールバック：timeupdate/playing/canplay/seeked でも解除
+    // フォールバック（黒は挟まない／解除のみ）
     const onPlaying = () => {
-        // 次ソースがUVCの起動待ちで映像黒フェードを抑止している場合は、playing到達で抑止解除
         if (typeof suppressFadeUntilPlaying !== 'undefined' && suppressFadeUntilPlaying) {
             suppressFadeUntilPlaying = false;
             logInfo('[fullscreen.js] incoming UVC playing detected; fade suppression released.');
         }
-
         if (useRVFC) {
             videoElement.requestVideoFrameCallback(rvfc);
         } else {
-            // 少なくとも表示が進んだイベントを一度観測してから解除
-            const onceTimeupdate = () => {
-                clearOverlay();
-            };
+            const onceTimeupdate = () => { clearOverlay(); };
             videoElement.addEventListener('timeupdate', onceTimeupdate, { once: true });
         }
     };
 
-    const onLoadedData = () => {
-        // loadeddata時点では解除しない（黒が見える原因）。実描画まで待つ。
-        // ただしrVFC非対応環境では canplay/seeked を拾う
-    };
-
-    const onCanPlay = () => {
-        if (useRVFC) {
-            // すでにrVFC予約済み。ここでは何もしない。
-        } else {
-            clearOverlay();
-        }
-    };
-
-    const onSeeked = () => {
-        if (!useRVFC) {
-            clearOverlay();
-        }
-    };
+    const onLoadedData = () => {};
+    const onCanPlay = () => { if (!useRVFC) clearOverlay(); };
+    const onSeeked   = () => { if (!useRVFC) clearOverlay(); };
 
     const detach = () => {
         videoElement.removeEventListener('playing', onPlaying);
@@ -460,13 +431,13 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     videoElement.addEventListener('canplay', onCanPlay);
     videoElement.addEventListener('seeked', onSeeked);
 
-    // セーフティタイムアウト（万一描画が来ない場合にリーク防止）
+    // セーフティ（黒を挟まず、リーク防止だけ。通常は到達しない）
     setTimeout(() => {
         if (seamlessGuardActive) {
-            logInfo('[fullscreen.js] Overlay auto-cleared by safety timeout.');
+            logInfo('[fullscreen.js] Overlay auto-cleared by safety timeout (no black).');
             clearOverlay();
         }
-    }, 1200);
+    }, 4000);
 }
 
 
