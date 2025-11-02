@@ -294,12 +294,11 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         logInfo('[fullscreen.js] Overlay capture skipped due to missing element.');
         return;
     }
-
-    // 前フレームを描画（黒は挟まない）
+    
+    // 前フレーム保持→新フレーム実描画で解除（黒は挟まない）
     const ctx = overlayCanvas.getContext('2d');
     try {
         if (typeof pendingUvcFadeInSec === 'number' && pendingUvcFadeInSec > 0) {
-            // UVCフェード指定時は従来通り黒→フェード（方針据え置き）
             ctx.save();
             ctx.globalCompositeOperation = 'source-over';
             ctx.fillStyle = '#000';
@@ -331,26 +330,31 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
             overlayCanvas.style.display = 'block';
             seamlessGuardActive = true;
+
+            // 念のため：過去の音声で display:none にしていたら、映像寸法あり次第復帰
+            if (videoElement.getAttribute('data-hide-due-to-audio') === '1' &&
+                (videoElement.videoWidth | 0) > 0 && (videoElement.videoHeight | 0) > 0) {
+                videoElement.style.display = '';
+                videoElement.removeAttribute('data-hide-due-to-audio');
+                logDebug('[fullscreen.js] Video display restored (entering video item).');
+            }
         }
     } catch (e) {
         logDebug(`[fullscreen.js] overlay draw skipped: ${e && e.message ? e.message : String(e)}`);
         return;
     }
 
-    // 解除処理：実描画を確認してからだけ非表示（黒を挟まない）
+    // 解除処理（黒は挟まない）
     let cleared = false;
-
     const clearOverlay = () => {
         if (cleared) return;
         cleared = true;
-
         try {
             if (typeof pendingUvcFadeInSec === 'number' && pendingUvcFadeInSec > 0) {
                 const durMs = Math.max(1, Math.floor(pendingUvcFadeInSec * 1000));
                 let startTs = null;
                 overlayCanvas.style.display = 'block';
                 overlayCanvas.style.opacity = '1';
-
                 const raf = (ts) => {
                     if (startTs === null) startTs = ts;
                     const t = ts - startTs;
@@ -373,19 +377,16 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
                 requestAnimationFrame(raf);
                 return;
             }
-
-            // 通常ケース（即時非表示）
             overlayCanvas.style.display = 'none';
             try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
         } catch (_) {}
-
         seamlessGuardActive = false;
         overlayForceBlack = false;
         logDebug('[fullscreen.js] Overlay cleared after next frame ready.');
         detach();
     };
 
-    // rVFCで“実際に描画された”ことを待つ
+    // 実描画検知
     const useRVFC = !!(videoElement && typeof videoElement.requestVideoFrameCallback === 'function');
     let rvfcCount = 0;
     const rvfc = useRVFC ? (ts, md) => {
@@ -396,12 +397,11 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             videoElement.requestVideoFrameCallback(rvfc);
         }
     } : null;
-
     if (useRVFC) {
         try { videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
     }
 
-    // フォールバック（黒は挟まない／解除のみ）
+    // フォールバック（解除のみ）
     const onPlaying = () => {
         if (typeof suppressFadeUntilPlaying !== 'undefined' && suppressFadeUntilPlaying) {
             suppressFadeUntilPlaying = false;
@@ -414,7 +414,6 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             videoElement.addEventListener('timeupdate', onceTimeupdate, { once: true });
         }
     };
-
     const onLoadedData = () => {};
     const onCanPlay = () => { if (!useRVFC) clearOverlay(); };
     const onSeeked   = () => { if (!useRVFC) clearOverlay(); };
@@ -425,21 +424,19 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         videoElement.removeEventListener('canplay', onCanPlay);
         videoElement.removeEventListener('seeked', onSeeked);
     };
-
     videoElement.addEventListener('playing', onPlaying);
     videoElement.addEventListener('loadeddata', onLoadedData);
     videoElement.addEventListener('canplay', onCanPlay);
     videoElement.addEventListener('seeked', onSeeked);
 
-    // セーフティ（黒を挟まず、リーク防止だけ。通常は到達しない）
+    // セーフティ（動画のみ。黒は挟まない）
     setTimeout(() => {
         if (seamlessGuardActive) {
             logInfo('[fullscreen.js] Overlay auto-cleared by safety timeout (no black).');
             clearOverlay();
         }
-    }, 4000);
+    }, 20);
 }
-
 
 // ---------------------------------------
 // オンエアデータを処理して再生する
