@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.4.3
+//     ver 2.4.4
 // -----------------------
 
 
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // SOUND PADモードボタンのイベントリスナーを初期化
     const soundPadButton = document.getElementById('soundpad-mode-button');
     if (soundPadButton) {
-        soundPadButton.addEventListener('click', () => {
+        soundPadButton.addEventListener('click', async () => {
             soundPadActive = !soundPadActive;
             if (soundPadActive) {
                 // 相互排他：DIRECT ONAIRモードがオンならオフにする
@@ -111,8 +111,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (directOnAirButton) directOnAirButton.classList.remove('button-green');
                 }
                 soundPadButton.classList.add('button-green');
+
+                // ここで全アイテムを書き換える（PAUSE→PLAY、endModeは常にOFF）
+                try {
+                    const playlist = await stateControl.getPlaylistState();
+                    const updatedPlaylist = playlist.map(item => {
+                        const newStartMode = (item.startMode === "PAUSE") ? "PLAY" : item.startMode;
+                        const newEndMode = "OFF";
+                        return {
+                            ...item,
+                            startMode: newStartMode,
+                            endMode: newEndMode,
+                            order: Number(item.order)
+                        };
+                    });
+                    await stateControl.setPlaylistState(updatedPlaylist);
+                    await updatePlaylistUI();
+
+                    // 編集中アイテムをエディットエリアに再送信し、On-Air側のendModeも同期
+                    const latest = await stateControl.getPlaylistState();
+                    const editingItem = latest.find(it => it.editingState === 'editing');
+                    if (editingItem) {
+                        window.electronAPI.updateEditState(editingItem);
+                        window.electronAPI.syncOnAirEndMode &&
+                            window.electronAPI.syncOnAirEndMode({
+                                editingItemId: editingItem.playlistItem_id,
+                                endMode: editingItem.endMode
+                            });
+                        logOpe('[playlist.js] Requested On-Air endMode sync (SOUND PAD ON).');
+                    }
+                } catch (e) {
+                    logInfo('[playlist.js] SOUND PAD mode apply error:', e);
+                }
             } else {
                 soundPadButton.classList.remove('button-green');
+                // OFF時はプレイリストは変更しない（他モードと同様の方針）
             }
             logOpe(`[playlist.js] SOUND PAD mode toggled: ${soundPadActive}`);
             soundPadButton.blur();
@@ -134,7 +167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // DIRECT ONAIRモードボタンのイベントリスナーを初期化
     const directOnAirButton = document.getElementById('directonair-mode-button');
     if (directOnAirButton) {
-        directOnAirButton.addEventListener('click', () => {
+        directOnAirButton.addEventListener('click', async () => {
             directOnAirActive = !directOnAirActive;
             if (directOnAirActive) {
                 // 相互排他：SOUND PADモードがオンならオフにする
@@ -144,8 +177,40 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (soundPadButton) soundPadButton.classList.remove('button-green');
                 }
                 directOnAirButton.classList.add('button-green');
+
+                // ここで全アイテムを書き換える（PAUSE→PLAY、endModeは変更しない）
+                try {
+                    const playlist = await stateControl.getPlaylistState();
+                    const updatedPlaylist = playlist.map(item => {
+                        const newStartMode = (item.startMode === "PAUSE") ? "PLAY" : item.startMode;
+                        return {
+                            ...item,
+                            startMode: newStartMode,
+                            order: Number(item.order)
+                            // endMode は既存値を維持
+                        };
+                    });
+                    await stateControl.setPlaylistState(updatedPlaylist);
+                    await updatePlaylistUI();
+
+                    // 編集中アイテムをエディットエリアに再送信（endModeは変更なしのため同期はそのまま）
+                    const latest = await stateControl.getPlaylistState();
+                    const editingItem = latest.find(it => it.editingState === 'editing');
+                    if (editingItem) {
+                        window.electronAPI.updateEditState(editingItem);
+                        window.electronAPI.syncOnAirEndMode &&
+                            window.electronAPI.syncOnAirEndMode({
+                                editingItemId: editingItem.playlistItem_id,
+                                endMode: editingItem.endMode
+                            });
+                        logOpe('[playlist.js] Requested On-Air endMode sync (DIRECT ON).');
+                    }
+                } catch (e) {
+                    logInfo('[playlist.js] DIRECT ONAIR mode apply error:', e);
+                }
             } else {
                 directOnAirButton.classList.remove('button-green');
+                // OFF時はプレイリストは変更しない（他モードと同様の方針）
             }
             logOpe(`[playlist.js] DIRECT ONAIR mode toggled: ${directOnAirActive}`);
             directOnAirButton.blur();
@@ -2531,14 +2596,25 @@ function updateListModeButtons(activeMode) {
 // Sound Padモード処理
 // -----------------------
 async function handleSoundPadOnAir(item, index) {
-    const targetId = item.playlistItem_id;
+    // item が DOM要素の場合と stateオブジェクトの場合の双方に対応
+    const targetId =
+        (item && typeof item === 'object' && 'playlistItem_id' in item && item.playlistItem_id) ?
+            item.playlistItem_id :
+        (item && typeof item.getAttribute === 'function') ?
+            item.getAttribute('data-playlist-item-id') :
+            null;
+
+    if (!targetId) {
+        logInfo('[playlist.js] SOUND PAD On-Air: targetId not found.');
+        return;
+    }
     logOpe(`[playlist.js] SOUND PAD On-Air triggered for item ID: ${targetId}`);
 
     // 対象アイテムだけ書き換える
     let playlist = await stateControl.getPlaylistState();
     playlist = playlist.map(file => {
         if (file.playlistItem_id === targetId) {
-            // startMode: "PAUSE" → "PLAY"、それ以外は変更なし
+            // startMode: "PAUSE" → "PLAY"、それ以外は変更なし（ご要望どおり）
             const newStartMode = (file.startMode === "PAUSE") ? "PLAY" : file.startMode;
 
             // endMode はサウンドパッドでは常に "OFF"
@@ -2550,7 +2626,7 @@ async function handleSoundPadOnAir(item, index) {
                 endMode: newEndMode,
                 selectionState: "selected",
                 editingState: "editing"
-                // ftbEnabled 等はここでいじらない
+                // ftbEnabled 等はこの関数では変更しない
             };
         }
         return file;
@@ -2583,15 +2659,26 @@ async function handleSoundPadOnAir(item, index) {
 // -----------------------
 // Direct Onair モード処理
 // -----------------------
-
 async function handleDirectOnAir(item, index) {
-    const targetId = item.playlistItem_id;
+    // item が DOM要素の場合と stateオブジェクトの場合の双方に対応
+    const targetId =
+        (item && typeof item === 'object' && 'playlistItem_id' in item && item.playlistItem_id) ?
+            item.playlistItem_id :
+        (item && typeof item.getAttribute === 'function') ?
+            item.getAttribute('data-playlist-item-id') :
+            null;
+
+    if (!targetId) {
+        logInfo('[playlist.js] DIRECT ONAIR: targetId not found.');
+        return;
+    }
     logOpe(`[playlist.js] DIRECT ONAIR triggered for item ID: ${targetId}`);
 
     // 現在のプレイリスト状態を取得し、対象アイテムの状態を更新
     let playlist = await stateControl.getPlaylistState();
     playlist = playlist.map(file => {
         if (file.playlistItem_id === targetId) {
+            // startMode: "PAUSE" → "PLAY"、それ以外は変更なし（ご要望どおり）
             const newStartMode = (file.startMode === "PAUSE") ? "PLAY" : file.startMode;
             return {
                 ...file,
