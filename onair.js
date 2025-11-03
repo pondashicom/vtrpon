@@ -1831,72 +1831,34 @@ function onairHandlePlayButton() {
         return;
     }
 
-    // FTB+PAUSE で最終フレーム停止後の再開: 黒撤去 → INへ → 規定音量 → 再生
+    // 「OUT到達→FTB+PAUSE」で停止している場合
     const nearOut =
         Math.abs(onairVideoElement.currentTime - (onairCurrentState.outPoint || onairVideoElement.duration)) <
         (0.05 * (onairVideoElement.playbackRate || 1));
-    if (
-        !onairIsPlaying &&
-        nearOut &&
-        (String(onairCurrentState.endMode || '').toUpperCase() === 'PAUSE') &&
-        (onairCurrentState.ftbEnabled === true)
-    ) {
-        logDebug('[onair.js] Resuming from FTB+PAUSE at last frame: clearing black, seek to IN, restore volume.');
+    const endModeUpper = String(onairCurrentState.endMode || '').toUpperCase();
+    const isFtbPauseStop = (!onairIsPlaying) && nearOut && (endModeUpper === 'PAUSE') && (onairCurrentState.ftbEnabled === true);
 
-        // 黒の即時撤去（ローカル）
+    if (isFtbPauseStop) {
+        logDebug('[onair.js] Resuming from FTB+PAUSE at OUT: delegate to onairStartPlayback() for full reapply.');
         try {
-            const elsFTB = onairGetElements();
-            const canvas = elsFTB?.onairFadeCanvas;
-            if (canvas) {
-                canvas.style.opacity = 0;
-                canvas.style.visibility = 'hidden';
-            }
-        } catch (_) {}
-        // 黒の即時撤去（フルスクリーン）
-        window.electronAPI.sendControlToFullscreen({
-            command: 'fade-from-black',
-            value: { duration: 0.05, fillKeyMode: isFillKeyMode }
-        });
-
-        // 残留FADE状態をクリア
-        try { if (typeof stopItemFade === 'function') stopItemFade(); } catch (_) {}
-
-        // INへシーク（ローカル＋フルスクリーン）
-        onairSeekToInPoint(onairVideoElement, onairCurrentState.inPoint);
-        window.electronAPI.sendControlToFullscreen({
-            command: 'seek',
-            value: onairCurrentState.inPoint,
-        });
-
-        // 規定音量へ復帰（video.volume とスライダーを同期）
-        const targetVol = (typeof onairCurrentState.defaultVolume === 'number')
-            ? onairCurrentState.defaultVolume : 100;
-        onairVideoElement.volume = targetVol / 100;
-        const itemSlider = document.getElementById('on-air-item-volume-slider');
-        if (itemSlider) {
-            itemSlider.value = String(targetVol);
-            const valEl = document.getElementById('on-air-item-volume-value');
-            if (valEl) valEl.textContent = `${targetVol}%`;
-            itemSlider.style.setProperty('--value', `${targetVol}%`);
-            try { itemSlider.dispatchEvent(new Event('input')); } catch (_) {}
+            onairStartPlayback(onairCurrentState);
+        } catch (e) {
+            logInfo(`[onair.js] Failed to delegate start playback: ${e?.message || e}`);
         }
-
-        // 再生開始
-        onairVideoElement.play()
-            .then(() => {
-                onairIsPlaying = true;
-                onairUpdatePlayPauseButtons(elements);
-                onairStartRemainingTimer(elements, onairCurrentState);
-                logOpe('[onair.js] Playback started (resume from FTB+PAUSE).');
-                window.electronAPI.sendControlToFullscreen({ command: 'play' });
-            })
-            .catch(error => {
-                logInfo(`[onair.js] Playback failed: ${error.message}`);
+        // fullscreen 同期：INへ明示シーク→再生
+        try {
+            window.electronAPI.sendControlToFullscreen({
+                command: 'seek',
+                value: onairCurrentState.inPoint || 0
             });
-
-        onairRepeatFlag = false;
-        onairMonitorPlayback(onairVideoElement, onairCurrentState.outPoint);
-        return; // ここで完了
+            setTimeout(() => {
+                window.electronAPI.sendControlToFullscreen({
+                    command: 'play',
+                    value: { force: true, reason: 'RESUME_FROM_FTB' }
+                });
+            }, 0);
+        } catch (_) {}
+        return;
     }
 
     // 短尺ファイルの場合、動画の総尺が3秒未満なら動画要素をリセットして再初期化する
