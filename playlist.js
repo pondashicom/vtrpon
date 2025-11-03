@@ -589,24 +589,39 @@ async function generateThumbnail(filePath) {
             return;
         }
 
-        // 動画ファイルの場合
+        // 動画ファイルの場合（短距離シーク→失敗時は0秒loadeddataで描画）
         const video = document.createElement('video');
-        video.src = filePath;  // すでに安全なURLに変換済み
-        video.onloadedmetadata = () => {
-            video.currentTime = 3; // サムネイル用のフレーム指定
+        video.preload = 'metadata';
+        video.muted = true;
+        video.playsInline = true;
+
+        let settled = false;
+        const targetWidth = 120;
+        const targetHeight = Math.round((targetWidth * 9) / 16);
+
+        const cleanup = () => {
+            video.onloadedmetadata = null;
+            video.onseeked = null;
+            video.onloadeddata = null;
+            video.onerror = null;
+            try { video.pause(); } catch (_) {}
+            try { video.removeAttribute('src'); } catch (_) {}
+            try { video.src = ''; } catch (_) {}
+            try { video.load(); } catch (_) {}
         };
 
-        video.onseeked = () => {
-            const originalWidth = video.videoWidth;
-            const originalHeight = video.videoHeight;
-            const targetWidth = 120;
-            const targetHeight = Math.round((targetWidth * 9) / 16);
+        const drawFrame = () => {
+            const originalWidth = video.videoWidth || 0;
+            const originalHeight = video.videoHeight || 0;
+            if (originalWidth <= 0 || originalHeight <= 0) return false;
+
             const canvas = document.createElement('canvas');
             canvas.width = targetWidth;
             canvas.height = targetHeight;
             const ctx = canvas.getContext('2d');
             ctx.fillStyle = 'black';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
             const videoAspect = originalWidth / originalHeight;
             const canvasAspect = targetWidth / targetHeight;
             let drawWidth, drawHeight, offsetX, offsetY;
@@ -623,9 +638,73 @@ async function generateThumbnail(filePath) {
             }
             ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
             resolve(canvas.toDataURL('image/png'));
+            return true;
         };
 
+        // 5秒ウォッチドッグ：どのイベントも来なければ確実に解放・フォールバック
+        const watchdog = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Loading...', canvas.width / 2, canvas.height / 2);
+            cleanup();
+            resolve(canvas.toDataURL('image/png'));
+        }, 5000);
+
+        video.onloadedmetadata = () => {
+            // まずはごく短距離（0.1秒 or durationの10%）へシーク
+            const t = Math.min(1, Math.max(0.1, (video.duration || 1) * 0.1));
+            video.currentTime = t;
+
+            // シーク成功時
+            video.onseeked = () => {
+                if (settled) return;
+                // シーク直後はフレームが黒のことがあるので、loadeddata/canplay相当を一拍待つ
+                requestAnimationFrame(() => {
+                    if (settled) return;
+                    if (drawFrame()) {
+                        settled = true;
+                        clearTimeout(watchdog);
+                        cleanup();
+                    } else {
+                        // フレームがまだ来ていない → 0秒へフォールバック
+                        fallbackToZero();
+                    }
+                });
+            };
+
+            // シークが動かない（codecやGOPの都合）場合のフォールバックを2秒で実施
+            setTimeout(() => {
+                if (!settled) fallbackToZero();
+            }, 2000);
+        };
+
+        function fallbackToZero() {
+            if (settled) return;
+            // 0秒の最初のデータ到着を待って描画
+            video.currentTime = 0;
+            video.onloadeddata = () => {
+                if (settled) return;
+                if (drawFrame()) {
+                    settled = true;
+                    clearTimeout(watchdog);
+                    cleanup();
+                }
+            };
+        }
+
         video.onerror = () => {
+            if (settled) return;
+            settled = true;
             const canvas = document.createElement('canvas');
             canvas.width = 112;
             canvas.height = 63;
@@ -638,8 +717,13 @@ async function generateThumbnail(filePath) {
             ctx.textBaseline = 'middle';
             ctx.fillText('Loading failed', canvas.width / 2, canvas.height / 2);
             showMessage(getMessage('not-supported-file-error'), 5000, 'alert');
+            clearTimeout(watchdog);
+            cleanup();
             resolve(canvas.toDataURL('image/png'));
         };
+
+        video.src = filePath;  // すでに安全なURLに変換済み
+
     });
 }
 
