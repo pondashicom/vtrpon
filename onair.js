@@ -3289,6 +3289,13 @@ function onairHandleFTBButton() {
     fadeButtonBlink(elements.onairFTBButton);
     const currentTime = elements.onairVideoElement ? elements.onairVideoElement.currentTime : 0;
 
+    // 通知: フルスクリーン側にも FTB（endMode=FTB）を明示指示
+    window.electronAPI.sendControlToFullscreen({
+        command: 'trigger-endMode',
+        value: 'FTB',
+        startMode: (onairCurrentState?.startMode || 'PAUSE')
+    });
+
     // ローカルでFTB処理（映像フェード・音声フェード）を開始
     onairHandleEndModeFTB();
 }
