@@ -1,4 +1,4 @@
-﻿/* style.css 2.4.3 */
+﻿/* style.css 2.4.4 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -1608,7 +1608,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 /* ------------------ */
 
 /* 入力フィールドのスタイル */
-#fadeInDuration, #startFadeInSec, #ftbRate, #fioRate, #itemFioRate, #mainFioRate {
+#fadeInDuration, #startFadeInSec, #ftbRate, #fioRate, #itemFioRate, #mainFioRate, #repeatCount  {
     width: 4rem;
     height: 1.6rem;
     background-color: #2e2e2e;
@@ -1624,6 +1624,23 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     -moz-appearance: textfield;
 }
 
+/* repeatCountだけ幅を少し狭くし、数字とスピンの間を広げる */
+#repeatCount {
+    width: 3.2rem;
+    padding-right: 0.5rem;
+    text-align: center;
+}
+
+/* placeholder */
+input#repeatCount::placeholder,
+input#repeatCount::-webkit-input-placeholder {
+    color: #ffffff !important;
+    opacity: 1 !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.02em !important;
+    font-size: 1rem !important;
+}
+
 /* スピンボタン部分の余白調整 */
 #fadeInDuration::-webkit-inner-spin-button,
 #startFadeInSec::-webkit-inner-spin_button,
@@ -1635,6 +1652,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 #ftbRate::-webkit-outer-spin-button,
 #fioRate::-webkit-outer-spin-button,
 #itemFioRate::-webkit-outer-spin-button,
+#repeatCount::-webkit-outer-spin-button,
 #mainFioRate::-webkit-outer-spin-button {
     margin-left: 0.4375rem;    /* 7px */
 }
