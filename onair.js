@@ -1179,6 +1179,14 @@ function onairStartPlayback(itemData) {
 
                 const handleEarlyReady = () => {
                     clearBlackOverlaySmooth();
+
+                    // fullscreen 側の黒保持も解除（UVC+FADEIN）
+                    try {
+                        window.electronAPI.sendControlToFullscreen({
+                            command: 'fade-from-black',
+                            value: { duration: fadeInSec, fillKeyMode: isFillKeyMode }
+                        });
+                    } catch (_) {}
                 };
                 onairVideoElement.addEventListener('playing',        handleEarlyReady, { once: true });
                 onairVideoElement.addEventListener('loadeddata',     handleEarlyReady, { once: true });
@@ -1268,6 +1276,14 @@ function onairStartPlayback(itemData) {
             } catch (_) {}
         }
 
+        // リピート直後に黒保持を確実に解除（fullscreen）
+        try {
+            window.electronAPI.sendControlToFullscreen({
+                command: 'fade-from-black',
+                value: { duration: 0.05, fillKeyMode: isFillKeyMode }
+            });
+        } catch (_) {}
+
         onairIsPlaying = true; 
         onairVideoElement.play()
             .then(() => {
@@ -1277,6 +1293,13 @@ function onairStartPlayback(itemData) {
                 logOpe('[onair.js] Playback started via PLAY start mode.');
                 // 再度送信して確実化（先行送信との二重化で競合吸収）
                 window.electronAPI.sendControlToFullscreen({ command: 'play' });
+                // 再生確定直後に fullscreen 側の黒保持を解除
+                try {
+                    window.electronAPI.sendControlToFullscreen({
+                        command: 'fade-from-black',
+                        value: { duration: 0.05, fillKeyMode: isFillKeyMode }
+                    });
+                } catch (_) {}
             })
             .catch(error => {
                 onairIsPlaying = false;
@@ -1320,6 +1343,13 @@ function onairStartPlayback(itemData) {
                     ftbRate: fadeDuration,
                     currentTime: onairVideoElement.currentTime
                 });
+                // FADEIN開始直後に fullscreen 側の黒保持を確実に解除（映像の立ち上がりで黒張り付きを防止）
+                try {
+                    window.electronAPI.sendControlToFullscreen({
+                        command: 'fade-from-black',
+                        value: { duration: fadeDuration, fillKeyMode: isFillKeyMode }
+                    });
+                } catch (_) {}
             })
             .catch(error => {
                 onairIsPlaying = false;
