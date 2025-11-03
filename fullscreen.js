@@ -295,7 +295,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         return;
     }
     
-    // 前フレーム保持→新フレーム実描画で解除（黒は挟まない）
+    // 前フレーム保持→新フレーム実描画で解除
     const ctx = overlayCanvas.getContext('2d');
     try {
         if (typeof pendingUvcFadeInSec === 'number' && pendingUvcFadeInSec > 0) {
@@ -331,7 +331,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             overlayCanvas.style.display = 'block';
             seamlessGuardActive = true;
 
-            // 念のため：過去の音声で display:none にしていたら、映像寸法あり次第復帰
+            // 過去の音声で display:none にしていたら、映像寸法あり次第復帰
             if (videoElement.getAttribute('data-hide-due-to-audio') === '1' &&
                 (videoElement.videoWidth | 0) > 0 && (videoElement.videoHeight | 0) > 0) {
                 videoElement.style.display = '';
@@ -344,7 +344,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         return;
     }
 
-    // 解除処理（黒は挟まない）
+    // 解除処理
     let cleared = false;
     const clearOverlay = () => {
         if (cleared) return;
@@ -401,7 +401,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         try { videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
     }
 
-    // フォールバック（解除のみ）
+    // フォールバック
     const onPlaying = () => {
         if (typeof suppressFadeUntilPlaying !== 'undefined' && suppressFadeUntilPlaying) {
             suppressFadeUntilPlaying = false;
@@ -429,7 +429,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     videoElement.addEventListener('canplay', onCanPlay);
     videoElement.addEventListener('seeked', onSeeked);
 
-    // セーフティ（動画のみ。黒は挟まない）
+    // セーフティ
     setTimeout(() => {
         if (seamlessGuardActive) {
             logInfo('[fullscreen.js] Overlay auto-cleared by safety timeout (no black).');
@@ -874,7 +874,6 @@ function startPreFTB(durationSec, fillKeyMode) {
     preFtbRaf = requestAnimationFrame(step);
 }
 
-
 // 事前FTBのキャンセル（巻き戻しなど）
 function cancelPreFTB() {
     preFtbActive = false;
@@ -1182,8 +1181,6 @@ function handleEndModePAUSE() {
     logInfo('[fullscreen.js] Video paused.');
 }
 
-// ------------------------------------
-// エンドモードFTB
 // ------------------------------------
 // エンドモードFTB
 // ------------------------------------
