@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.4.3
+//     ver 2.4.4
 // -----------------------
 // -----------------------
 // 初期設定
@@ -49,6 +49,10 @@ let fadeInInProgressItem = false;
 let isOffAirProcessing = false;
 let onairPreFtbStarted = false;
 let onairFtbLocked = false;
+let onairSeamlessGuardActive = false; 
+let onairOverlayForceBlack = false;
+let onairSuppressFadeUntilPlaying = false;
+let onairPendingUvcFadeInSec = 0;
 
 // -----------------------
 // 初期化
@@ -88,6 +92,170 @@ function onairGetElements() {
         onairFadeInButton: document.getElementById('on-air-fi-button'),
         onairFTBButton: document.getElementById('ftb-off-button')
     };
+}
+
+// オーバーレイCanvasの初期化
+function initializeOverlayCanvasOnAir() {
+    // 既存キャンバス取得 or 作成
+    let canvas = document.getElementById('onair-overlay-canvas');
+    const els = onairGetElements();
+    const videoEl = els?.onairVideoElement;
+    const fade   = els?.onairFadeCanvas;
+
+    if (!videoEl || !videoEl.parentElement) {
+        logInfo('[onair.js] on-air-video parent not found.');
+        return null;
+    }
+
+    const parent = videoEl.parentElement;
+    // 親のpositionがstaticだと重なり順が効かないことがあるため相対配置に
+    const cs = window.getComputedStyle(parent);
+    if (!cs || cs.position === 'static') {
+        parent.style.position = 'relative';
+    }
+
+    if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.id = 'onair-overlay-canvas';
+        canvas.style.position = 'absolute';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        canvas.style.pointerEvents = 'none';
+        canvas.style.visibility = 'hidden';
+        canvas.style.opacity = 0;
+        parent.appendChild(canvas);
+    }
+
+    // z-indexを十分大きく（video / fade-canvas より前面）
+    try {
+        const baseZ = (fade && fade.style && fade.style.zIndex) ? (parseInt(fade.style.zIndex, 10) || 0) : 0;
+        // fullscreen側と同様、確実に最前面へ
+        canvas.style.zIndex = String(Math.max(baseZ + 1, 1002));
+    } catch (_) {
+        canvas.style.zIndex = '1002';
+    }
+
+    // サイズ同期（描画直前にも毎回実施する前提だが、初期化時にも一度合わせる）
+    try {
+        adjustFadeCanvasSize(videoEl, canvas);
+        canvas.width  = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    } catch (_) {}
+
+    return canvas;
+}
+
+// 前フレームを保持し、次ソースの実描画を検知したら解除
+function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
+    // 1) 黒保持中（FTB等）の場合はスキップ
+    if (respectBlackHold) {
+        const els = onairGetElements();
+        const fc = els?.onairFadeCanvas;
+        if (fc && fc.style && fc.style.visibility !== 'hidden' && parseFloat(fc.style.opacity || '0') > 0.9) {
+            logInfo('[onair.js] Overlay capture skipped due to black hold.');
+            return;
+        }
+    }
+
+    const els = onairGetElements();
+    const videoElement = els?.onairVideoElement;
+    const overlayCanvas = initializeOverlayCanvasOnAir();
+    if (!videoElement || !overlayCanvas) {
+        logInfo('[onair.js] Overlay capture skipped due to missing element.');
+        return;
+    }
+
+    // 2) 前フレーム or 黒を描画
+    const ctx = overlayCanvas.getContext('2d');
+    overlayCanvas.style.visibility = 'visible';
+    overlayCanvas.style.opacity = 1;
+
+    if (onairOverlayForceBlack) {
+        // 黒一本化（UVC+FADEINなどで使用）
+        ctx.save();
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        ctx.restore();
+    } else {
+        // 現在フレームを固定
+        try {
+            ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+        } catch (e) {
+            // drawImage失敗時は黒退避
+            ctx.save();
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            ctx.restore();
+        }
+    }
+
+    // 3) 解除条件（次ソースの「実描画」を検知）
+    onairSeamlessGuardActive = true;
+
+    // a) requestVideoFrameCallback が使える場合は2フレーム観測して解除
+    let rvcHandle = null;
+    let frameCount = 0;
+    const useRVC = typeof videoElement.requestVideoFrameCallback === 'function';
+
+    const clearOverlay = () => {
+        try {
+            overlayCanvas.style.opacity = 0;
+            overlayCanvas.style.visibility = 'hidden';
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        } catch (_) {}
+        onairSeamlessGuardActive = false;
+    };
+
+    if (useRVC) {
+        const tick = () => {
+            rvcHandle = videoElement.requestVideoFrameCallback(() => {
+                frameCount += 1;
+                if (frameCount >= 2) {
+                    clearOverlay();
+                } else {
+                    tick();
+                }
+            });
+        };
+        // src切替を跨ぐため少し遅延して観測を開始
+        setTimeout(tick, 0);
+    }
+
+    // b) フォールバック: playing / canplay / seeked / timeupdate のどれかで解除
+    const once = (type) => {
+        const handler = () => {
+            ['playing', 'canplay', 'seeked', 'timeupdate'].forEach(ev => videoElement.removeEventListener(ev, handler));
+            if (useRVC && rvcHandle && videoElement.cancelVideoFrameCallback) {
+                try { videoElement.cancelVideoFrameCallback(rvcHandle); } catch (_) {}
+            }
+            clearOverlay();
+        };
+        videoElement.addEventListener(type, handler, { once: true });
+    };
+    ['playing', 'canplay', 'seeked', 'timeupdate'].forEach(once);
+}
+
+// シームレス用オーバーレイ関連フラグキャンセル
+function onairCancelSeamlessOverlay(reason) {
+    try {
+        const overlayCanvas = document.getElementById('onair-overlay-canvas');
+        if (overlayCanvas) {
+            overlayCanvas.style.opacity = 0;
+            overlayCanvas.style.visibility = 'hidden';
+            try {
+                const ctx = overlayCanvas.getContext('2d');
+                ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            } catch (_) {}
+        }
+    } catch (_) {}
+
+    // フラグ類を必ずリセット
+    onairSeamlessGuardActive = false;
+    onairOverlayForceBlack = false;
+    onairSuppressFadeUntilPlaying = false;
+    onairPendingUvcFadeInSec = 0;
+
+    if (reason) logInfo('[onair.js] Seamless overlay cancelled:', reason);
 }
 
 // ビデオ要素の初期化
@@ -189,7 +357,6 @@ function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
     logDebug(`[onair.js] Item volume slider initialized to ${defaultItemVolume}% and Master volume slider initialized to ${onairMasterVolume}%`);
 }
 
-
 // シークバーの初期化
 function onairInitializeSeekBar(elements) {
     const { onairProgressSlider, onairStartTimeDisplay, onairEndTimeDisplay, onairVideoElement } = elements;
@@ -222,15 +389,12 @@ function onairInitializeSeekBar(elements) {
 
     if (inMarker) inMarker.style.display = "none";
     if (outMarker) outMarker.style.display = "none";
-
-
     logDebug('[onair.js] Seek bar initialized.');
 }
 
 // 各種状態表示の初期化
 function onairInitializeStatusDisplays(elements) {
     const { onairFileNameDisplay, onairInPointDisplay, onairOutPointDisplay, onairRemainTimeDisplay, onairEndModeDisplay } = elements;
-
     if (onairFileNameDisplay) onairFileNameDisplay.textContent = 'No file loaded';
     if (onairInPointDisplay) onairInPointDisplay.textContent = '00:00:00:00';
     if (onairOutPointDisplay) onairOutPointDisplay.textContent = '00:00:00:00';
@@ -241,12 +405,9 @@ function onairInitializeStatusDisplays(elements) {
 // フェードキャンバスの初期化
 function onairInitializeFadeCanvas(elements) {
     const { onairFadeCanvas, onairVideoElement } = elements;
-
     if (!onairFadeCanvas || !onairVideoElement) return;
-
     // キャンバスのサイズをビデオに合わせる
     adjustFadeCanvasSize(onairVideoElement, onairFadeCanvas);
-
     // キャンバスの初期状態を設定
     onairFadeCanvas.style.position = 'absolute';
     onairFadeCanvas.style.pointerEvents = 'none';
@@ -255,23 +416,19 @@ function onairInitializeFadeCanvas(elements) {
     onairFadeCanvas.style.padding = '0';
     onairFadeCanvas.style.opacity = 0;
     onairFadeCanvas.style.visibility = 'hidden';
-
     // リサイズイベントでキャンバスサイズを更新
     window.addEventListener('resize', () => adjustFadeCanvasSize(onairVideoElement, onairFadeCanvas));
-
     logDebug('[onair.js] Fade canvas initialized.');
 }
 
 // キャンバスサイズ調整
 function adjustFadeCanvasSize(videoElement, fadeCanvas) {
     if (!videoElement || !fadeCanvas) return;
-
     const rect = videoElement.getBoundingClientRect();
     fadeCanvas.style.width = `${rect.width}px`;
     fadeCanvas.style.height = `${rect.height}px`;
     fadeCanvas.style.left = `${rect.left}px`;
     fadeCanvas.style.top = `${rect.top}px`;
-
     logDebug('[onair.js] Fade canvas size adjusted.');
 }
 
@@ -388,7 +545,6 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
     // 6 再生プロセスの呼び出し
     onairStartPlayback(itemData);
 });
-
 
 // Off-Air通知を受信したら onairHandleOffAirButton を実行する
 window.electronAPI.onReceiveOffAirNotify(() => {
@@ -924,13 +1080,28 @@ function onairStartPlayback(itemData) {
                 canvas.style.opacity = 0;
                 canvas.style.visibility = 'hidden';
             }
-            window.electronAPI.sendControlToFullscreen({
-                command: 'fade-from-black',
-                value: { duration: 0.05, fillKeyMode: isFillKeyMode }
-            });
         }
     } catch (_) {}
 
+    // 前フレーム固定の仕込み（fullscreen仕様と同じ条件）
+    // 条件: startMode !== 'PAUSE' かつ 前がUVCではない かつ 次がUVCではない
+    try {
+        const startModeUpper2 = String(itemData?.startMode || 'PAUSE').toUpperCase();
+        const isPrevUvc =
+            !!onairCurrentState &&
+            typeof onairCurrentState.path === 'string' &&
+            onairCurrentState.path.startsWith('UVC_DEVICE');
+        const isNextUvc = !!itemData?.deviceId; // UVCはdeviceIdで判定
+
+        if (startModeUpper2 !== 'PAUSE' && !isPrevUvc && !isNextUvc) {
+            captureLastFrameAndHoldUntilNextReadyOnAir(true);
+            logInfo('[onair.js] (onairStartPlayback) overlay prepared before source swap.');
+        } else {
+            logInfo('[onair.js] (onairStartPlayback) overlay skipped (PAUSE or UVC(prev/next)).');
+        }
+    } catch (e) {
+        logInfo('[onair.js] (onairStartPlayback) overlay prepare failed:', e);
+    }
 
     // 既存の監視を停止
     if (typeof onairPlaybackMonitor !== 'undefined') {
@@ -946,7 +1117,102 @@ function onairStartPlayback(itemData) {
     if (itemData.deviceId) {
         // UVCの場合
         logInfo('[onair.js] Starting UVC stream.');
+
+        // 他遷移の影響を完全クリア（黒張り付き防止）
+        onairCancelSeamlessOverlay('before-start-UVC');
+
+        // FADEIN(秒数>0)のときだけ黒オーバーレイを使う
+        const startModeUpper = String(itemData?.startMode || 'PAUSE').toUpperCase();
+        const fadeInSec = Number(itemData?.startFadeInSec || 0);
+        const useBlackOverlay = (startModeUpper === 'FADEIN' && fadeInSec > 0);
+
+        onairOverlayForceBlack = useBlackOverlay;
+        onairPendingUvcFadeInSec = useBlackOverlay ? fadeInSec : 0;
+        onairSuppressFadeUntilPlaying = useBlackOverlay;
+
+        let uvcMaxWaitTimer = null;
+
+        // 黒オーバーレイの準備
+        if (useBlackOverlay) {
+            const overlayCanvas = initializeOverlayCanvasOnAir();
+            if (overlayCanvas) {
+                const els = onairGetElements();
+                const videoEl = els?.onairVideoElement;
+                if (videoEl) {
+                    adjustFadeCanvasSize(videoEl, overlayCanvas);
+                    overlayCanvas.width  = overlayCanvas.clientWidth;
+                    overlayCanvas.height = overlayCanvas.clientHeight;
+                }
+                const ctx = overlayCanvas.getContext('2d');
+                ctx.save();
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                ctx.restore();
+                overlayCanvas.style.visibility = 'visible';
+                overlayCanvas.style.opacity = 1;
+
+                // 解除処理（playing/loadeddata/loadedmetadata で早期解除、最大待ちも設定）
+                const clearBlackOverlaySmooth = () => {
+                    try {
+                        const oc = document.getElementById('onair-overlay-canvas');
+                        if (!oc) return;
+                        const duration = onairPendingUvcFadeInSec || 0.05;
+                        const start = performance.now();
+                        const step = (now) => {
+                            const t = Math.min(1, (now - start) / (duration * 1000));
+                            oc.style.opacity = String(1 - t);
+                            if (t < 1) {
+                                requestAnimationFrame(step);
+                            } else {
+                                oc.style.visibility = 'hidden';
+                                try { oc.getContext('2d').clearRect(0, 0, oc.width, oc.height); } catch (_) {}
+                                onairOverlayForceBlack = false;
+                                onairSuppressFadeUntilPlaying = false;
+                                onairPendingUvcFadeInSec = 0;
+                            }
+                        };
+                        requestAnimationFrame(step);
+                    } catch (_) {
+                        onairCancelSeamlessOverlay('fallback-clear');
+                    }
+                };
+
+                const handleEarlyReady = () => {
+                    clearBlackOverlaySmooth();
+                };
+                onairVideoElement.addEventListener('playing',        handleEarlyReady, { once: true });
+                onairVideoElement.addEventListener('loadeddata',     handleEarlyReady, { once: true });
+                onairVideoElement.addEventListener('loadedmetadata', handleEarlyReady, { once: true });
+
+                // 最大待ち（デバイスによる遅延を吸収）
+                uvcMaxWaitTimer = setTimeout(() => {
+                    logInfo('[onair.js] UVC early-timeout: clearing black overlay as a safety.');
+                    clearBlackOverlaySmooth();
+                }, 30);
+
+                const cleanup = () => {
+                    if (uvcMaxWaitTimer) {
+                        clearTimeout(uvcMaxWaitTimer);
+                        uvcMaxWaitTimer = null;
+                    }
+                    onairVideoElement.removeEventListener('playing',        handleEarlyReady);
+                    onairVideoElement.removeEventListener('loadeddata',     handleEarlyReady);
+                    onairVideoElement.removeEventListener('loadedmetadata', handleEarlyReady);
+                };
+                onairVideoElement.addEventListener('playing',        cleanup, { once: true });
+                onairVideoElement.addEventListener('loadeddata',     cleanup, { once: true });
+                onairVideoElement.addEventListener('loadedmetadata', cleanup, { once: true });
+            }
+        } else {
+            // 黒オーバーレイは使わない（毎回黒が出ないようフラグも下ろしておく）
+            onairOverlayForceBlack = false;
+            onairSuppressFadeUntilPlaying = false;
+            onairPendingUvcFadeInSec = 0;
+        }
+
+        // onairSetupUVCStream 実行（イベントは先に掛け終えている）
         onairSetupUVCStream(onairVideoElement, itemData.deviceId);
+
         return;
     }
 
@@ -1028,24 +1294,15 @@ function onairStartPlayback(itemData) {
         const maxFade = Math.max(0.05, totalSpan - 0.1);
         fadeDuration = Math.min(fadeDuration, maxFade);
 
-        // ローカル側は必ず黒から開始して抜く
+        // ローカル側は黒を使用しない（黒オーバーレイ無効）
         try {
             const elsFTB = onairGetElements();
             const canvas = elsFTB?.onairFadeCanvas;
             if (canvas) {
-                canvas.style.visibility = 'visible';
-                canvas.style.opacity = 1;
+                canvas.style.visibility = 'hidden';
+                canvas.style.opacity = 0;
             }
         } catch (_) {}
-
-        // ローカルの黒をフェードアウト
-        onairFadeFromBlack(fadeDuration);
-
-        // フルスクリーン側にも「黒から抜ける」明示コマンドを送る
-        window.electronAPI.sendControlToFullscreen({
-            command: 'fade-from-black',
-            value: { duration: fadeDuration, fillKeyMode: isFillKeyMode }
-        });
 
         onairIsPlaying = true;
         onairVideoElement.play()
@@ -1490,55 +1747,39 @@ function onairFadeToBlack(fadeCanvas, duration) {
 function onairHandleEndModeNext() {
     logInfo('[onair.js] End Mode: NEXT - Requesting next item.');
 
+    // 遷移直前に残存オーバーレイを確実にクリア（競合時の黒張り付き防止）
+    onairCancelSeamlessOverlay('before-NEXT');
+
+    // 現在がUVCでなければ前フレーム固定→次の実描画で解除
     try {
-        const elements      = onairGetElements();
-        const videoElement  = elements.onairVideoElement;
-        const overlayCanvas = initializeOverlayCanvasOnAir();
-        if (videoElement && overlayCanvas) {
-            // １）サイズ／位置合わせ
-            adjustFadeCanvasSize(videoElement, overlayCanvas);
+        const isCurrentUvc =
+            !!onairCurrentState &&
+            typeof onairCurrentState.path === 'string' &&
+            onairCurrentState.path.startsWith('UVC_DEVICE');
 
-            // ２）キャンバス解像度を CSS サイズに同期
-            overlayCanvas.width  = overlayCanvas.clientWidth;
-            overlayCanvas.height = overlayCanvas.clientHeight;
-
-            // ３）黒背景を塗る
-            overlayCanvas.style.backgroundColor = 'black';
-
-            // ４）最終フレームを描画
-            const ctx = overlayCanvas.getContext('2d');
-            ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
-
-            // ５）オーバーレイを表示
-            overlayCanvas.style.visibility = 'visible';
-            overlayCanvas.style.opacity    = 1;
-
-            // ６）次動画の最初のフレーム準備完了(canplay)で非表示＆クリア
-            videoElement.addEventListener('canplay', function hideOverlay() {
-                overlayCanvas.style.visibility = 'hidden';
-                overlayCanvas.style.opacity    = 0;
-                ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-                videoElement.removeEventListener('canplay', hideOverlay);
-            });
+        if (!isCurrentUvc) {
+            captureLastFrameAndHoldUntilNextReadyOnAir(true);
+        } else {
+            logInfo('[onair.js] Overlay capture skipped (current source is UVC).');
         }
-    } catch (e) {
-        logInfo('[onair.js] Overlay processing failed:', e);
-    }
+    } catch (_) {}
 
     const currentItemId = onairCurrentState?.itemId;
     if (!currentItemId) {
         onairHandleEndModeOff();
         return;
     }
+
     // 次のアイテムをリクエスト
     window.electronAPI.notifyNextModeComplete(currentItemId);
+
+    // 現在のOn-Air状態をリセット
     onairCurrentState = null;
     onairNowOnAir    = false;
     onairIsPlaying   = false;
 
     logInfo('[onair.js] NEXT mode processing completed.');
 }
-
 
 // -------------------------------
 // 再生、一時停止、オフエアボタン
