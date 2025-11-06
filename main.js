@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.4.3
+//     ver 2.4.5
 // -----------------------
 
 // ---------------------
@@ -11,6 +11,7 @@ const { app, BrowserWindow, ipcMain, dialog, protocol, Menu, globalShortcut, ses
 let screen;
 
 app.setName('VTR-PON2');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 let ffmpegStatic = require('ffmpeg-static');
@@ -911,7 +912,8 @@ function createFullscreenWindow() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: false
+            sandbox: false,
+            backgroundThrottling: false
         }
     });
 
