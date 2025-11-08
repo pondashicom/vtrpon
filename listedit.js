@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.4.3
+//     ver 2.4.5
 // -----------------------
 
 // -----------------------
@@ -151,6 +151,8 @@ function initializeEditArea() {
     setupVideoPlayer(videoElement, filenameDisplay);
     setupPlaybackControls(videoElement);
     setupMouseWheelControl(videoElement);
+    setupWheelOnInOutTimeFields(videoElement); 
+    setupWheelOnInOutTimeFields(videoElement);
     setupVolumeMeterLR(videoElement, volumeMeterL, volumeMeterR);
     setupInOutPoints(videoElement);
     setupStartModeControls(videoElement);
@@ -1464,6 +1466,93 @@ function setupInOutPoints(videoElement) {
         await updateInOutPoint('outPoint', currentTime);
         updateButtonColor(outPointButton, true);
     });
+}
+
+// IN/OUTの時間表示（#in-point-time / #out-point-time）上でのホイール操作
+function setupWheelOnInOutTimeFields(videoElement) {
+    const inPointTimeEl  = document.getElementById('in-point-time');
+    const outPointTimeEl = document.getElementById('out-point-time');
+    const inPointButton  = document.getElementById('in-point');
+    const outPointButton = document.getElementById('out-point');
+    const frameStep = 0.033;
+
+    // --- 初期色の正規化 ---
+    (function normalizeInitialButtonColors() {
+        const duration = (typeof videoElement.duration === 'number' && isFinite(videoElement.duration))
+            ? videoElement.duration
+            : 0;
+        const EPS = 0.02;
+
+        if (inPointButton) {
+            const isInDefault = (typeof inPoint === 'number') ? (Math.abs(inPoint - 0) <= EPS) : true;
+            updateButtonColor(inPointButton, !isInDefault);
+        }
+        if (outPointButton) {
+            const isOutDefault = (typeof outPoint === 'number' && duration > 0)
+                ? (Math.abs(outPoint - duration) <= EPS)
+                : true; // duration不明時は消灯
+            updateButtonColor(outPointButton, !isOutDefault);
+        }
+    })();
+
+    async function onWheel(pointType, event) {
+        if (!isVideoLoaded) return;
+
+        if (event && typeof event.preventDefault === 'function') {
+            event.preventDefault(); // ページスクロール抑止
+        }
+
+        const duration = (typeof videoElement.duration === 'number' && isFinite(videoElement.duration))
+            ? parseFloat(videoElement.duration.toFixed(2))
+            : 0;
+
+        let base = (pointType === 'inPoint')
+            ? (inPoint != null ? parseFloat(Number(inPoint).toFixed(2)) : 0)
+            : (outPoint != null ? parseFloat(Number(outPoint).toFixed(2)) : duration);
+
+        const delta = (event && event.deltaY > 0) ? frameStep : -frameStep;
+        let newTime = parseFloat((base + delta).toFixed(3));
+
+        // 範囲クランプ
+        newTime = Math.max(0, Math.min(duration, parseFloat(newTime.toFixed(2))));
+
+        // 整合性チェック
+        if (pointType === 'inPoint') {
+            if (outPoint != null && newTime >= outPoint) {
+                showMessage(getMessage('in-before-out'), 3000, 'alert');
+                return;
+            }
+        } else { // outPoint
+            if (inPoint != null && newTime <= inPoint) {
+                showMessage(getMessage('out-after-in'), 3000, 'alert');
+                return;
+            }
+        }
+
+        // 状態更新（UI/プレイリスト/マーカー更新は関数内で実施）
+        await updateInOutPoint(pointType, newTime);
+
+        // 動画の現在位置も寄せる
+        videoElement.currentTime = newTime;
+
+        // ボタン色の最終更新（「既定値なら消灯、変更なら点灯」）
+        const EPS = 0.02;
+        const nowIn  = (pointType === 'inPoint')  ? newTime : (typeof inPoint  === 'number' ? inPoint  : 0);
+        const nowOut = (pointType === 'outPoint') ? newTime : (typeof outPoint === 'number' ? outPoint : duration);
+
+        const inIsDefault  = (Math.abs(nowIn - 0) <= EPS);
+        const outIsDefault = (duration > 0) ? (Math.abs(nowOut - duration) <= EPS) : true;
+
+        if (inPointButton)  updateButtonColor(inPointButton,  !inIsDefault);
+        if (outPointButton) updateButtonColor(outPointButton, !outIsDefault);
+    }
+
+    if (inPointTimeEl) {
+        inPointTimeEl.addEventListener('wheel', (e) => onWheel('inPoint', e), { passive: false });
+    }
+    if (outPointTimeEl) {
+        outPointTimeEl.addEventListener('wheel', (e) => onWheel('outPoint', e), { passive: false });
+    }
 }
 
 // ボタン色を更新する関数
