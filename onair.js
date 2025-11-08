@@ -1073,9 +1073,11 @@ function onairStartPlayback(itemData) {
         return;
     }
 
-    // 倍速ボタンの初期化
-    try { if (typeof window.onairResetSpeedTo1x === 'function') window.onairResetSpeedTo1x(); } catch (_) {}
-    try { if (typeof window.onairSetSpeedButtonsEnabled === 'function') window.onairSetSpeedButtonsEnabled(true); } catch (_) {}
+    // 倍速ボタンの初期化（リピート2周目以降は状態保持のためリセットしない）
+    if (!onairRepeatFlag) {
+        try { if (typeof window.onairResetSpeedTo1x === 'function') window.onairResetSpeedTo1x(); } catch (_) {}
+        try { if (typeof window.onairSetSpeedButtonsEnabled === 'function') window.onairSetSpeedButtonsEnabled(true); } catch (_) {}
+    }
 
     // 直前のFTB黒の扱い：
     try {
@@ -1257,8 +1259,19 @@ function onairStartPlayback(itemData) {
         try { stopItemFade(); } catch (_) {}
     }
 
-    // 規定音量（%）を算出
-    const targetVolPct = (typeof itemData.defaultVolume === 'number') ? itemData.defaultVolume : 100;
+// 規定音量（%）を算出
+    let targetVolPct = (typeof itemData.defaultVolume === 'number') ? itemData.defaultVolume : 100;
+
+// REPEAT直後（2周目以降）は直前のスライダー値を優先して保持
+    if (window.onairPreserveItemVolume) {
+        const prevSlider = document.getElementById('on-air-item-volume-slider');
+        const prevVal = prevSlider ? parseInt(prevSlider.value, 10) : NaN;
+        if (!isNaN(prevVal)) {
+            targetVolPct = prevVal;
+        }
+        window.onairPreserveItemVolume = false;  // 使い切り
+    }
+
     const applySliderValue = (pct) => {
         const itemSlider = document.getElementById('on-air-item-volume-slider');
         if (!itemSlider) return;
@@ -1266,6 +1279,7 @@ function onairStartPlayback(itemData) {
         const valEl = document.getElementById('on-air-item-volume-value');
         if (valEl) valEl.textContent = `${pct}%`;
         itemSlider.style.setProperty('--value', `${pct}%`);
+
         // 既存のスライダーhandler（WebAudio適用）を走らせる
         try { itemSlider.dispatchEvent(new Event('input')); } catch (_) {}
     };
@@ -1643,14 +1657,17 @@ function onairHandleEndModeRepeat() {
     }
 
     // REPEAT時は startMode に関係なく必ず再開する
-    onairRepeatFlag = true;
+        onairRepeatFlag = true;
 
-    // 進行中の音声FADEの状態をリセット（2周目以降のFADE-INが拒否されるのを防ぐ）
-    stopItemFade();
+    // 2周目以降の速度UI・音量を保持するための一時フラグを立てる
+        window.onairPreserveSpeed = true;
+        window.onairPreserveItemVolume = true;
 
-    onairStartPlayback(onairCurrentState);
-}
+        // 進行中の音声FADEの状態をリセット（2周目以降のFADE-INが拒否されるのを防ぐ）
+        stopItemFade();
 
+        onairStartPlayback(onairCurrentState);
+    }
 
 // エンドモードFTB
 function onairHandleEndModeFTB() {
@@ -2289,7 +2306,7 @@ function setupPlaybackSpeedPresetButtons() {
             }
         };
 
-        // === 追加：有効/無効制御 & 初期化 ===
+        // 有効/無効制御 & 初期化
         const setButtonsEnabled = (enabled) => {
             buttons.forEach(b => { b.disabled = !enabled; });
             // 見た目の透明度やカーソルは既存の .button スタイルに従う
@@ -2317,13 +2334,24 @@ function setupPlaybackSpeedPresetButtons() {
 
         // 新規アイテム読み込み（動画メタ到達）で 1x に初期化して有効化
         const onLoadedMeta = () => {
-            resetSpeedTo1x();       // 1.00xに合わせる（点灯はしない）
+            // REPEAT直後（2周目以降）は初期化をスキップして保持
+            if (window.onairPreserveSpeed) {
+                window.onairPreserveSpeed = false;   // 使い切り
+            } else {
+                resetSpeedTo1x();                    // 通常時のみ 1.00x に初期化
+            }
             setButtonsEnabled(true);
         };
         video.addEventListener('loadedmetadata', onLoadedMeta);
 
         // オンエア喪失（srcが外れた等）でUIを1.00xへリセットし、無効化・消灯
         const onEmptied = () => {
+            // REPEAT直後（2周目以降）の初期化はスキップして保持
+            if (window.onairPreserveSpeed || onairRepeatFlag) {
+                // 保持フラグは onLoadedMeta 側で使い切る（false化）ため、ここでは触らない
+                return;
+            }
+
             // UIを1.00xに戻す
             resetSpeedUITo1x();
             // 再生速度も1.00へ（安全策：フルスクリーンにも通知）
@@ -2338,6 +2366,7 @@ function setupPlaybackSpeedPresetButtons() {
             setButtonsEnabled(false);
             setHighlight(1, false);
         };
+
         video.addEventListener('emptied', onEmptied);
         video.addEventListener('abort', onEmptied);
         video.addEventListener('error', onEmptied);
@@ -3638,6 +3667,11 @@ function handleShortcut(action) {
         // CSSカスタムプロパティ更新
         itemSlider.style.setProperty('--value',   `${itemVal}%`);
         masterSlider.style.setProperty('--value', `${masterVal}%`);
+
+        // 現在のアイテム音量を状態に反映（REPEAT 2周目以降でも保持させる）
+        if (onairCurrentState && typeof onairCurrentState === 'object') {
+            onairCurrentState.defaultVolume = itemVal;
+        }
 
         // 最終出力（ガンマ 2.2 適用）をFullscreenへ送信
         const finalVolume = (itemVal / 100) * (masterVal / 100);
