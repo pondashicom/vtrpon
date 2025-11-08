@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.4.4
+//     ver 2.4.5
 // -----------------------
 // -----------------------
 // 初期設定
@@ -1977,6 +1977,7 @@ function onairHandleOffAirButton() {
     isOffAirProcessing = true;
     logInfo('[onair.js] Executing off-air processing.');
     onairNowOnAir = false;
+    window.onairWasOffAir = true;  // 次のオンエア開始時に一度だけプリセット適用するためのフラグ
     onairReset();
     const elements = onairGetElements();
     onairInitializeVolumeSlider(elements, 100);
@@ -2333,15 +2334,25 @@ function setupPlaybackSpeedPresetButtons() {
         setHighlight(1, false);
 
         // 新規アイテム読み込み（動画メタ到達）で 1x に初期化して有効化
-        const onLoadedMeta = () => {
-            // REPEAT直後（2周目以降）は初期化をスキップして保持
-            if (window.onairPreserveSpeed) {
-                window.onairPreserveSpeed = false;   // 使い切り
-            } else {
-                resetSpeedTo1x();                    // 通常時のみ 1.00x に初期化
-            }
-            setButtonsEnabled(true);
-        };
+            const onLoadedMeta = () => {
+                // REPEAT直後（2周目以降）は初期化スキップ
+                if (window.onairPreserveSpeed) {
+                    window.onairPreserveSpeed = false;   // 使い切り
+                } else if (window.onairWasOffAir && typeof window.onairPresetSpeedRate === 'number' && window.onairPresetSpeedRate !== 1) {
+                    // 直前がオフエアだった場合のみ、事前プリセットを一度だけ適用して即解除
+                    applyRate(window.onairPresetSpeedRate);
+                    setHighlight(window.onairPresetSpeedRate, true);
+                    if (window.onairPresetSpeedRate === 1) setHighlight(1, false);
+                    window.onairPresetSpeedRate = undefined;  // 使い切り
+                    window.onairWasOffAir = false;            // 使い切り
+                } else {
+                    // 指定がなければ通常どおり 1.00x
+                    resetSpeedTo1x();
+                    window.onairWasOffAir = false;            // 念のため解除
+                }
+                setButtonsEnabled(true);
+            };
+
         video.addEventListener('loadedmetadata', onLoadedMeta);
 
         // オンエア喪失（srcが外れた等）でUIを1.00xへリセットし、無効化・消灯
@@ -2363,7 +2374,7 @@ function setupPlaybackSpeedPresetButtons() {
                 });
             } catch (_) {}
 
-            setButtonsEnabled(false);
+            setButtonsEnabled(true);
             setHighlight(1, false);
         };
 
@@ -2389,6 +2400,9 @@ function setupPlaybackSpeedPresetButtons() {
             applyRate(rate);
             setHighlight(rate, true);
             if (rate === 1) setHighlight(1, false);
+
+            // オフエア時に選んだプリセットを保持（次のオンエア開始時に一度だけ適用）
+            window.onairPresetSpeedRate = rate;
         });
 
         // スライダー／数値入力の手動操作で消灯（x1含め常に消灯）
