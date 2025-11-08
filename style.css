@@ -1003,6 +1003,7 @@ html {
     border: 0.0625rem solid rgba(255, 0, 0, 0.3); /* 1px → 0.0625rem */
     box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2); /* 5px,10px */
     border-radius: 0.3125rem; /* 5px → 0.3125rem */
+    display: block; /* 行ボックスの影響を排除して再レイアウトを防止 */
 }
 
 /* フェードキャンバス（ビデオ要素の上に重なる） */
@@ -1049,10 +1050,19 @@ html {
 
 /* 横2分割のレイアウト */
 .meter-row {
+    position: absolute;   /* フローから外す */
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+
     display: flex;
     flex-direction: row;
-    align-items: stretch;
+    align-items: flex-end; /* メーター下寄せ */
     height: 100%;
+
+    z-index: 0;           /* fade-canvas(1) より下、動画より上 */
+    pointer-events: none; /* UI操作を阻害しない */
 }
 
 .meter-col {
