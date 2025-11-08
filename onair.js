@@ -471,6 +471,9 @@ function onairInitialize() {
     // 再生速度コントローラーの初期化
     setupPlaybackSpeedController();
 
+    // 倍速プリセットボタンの初期化（0.5 / 1 / 1.25 / 1.5 / 2 / 5 / 10）
+    setupPlaybackSpeedPresetButtons();
+
     // モーダル状態の変更を監視するリスナー登録
     if (!onairModalListenerRegistered) {
         window.electronAPI.onModalStateChange((event, { isActive }) => {
@@ -1069,6 +1072,10 @@ function onairStartPlayback(itemData) {
         logInfo('[onair.js] Video element not found.');
         return;
     }
+
+    // 倍速ボタンの初期化
+    try { if (typeof window.onairResetSpeedTo1x === 'function') window.onairResetSpeedTo1x(); } catch (_) {}
+    try { if (typeof window.onairSetSpeedButtonsEnabled === 'function') window.onairSetSpeedButtonsEnabled(true); } catch (_) {}
 
     // 直前のFTB黒の扱い：
     try {
@@ -2220,6 +2227,148 @@ function setupPlaybackSpeedController() {
     });
 
     logDebug('[onair.js] Playback speed controller initialization complete.');
+}
+
+// 倍速プリセットボタン
+function setupPlaybackSpeedPresetButtons() {
+    try {
+        const controlArea = document.getElementById('playback-speed-control');
+        const slider = document.getElementById('playback-speed-slider');
+        const inputField = document.getElementById('playback-speed-input');
+        const video = document.getElementById('on-air-video');
+
+        if (!controlArea || !slider || !inputField || !video) {
+            logInfo('[onair.js] Speed preset: required elements not found.');
+            return;
+        }
+
+        // 既存があれば再生成しない
+        let group = document.getElementById('playback-speed-buttons');
+        if (!group) {
+            group = document.createElement('div');
+            group.id = 'playback-speed-buttons';
+            group.className = 'controls';
+            controlArea.appendChild(group);
+
+            const rates = [0.5, 1, 1.25, 1.5, 2, 5, 10];
+            for (const r of rates) {
+                const btn = document.createElement('button');
+                btn.className = 'button button-gray speed-btn';
+                btn.dataset.rate = String(r);
+                btn.textContent = 'x' + r;
+                group.appendChild(btn);
+            }
+        }
+
+        const buttons = Array.from(group.querySelectorAll('.speed-btn'));
+
+        // util: 変換（slider: -16..16, rate = 16^(s/16)）
+        const toSliderVal = (rate) => 16 * Math.log(rate) / Math.log(16);
+        const applyRate = (rate) => {
+            // スライダーと数値表示を同期
+            const s = toSliderVal(rate);
+            slider.value = s.toFixed(2);
+            inputField.value = rate.toFixed(2);
+
+            // 実再生＆フルスクリーンへ適用
+            video.playbackRate = rate;
+            window.electronAPI.sendControlToFullscreen({
+                command: 'set-playback-speed',
+                value: rate
+            });
+        };
+
+        // 点灯制御：x1 は常に消灯
+        const setHighlight = (rate, lit) => {
+            for (const btn of buttons) {
+                const r = parseFloat(btn.dataset.rate);
+                btn.classList.remove('button-green');
+                if (lit && r !== 1 && Math.abs(r - rate) < 1e-6) {
+                    btn.classList.add('button-green');
+                }
+            }
+        };
+
+        // === 追加：有効/無効制御 & 初期化 ===
+        const setButtonsEnabled = (enabled) => {
+            buttons.forEach(b => { b.disabled = !enabled; });
+            // 見た目の透明度やカーソルは既存の .button スタイルに従う
+        };
+
+        const resetSpeedTo1x = () => {
+            // 1.00 に初期化（x1は非点灯）
+            applyRate(1);
+            setHighlight(1, false);
+        };
+
+        // 外部からも安全に呼べるよう公開（あれば上書き）
+        window.onairSetSpeedButtonsEnabled = setButtonsEnabled;
+        window.onairResetSpeedTo1x = resetSpeedTo1x;
+
+        // 初期状態：オンエアなし想定 → UIを1.00xに戻し、ボタン無効、ハイライト消灯
+        const resetSpeedUITo1x = () => {
+            const s = toSliderVal(1);
+            slider.value = s.toFixed(2);
+            inputField.value = '1.00';
+        };
+        resetSpeedUITo1x();
+        setButtonsEnabled(false);
+        setHighlight(1, false);
+
+        // 新規アイテム読み込み（動画メタ到達）で 1x に初期化して有効化
+        const onLoadedMeta = () => {
+            resetSpeedTo1x();       // 1.00xに合わせる（点灯はしない）
+            setButtonsEnabled(true);
+        };
+        video.addEventListener('loadedmetadata', onLoadedMeta);
+
+        // オンエア喪失（srcが外れた等）でUIを1.00xへリセットし、無効化・消灯
+        const onEmptied = () => {
+            // UIを1.00xに戻す
+            resetSpeedUITo1x();
+            // 再生速度も1.00へ（安全策：フルスクリーンにも通知）
+            try { video.playbackRate = 1; } catch (_) {}
+            try {
+                window.electronAPI.sendControlToFullscreen({
+                    command: 'set-playback-speed',
+                    value: 1
+                });
+            } catch (_) {}
+
+            setButtonsEnabled(false);
+            setHighlight(1, false);
+        };
+        video.addEventListener('emptied', onEmptied);
+        video.addEventListener('abort', onEmptied);
+        video.addEventListener('error', onEmptied);
+
+        // ボタン押下：同じボタン再押下で消灯（速度は保持）
+        group.addEventListener('click', (e) => {
+            const btn = e.target.closest('.speed-btn');
+            if (!btn) return;
+
+            const rate = parseFloat(btn.dataset.rate);
+            const active = btn.classList.contains('button-green');
+
+            if (active) {
+                // 消灯のみ（速度はそのまま）
+                setHighlight(rate, false);
+                return;
+            }
+
+            // 新しいレートを反映。x1 は消灯のまま
+            applyRate(rate);
+            setHighlight(rate, true);
+            if (rate === 1) setHighlight(1, false);
+        });
+
+        // スライダー／数値入力の手動操作で消灯（x1含め常に消灯）
+        const clearOnManualEdit = () => setHighlight(1, false);
+        slider.addEventListener('input', clearOnManualEdit);
+        inputField.addEventListener('input', clearOnManualEdit);
+    } catch (err) {
+        try { logInfo('[onair.js] setupPlaybackSpeedPresetButtons error:', err); } catch (_) {}
+    }
 }
 
 // -----------------------
