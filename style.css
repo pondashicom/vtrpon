@@ -1,4 +1,4 @@
-﻿/* style.css 2.4.4 */
+﻿/* style.css 2.4.5 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -771,7 +771,6 @@ html {
     width: calc(100% / 4 - 0.9375rem); /* 元々の幅計算に基づく割合設定 (15px → 0.9375rem) */
 }
 
-
 /* ----------------------------- */
 /* FIFOボタン、キャプチャボタン  */
 /* ----------------------------- */
@@ -1064,7 +1063,6 @@ html {
 .meter-col + .meter-col {
     margin-left: 0rem;
 }
-
 
 /* ------------------------------------------------------- */
 /* シークバーとスライダー、タイマー、ファイル名のスタイル  */
@@ -1395,6 +1393,21 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     -moz-appearance: textfield;
     box-sizing: border-box;
     font-family: monospace;
+}
+
+/* 速度プリセットボタンエリア */
+#playback-speed-control #playback-speed-buttons {
+    margin-top: 0.5rem;
+    gap: 1rem;
+}
+
+/* 速度プリセットボタン */
+#playback-speed-buttons .speed-btn {
+    font-size: 0.8em;           /* 少し小さめ */
+    width: calc(4ch + 0.8rem);   /* 4文字 + 左右パディング相当 */
+    min-width: unset;            /* 以前の最小幅指定を解除し固定幅に */
+    padding: 0.2rem 0.3rem;      /* コンパクト */
+    text-align: center;          /* 念のため中央寄せ */
 }
 
 /* ------------------ */
