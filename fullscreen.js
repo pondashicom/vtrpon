@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.4.5
+//     ver 2.4.4
 // -----------------------
 
 // -----------------------
@@ -128,49 +128,39 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
         }
     }
 
-    // 現在ソースがUVCかどうかを安全に評価（未定義でもfalse）
-    const currentIsUVC = (typeof isCurrentUVC === 'boolean') ? isCurrentUVC : false;
-
     // オーバーレイキャプチャ（前フレーム固定）は、
     // 1) 現在ソースがUVC
     // 2) 次ソースがUVC
     // 3) 次ソースのスタートモードがPAUSE
     // のいずれかに該当するときはスキップする
-    const skipOverlayCapture = currentIsUVC || nextIsUVC || nextIsPause;
+    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsPause;
+
     if (!skipOverlayCapture) {
         try {
-            captureLastFrameToOverlay();
-            overlayFixed = true;
-            logInfo('[fullscreen.js] Last frame captured and overlay fixed.');
-        } catch (err) {
-            logInfo('[fullscreen.js] Overlay capture failed, continue without overlay.');
+            // 黒フラ抑止：前フレームをオーバーレイに固定（FTB黒保持中は自動スキップ）
+            captureLastFrameAndHoldUntilNextReady(true);
+        } catch (e) {
+            logDebug(`[fullscreen.js] overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
         }
     } else {
-        if (currentIsUVC) {
-            logInfo('[fullscreen.js] Overlay capture skipped because current source is UVC.');
-        } else if (nextIsUVC) {
+        if (nextIsUVC) {
             logInfo('[fullscreen.js] Overlay capture skipped because next source is UVC.');
+        } else if (isCurrentSourceUVC()) {
+            logInfo('[fullscreen.js] Overlay capture skipped because current source is UVC.');
         } else if (nextIsPause) {
             logInfo('[fullscreen.js] Overlay capture skipped because next startMode is PAUSE.');
         }
     }
 
-    // 可視状態なら rAF、非可視（最小化・バックグラウンド）なら即時実行で適用遅延を防ぐ
-    const execApply = () => {
+    // いきなりresetせず、次の描画フレームで実施（オーバーレイ描画の確定を保証）
+    requestAnimationFrame(() => {
         // 既存のストリームや動画を初期化
         resetFullscreenState();
 
         // メインプロセスを開始
         handleOnAirData(itemData);
-    };
-
-    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        requestAnimationFrame(execApply);
-    } else {
-        setTimeout(execApply, 0);
-    }
+    });
 });
-
 
 // UVCソース判定（itemData から判定）
 function isUVCItem(itemData) {
