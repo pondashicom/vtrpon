@@ -1003,6 +1003,7 @@ html {
     border: 0.0625rem solid rgba(255, 0, 0, 0.3); /* 1px → 0.0625rem */
     box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2); /* 5px,10px */
     border-radius: 0.3125rem; /* 5px → 0.3125rem */
+    contain: size;
 }
 
 /* フェードキャンバス（ビデオ要素の上に重なる） */
