@@ -351,15 +351,18 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         } catch (_) {}
     }
 
-    const clearOverlay = () => {
-        try {
-            overlayCanvas.style.display = 'none';
-            try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
-        } catch (_) {}
-        seamlessGuardActive = false;
-        overlayForceBlack = false;
-        logDebug('[fullscreen.js] Overlay cleared after next frame ready.');
-        detach();
+    const clearOverlay = (reason) => {
+        const RELEASE_DELAY_MS = 50; // ほんの少し遅らせて黒露出を抑える
+        setTimeout(() => {
+            try {
+                overlayCanvas.style.display = 'none';
+                try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
+            } catch (_) {}
+            seamlessGuardActive = false;
+            overlayForceBlack = false;
+            logDebug(`[fullscreen.js] Overlay cleared after small delay (${RELEASE_DELAY_MS}ms)${reason ? ' [' + reason + ']' : ''}.`);
+            detach();
+        }, RELEASE_DELAY_MS);
     };
 
     // 実描画検知
@@ -368,16 +371,16 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     const rvfc = useRVFC ? (ts, md) => {
         rvfcCount += 1;
         if (rvfcCount >= 2) {
-            clearOverlay();
+            clearOverlay('rvfc');
         } else {
             try { videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
         }
     } : null;
 
+    // ★ playing ハンドラを定義（非RVFC環境の解除契機）
     const onPlaying = () => {
         if (!useRVFC) {
-            // 非RVFC環境では playing （→ timeupdate）で解除
-            clearOverlay();
+            clearOverlay('playing');
         }
     };
     const onLoadedData = () => {};
@@ -390,6 +393,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         videoElement.removeEventListener('canplay', onCanPlay);
         videoElement.removeEventListener('seeked', onSeeked);
     };
+
     videoElement.addEventListener('playing', onPlaying);
     videoElement.addEventListener('loadeddata', onLoadedData);
     videoElement.addEventListener('canplay', onCanPlay);
@@ -397,16 +401,20 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
     if (useRVFC) {
         try { videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
+    } else {
+        // 非RVFC環境では playing を待って解除（即時解除しない）
+        // onPlaying で clearOverlay('playing') が走る
     }
 
     // セーフティ（実描画が極端に遅れても過度に残留しないための保険）
     setTimeout(() => {
         if (seamlessGuardActive) {
             logInfo('[fullscreen.js] Overlay auto-cleared by safety timeout (no black).');
-            clearOverlay();
+            clearOverlay('safety-timeout');
         }
     }, 500);
 }
+
 
 // ---------------------------------------
 // オンエアデータを処理して再生する
