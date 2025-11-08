@@ -308,11 +308,34 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             ctx.restore();
         } else {
-            // 前フレーム固定
-            ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            // 前フレーム固定（アスペクト保持・レターボックス）
+            (function () {
+                const cw = overlayCanvas.width;
+                const ch = overlayCanvas.height;
+
+                // ソース動画の実ピクセルサイズ（0 回避）
+                const vw = Math.max(1, (videoElement.videoWidth | 0));
+                const vh = Math.max(1, (videoElement.videoHeight | 0));
+
+                // contain: キャンバス内に収まる最大スケールで描画
+                const scale = Math.min(cw / vw, ch / vh);
+                const dw = Math.round(vw * scale);
+                const dh = Math.round(vh * scale);
+                const dx = Math.floor((cw - dw) / 2);
+                const dy = Math.floor((ch - dh) / 2);
+
+                // 背景を黒でクリアしてから中央配置で描画
+                ctx.save();
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, cw, ch);
+                ctx.drawImage(videoElement, dx, dy, dw, dh);
+                ctx.restore();
+            })();
+
             overlayCanvas.style.opacity = '1';
             overlayCanvas.style.display = 'block';
             seamlessGuardActive = true;
+
 
             // 音声アイテムから映像アイテムへの復帰
             if (videoElement.getAttribute('data-hide-due-to-audio') === '1' &&
