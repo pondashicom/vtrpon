@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.4.4
+//     ver 2.4.6
 // -----------------------
 
 
@@ -436,7 +436,29 @@ async function generateThumbnail(filePath) {
             logInfo("Generating thumbnail - deviceId:", deviceId);
 
             // `deviceId` を使ってカメラを起動（各インスタンスで個別に処理）
-            navigator.mediaDevices.getUserMedia({ video: { deviceId: deviceId } }).then((stream) => {
+            navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } }).then(async (stream) => {
+                // 取得後に capabilities を見て、デバイスの上限へ引き上げる（可能な場合）
+                try {
+                    const track = stream.getVideoTracks()[0];
+                    if (track && typeof track.getCapabilities === 'function' && typeof track.applyConstraints === 'function') {
+                        const caps = track.getCapabilities();
+                        const maxW = (caps && caps.width && typeof caps.width.max === 'number') ? caps.width.max : undefined;
+                        const maxH = (caps && caps.height && typeof caps.height.max === 'number') ? caps.height.max : undefined;
+                        if (maxW && maxH) {
+                            await track.applyConstraints({
+                                width:  maxW,
+                                height: maxH,
+                                // アスペクトは強制しない（デバイスのネイティブ比率を尊重）
+                                // resizeMode も指定しない（ドライバ側のネイティブをそのまま）
+                            });
+                            const s = track.getSettings();
+                            logInfo("Applied UVC constraints to device max - Width:", s.width, "Height:", s.height);
+                        }
+                    }
+                } catch (e) {
+                    logInfo("applyConstraints to device max skipped or failed:", e && e.message ? e.message : e);
+                }
+
                 const video = document.createElement('video');
                 video.srcObject = stream;
                 video.autoplay = true;
@@ -461,7 +483,7 @@ async function generateThumbnail(filePath) {
                 // video 要素のスタイル設定（解像度に合わせてフィット）
                 video.style.width = '100%';
                 video.style.height = '100%';
-                video.style.objectFit = 'contain';
+                video.style.objectFit = 'contain'; // 伸張しない（黒帯で調整）
 
                 // コンテナに video 要素を追加
                 container.appendChild(video);
@@ -889,22 +911,37 @@ async function getMetadata(filePath) {
 // -----------------------
 async function getUVCResolution(deviceId) {
     try {
+        // まず ideal でFHDを要求
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: deviceId } }
+            video: {
+                deviceId: { exact: deviceId },
+                width:  { ideal: 1920 },
+                height: { ideal: 1080 },
+                aspectRatio: 16/9,
+                resizeMode: "none"
+            }
         });
         const track = stream.getVideoTracks()[0];
-        const capabilities = track.getSettings(); // 解像度を取得
+
+        // 可能なら capabilities を見てさらに引き上げる
+        try {
+            const caps = (typeof track.getCapabilities === 'function') ? track.getCapabilities() : null;
+            const targetW = caps && caps.width && typeof caps.width.max === 'number' ? Math.min(1920, caps.width.max) : 1920;
+            const targetH = caps && caps.height && typeof caps.height.max === 'number' ? Math.min(1080, caps.height.max) : 1080;
+            await track.applyConstraints({ width: targetW, height: targetH, aspectRatio: 16/9 });
+        } catch (_) {}
+
+        const settings = track.getSettings(); // 実際の解像度
         track.stop(); // ストリームを閉じる
 
-        if (capabilities.width && capabilities.height) {
-            return `${capabilities.width}x${capabilities.height}`;
+        if (settings.width && settings.height) {
+            return `${settings.width}x${settings.height}`;
         }
     } catch (error) {
         logInfo(`[playlist.js] Failed to get UVC resolution for deviceId: ${deviceId}, Error: ${error.message}`);
     }
     return "Unknown";
 }
-
 
 // ---------------------------
 // プレイリストアイテム描画
