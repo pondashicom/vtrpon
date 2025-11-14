@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     uvc.js 
-//     ver 2.3.5
+//     ver 2.4.6
 // -----------------------
 
 // -----------------------
@@ -138,10 +138,28 @@ async function getUVCDevices() {
 // 解像度を取得
 async function getUVCResolution(deviceId) {
     try {
+        // まずはデバイスを厳密指定で取得（解像度は未指定）
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { deviceId: { exact: deviceId } }
         });
         const track = stream.getVideoTracks()[0];
+
+        // capabilities を参照し、デバイスの上限へ引き上げる（可能な場合）
+        try {
+            if (track && typeof track.getCapabilities === 'function' && typeof track.applyConstraints === 'function') {
+                const caps = track.getCapabilities();
+                const maxW = (caps && caps.width && typeof caps.width.max === 'number') ? caps.width.max : undefined;
+                const maxH = (caps && caps.height && typeof caps.height.max === 'number') ? caps.height.max : undefined;
+                if (maxW && maxH) {
+                    await track.applyConstraints({
+                        width:  maxW,
+                        height: maxH
+                        // aspectRatio/resizeMode は指定しない（ネイティブ比率を尊重）
+                    });
+                }
+            }
+        } catch (_) {}
+
         const { width, height } = track.getSettings();
         track.stop();
         return `${width}x${height}`;
@@ -150,7 +168,6 @@ async function getUVCResolution(deviceId) {
         return 'Unknown';
     }
 }
-
 
 // ほかのアプリで使われたら奪う
 function stopAllStreams() {
