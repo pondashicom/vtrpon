@@ -1,4 +1,4 @@
-﻿/* style.css 2.4.5 */
+﻿/* style.css 2.4.6 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -1636,6 +1636,22 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     text-align: right;
     cursor: text;
     -moz-appearance: textfield;
+}
+
+
+/* PPTX ディゾルブチェックボックスとラベル */
+#pptxDissolve {
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.25rem;
+}
+
+#pptxDissolveLabel {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #bbb;
+    margin-left: 0.125rem;
+    line-height: 1;
 }
 
 /* repeatCountだけ幅を少し狭くし、数字とスピンの間を広げる */

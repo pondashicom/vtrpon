@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     tooltips.js
-//     ver 2.4.5
+//     ver 2.4.6
 // -----------------------
 
 const tooltips = {
@@ -24,6 +24,7 @@ const tooltips = {
     "addUVCToPlaylistButton": "選択したUVCデバイスをプレイリストに追加します",
     "still-button": "エディットエリアに表示されている動画をキャプチャーしてプレイリストに登録します",
     "fadeInDuration": "CAPTUREボタン押下時やPNGファイル、PPTファイルを登録時にここで指定した秒数でMP4動画に変換します",
+    "pptxDissolve": "PPT/PNGから作成するMP4のスライド切り替えに0.5秒のクロスディゾルブをかけます",
     "dsk-button": "選択したアイテムをダウンストリームキーとして送出・停止します。IN点とOUT点の間でループ再生します",
     "dks-pause-button": "ダウンストリームキーとして送出されているアイテムを一時停止します",
     "dsk-play-button": "ダウンストリームキーとして送出されているアイテムを再生します",
@@ -72,6 +73,7 @@ const tooltips = {
     "listedit-volume-slider": "Set the default volume at air start",
     "addUVCToPlaylistButton": "Add the selected UVC device to the playlist",
     "still-button": "Capture the video displayed in the edit area and add it to the playlist",
+    "pptxDissolve": "Apply a 0.5-second cross dissolve between slides when converting PPT/PNG to MP4",
     "fadeInDuration": "Set the duration (seconds) for converting to MP4 when capturing or registering a PNG file",
     "dsk-button": "Sends/stops the selected item as a downstream key. Loops playback between the IN and OUT points.",
     "dks-pause-button": "Pauses the item that is being sent as the downstream key.",

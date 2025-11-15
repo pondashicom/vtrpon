@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.3.6
+//     ver 2.4.6
 // -----------------------
 
 const labels = {
@@ -93,6 +93,7 @@ const labels = {
     "dsk-title": "ダウンストリームキー",
     "dsk-button": "DSK",
     "fadeInDuration": "変換時間（秒）",
+    "pptxDissolve": "ディゾルブ",
     "list-mode-title": "モード",
     "list-repeat-button": "全リピート",
     "list-list-button": "リストを一巡",
@@ -215,6 +216,7 @@ const labels = {
     "still-capture-title": "STILL CAPTURE TO MP4 / PPTX,PNG TO MP4 DURATION (SEC)",
     "still-button": "CAPTURE",
     "fadeInDuration": "Conversion Duration (sec)",
+    "pptxDissolve": "DISSOLVE",
     "dsk-button": "DSK",
     "dsk-title": "DOWN STREAM KEY",
     "list-mode-title": "MODE",
