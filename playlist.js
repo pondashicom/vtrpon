@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.4.6
+//     ver 2.4.7
 // -----------------------
 
 
@@ -23,6 +23,9 @@ let directOnAirActive = false;
 
 // 変換中のファイルを管理
 const convertingFiles = new Set();
+
+// ドラッグ＆ドロップでの並び替え用に現在ドラッグ中のアイテムIDを保持
+let draggedPlaylistItemId = null;
 
 // インポートキュー管理
 const pendingFiles = [];
@@ -957,8 +960,96 @@ function renderPlaylistItem(file, index) {
     // data-file-path 属性を追加（後のフィルタ用）
     item.setAttribute('data-file-path', file.path);
 
+    // ドラッグ＆ドロップによる並び替え用の設定
+    item.setAttribute('draggable', 'true');
+
+    // ドラッグ開始
+    item.addEventListener('dragstart', (e) => {
+        draggedPlaylistItemId = file.playlistItem_id;
+        try {
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(file.playlistItem_id));
+            }
+        } catch (error) {
+            logDebug('[playlist.js] dragstart dataTransfer error:', error);
+        }
+        item.classList.add('dragging');
+    });
+
+    // ドラッグ終了
+    item.addEventListener('dragend', () => {
+        draggedPlaylistItemId = null;
+        item.classList.remove('dragging');
+        clearDragIndicators();
+    });
+
+    // ドラッグ中：マウス位置から「上に挿入か／下に挿入か」を判定し、区切り線で表示
+    item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        const rect = item.getBoundingClientRect();
+        const offsetY = e.clientY - rect.top;
+        const isAfter = offsetY > rect.height / 2;
+
+        clearDragIndicators();
+
+        item.classList.add('drag-over');
+
+        if (isAfter) {
+            // 下側に挿入されることを示す
+            item.dataset.dropPosition = 'after';
+            item.style.boxShadow = '0 3px 0 0 rgba(0, 150, 255, 1)';
+        } else {
+            // 上側に挿入されることを示す
+            item.dataset.dropPosition = 'before';
+            item.style.boxShadow = '0 -3px 0 0 rgba(0, 150, 255, 1)';
+        }
+    });
+
+    // ドラッグが外れたとき
+    item.addEventListener('dragleave', () => {
+        clearDragIndicators();
+    });
+
+    // ドロップされたときに並び替えを実行
+    item.addEventListener('drop', async (e) => {
+        e.preventDefault();
+
+        const sourceId =
+            draggedPlaylistItemId ||
+            (e.dataTransfer && e.dataTransfer.getData('text/plain'));
+
+        if (!sourceId || String(sourceId) === String(file.playlistItem_id)) {
+            clearDragIndicators();
+            return;
+        }
+
+        // デフォルトは「前に挿入」
+        let dropPosition = item.dataset.dropPosition || 'before';
+
+        // 一番下のアイテムにドロップされた場合は、常に「下に挿入（＝一番下）」扱いにする
+        const container = item.parentElement;
+        if (container) {
+            const items = Array.from(container.querySelectorAll('.playlist-item'));
+            const isLast = items.length > 0 && items[items.length - 1] === item;
+            if (isLast && dropPosition === 'before') {
+                dropPosition = 'after';
+            }
+        }
+
+        await reorderPlaylistByDrag(sourceId, file.playlistItem_id, dropPosition);
+
+        clearDragIndicators();
+    });
+
+
     // アイテムクリック時の処理
     item.addEventListener('click', () => {
+
         logOpe(`[listedit.js] Playlist item clicked (index: ${index})`);
         handlePlaylistItemClick(item, index);
     });
@@ -1000,6 +1091,16 @@ function renderPlaylistItem(file, index) {
     updateItemStateClass(item, file);
 
     return item;
+}
+
+// ドラッグ中の区切り線表示をリセット
+function clearDragIndicators() {
+    const items = document.querySelectorAll('.playlist-item');
+    items.forEach((el) => {
+        el.classList.remove('drag-over');
+        el.style.boxShadow = '';
+        el.removeAttribute('data-drop-position');
+    });
 }
 
 // 操作ボタンを生成
@@ -1426,6 +1527,78 @@ async function deletePlaylistItem(itemId) {
     await simulateRightArrowKey();
     logOpe("[playlist.js] edit clear.");
 }
+
+// ------------------------------------------------
+// ドラッグ＆ドロップによる並び替え処理
+// ------------------------------------------------
+async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId, dropPosition) {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+
+        const currentIndex = playlist.findIndex(
+            (p) => String(p.playlistItem_id) === String(sourcePlaylistItemId)
+        );
+        const targetIndexBefore = playlist.findIndex(
+            (p) => String(p.playlistItem_id) === String(targetPlaylistItemId)
+        );
+
+        if (currentIndex === -1 || targetIndexBefore === -1) {
+            logInfo(
+                '[playlist.js] reorderPlaylistByDrag: item not found.',
+                { sourcePlaylistItemId, targetPlaylistItemId, dropPosition }
+            );
+            return;
+        }
+
+        if (currentIndex === targetIndexBefore && (dropPosition === 'before' || dropPosition === 'after')) {
+            // 自分自身に対してドロップしただけなら何もしない
+            return;
+        }
+
+        // 元の位置からアイテムを取り出す
+        const [movingItem] = playlist.splice(currentIndex, 1);
+
+        // 削除後に改めてターゲットの位置を取得
+        const targetIndex = playlist.findIndex(
+            (p) => String(p.playlistItem_id) === String(targetPlaylistItemId)
+        );
+
+        let insertIndex;
+        if (targetIndex === -1) {
+            // ターゲットが見つからなければ末尾に
+            insertIndex = playlist.length;
+        } else if (dropPosition === 'after') {
+            insertIndex = targetIndex + 1; // ターゲットの下に挿入
+        } else {
+            insertIndex = targetIndex;     // ターゲットの上に挿入
+        }
+
+        // 範囲を超えないようにガード
+        if (insertIndex < 0) {
+            insertIndex = 0;
+        }
+        if (insertIndex > playlist.length) {
+            insertIndex = playlist.length;
+        }
+
+        playlist.splice(insertIndex, 0, movingItem);
+
+        // order を付け直す
+        playlist.forEach((item, index) => {
+            item.order = index;
+        });
+
+        await stateControl.setPlaylistState(playlist);
+        await updatePlaylistUI();
+
+        logOpe(
+            `[playlist.js] reorderPlaylistByDrag: id=${movingItem.playlistItem_id} -> index=${insertIndex}, dropPosition=${dropPosition}`
+        );
+    } catch (error) {
+        logInfo('[playlist.js] reorderPlaylistByDrag error:', error);
+    }
+}
+
 
 // ------------------------------------------------
 // アイテムを上下に移動して入れ替える(▲▼ボタン）
