@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.4.4
+//     ver 2.4.5
 // -----------------------
 
 // -----------------------
@@ -1207,51 +1207,72 @@ function handleEndModeFTB() {
         initializeFullscreenArea();       // 停止・リセット
         fadeCanvas.style.opacity = '0';
         fadeCanvas.style.display = 'none';
+        fadeCanvas.style.visibility = 'hidden';
         stopVolumeMeasurement();
         logInfo('[fullscreen.js] FTB complete: Pre-FTB already at black. Finalized immediately.');
         return;
     }
 
-    // フェードキャンバスの設定
-    fadeCanvas.style.opacity = '0';
-    fadeCanvas.style.display = 'block';
-    // FILL-KEY モードの場合は、グローバル変数 fillKeyBgColor（ユーザー選択の色）を使用し、それ以外は黒に設定する
-    fadeCanvas.style.backgroundColor = isFillKeyMode && fillKeyBgColor ? fillKeyBgColor : "black";
-
-    let opacity = 0;
-    const frameRate = 60;
-    const step = 1 / (fadeDuration * frameRate);
-
-    // 既存のフェードアウトタイマーがあればクリア
+    // FTB開始前に既存のフェードタイマーを完全に停止
     if (ftbFadeInterval) {
         clearInterval(ftbFadeInterval);
         ftbFadeInterval = null;
     }
     fadeCancelled = false;
 
+    // フェードキャンバスの設定
+    fadeCanvas.style.opacity = '0';
+    fadeCanvas.style.display = 'block';
+    fadeCanvas.style.visibility = 'visible';
+
+    // FILL-KEY モードの場合は、グローバル変数 fillKeyBgColor（ユーザー選択の色）を使用し、それ以外は黒に設定する
+    fadeCanvas.style.backgroundColor = isFillKeyMode && fillKeyBgColor ? fillKeyBgColor : "black";
+
+    // FTB は他のオーバーレイ（ラストフレームなど）より前面に出す
+    fadeCanvas.style.zIndex = '9999';
+
+    // 時間ベースの setInterval でフェード（rAF は使わない）
+    const durationMs = Math.max(fadeDuration, 0.05) * 1000;
+    const startTime = performance.now();
+    const frameInterval = 1000 / 60; // だいたい 60fps 目安
+
     ftbFadeInterval = setInterval(() => {
         if (fadeCancelled) {
             clearInterval(ftbFadeInterval);
             ftbFadeInterval = null;
-            logInfo('[fullscreen.js] FTB fadeout aborted due to cancellation.');
             fadeCanvas.style.opacity = '0';
             fadeCanvas.style.display = 'none';
+            fadeCanvas.style.visibility = 'hidden';
+            logInfo('[fullscreen.js] FTB fadeout aborted due to cancellation.');
             return;
         }
-        opacity += step;
-        fadeCanvas.style.opacity = opacity.toFixed(2);
 
-        if (opacity >= 1) {
+        const now = performance.now();
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / durationMs, 1);
+
+        fadeCanvas.style.opacity = progress.toFixed(2);
+
+        if (progress >= 1) {
             clearInterval(ftbFadeInterval);
             ftbFadeInterval = null;
+
             logInfo('[fullscreen.js] FTB complete: Fade ended.');
+
+            // フルスクリーンエリアを初期化（黒画面または停止状態にリセット）
             initializeFullscreenArea();
+
+            // FTB 完了後にフェードキャンバスを非表示
             fadeCanvas.style.opacity = '0';
             fadeCanvas.style.display = 'none';
+            fadeCanvas.style.visibility = 'hidden';
+
+            // 音量測定も停止（必要に応じて調整）
+            stopVolumeMeasurement();
+
             logInfo('[fullscreen.js] FTB complete: Canvas hidden.');
         }
-    }, 1000 / frameRate); 
-    stopVolumeMeasurement();
+    }, frameInterval);
 }
 
 // フェードアウトアニメーションの中断処理
