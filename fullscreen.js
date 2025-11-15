@@ -1549,11 +1549,20 @@ function startVolumeMeasurement(updateInterval = 60) {
     const bufL = new Float32Array(fullscreenAnalyserL.fftSize);
     const bufR = new Float32Array(fullscreenAnalyserR.fftSize);
 
+    // 再生速度に応じてメーター更新間隔を補正（2.0x以上なら少し間隔を空ける）
+    let effectiveInterval = updateInterval;
+    try {
+        const videoEl = document.getElementById('fullscreen-video');
+        if (videoEl && videoEl.playbackRate && videoEl.playbackRate >= 2) {
+            effectiveInterval = Math.max(updateInterval, 120);
+        }
+    } catch (_e) {}
+
     let skipFrames = 3;
     const minDb = -60;
     const maxDb = 0;
 
-    const DETECT_WINDOW_FRAMES = Math.max(8, Math.floor(800 / Math.max(1, updateInterval)));
+    const DETECT_WINDOW_FRAMES = Math.max(8, Math.floor(800 / Math.max(1, effectiveInterval)));
     let monoLikeFrames = 0;
 
     const intervalId = setInterval(() => {
@@ -1593,7 +1602,7 @@ function startVolumeMeasurement(updateInterval = 60) {
         window.electronAPI.ipcRenderer.send('fullscreen-audio-level-lr', { L: dbL, R: reportR });
         const dbMax = Math.max(dbL, reportR);
         window.electronAPI.ipcRenderer.send('fullscreen-audio-level', dbMax);
-    }, updateInterval);
+    }, effectiveInterval);
 }
 
 // 音量測定を停止する関数

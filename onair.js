@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.4.5
+//     ver 2.4.6
 // -----------------------
 // -----------------------
 // 初期設定
@@ -37,6 +37,7 @@ let onairNowOnAir = false;
 let onairIsPlaying = false;
 let onairRepeatFlag = false;
 let onairRemainingTimer = null;
+let onairHighSpeedRemainLastUpdate = 0;
 let globalEndedListener;
 let isFillKeyMode = false;
 let ftbMainTimeout = null;
@@ -471,7 +472,7 @@ function onairInitialize() {
     // 再生速度コントローラーの初期化
     setupPlaybackSpeedController();
 
-    // 倍速プリセットボタンの初期化（0.5 / 1 / 1.25 / 1.5 / 2 / 5 / 10）
+    // 倍速プリセットボタンの初期化（0.5 / 1 / 1.25 / 1.5 / 2 / 3 / 4 / 5）
     setupPlaybackSpeedPresetButtons();
 
     // モーダル状態の変更を監視するリスナー登録
@@ -619,8 +620,9 @@ function onairReset() {
         // 現在のスライダー値を保持し、その値から算出した再生速度を両側に反映する
         if (speedSlider) {
             speedSlider.disabled = false;
-            const s = parseFloat(speedSlider.value) || 0;
-            const newRate = Math.pow(16, s / 16);
+            const sRaw = parseFloat(speedSlider.value);
+            const s = isNaN(sRaw) ? 0 : Math.max(-10, Math.min(10, sRaw));
+            const newRate = Math.pow(5, s / 10); // 約 0.2x?5x に制限
             if (video) {
                 video.playbackRate = newRate;
             }
@@ -937,9 +939,18 @@ function onairUpdateRemainingTime(elements, itemData) {
         return;
     }
 
+    // 高速再生時（2.0x以上）は更新頻度を制限して負荷を軽減
+    const rate = onairVideoElement.playbackRate || 1;
+    if (rate >= 2) {
+        const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if (onairHighSpeedRemainLastUpdate && (now - onairHighSpeedRemainLastUpdate) < 200) {
+            return;
+        }
+        onairHighSpeedRemainLastUpdate = now;
+    }
+
     // 実時間ベースの残り時間を計算（再生速度を考慮）
     const rawRemaining = Math.max(0, itemData.outPoint - onairVideoElement.currentTime);
-    const rate = onairVideoElement.playbackRate || 1;
     const remainingTime = rawRemaining / rate;
 
     onairRemainTimeDisplay.textContent = onairFormatTime(remainingTime);
@@ -951,6 +962,7 @@ function onairUpdateRemainingTime(elements, itemData) {
         onairRemainTimeDisplay.style.color = 'orange';
     }
 }
+
 // 再生・一時停止ボタンの更新
 function onairUpdatePlayPauseButtons(elements) {
     const { onairPlayButton, onairPauseButton } = elements;
@@ -2130,6 +2142,22 @@ function setupPlaybackSpeedController() {
         return;
     }
 
+    // 再生速度スライダーのレンジとステップを初期化（0.5x?3.0x をフルレンジに対応させる）
+    const SLIDER_BASE = 3;          // rate = 3^(s/10)
+    const SLIDER_MIN_RATE = 0.5;
+    const SLIDER_MAX_RATE = 3.0;
+
+    // 逆変換：rate → slider 値（toSliderVal と同じ式）
+    const sliderMin = 10 * Math.log(SLIDER_MIN_RATE) / Math.log(SLIDER_BASE);
+    const sliderMax = 10 * Math.log(SLIDER_MAX_RATE) / Math.log(SLIDER_BASE);
+
+    slider.min = sliderMin.toFixed(2);
+    slider.max = sliderMax.toFixed(2);
+    slider.step = "0.1"; // 必要に応じて調整（1.0 でも可）
+    if (!slider.value) {
+        slider.value = "0";
+    }
+
     // 初期状態では、onairNowOnAir フラグが false なら操作を無効化（UI上も disabled 属性）
     if (!onairNowOnAir) {
         slider.disabled = true;
@@ -2159,9 +2187,22 @@ function setupPlaybackSpeedController() {
             isPlaybackSpeedFixed = false;
         }
         isPlaybackSpeedDragging = true;
-        const s = parseFloat(slider.value);
-        const newRate = Math.pow(16, s / 16);
-        video.playbackRate = newRate;
+
+        const sRaw = parseFloat(slider.value);
+        const minVal = parseFloat(slider.min);
+        const maxVal = parseFloat(slider.max);
+        const s = isNaN(sRaw) ? 0 : Math.max(minVal, Math.min(maxVal, sRaw));
+
+        // ベースのカーブ（rate = 3^(s/10)）
+        let newRate = Math.pow(3, s / 10);
+
+        // 実効レンジをボタンと同じ 0.5x?3.0x にクランプ
+        if (newRate < 0.5) newRate = 0.5;
+        if (newRate > 3.0) newRate = 3.0;
+
+        if (video) {
+            video.playbackRate = newRate;
+        }
         inputField.value = newRate.toFixed(2);
         window.electronAPI.sendControlToFullscreen({
             command: 'set-playback-speed',
@@ -2169,7 +2210,7 @@ function setupPlaybackSpeedController() {
         });
     });
 
-    // スライダー操作終了時の処理（既存のまま）
+    // スライダー操作終了時の処理（1.0x に戻してからシーク）
     const releaseHandler = () => {
         logOpe('[onair.js] Playback speed slider release');
         if (!onairNowOnAir) {
@@ -2182,33 +2223,40 @@ function setupPlaybackSpeedController() {
             return;
         }
         isPlaybackSpeedDragging = false;
-        const startValue = parseFloat(slider.value);
-        const startTime = performance.now();
 
-        function animate() {
-            const elapsed = performance.now() - startTime;
-            const progress = Math.min(elapsed / PLAYBACK_SPEED_RETURN_DURATION, 1);
-            const currentValue = startValue * (1 - progress);
-            slider.value = currentValue.toFixed(2);
-            const newRate = Math.pow(16, currentValue / 16);
-            video.playbackRate = newRate;
-            inputField.value = newRate.toFixed(2);
-            window.electronAPI.sendControlToFullscreen({
-                command: 'set-playback-speed',
-                value: newRate
-            });
-            if (progress < 1) {
-                playbackSpeedAnimationFrame = requestAnimationFrame(animate);
-            } else {
-                playbackSpeedAnimationFrame = null;
-            }
+        if (!video) {
+            logDebug('[onair.js] Speed control release ignored because video element is missing.');
+            return;
         }
+
+        // 過去のアニメーションが残っていたら止めておく（将来のための安全対策）
         if (playbackSpeedAnimationFrame) {
             cancelAnimationFrame(playbackSpeedAnimationFrame);
+            playbackSpeedAnimationFrame = null;
         }
-        playbackSpeedAnimationFrame = requestAnimationFrame(animate);
+
+        // 1) 再生速度をまず 1.0x に戻す（オンエア／フルスクリーン両方）
+        const baseRate = 1.0;
+        slider.value = "0"; // 中央位置が 1.0x
+        video.playbackRate = baseRate;
+        inputField.value = baseRate.toFixed(2);
+        window.electronAPI.sendControlToFullscreen({
+            command: 'set-playback-speed',
+            value: baseRate
+        });
+
+        // 2) 1.0x に戻した状態で、現在位置を同期シーク
+        const syncTime = video.currentTime;
+        window.electronAPI.sendControlToFullscreen({
+            command: 'seek',
+            value: syncTime
+        });
+
+        logDebug(`[onair.js] Speed dragging ended. Reset rate to 1.0x and synced fullscreen to ${syncTime}.`);
     };
+
     slider.addEventListener('mouseup', releaseHandler);
+    slider.addEventListener('mouseleave', releaseHandler);
     slider.addEventListener('touchend', releaseHandler);
 
     // 入力欄の手動変更時の処理
@@ -2218,19 +2266,24 @@ function setupPlaybackSpeedController() {
             logDebug('[onair.js] Speed control change ignored: On-Air is not active.');
             return;
         }
-        const manualRate = parseFloat(inputField.value);
+        let manualRate = parseFloat(inputField.value);
         if (isNaN(manualRate) || manualRate <= 0) {
-            inputField.value = "1.00";
-            video.playbackRate = 1.00;
-            window.electronAPI.sendControlToFullscreen({
-                command: 'set-playback-speed',
-                value: 1.00
-            });
-            return;
+            manualRate = 1.0;
         }
+
+        // スライダー／ボタンと同じく 0.5x?3.0x にクランプ
+        if (manualRate < 0.5) manualRate = 0.5;
+        if (manualRate > 3.0) manualRate = 3.0;
+
         isPlaybackSpeedFixed = true;
-        const newS = 16 * Math.log(manualRate) / Math.log(16);
+
+        // slider: -10..10, rate = 3^(s/10) の逆変換（ボタン側と同じ toSliderVal）
+        const newS = 10 * Math.log(manualRate) / Math.log(3);
         slider.value = newS.toFixed(2);
+
+        // 表示も正規化された値に合わせる
+        inputField.value = manualRate.toFixed(2);
+
         video.playbackRate = manualRate;
         window.electronAPI.sendControlToFullscreen({
             command: 'set-playback-speed',
@@ -2268,7 +2321,7 @@ function setupPlaybackSpeedPresetButtons() {
             group.className = 'controls';
             controlArea.appendChild(group);
 
-            const rates = [0.5, 1, 1.25, 1.5, 2, 5, 10];
+            const rates = [0.5, 1, 1.25, 1.5, 2, 3];
             for (const r of rates) {
                 const btn = document.createElement('button');
                 btn.className = 'button button-gray speed-btn';
@@ -2280,8 +2333,8 @@ function setupPlaybackSpeedPresetButtons() {
 
         const buttons = Array.from(group.querySelectorAll('.speed-btn'));
 
-        // util: 変換（slider: -16..16, rate = 16^(s/16)）
-        const toSliderVal = (rate) => 16 * Math.log(rate) / Math.log(16);
+        // util: 変換（slider: -10..10, rate = 3^(s/10)）
+        const toSliderVal = (rate) => 10 * Math.log(rate) / Math.log(3);
         const applyRate = (rate) => {
             // スライダーと数値表示を同期
             const s = toSliderVal(rate);
