@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.4.5
+//     ver 2.4.6
 // -----------------------
 
 // ---------------------
@@ -321,12 +321,14 @@ function buildMenuTemplate(labels) {
         { type: 'separator' },
         {
           label: labels["menu-export-playlist"],
+          accelerator: `${cmd}+E`,
           click: () => {
             mainWindow.webContents.send('export-playlist');
           }
         },
         {
           label: labels["menu-import-playlist"],
+          accelerator: `${cmd}+I`,
           click: () => {
             mainWindow.webContents.send('import-playlist');
           }
