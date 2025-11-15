@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     pptxtomp4.js
-//     ver 2.2.4
+//     ver 2.4.6
 // -----------------------
 
 
@@ -40,8 +40,10 @@ async function pptxtomp4_convertPPTXToMp4(pptxPath) {
         // 1スライドあたりの表示秒数を取得（fadeInDuration入力の値）
         const durationInput = document.getElementById('fadeInDuration');
         const duration = parseInt(durationInput.value, 10) || 1;
-        // フレームレートは1枚あたりの秒数に合わせる
+        // 入力側のフレームレート（1枚あたりの秒数に合わせる）
         const framerate = `1/${duration}`;
+        // 出力動画のフレームレート（再生環境に合わせて30fpsに固定）
+        const outputFps = 30;
 
         // タイムスタンプとカウンターを用いて出力動画ファイル名を生成する
         const now = new Date();
@@ -53,7 +55,8 @@ async function pptxtomp4_convertPPTXToMp4(pptxPath) {
         const outputVideoPath = window.electronAPI.path.join(pptDir, `${pptBase}_video_${timestamp}-${counter}.mp4`);
 
         // PNGファイル名は "Slide_XXX.png" 形式（3桁連番）とする
-        const ffmpegArgs = `-y -framerate ${framerate} -i "${outputFolder}\\Slide_%03d.png" -c:v libx264 -pix_fmt yuv420p "${outputVideoPath}"`;
+        // FFmpeg 推奨の image2 入力 + 明示的な出力fps 指定で黒フレームを抑制（vsync は指定せずデフォルトを使用）
+        const ffmpegArgs = `-y -framerate ${framerate} -start_number 1 -i "${outputFolder}\\Slide_%03d.png" -c:v libx264 -r ${outputFps} -g 1 -pix_fmt yuv420p "${outputVideoPath}"`;
 
         console.log("[pptxtomp4.js] FFmpeg args:", ffmpegArgs);
 
@@ -68,6 +71,7 @@ async function pptxtomp4_convertPPTXToMp4(pptxPath) {
         throw error;
     }
 }
+
 
 // 非同期変換
 async function convertPptxToMp4(originalPath, tempEntryPath) {
