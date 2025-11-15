@@ -2306,8 +2306,8 @@ function updateButtonColors() {
 // プレイリストのインポート・エクスポート
 // ----------------------------------------
 
-// プレイリストのエクスポート処理
-window.electronAPI.ipcRenderer.on('export-playlist', async () => {
+// プレイリストのエクスポート処理本体
+async function doExportPlaylist() {
     logOpe('[playlist.js] Export playlist triggered');
     try {
         const MAX_PLAYLISTS = 5; // 最大プレイリスト数
@@ -2339,7 +2339,7 @@ window.electronAPI.ipcRenderer.on('export-playlist', async () => {
             data: normalizedLiveData,
         });
 
-        // ローカルストレージからプレイリストを収集（1?5番）
+        // ローカルストレージからプレイリストを収集（1～5番）
         for (let i = 1; i <= MAX_PLAYLISTS; i++) {
             const storedData = localStorage.getItem(`vtrpon_playlist_store_${i}`);
             if (!storedData) continue;
@@ -2384,6 +2384,7 @@ window.electronAPI.ipcRenderer.on('export-playlist', async () => {
         // メインプロセスにデータを送信
         const result = await window.electronAPI.exportPlaylist(exportData);
         if (result.success) {
+            logInfo('[playlist.js] Playlist exported to:', result.path);
             showMessage(`${getMessage('playlist-exported-successfully')} ${result.path}`, 5000, 'info');
         } else if (result.error && result.error.includes('User canceled')) {
             logInfo('[playlist.js] Export canceled by user.');
@@ -2399,7 +2400,13 @@ window.electronAPI.ipcRenderer.on('export-playlist', async () => {
             showMessage(getMessage('failed-to-export-playlist'), 5000, 'alert');
         }
     }
+}
+
+// プレイリストのエクスポート処理（メニューからの呼び出し）
+window.electronAPI.ipcRenderer.on('export-playlist', async () => {
+    await doExportPlaylist();
 });
+
 
 // プレイリストデータのバリデーション関数
 function validatePlaylistData(data) {
@@ -2411,8 +2418,8 @@ function validatePlaylistData(data) {
     );
 }
 
-// プレイリストのインポート処理
-window.electronAPI.ipcRenderer.on('import-playlist', async () => {
+// プレイリストのインポート処理本体
+async function doImportPlaylists() {
     logOpe('[playlist.js] Import playlist triggered');
     try {
         const result = await window.electronAPI.importPlaylist();
@@ -2470,18 +2477,33 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
             });
         }
 
-        // 成功したらUIを初期化
-        document.getElementById('playliseclear-button').click();
+        // インポートしたプレイリストを localStorage に保存
+        for (const pl of newPlaylists) {
+            const storeKey = `vtrpon_playlist_store_${pl.index}`;
+            const storePayload = {
+                name: pl.playlistData.name,
+                endMode: pl.playlistData.endMode,
+                data: pl.playlistData.data,
+            };
+            localStorage.setItem(storeKey, JSON.stringify(storePayload));
+        }
 
-        // 復元したデータを localStorage に書き戻し
-        // index:0 も含めて書き戻す
-        for (const { index, playlistData, active } of newPlaylists) {
-            localStorage.setItem(`vtrpon_playlist_store_${index}`, JSON.stringify(playlistData));
+        // activePlaylistIndex の設定に従ってUIやstateControlを更新
+        for (const pl of newPlaylists) {
+            const { index, playlistData, active } = pl;
 
+            // ボタンの見た目更新
+            const button = document.getElementById(`playlise${index}-button`);
+            if (button) {
+                if (active) {
+                    button.classList.add('playlist-active');
+                } else {
+                    button.classList.remove('playlist-active');
+                }
+            }
+
+            // active なプレイリストは画面と stateControl にも展開
             if (active) {
-                // まずUI上のプレイリスト名を反映
-                document.getElementById('playlist-name-display').textContent = playlistData.name;
-
                 // 表示中のリストDOMをクリア
                 const playlistItemsContainer = document.querySelector('.playlist-items');
                 playlistItemsContainer.innerHTML = '';
@@ -2512,11 +2534,6 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
         }
 
         // ボタン等の見た目更新
-        updateButtonColors();
-
-        // activePlaylistIndex が 1?5 のときだけストアボタンのハイライトを想定
-        // 0の場合はスロットに属さない一時プレイリストなので、setActiveStoreButton(0)しても
-        // 何も起こらない/おかしく見える場合がある。そのまま呼んでも問題ないなら残してOK。
         setActiveStoreButton(activePlaylistIndex);
 
         logDebug('[playlist.js] All playlists imported successfully');
@@ -2538,6 +2555,11 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
             showMessage(`${getMessage('failed-to-import-playlist')}\n${errorDetails}`, 20000, 'alert');
         }
     }
+}
+
+// プレイリストのインポート処理（メニューからの呼び出し）
+window.electronAPI.ipcRenderer.on('import-playlist', async () => {
+    await doImportPlaylists();
 });
 
 // -----------------------
@@ -3310,7 +3332,11 @@ document.addEventListener('keydown', (event) => {
         } else if (isMod && keyLower === 'l') {
             handlePlaylistShortcut('list');
         } else if (isMod && keyLower === 'e') {
-            handlePlaylistShortcut('edit');
+            // Ctrl+E / Cmd+E でプレイリストをエクスポート
+            doExportPlaylist();
+        } else if (isMod && keyLower === 'i') {
+            // Ctrl+I / Cmd+I でプレイリストをインポート
+            doImportPlaylists();
         } else if (isMod && keyLower === 'f') {
             handlePlaylistShortcut('add-file');
         } else if (isMod && keyLower === 'c') {  // Mod+C
