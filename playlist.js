@@ -2457,6 +2457,16 @@ async function doImportPlaylists() {
                         endMode: (file.endMode !== undefined && file.endMode !== null) ? file.endMode : "PAUSE",
                         defaultVolume: (file.defaultVolume !== undefined && file.defaultVolume !== null) ? file.defaultVolume : 100,
                     };
+
+                    // UVC デバイスのサムネイルは、インポート時に再生成しておく
+                    if (isUVC) {
+                        try {
+                            restoredFile.thumbnail = await generateThumbnail(restoredFile.path);
+                        } catch (e) {
+                            logInfo('[playlist.js] Failed to regenerate UVC thumbnail on import:', e);
+                        }
+                    }
+
                     validData.push(restoredFile);
                 } else {
                     logInfo(`File not found: ${file.path}`);
