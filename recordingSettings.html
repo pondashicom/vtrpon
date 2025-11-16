@@ -1,4 +1,4 @@
-﻿<!-- recordingSettings.html ver2.2.9 -->
+﻿<!-- recordingSettings.html ver2.4.7 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
   <title>Recording Settings</title>
-  <link rel="stylesheet" href="devicesettings.css">
+  <link rel="stylesheet" href="modal-common.css">
   <script src="recordingSettings.js" defer></script>
 </head>
 <body>
@@ -23,7 +23,7 @@
             <option value="6000000">PERFORMANCE (6Mbps)</option>
         </select>
     </div>
-    
+
     <!-- File Name Prefix -->
     <div class="field-col">
       <label for="recordingPrefixInput">FILE NAME PREFIX</label>
@@ -31,23 +31,21 @@
     <div class="field-col">
       <input type="text" id="recordingPrefixInput">
     </div>
-    
+
     <!-- Save Directory -->
     <div class="field-col">
       <label for="recordingDirInput">SAVE DIRECTORY</label>
     </div>
     <div class="field-col">
-      <input type="text" id="recordingDirInput" readonly>
-    </div>
-    <div class="field-col">
-      <button id="browseButton">BROWSE...</button>
-    </div>
-    
-    <!-- OK ボタン -->
-    <div class="field-col">
-      <button id="okButton">OK</button>
+      <div class="dir-input-row">
+        <input type="text" id="recordingDirInput" readonly>
+        <button id="browseButton">BROWSE...</button>
+      </div>
     </div>
   </div>
-
+    <!-- OK ボタン -->
+    <div class="modal-button-row">
+      <button id="okButton">OK</button>
+    </div>
 </body>
 </html>

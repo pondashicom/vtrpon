@@ -1,4 +1,4 @@
-﻿/* devicesettings.css 2.3.4*/
+﻿/* devicesettings.css 2.4.7 */
 
 /* ------------------ */
 /*     共通スタイル      */
@@ -7,6 +7,7 @@ body {
     font-family: Arial, sans-serif;
     background-color: #292828;
     color: #ffffff;
+    font-size: 0.9em;
     margin: 0;
     padding: 20px;
 }
@@ -67,26 +68,62 @@ select {
 /*      ボタン         */
 /* ------------------ */
 button {
-    width: 100%;
-    padding: 10px;
+    /* 操作画面本体の .button + .button-gray と同等の見た目 */
+    display: flex;
+    justify-content: center;      /* 水平方向中央揃え */
+    align-items: center;          /* 垂直方向中央揃え */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    width: 5.9375rem;             /* 95px */
+    height: 1.4375rem;            /* 23px */
+    padding: 0.625rem;            /* 10px */
     margin-top: 20px;
-    background-color: rgba(102,205,102,0.9);
-    border: 1px solid rgba(0,128,0,0.3);
-    border-radius: 5px;
-    font-size: 0.8em;
-    font-weight: bold;
-    color: black;
+
+    border: none;                 /* 枠線なし（style.css に合わせる） */
+    border-radius: 0.3125rem;     /* 5px */
+    font-size: 0.65em;            /* 操作画面ボタンと同じ */
+    font-weight: 770;
+    color: #141414;               /* テキスト色を統一 */
+
+    background-color: #d9d9d9;    /* グレー（button-gray と同じベース色） */
     cursor: pointer;
     text-align: center;
-    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
-    box-shadow: 0 0 10px rgba(0,128,0,0.6);
+    box-sizing: border-box;       /* パディング込み計算 */
+
+    transition: background-color 0.2s ease,
+                transform 0.1s ease,
+                box-shadow 0.2s ease;
+    box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.2);
 }
 
+/* グレーボタン相当のホバー */
 button:hover {
-    background-color: rgba(34,139,34,1);
-    box-shadow: 0 0 18px rgba(34,139,34,0.8);
+    background-color: #a6a6a6;
+    box-shadow: 0 0 1.125rem rgba(90, 98, 104, 0.8);
 }
 
+/* クリック中だけ .button-green 相当の見た目にする */
+button:active {
+    background-color: rgba(102, 205, 102, 0.9);
+    border: 0.0625rem solid rgba(0, 128, 0, 0.3);      /* 1px */
+    box-shadow: 0 0 0.625rem rgba(0, 128, 0, 0.6);     /* 10px */
+    transform: scale(0.98);
+}
+
+/* 枠の下側で OK を中央寄せ */
+.device-button-row {
+    margin-top: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* ここだけはボタンの上マージンを消して詰める */
+.device-button-row button {
+    margin-top: 10px;
+}
 
 /* ------------------ */
 /*   警告モーダル     */
@@ -112,11 +149,11 @@ button:hover {
     border-radius: 8px;
     text-align: center;
     width: 200px;
-    font-size: 0.8em;
+    font-size: 1.0em;  /* ★ モーダル本文の文字を少し大きく */
     box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
 }
 
-/* ボタン */
+/* ボタン行（並び・間隔だけ調整。見た目は共通 button に任せる） */
 .modal-buttons {
     margin-top: 10px;
     display: flex;
@@ -124,25 +161,26 @@ button:hover {
     gap: 10px;
 }
 
+/* ボタンの上マージンとフォントだけモーダル用に少し大きくする */
 .modal-buttons button {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 0.8em;
+    margin-top: 0;
+    font-size: 0.85em;  /* ★ 警告モーダル内のボタン文字を読みやすく */
 }
 
+/* OK / Cancel は色と影だけ操作画面ボタンに近いテイストで上書き */
 #confirmOkButton {
-    background-color: #4CAF50;
-    color: white;
+    background-color: rgba(102, 205, 102, 0.9);           /* .button-green 系 */
+    color: #141414;
+    box-shadow: 0 0 0.625rem rgba(0, 128, 0, 0.6);
 }
 
 #confirmCancelButton {
-    background-color: #f44336;
-    color: white;
+    background-color: #f44336;                            /* 赤ボタン */
+    color: #141414;
+    box-shadow: 0 0 0.625rem rgba(244, 67, 54, 0.6);
 }
 
+/* ホバー時：少し暗くするだけ（形やサイズは共通 button のまま） */
 #confirmOkButton:hover {
     background-color: #45a049;
 }
@@ -151,6 +189,14 @@ button:hover {
     background-color: #d32f2f;
 }
 
+/* クリック中も色を維持して、灰色に戻らないようにする */
+#confirmOkButton:active {
+    background-color: #3d8e43;
+}
+
+#confirmCancelButton:active {
+    background-color: #b71c1c;
+}
 
 
 /* ------------- */
@@ -193,18 +239,6 @@ button:hover {
   box-sizing: border-box;
 }
 
-/* ボタンは幅100% */
-.field-col button {
-  width: 100%;
-  padding: 10px;
-  background-color: rgba(102,205,102,0.9);
-  color: #000;
-  border: 1px solid rgba(0,128,0,0.3);
-  border-radius: 4px;
-  font-size: 0.9em;
-  cursor: pointer;
-}
-
 /* ------------- */
 /*   ATEM設定    */
 /* ------------- */
@@ -243,7 +277,6 @@ button:hover {
   box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
 }
 
-
 .field-error {
     color: #ffffff;               /* 文字色を白に */
     font-size: 14px;
@@ -254,4 +287,57 @@ button:hover {
     max-width: 100%;              /* 親幅に合わせる */
     box-sizing: border-box;
     background: transparent;      /* 背景は透過 */
+}
+
+/* 枠の下側で Save と Cancel を横並び・中央寄せ */
+.atem-button-row {
+    margin-top: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;   /* ボタン間の間隔 */
+}
+
+/* この行だけは、ボタンの上マージンを消して詰める */
+.atem-button-row button {
+    margin-top: 0;
+}
+
+/* ------------------ */
+/*   モーダル共通ボタン行 */
+/* ------------------ */
+
+/* OK ボタン単独などを中央寄せする行 */
+.modal-button-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 20px;
+}
+
+/* SAVE / CANCEL を横並びにする ATEM 用（間隔調整） */
+.modal-button-row-double {
+    gap: 0.75rem;
+}
+
+/* SAVE/CANCEL, BROWSE などのボタンは margin-top を二重にしない */
+.modal-button-row button,
+.modal-button-row-double button {
+    margin-top: 0;
+}
+
+/* 録画ディレクトリ入力＋BROWSE ボタン用の横並び */
+.dir-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dir-input-row input[type="text"] {
+    flex: 1 1 auto;
+}
+
+.dir-input-row button {
+    margin-top: 0;
 }
