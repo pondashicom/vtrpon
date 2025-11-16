@@ -3019,14 +3019,11 @@ async function handleSoundPadOnAir(item, index) {
         logOpe(`[playlist.js] SOUND PAD On-Air: Sent item to edit area with ID: ${targetId}`);
     }
 
-    // オンエアボタンをクリックしてオンエア処理を実行
-    const onAirButton = document.getElementById('cue-button');
-    if (onAirButton) {
-        onAirButton.click();
-        logOpe(`[playlist.js] SOUND PAD On-Air: Triggered On-Air for item ID: ${targetId}`);
-    } else {
-        logInfo('[playlist.js] SOUND PAD On-Air: On-Air button not found.');
-    }
+    // オンエアボタンの mousedown を擬似的に発火してオンエア処理を実行
+    triggerButtonMouseDown(
+        'cue-button',
+        `[playlist.js] SOUND PAD On-Air: Triggered On-Air for item ID: ${targetId}`
+    );
 
     // ユーザーにメッセージを表示
     showMessage(`${getMessage('sound-pad-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
@@ -3078,14 +3075,11 @@ async function handleDirectOnAir(item, index) {
         logOpe(`[playlist.js] DIRECT ONAIR: Sent item to edit area with ID: ${targetId}`);
     }
 
-    // オンエアボタンをクリックしてオンエア処理を実行
-    const onAirButton = document.getElementById('cue-button');
-    if (onAirButton) {
-        onAirButton.click();
-        logOpe(`[playlist.js] DIRECT ONAIR: Triggered On-Air for item ID: ${targetId}`);
-    } else {
-        logInfo('[playlist.js] DIRECT ONAIR: On-Air button not found.');
-    }
+    // オンエアボタンの mousedown を擬似的に発火してオンエア処理を実行
+    triggerButtonMouseDown(
+        'cue-button',
+        `[playlist.js] DIRECT ONAIR: Triggered On-Air for item ID: ${targetId}`
+    );
 
     // ユーザーにメッセージを表示
     showMessage(`${getMessage('direct-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
@@ -3222,20 +3216,18 @@ async function handleNextModePlaylist(currentItemId) {
             logInfo(`[playlist.js] Next item sent to edit area: ${nextItem.name}`);
         }
 
-        // オンエアボタン をクリックしてオンエアを開始
-        const cueButton = document.getElementById('cue-button');
-        if (cueButton) {
-            cueButton.click();
-            logInfo('[playlist.js] Cue button clicked to trigger On-Air.');
-        } else {
-            logInfo('[playlist.js] Cue button not found. Unable to trigger On-Air.');
-        }
+        // オンエアボタンの mousedown を擬似的に発火してオンエアを開始
+        triggerButtonMouseDown(
+            'cue-button',
+            '[playlist.js] Cue button clicked to trigger On-Air.'
+        );
 
         // プレイリストUIを更新
         await updatePlaylistUI();
 
         // スクロールして次のアイテムを表示
         scrollToPlaylistItem(nextItem.playlistItem_id);
+
     } else {
         logInfo('[playlist.js] No next item available in playlist.');
     }
