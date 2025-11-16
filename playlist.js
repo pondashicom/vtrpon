@@ -174,8 +174,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (event.altKey && event.shiftKey && event.key.toLowerCase() === 's') {
             event.stopPropagation();
             event.preventDefault();
-            document.getElementById('soundpad-mode-button')?.click();
-            logOpe('[playlist.js] SOUND PAD mode triggered via shortcut.');
+            const soundPadButton = document.getElementById('soundpad-mode-button');
+            if (soundPadButton) {
+                const mouseDownEvent = new MouseEvent('mousedown', {
+                    button: 0,
+                    bubbles: true,
+                    cancelable: true
+                });
+                soundPadButton.dispatchEvent(mouseDownEvent);
+                logOpe('[playlist.js] SOUND PAD mode triggered via shortcut (synthetic mousedown).');
+            } else {
+                logInfo('[playlist.js] SOUND PAD button not found for Alt+Shift+S shortcut.');
+            }
         }
     }, true); // キャプチャフェーズで登録
 
@@ -1135,11 +1145,31 @@ function createButton(text, className, onClick) {
     const button = document.createElement('button');
     button.classList.add(className);
     button.textContent = text;
-    button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        logOpe(`[playlist.js] Button clicked: ${text}`);  // クリック時の確認
+
+    // 実行ロジックを共通化
+    function handleAction() {
+        logOpe(`[playlist.js] Button clicked: ${text}`);  // 押下時の確認
         onClick();
+    }
+
+    // マウス操作・ショートカット（擬似 mousedown）はこちらで処理
+    button.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return;    // 左ボタン以外は無視
+        event.preventDefault();
+        event.stopPropagation();
+        handleAction();
     });
+
+    // キーボード操作（Space/Enter）からの click を拾う
+    button.addEventListener('click', (event) => {
+        // マウスによる click は mousedown で既に処理しているので無視
+        // キーボードからの click は detail === 0 になる
+        if (event.detail !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        handleAction();
+    });
+
     return button;
 }
 
@@ -1607,7 +1637,6 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
     }
 }
 
-
 // ------------------------------------------------
 // アイテムを上下に移動して入れ替える(▲▼ボタン）
 // ------------------------------------------------
@@ -1716,7 +1745,6 @@ function initializeOnAirButtonListener() {
         }
     });
 }
-
 
 // 編集中のアイテムIDを取得
 function getEditingItemId() {
@@ -1875,7 +1903,7 @@ function initializePlaylistUI() {
 }
 
 // SAVEボタンのリスナー
-document.getElementById('playlise-save-button').addEventListener('click', () => {
+document.getElementById('playlise-save-button').addEventListener('mousedown', () => {
     const saveButton = document.getElementById('playlise-save-button');
     logOpe('[playlist.js] Save button clicked');
 
@@ -2317,7 +2345,7 @@ function setActiveStoreButton(storeNumber) {
 // --------------------------------
 
 // DELボタンのリスナー
-document.getElementById('playlisedel-button').addEventListener('click', () => {
+document.getElementById('playlisedel-button').addEventListener('mousedown', () => {
     const delButton = document.getElementById('playlisedel-button');
 
     // 保存されたボタンがない場合、処理を終了
@@ -2422,7 +2450,7 @@ function exitDeleteMode() {
 // --------------------------------
 
 // CLEARボタンのクリックイベントを登録
-document.getElementById('playliseclear-button').addEventListener('click', async () => {
+document.getElementById('playliseclear-button').addEventListener('mousedown', async () => {
     try {
         // プレイリストの状態を空にする
         await stateControl.setPlaylistState([]);
@@ -2763,11 +2791,11 @@ window.electronAPI.ipcRenderer.on('import-playlist', async () => {
 // -----------------------
 
 // リピートとリストボタンのイベントリスナー
-document.getElementById("list-repeat-button").addEventListener("click", () => {
+document.getElementById("list-repeat-button").addEventListener("mousedown", () => {
     logOpe('[playlist.js] Playlist set to Repeat mode.');
     setRepeatMode();
 });
-document.getElementById("list-list-button").addEventListener("click", () => {
+document.getElementById("list-list-button").addEventListener("mousedown", () => {
     logOpe('[playlist.js] Playlist set to List mode.');
     setListMode();
 });
@@ -3375,6 +3403,24 @@ function hideModal() {
 //  キーボードショートカット
 // --------------------------------
 
+// ショートカットからボタンの mousedown を発火させるユーティリティ
+function triggerButtonMouseDown(buttonId, logMessage) {
+    const btn = document.getElementById(buttonId);
+    if (!btn) {
+        logInfo(`[playlist.js] Button not found for shortcut. id=${buttonId}`);
+        return;
+    }
+    const mouseDownEvent = new MouseEvent('mousedown', {
+        button: 0,
+        bubbles: true,
+        cancelable: true
+    });
+    btn.dispatchEvent(mouseDownEvent);
+    if (logMessage) {
+        logOpe(logMessage);
+    }
+}
+
 function handlePlaylistShortcut(action) {
     switch (action) {
         case '1':
@@ -3382,49 +3428,71 @@ function handlePlaylistShortcut(action) {
         case '3':
         case '4':
         case '5':
-            document.getElementById(`playlise${action}-button`)?.click();
-            logOpe(`[playlist.js] Playlist button ${action} triggered.`);
+            triggerButtonMouseDown(
+                `playlise${action}-button`,
+                `[playlist.js] Playlist button ${action} triggered via synthetic mousedown.`
+            );
             break;
         case 'save':
-            document.getElementById('playlise-save-button')?.click();
-            logOpe('[playlist.js] Save mode button triggered.');
+            triggerButtonMouseDown(
+                'playlise-save-button',
+                '[playlist.js] Save mode button triggered via synthetic mousedown.'
+            );
             break;
         case 'delete':
-            document.getElementById('playlisedel-button')?.click();
-            logOpe('[playlist.js] Delete mode button triggered.');
+            triggerButtonMouseDown(
+                'playlisedel-button',
+                '[playlist.js] Delete mode button triggered via synthetic mousedown.'
+            );
             break;
         case 'clear':
-            document.getElementById('playliseclear-button')?.click();
-            logOpe('[playlist.js] Clear button triggered.');
+            triggerButtonMouseDown(
+                'playliseclear-button',
+                '[playlist.js] Clear button triggered via synthetic mousedown.'
+            );
             break;
         case 'repeat':
-            document.getElementById('list-repeat-button')?.click();
-            logOpe('[playlist.js] List mode REPEAT triggered.');
+            triggerButtonMouseDown(
+                'list-repeat-button',
+                '[playlist.js] List mode REPEAT triggered via synthetic mousedown.'
+            );
             break;
         case 'list':
-            document.getElementById('list-list-button')?.click();
-            logOpe('[playlist.js] List mode LIST triggered.');
+            triggerButtonMouseDown(
+                'list-list-button',
+                '[playlist.js] List mode LIST triggered via synthetic mousedown.'
+            );
             break;
         case 'add-file':
-            document.getElementById('file-button')?.click();
-            logOpe('[playlist.js] Add file button triggered.');
+            triggerButtonMouseDown(
+                'file-button',
+                '[playlist.js] Add file button triggered via synthetic mousedown.'
+            );
             break;
         case 'on-air':
-            document.getElementById('cue-button')?.click();
-            logOpe('[playlist.js] On-Air button triggered via shortcut.');
+            triggerButtonMouseDown(
+                'cue-button',
+                '[playlist.js] On-Air button triggered via shortcut (synthetic mousedown).'
+            );
             break;
         case 'Shift+Alt+D':
-            document.getElementById('directonair-mode-button')?.click();
-            logOpe('[playlist.js] DIRECT ONAIR mode triggered via shortcut.');
+            triggerButtonMouseDown(
+                'directonair-mode-button',
+                '[playlist.js] DIRECT ONAIR mode triggered via shortcut (synthetic mousedown).'
+            );
             break;
         case 'Shift+Alt+S':
-            document.getElementById('soundpad-mode-button')?.click();
-            logOpe('[playlist.js] SOUND PAD mode triggered via shortcut.');
+            triggerButtonMouseDown(
+                'soundpad-mode-button',
+                '[playlist.js] SOUND PAD mode triggered via shortcut (synthetic mousedown).'
+            );
             break;
         case 'Shift+D':
-          document.getElementById('dsk-button')?.click();
-          logOpe('[playlist.js] DSK toggled via shortcut.');
-          break;
+            triggerButtonMouseDown(
+                'dsk-button',
+                '[playlist.js] DSK toggled via shortcut (synthetic mousedown).'
+            );
+            break;
         default:
             logInfo(`[playlist.js] Unknown action: ${action}`);
     }
@@ -3446,11 +3514,10 @@ document.addEventListener('keydown', (event) => {
     // Shift+Enter → 現状どおり On-Air ボタンを押す
     if (isShift && isEnter) {
         event.preventDefault();
-        const cueButton = document.getElementById('cue-button');
-        if (cueButton) {
-            cueButton.click();
-            logOpe('[playlist.js] On-Air triggered via Shift+Enter.');
-        }
+        triggerButtonMouseDown(
+            'cue-button',
+            '[playlist.js] On-Air triggered via Shift+Enter (synthetic mousedown).'
+        );
         return;
     }
 
@@ -3537,10 +3604,8 @@ document.addEventListener('keydown', (event) => {
         } else if (isMod && keyLower === 'l') {
             handlePlaylistShortcut('list');
         } else if (isMod && keyLower === 'e') {
-            // Ctrl+E / Cmd+E でプレイリストをエクスポート
             doExportPlaylist();
         } else if (isMod && keyLower === 'i') {
-            // Ctrl+I / Cmd+I でプレイリストをインポート
             doImportPlaylists();
         } else if (isMod && keyLower === 'f') {
             handlePlaylistShortcut('add-file');
@@ -3562,9 +3627,11 @@ window.electronAPI.onShortcutTrigger((event, shortcut) => {
     }
 
     if (shortcut === 'Shift+Enter') {
-        // メニュー操作からOn-Airボタンをクリック
-        document.getElementById('cue-button')?.click();
-        logOpe('[playlist.js] On-Air triggered via menu shortcut.');
+        // メニュー操作からOn-Airボタンを mousedown でトリガー
+        triggerButtonMouseDown(
+            'cue-button',
+            '[playlist.js] On-Air triggered via menu shortcut (synthetic mousedown).'
+        );
     }
     else if (shortcut === 'add-file') {
         handlePlaylistShortcut('add-file');
