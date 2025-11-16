@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.4.5
+//     ver 2.4.7
 // -----------------------
 
 // -----------------------
@@ -185,6 +185,17 @@ function rebindEndModeControls(videoElement) {
     setupEndModeControls(videoElement);
 }
 
+// 左ボタンの mousedown で即時反応させるボタンハンドラ
+function attachImmediateButtonHandler(target, handler) {
+    if (!target) return;
+    target.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) {
+            return;
+        }
+        event.preventDefault();
+        handler();
+    });
+}
 // -----------------------
 //  動画プレーヤー初期化
 // -----------------------
@@ -428,7 +439,7 @@ function setupPlaybackControls(videoElement) {
     disableAllButtons(controlButtons); 
 
     // 再生ボタン
-    controlButtons.play?.addEventListener('click', async () => {
+    attachImmediateButtonHandler(controlButtons.play, async () => {
         logOpe('[listedit.js] Play button clicked');
 
         if (videoElement.ended || (videoElement.currentTime >= videoElement.duration - 0.05)) {
@@ -454,7 +465,7 @@ function setupPlaybackControls(videoElement) {
     });
 
     // 一時停止ボタン
-    controlButtons.pause?.addEventListener('click', () => {
+    attachImmediateButtonHandler(controlButtons.pause, () => {
         if (videoElement.readyState < 2) {;
             return;
         }
@@ -467,7 +478,7 @@ function setupPlaybackControls(videoElement) {
     });
 
     // 初めに戻るボタン
-    controlButtons.rewindstart?.addEventListener('click', () => {
+    attachImmediateButtonHandler(controlButtons.rewindstart, () => {
         resetVideoIfEnded(videoElement);
         videoElement.currentTime = 0;
         videoElement.pause();
@@ -476,7 +487,7 @@ function setupPlaybackControls(videoElement) {
     });
 
     // 最後に進むボタン
-    controlButtons.fastForwardend?.addEventListener('click', () => {
+    attachImmediateButtonHandler(controlButtons.fastForwardend, () => {
         resetVideoIfEnded(videoElement);
         videoElement.currentTime = videoElement.duration;
         videoElement.pause();
@@ -1199,7 +1210,7 @@ async function rebindPFLToCurrentVideo() {
 
 // PFL ボタン
 if (pflButton && videoElement) {
-    pflButton.addEventListener('click', async () => {
+    attachImmediateButtonHandler(pflButton, async () => {
         logOpe('[listedit.js] PFL button clicked');
 
         if (!isVideoLoaded) {
@@ -1411,7 +1422,7 @@ function setupInOutPoints(videoElement) {
     const outPointButton = document.getElementById('out-point');
 
     // IN点ボタンの動作
-    inPointButton.addEventListener('click', async () => {
+    attachImmediateButtonHandler(inPointButton, async () => {
         logOpe('[listedit.js] In point button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] In point button pressed but video is not loaded.');
@@ -1439,7 +1450,7 @@ function setupInOutPoints(videoElement) {
     });
 
     // OUT点ボタンの動作
-    outPointButton.addEventListener('click', async () => {
+    attachImmediateButtonHandler(outPointButton, async () => {
         logOpe('[listedit.js] Out point button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] Out point button pressed but video is not loaded.');
@@ -1629,7 +1640,7 @@ function setupStartModeControls(videoElement) {
         return;
     }
 
-    startModePauseButton.addEventListener('click', async () => {
+    attachImmediateButtonHandler(startModePauseButton, async () => {
         logOpe('[listedit.js] Start mode PAUSE button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] Start mode PAUSE button pressed but video is not loaded.');
@@ -1638,7 +1649,7 @@ function setupStartModeControls(videoElement) {
         await updateStartModeState("PAUSE");
     });
 
-    startModePlayButton.addEventListener('click', async () => {
+    attachImmediateButtonHandler(startModePlayButton, async () => {
         logOpe('[listedit.js] Start mode PLAY button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] Start mode PLAY button pressed but video is not loaded.');
@@ -1647,7 +1658,7 @@ function setupStartModeControls(videoElement) {
         await updateStartModeState("PLAY");
     });
 
-    startModeFadeinButton.addEventListener('click', async () => {
+    attachImmediateButtonHandler(startModeFadeinButton, async () => {
         logOpe('[listedit.js] Start mode FADEIN button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] Start mode FADEIN button pressed but video is not loaded.');
@@ -1721,7 +1732,7 @@ function setupEndModeControls(videoElement) {
 
     // EndModeボタンは従来通り排他で更新
     Object.entries(modeButtons).forEach(([mode, button]) => {
-        button.addEventListener('click', () => {
+        attachImmediateButtonHandler(button, () => {
             logOpe(`[listedit.js] End mode ${mode} button clicked`);
             if (!isVideoLoaded) {
                 logInfo(`[listedit.js] End mode ${mode} button pressed but video is not loaded.`);
@@ -1732,7 +1743,7 @@ function setupEndModeControls(videoElement) {
     });
 
     // FTBはトグル（EndModeと共存）
-    ftbButton.addEventListener('click', async () => {
+    attachImmediateButtonHandler(ftbButton, async () => {
         logOpe('[listedit.js] FTB toggle button clicked');
         if (!isVideoLoaded) {
             logInfo('[listedit.js] FTB toggle pressed but video is not loaded.');
@@ -1820,7 +1831,6 @@ function updateFtbButton(enabled) {
         ftbBtn.classList.add('button-gray');
     }
 }
-
 
 // -----------------------
 //  FTBレートの設定
@@ -2013,8 +2023,6 @@ async function resetFadeParamsForCurrentItem() {
 
     logOpe('[listedit.js] Reset ftbRate and startFadeInSec to defaults (1.0).');
 }
-
-
 
 // --------------------------------
 //  キーボードショートカット

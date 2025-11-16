@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.4.6
+//     ver 2.4.7
 // -----------------------
 // -----------------------
 // 初期設定
@@ -2006,18 +2006,24 @@ function onairHandleOffAirButton() {
 function onairSetupButtonHandlers() {
     const elements = onairGetElements();
     const { onairPlayButton, onairPauseButton, onairOffAirButton, onairFTBButton } = elements;
-    if (onairPlayButton) {
-        onairPlayButton.addEventListener('click', onairHandlePlayButton);
-    }
-    if (onairPauseButton) {
-        onairPauseButton.addEventListener('click', onairHandlePauseButton);
-    }
-    if (onairOffAirButton) {
-        onairOffAirButton.addEventListener('click', onairHandleOffAirButton);
-    }
-    if (onairFTBButton) {
-        onairFTBButton.addEventListener('click', onairHandleFTBButton);
-    }
+
+    // マウス左ボタン押下時に即時処理するヘルパー
+    const attachImmediateHandler = (buttonElement, handler) => {
+        if (!buttonElement) return;
+        buttonElement.addEventListener('mousedown', (event) => {
+            // 左ボタンのみ
+            if (event.button !== 0) return;
+            // 不要なフォーカス移動やドラッグ開始を減らす
+            event.preventDefault();
+            handler();
+        });
+    };
+
+    attachImmediateHandler(onairPlayButton, onairHandlePlayButton);
+    attachImmediateHandler(onairPauseButton, onairHandlePauseButton);
+    attachImmediateHandler(onairOffAirButton, onairHandleOffAirButton);
+    attachImmediateHandler(onairFTBButton, onairHandleFTBButton);
+
     logDebug('[onair.js] Button handlers set up.');
 }
 
@@ -2436,7 +2442,11 @@ function setupPlaybackSpeedPresetButtons() {
         video.addEventListener('error', onEmptied);
 
         // ボタン押下：同じボタン再押下で消灯（速度は保持）
-        group.addEventListener('click', (e) => {
+        group.addEventListener('mousedown', (e) => {
+            // 左ボタンのみ
+            if (e.button !== 0) return;
+            e.preventDefault();
+
             const btn = e.target.closest('.speed-btn');
             if (!btn) return;
 
@@ -2444,10 +2454,16 @@ function setupPlaybackSpeedPresetButtons() {
             const active = btn.classList.contains('button-green');
 
             if (active) {
-                // 消灯のみ（速度はそのまま）
-                setHighlight(rate, false);
+                // すでにアクティブなボタンを再度押した場合は消灯し、速度は現状維持
+                btn.classList.remove('button-green');
+                onairSetPlaybackRateFromUi(video);
+                setHighlight(1, false);
+                window.onairPresetSpeedRate = 1;
                 return;
             }
+
+            // 一旦すべて消灯
+            setHighlight(1, false);
 
             // 新しいレートを反映。x1 は消灯のまま
             applyRate(rate);
@@ -2796,7 +2812,10 @@ function stopItemFade() {
 }
 
 // フェードイン、フェードアウトボタンのイベントリスナー
-document.getElementById('on-air-fo-button').addEventListener('click', () => {
+document.getElementById('on-air-fo-button').addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+
     logOpe('[onair.js] Fade Out button clicked');
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
@@ -2812,7 +2831,10 @@ document.getElementById('on-air-fo-button').addEventListener('click', () => {
     audioFadeOut(fioRate);
 });
 
-document.getElementById('on-air-fi-button').addEventListener('click', () => {
+document.getElementById('on-air-fi-button').addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+
     logOpe('[onair.js] Fade In button clicked');
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
@@ -2902,7 +2924,10 @@ function audioFadeInItem(duration) {
 }
 
 // アイテムごとのフェードイン・フェードアウト
-document.getElementById('on-air-item-fo-button').addEventListener('click', () => {
+document.getElementById('on-air-item-fo-button').addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+
     logOpe('[onair.js] Item Fade Out button clicked');
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
@@ -2921,7 +2946,10 @@ document.getElementById('on-air-item-fo-button').addEventListener('click', () =>
     audioFadeOutItem(fadeDuration);
 });
 
-document.getElementById('on-air-item-fi-button').addEventListener('click', () => {
+document.getElementById('on-air-item-fi-button').addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+
     logOpe('[onair.js] Item Fade In button clicked');
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
@@ -2940,7 +2968,6 @@ document.getElementById('on-air-item-fi-button').addEventListener('click', () =>
     fadeButtonBlink(document.getElementById('on-air-item-fi-button'));
     audioFadeInItem(fadeDuration); 
 });
-
 
 // -----------------------
 // スタートモードFADEIN
@@ -3489,7 +3516,10 @@ window.electronAPI.onReceiveFullscreenVolumeLR((L, R) => {
 document.addEventListener('DOMContentLoaded', () => {
     const captureBtn = document.getElementById('capture-button');
     if (captureBtn) {
-        captureBtn.addEventListener('click', () => {
+        captureBtn.addEventListener('mousedown', (event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+
             logOpe('[screenshot.js] Capture button clicked');
             window.electronAPI.ipcRenderer.send('request-capture-screenshot');
         });
@@ -3502,7 +3532,10 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
     const recBtn = document.getElementById('rec-button');
     if (recBtn) {
-        recBtn.addEventListener('click', async () => {
+        recBtn.addEventListener('mousedown', async (event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+
             if (!window.recorderIsActive) {
                 // 録画開始
                 window.electronAPI.sendControlToFullscreen({ command: 'start-recording' });
@@ -3564,7 +3597,11 @@ function onairHandleFTBButton() {
         }
     });
     // ボタンにクリックイベントリスナーを登録
-    fillKeyButton.addEventListener('click', () => {
+    fillKeyButton.addEventListener('mousedown', (event) => {
+        // 左ボタンのみ有効にし、押した瞬間に処理する
+        if (event.button !== 0) return;
+        event.preventDefault();
+
         logOpe('[onair.js] FillKey button clicked');
         if (!isFillKeyMode) {
             isFillKeyMode = true;
@@ -3596,7 +3633,6 @@ function onairHandleFTBButton() {
             });
             logDebug('[onair.js] FILL-KEY mode disabled.');
         }
-
         fillKeyButton.blur();
     });
 })();
