@@ -660,26 +660,6 @@ function setupMouseWheelControl(videoElement) {
 
         logOpe('[listedit.js] Mouse wheel jog moved.');
     });
-
-    // キーボードによる1コマ送り／戻し処理
-    videoElement.addEventListener('keydown', (event) => {
-        // マウスオンでなければ処理しない
-        if (!isMouseOverVideo) return;
-
-        // 例として30fpsの場合の1コマの秒数
-        const frameDuration = 1 / 100;
-        if (event.key === ':') {
-            event.preventDefault();
-            const newTime = Math.min(videoElement.duration, videoElement.currentTime + frameDuration);
-            videoElement.currentTime = newTime;
-            logOpe('[listedit.js] Frame forward via ":" key pressed.');
-        } else if (event.key === ';') {
-            event.preventDefault();
-            const newTime = Math.max(0, videoElement.currentTime - frameDuration);
-            videoElement.currentTime = newTime;
-            logOpe('[listedit.js] Frame backward via ";" key pressed.');
-        }
-    });
 }
 
 // 動画が終了状態の場合に内部状態をリセットするヘルパー
@@ -2023,10 +2003,40 @@ async function resetFadeParamsForCurrentItem() {
 
     logOpe('[listedit.js] Reset ftbRate and startFadeInSec to defaults (1.0).');
 }
-
 // --------------------------------
 //  キーボードショートカット
 // --------------------------------
+
+// ショートカットからボタンの mousedown を発火させるユーティリティ
+function triggerMouseDownById(id, logMessage) {
+    const btn = document.getElementById(id);
+    if (!btn) {
+        logInfo(`[listedit.js] Button not found for shortcut. id=${id}`);
+        return;
+    }
+    const mouseDownEvent = new MouseEvent('mousedown', {
+        button: 0,
+        bubbles: true,
+        cancelable: true
+    });
+    btn.dispatchEvent(mouseDownEvent);
+    if (logMessage) {
+        logOpe(logMessage);
+    }
+}
+
+function triggerMouseDownOnElement(el, logMessage) {
+    if (!el) return;
+    const mouseDownEvent = new MouseEvent('mousedown', {
+        button: 0,
+        bubbles: true,
+        cancelable: true
+    });
+    el.dispatchEvent(mouseDownEvent);
+    if (logMessage) {
+        logOpe(logMessage);
+    }
+}
 
 async function handleShortcutAction(action) {
     switch (action) {
@@ -2048,52 +2058,73 @@ async function handleShortcutAction(action) {
             initializeEditArea();
             break;
         case 'in-point':
-            document.getElementById('in-point')?.click();
-            logOpe('[listedit.js] IN point button triggered.');
+            triggerMouseDownById(
+                'in-point',
+                '[listedit.js] IN point button triggered via shortcut (synthetic mousedown).'
+            );
             break;
         case 'out-point':
-            document.getElementById('out-point')?.click();
-            logOpe('[listedit.js] OUT point button triggered.');
+            triggerMouseDownById(
+                'out-point',
+                '[listedit.js] OUT point button triggered via shortcut (synthetic mousedown).'
+            );
             break;
-        case 'toggle-start-mode':
+        case 'toggle-start-mode': {
             const startPause = document.getElementById('start-pause-button');
             const startPlay = document.getElementById('start-play-button');
             const startFadein = document.getElementById('start-fadein-button');
             if (startPause && startPlay && startFadein) {
                 if (startPause.classList.contains('button-green')) {
                     // PAUSE → PLAY
-                    startPlay.click();
-                    logOpe('[listedit.js] Start mode toggled to PLAY.');
+                    triggerMouseDownOnElement(
+                        startPlay,
+                        '[listedit.js] Start mode toggled to PLAY (synthetic mousedown).'
+                    );
                 } else if (startPlay.classList.contains('button-green')) {
                     // PLAY → FADEIN
-                    startFadein.click();
-                    logOpe('[listedit.js] Start mode toggled to FADEIN.');
+                    triggerMouseDownOnElement(
+                        startFadein,
+                        '[listedit.js] Start mode toggled to FADEIN (synthetic mousedown).'
+                    );
                 } else {
                     // FADEIN（またはどれもアクティブでない状態） → PAUSE
-                    startPause.click();
-                    logOpe('[listedit.js] Start mode toggled to PAUSE.');
+                    triggerMouseDownOnElement(
+                        startPause,
+                        '[listedit.js] Start mode toggled to PAUSE (synthetic mousedown).'
+                    );
                 }
             }
             break;
+        }
         case 'end-mode-off':
-            document.getElementById('end-off-button')?.click();
-            logOpe('[listedit.js] End mode OFF triggered.');
+            triggerMouseDownById(
+                'end-off-button',
+                '[listedit.js] End mode OFF triggered via shortcut (synthetic mousedown).'
+            );
             break;
         case 'end-mode-pause':
-            document.getElementById('end-pause-button')?.click();
-            logOpe('[listedit.js] End mode PAUSE triggered.');
+            triggerMouseDownById(
+                'end-pause-button',
+                '[listedit.js] End mode PAUSE triggered via shortcut (synthetic mousedown).'
+            );
             break;
         case 'end-mode-ftb':
-            document.getElementById('end-ftb-button')?.click();
-            logOpe('[listedit.js] FTB flag toggled.');
+            triggerMouseDownById(
+                'end-ftb-button',
+                '[listedit.js] FTB flag toggled via shortcut (synthetic mousedown).'
+            );
             break;
         case 'end-mode-repeat':
-            document.getElementById('end-repeat-button')?.click();
-            logOpe('[listedit.js] End mode REPEAT triggered.');
+            triggerMouseDownById(
+                'end-repeat-button',
+                '[listedit.js] End mode REPEAT triggered via shortcut (synthetic mousedown).'
+            );
             break;
         case 'end-mode-next':
-            document.getElementById('end-next-button')?.click();
-            logOpe('[listedit.js] End mode NEXT triggered.');
+            triggerMouseDownById(
+                'end-next-button',
+                '[listedit.js] End mode NEXT triggered via shortcut (synthetic mousedown).'
+            );
             break;
         default:
             logInfo(`[listedit.js] Unknown action: ${action}`);
@@ -2168,11 +2199,48 @@ document.addEventListener('keydown', (event) => {
             return;
         }
     } else {
-        // 修飾キー未押下時は右矢印でリセット
+        // 修飾キー未押下時のショートカット
         if (code === 'ArrowRight') {
+            // 右矢印でエディットエリアリセット
             event.preventDefault();
             event.stopPropagation();
             handleShortcutAction('reset-edit-area');
+        } else if (code === 'Semicolon') {
+            // ; / : による1コマ送り・戻し
+            // Ctrl / Alt / Cmd が付いている場合は無視
+            if (event.ctrlKey || event.metaKey || event.altKey) {
+                return;
+            }
+
+            const videoElement = document.getElementById('edit-video');
+            if (!videoElement || isNaN(videoElement.duration)) {
+                return;
+            }
+
+            // 例として 1/100 秒を 1コマとみなす
+            const frameDuration = 1 / 100;
+
+            if (event.shiftKey) {
+                // Shift+; → ":" 相当 → 1コマ送り
+                event.preventDefault();
+                event.stopPropagation();
+                const newTime = Math.min(
+                    videoElement.duration,
+                    videoElement.currentTime + frameDuration
+                );
+                videoElement.currentTime = newTime;
+                logOpe('[listedit.js] Frame forward via ":" (Semicolon+Shift) shortcut.');
+            } else {
+                // ; → 1コマ戻し
+                event.preventDefault();
+                event.stopPropagation();
+                const newTime = Math.max(
+                    0,
+                    videoElement.currentTime - frameDuration
+                );
+                videoElement.currentTime = newTime;
+                logOpe('[listedit.js] Frame backward via ";" (Semicolon) shortcut.');
+            }
         }
     }
 });
@@ -2189,10 +2257,12 @@ window.electronAPI.onShortcutTrigger((_, action, payload) => {
     const wantEnabled = !!(payload && payload.enabled);
     const isEnabledNow = btn.classList.contains('button-green'); // FTB ON 表示判定（あなたのUIルールに合わせる）
 
-    // 期待状態と不一致のときのみ click() で既存トグル処理を呼び出す
+    // 期待状態と不一致のときのみ mousedown で既存トグル処理を呼び出す
     if (wantEnabled !== isEnabledNow) {
-        btn.click();
-        logOpe(`[listedit.js] FTB flag ${wantEnabled ? 'ENABLED' : 'DISABLED'} via menu (synced).`);
+        triggerMouseDownOnElement(
+            btn,
+            `[listedit.js] FTB flag ${wantEnabled ? 'ENABLED' : 'DISABLED'} via menu (synced, synthetic mousedown).`
+        );
     } else {
         logDebug('[listedit.js] FTB flag already in desired state. No action.');
     }

@@ -3735,6 +3735,21 @@ function animateSliderTo(slider, targetValue, {
     requestAnimationFrame(frame);
 }
 
+// ショートカットからボタンの mousedown を発火させるヘルパー
+function triggerOnAirMouseDown(buttonId) {
+    const btn = document.getElementById(buttonId);
+    if (!btn) {
+        logInfo(`[onair.js] Button not found for shortcut. id=${buttonId}`);
+        return;
+    }
+    const mouseDownEvent = new MouseEvent('mousedown', {
+        button: 0,
+        bubbles: true,
+        cancelable: true
+    });
+    btn.dispatchEvent(mouseDownEvent);
+}
+
 // ショートカットキーの共通処理関数
 function handleShortcut(action) {
     if (isOnAirModalActive) {
@@ -3809,17 +3824,17 @@ function handleShortcut(action) {
 
         case 'Ctrl+,': // CTRL + , (フェードイン)
             logOpe('[onair.js] Shortcut: CTRL+, (fade in) triggered.');
-            document.getElementById('on-air-fi-button').click(); // フェードインボタンをクリック
+            triggerOnAirMouseDown('on-air-fi-button'); // フェードインボタンを mousedown でトリガー
             break;
 
         case 'Ctrl+.': // CTRL + . (フェードアウト)
             logOpe('[onair.js] Shortcut: CTRL+. (fade out) triggered.');
-            document.getElementById('on-air-fo-button').click(); // フェードアウトボタンをクリック
+            triggerOnAirMouseDown('on-air-fo-button'); // フェードアウトボタンを mousedown でトリガー
             break;
 
         case 'Shift+Alt+F': // Shift + Alt + F で FILL-KEY モードをトグル
             logOpe('[onair.js] Shortcut: Shift+Alt+F triggered.');
-            document.getElementById('fillkey-mode-button').click();
+            triggerOnAirMouseDown('fillkey-mode-button');
             break;
 
         case 'Shift+F': // Shift+F で FTB ボタンの処理を呼び出し
@@ -3829,7 +3844,7 @@ function handleShortcut(action) {
 
         case 'Shift+R': // Shift+R で録画の開始／停止をトグル
             logOpe('[onair.js] Shortcut: Shift+R (recording toggle) triggered.');
-            document.getElementById('rec-button').click(); // 録画ボタンをクリック
+            triggerOnAirMouseDown('rec-button'); // 録画ボタンを mousedown でトリガー
             break;
 
         // 音量ショートカット
@@ -3918,7 +3933,6 @@ function handleShortcut(action) {
             break;
     }
 }
-
 
 // キーボードショートカットの設定（Mac用追加）
 document.addEventListener('keydown', (event) => {
