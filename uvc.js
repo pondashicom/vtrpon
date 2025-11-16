@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     uvc.js 
-//     ver 2.4.6
+//     ver 2.4.7
 // -----------------------
 
 // -----------------------
@@ -8,7 +8,10 @@
 // -----------------------
 
 // UVCデバイスをプレイリストに追加
-document.getElementById('addUVCToPlaylistButton').addEventListener('click', async () => {
+document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', async (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+
     const dropdown = document.getElementById('uvcDeviceDropdown');
     const selectedDeviceId = dropdown.value;
     const selectedDevice = availableUVCDevices.find(device => device.id === selectedDeviceId);
@@ -48,7 +51,7 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('click', asyn
 
             logDebug(`[uvc.js] UVC device ${selectedDevice.deviceName} (${resolution}) added to playlist with temporary thumbnail.`);
 
-            // ?? 非同期でサムネイルを生成し、後から更新
+            // 非同期でサムネイルを生成し、後から更新
             const thumbnail = await generateThumbnail(`UVC_DEVICE:${selectedDevice.id}`);
             logDebug(`[uvc.js] Thumbnail generation complete - deviceId: ${selectedDevice.id}`);
 
@@ -70,7 +73,7 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('click', asyn
     }
 });
 
-// ?? 「Loading…」サムネイルを作成
+// 「Loading…」サムネイルを作成
 function createLoadingThumbnail() {
     const canvas = document.createElement('canvas');
     canvas.width = 112;

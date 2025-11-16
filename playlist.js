@@ -104,8 +104,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // SOUND PADモードボタンのイベントリスナーを初期化
     const soundPadButton = document.getElementById('soundpad-mode-button');
     if (soundPadButton) {
-        soundPadButton.addEventListener('click', async () => {
+        soundPadButton.addEventListener('mousedown', async (event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
             soundPadActive = !soundPadActive;
+
             if (soundPadActive) {
                 // 相互排他：DIRECT ONAIRモードがオンならオフにする
                 if (directOnAirActive) {
@@ -179,8 +182,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // DIRECT ONAIRモードボタンのイベントリスナーを初期化
     const directOnAirButton = document.getElementById('directonair-mode-button');
     if (directOnAirButton) {
-        directOnAirButton.addEventListener('click', async () => {
+        directOnAirButton.addEventListener('mousedown', async (event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
             directOnAirActive = !directOnAirActive;
+
             if (directOnAirActive) {
                 // 相互排他：SOUND PADモードがオンならオフにする
                 if (soundPadActive) {
@@ -232,7 +238,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ファイルボタンのクリックイベント登録
-        addFileButton.addEventListener('click', async () => {
+        addFileButton.addEventListener('mousedown', async (event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
             logOpe('[playlist.js] File button clicked.');
 
             try {
@@ -1652,8 +1660,11 @@ function initializeOnAirButtonListener() {
         return;
     }
 
-    onAirButton.addEventListener('click', async () => {
+    onAirButton.addEventListener('mousedown', async (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
         logOpe('[playlist.js] On-Air button clicked');
+
         try {
             const playlist = await stateControl.getPlaylistState();
             const editingItem = playlist.find(item => item.editingState === 'editing'); // 現在編集中のアイテム
@@ -2091,7 +2102,9 @@ async function savePlaylist(storeNumber) {
 // プレイリスト番号ボタンをクリックしたときの処理
 for (let i = 1; i <= 5; i++) {
     const button = document.getElementById(`playlise${i}-button`);
-    button.addEventListener('click', async (event) => {
+    button.addEventListener('mousedown', async (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
         logOpe(`[playlist.js] Playlist number ${i} button clicked`);
 
         // SAVEモード中は恒常リスナーでは何もしない
@@ -3221,8 +3234,11 @@ function scrollToPlaylistItem(itemId) {
 // DSKボタンのイベントリスナー
 const dskButton = document.getElementById('dsk-button');
 if (dskButton) {
-    dskButton.addEventListener('click', async () => {
+    dskButton.addEventListener('mousedown', async (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
         logOpe('[playlist.js] DSK button clicked');
+
         // まず、DSKがすでに表示中なら、解除用に toggleOnAirDSK() を呼び出す
         if (window.dskModule.getCurrentDSKItem()) {
             window.dskModule.toggleOnAirDSK();  // 引数なしで呼び出すと内部で解除処理が走る
@@ -3283,8 +3299,11 @@ window.addEventListener('dsk-active-clear', async () => {
 const dksPauseButton = document.getElementById('dks-pause-button');
 const dskPlayButton = document.getElementById('dsk-play-button');
 if (dksPauseButton) {
-    dksPauseButton.addEventListener('click', () => {
+    dksPauseButton.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
         logOpe('[playlist.js] DSK Pause button clicked');
+
         // オンエア側DSKの一時停止処理
         window.dskModule.pauseOnAirDSK();
         // フルスクリーン側DSKも同時に一時停止するためにIPC経由で命令送信
@@ -3292,8 +3311,11 @@ if (dksPauseButton) {
     });
 }
 if (dskPlayButton) {
-    dskPlayButton.addEventListener('click', () => {
+    dskPlayButton.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
         logOpe('[playlist.js] DSK Play button clicked');
+
         // オンエア側DSKの再生処理
         window.dskModule.playOnAirDSK();
         // フルスクリーン側DSKも同時に再生するためにIPC経由で命令送信

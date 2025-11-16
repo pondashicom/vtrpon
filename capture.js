@@ -1,11 +1,14 @@
 ﻿// -----------------------
 //     capture.js
-//     ver 2.0.1
+//     ver 2.4.7
 // -----------------------
 
 
 // キャプチャボタンのイベントリスナー
-document.getElementById('still-button').addEventListener('click', async () => {
+document.getElementById('still-button').addEventListener('mousedown', async (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    
     const videoElement = document.getElementById('listedit-video');
 
     if (!videoElement || videoElement.readyState < 2) {
