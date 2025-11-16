@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.4.6
+//     ver 2.4.7
 // -----------------------
 
 // ---------------------
@@ -88,6 +88,10 @@ function saveConfig(config) {
         console.error('[main.js] Failed to save config.json:', e);
     }
 }
+
+// ---------------------
+// ATEM読み込み関連
+// ---------------------
 
 // ATEM 設定取得
 ipcMain.handle('get-atem-config', (event) => {
@@ -1177,7 +1181,7 @@ function createAtemSettingsWindow() {
     }
     atemSettingsWindow = new BrowserWindow({
         width: 500,
-        height: 650,
+        height: 550,
         title: 'ATEM Connection',
         parent: mainWindow,
         modal: true,
@@ -1207,7 +1211,7 @@ function createAtemSettingsWindow() {
 function createDeviceSettingsWindow() {
     deviceSettingsWindow = new BrowserWindow({
         width: 500,
-        height: 400,
+        height: 320,
         title: 'Device Settings',
         parent: mainWindow, // メインウィンドウを親に設定
         modal: true,
@@ -1285,7 +1289,7 @@ ipcMain.handle('get-device-settings', () => {
 function createRecordingSettingsWindow() {
   recordingSettingsWindow = new BrowserWindow({
     width: 500,
-    height: 550,
+    height: 400,
     title: 'Recording Settings',
     parent: mainWindow,
     modal: true,
