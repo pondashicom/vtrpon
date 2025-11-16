@@ -102,60 +102,72 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // SOUND PADモードボタンイベントリスナー初期化
+    async function toggleSoundPadMode(event) {
+        const soundPadButton = document.getElementById('soundpad-mode-button');
+        if (!soundPadButton) {
+            logInfo('[playlist.js] SOUND PAD mode button not found.');
+            return;
+        }
+
+        // 実マウス操作のときだけボタン種別チェック
+        if (event && event.button !== undefined && event.button !== 0) return;
+        if (event) event.preventDefault();
+
+        soundPadActive = !soundPadActive;
+
+        if (soundPadActive) {
+            // 相互排他：DIRECT ONAIRモードがオンならオフ
+            if (directOnAirActive) {
+                directOnAirActive = false;
+                const directOnAirButton = document.getElementById('directonair-mode-button');
+                if (directOnAirButton) directOnAirButton.classList.remove('button-green');
+            }
+            soundPadButton.classList.add('button-green');
+            try {
+                const playlist = await stateControl.getPlaylistState();
+                const updatedPlaylist = playlist.map(item => {
+                    if (item.startMode === "PLAY" && item.endMode === "UVC") {
+                        return {
+                            ...item,
+                            order: Number(item.order)
+                        };
+                    }
+                    const newStartMode = (item.startMode === "PAUSE") ? "PLAY" : item.startMode;
+                    const newEndMode = "OFF";
+                    return {
+                        ...item,
+                        startMode: newStartMode,
+                        endMode: newEndMode,
+                        order: Number(item.order)
+                    };
+                });
+                await stateControl.setPlaylistState(updatedPlaylist);
+                await updatePlaylistUI();
+                const latest = await stateControl.getPlaylistState();
+                const editingItem = latest.find(it => it.editingState === 'editing');
+                if (editingItem) {
+                    window.electronAPI.updateEditState(editingItem);
+                    window.electronAPI.syncOnAirEndMode &&
+                        window.electronAPI.syncOnAirEndMode({
+                            editingItemId: editingItem.playlistItem_id,
+                            endMode: editingItem.endMode
+                        });
+                    logOpe('[playlist.js] Requested On-Air endMode sync (SOUND PAD ON).');
+                }
+            } catch (e) {
+                logInfo('[playlist.js] SOUND PAD mode apply error:', e);
+            }
+        } else {
+            soundPadButton.classList.remove('button-green');
+        }
+        logOpe(`[playlist.js] SOUND PAD mode toggled: ${soundPadActive}`);
+        soundPadButton.blur();
+    }
+
     const soundPadButton = document.getElementById('soundpad-mode-button');
     if (soundPadButton) {
         soundPadButton.addEventListener('mousedown', async (event) => {
-            if (event.button !== 0) return;
-            event.preventDefault();
-            soundPadActive = !soundPadActive;
-
-            if (soundPadActive) {
-                // 相互排他：DIRECT ONAIRモードがオンならオフ
-                if (directOnAirActive) {
-                    directOnAirActive = false;
-                    const directOnAirButton = document.getElementById('directonair-mode-button');
-                    if (directOnAirButton) directOnAirButton.classList.remove('button-green');
-                }
-                soundPadButton.classList.add('button-green');
-                try {
-                    const playlist = await stateControl.getPlaylistState();
-                    const updatedPlaylist = playlist.map(item => {
-                        if (item.startMode === "PLAY" && item.endMode === "UVC") {
-                            return {
-                                ...item,
-                                order: Number(item.order)
-                            };
-                        }
-                        const newStartMode = (item.startMode === "PAUSE") ? "PLAY" : item.startMode;
-                        const newEndMode = "OFF";
-                        return {
-                            ...item,
-                            startMode: newStartMode,
-                            endMode: newEndMode,
-                            order: Number(item.order)
-                        };
-                    });
-                    await stateControl.setPlaylistState(updatedPlaylist);
-                    await updatePlaylistUI();
-                    const latest = await stateControl.getPlaylistState();
-                    const editingItem = latest.find(it => it.editingState === 'editing');
-                    if (editingItem) {
-                        window.electronAPI.updateEditState(editingItem);
-                        window.electronAPI.syncOnAirEndMode &&
-                            window.electronAPI.syncOnAirEndMode({
-                                editingItemId: editingItem.playlistItem_id,
-                                endMode: editingItem.endMode
-                            });
-                        logOpe('[playlist.js] Requested On-Air endMode sync (SOUND PAD ON).');
-                    }
-                } catch (e) {
-                    logInfo('[playlist.js] SOUND PAD mode apply error:', e);
-                }
-            } else {
-                soundPadButton.classList.remove('button-green');
-            }
-            logOpe(`[playlist.js] SOUND PAD mode toggled: ${soundPadActive}`);
-            soundPadButton.blur();
+            await toggleSoundPadMode(event);
         });
 
     } else {
@@ -167,20 +179,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (event.altKey && event.shiftKey && event.key.toLowerCase() === 's') {
             event.stopPropagation();
             event.preventDefault();
-            const soundPadButton = document.getElementById('soundpad-mode-button');
-            if (soundPadButton) {
-                const mouseDownEvent = new MouseEvent('mousedown', {
-                    button: 0,
-                    bubbles: true,
-                    cancelable: true
-                });
-                soundPadButton.dispatchEvent(mouseDownEvent);
-                logOpe('[playlist.js] SOUND PAD mode triggered via shortcut (synthetic mousedown).');
-            } else {
-                logInfo('[playlist.js] SOUND PAD button not found for Alt+Shift+S shortcut.');
-            }
+            toggleSoundPadMode(null);
+            logOpe('[playlist.js] SOUND PAD mode triggered via shortcut.');
         }
     }, true);
+
 
     // DIRECT ONAIRモードボタンイベントリスナー初期化
     const directOnAirButton = document.getElementById('directonair-mode-button');
@@ -1583,6 +1586,54 @@ async function movePlaylistItem(item, direction) {
 // オンエアアイテム記録
 let lastOnAirItemId = null;
 
+// 編集中アイテムをオンエア
+async function performOnAirForEditingItem() {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        const editingItem = playlist.find(item => item.editingState === 'editing'); // 現在編集中アイテム
+
+        if (!editingItem) {
+            // 動作しない理由表示
+            showMessage(getMessage('no-item-in-editing-state'), 5000, 'alert');
+            return;
+        }
+
+        // 最後のオンエアアイテムとして記憶
+        lastOnAirItemId = editingItem.playlistItem_id;
+
+        // ボタンを赤色に変更（存在すれば）
+        const onAirButton = document.getElementById('cue-button');
+        if (onAirButton) {
+            onAirButton.classList.add('important-button-red');
+        }
+
+        // プレイリストのオンエア状態をstateControlに通知
+        await stateControl.setOnAirState(editingItem.playlistItem_id); // 正しく playlistItem_id を渡す
+
+        // プレイリストを正規化して保存（orderの数値形式を保持）
+        await stateControl.setPlaylistState(
+            playlist.map(item => ({
+                ...item,
+                order: Number(item.order), // 数値形式に変換して保存
+            }))
+        );
+
+        await updatePlaylistUI(); // UI更新
+
+        showMessage(`${getMessage('on-air-started')} ${editingItem.name}`, 5000, 'success');
+        logInfo(`[playlist.js] On-Air Item ID sent to main process: ${editingItem.playlistItem_id}`);
+
+        // メインプロセス通知
+        window.electronAPI.sendOnAirItemIdToMain(editingItem.playlistItem_id);
+
+        // ON AIRメッセージ表示後もボタンの色を維持
+        showMessage(getMessage('on-air'), 10000, 'alert');
+    } catch (error) {
+        logInfo('[playlist.js] Error during On-Air process:', error);
+        showMessage(getMessage('on-air-error-occurred'), 5000, 'alert');
+    }
+}
+
 // オンエアボタンイベントリスナー
 function initializeOnAirButtonListener() {
     const onAirButton = document.getElementById('cue-button');
@@ -1596,48 +1647,8 @@ function initializeOnAirButtonListener() {
         event.preventDefault();
         logOpe('[playlist.js] On-Air button clicked');
 
-        try {
-            const playlist = await stateControl.getPlaylistState();
-            const editingItem = playlist.find(item => item.editingState === 'editing'); // 現在編集中アイテム
-
-            if (!editingItem) {
-                // 動作しない理由表示
-                showMessage(getMessage('no-item-in-editing-state'), 5000, 'alert');
-                return;
-            }
-
-            // 最後のオンエアアイテムとして記憶
-            lastOnAirItemId = editingItem.playlistItem_id;
-
-            // ボタンを赤色に変更
-            onAirButton.classList.add('important-button-red');
-
-            // プレイリストのオンエア状態をstateControlに通知
-            await stateControl.setOnAirState(editingItem.playlistItem_id); // 正しく playlistItem_id を渡す
-
-            // プレイリストを正規化して保存（orderの数値形式を保持）
-            await stateControl.setPlaylistState(
-                playlist.map(item => ({
-                    ...item,
-                    order: Number(item.order), // 数値形式に変換して保存
-                }))
-            );
-
-            await updatePlaylistUI(); // UI更新
-
-            showMessage(`${getMessage('on-air-started')} ${editingItem.name}`, 5000, 'success');
-            logInfo(`[playlist.js] On-Air Item ID sent to main process: ${editingItem.playlistItem_id}`);
-
-            // メインプロセス通知
-            window.electronAPI.sendOnAirItemIdToMain(editingItem.playlistItem_id);
-
-            // ON AIRメッセージ表示後もボタンの色を維持
-            showMessage(getMessage('on-air'), 10000, 'alert');
-            
-        } catch (error) {
-            logInfo('[playlist.js] Error during On-Air process:', error);
-            showMessage(getMessage('on-air-error-occurred'), 5000, 'alert');
-        }
+        // 共通オンエア処理を呼び出し
+        await performOnAirForEditingItem();
     });
 
     // Enterキーによる誤動作を防ぐため、keydownイベントでEnterキーのデフォルト動作を無効化
@@ -2777,12 +2788,14 @@ async function handleSoundPadOnAir(item, index) {
         logOpe(`[playlist.js] SOUND PAD On-Air: Sent item to edit area with ID: ${targetId}`);
     }
 
-    // オンエア処理実行
-    triggerButtonMouseDown(
-        'cue-button',
-        `[playlist.js] SOUND PAD On-Air: Triggered On-Air for item ID: ${targetId}`
+    // オンエア処理
+    await performOnAirForEditingItem();
+
+    showMessage(
+        `${getMessage('sound-pad-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`,
+        5000,
+        'success'
     );
-    showMessage(`${getMessage('sound-pad-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
 }
 
 // -----------------------
@@ -2824,12 +2837,14 @@ async function handleDirectOnAir(item, index) {
         logOpe(`[playlist.js] DIRECT ONAIR: Sent item to edit area with ID: ${targetId}`);
     }
 
-    // オンエア処理実行
-    triggerButtonMouseDown(
-        'cue-button',
-        `[playlist.js] DIRECT ONAIR: Triggered On-Air for item ID: ${targetId}`
+    // オンエア処理
+    await performOnAirForEditingItem();
+
+    showMessage(
+        `${getMessage('direct-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`,
+        5000,
+        'success'
     );
-    showMessage(`${getMessage('direct-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`, 5000, 'success');
 }
 
 // Shift+数字処理
@@ -3183,23 +3198,41 @@ function handlePlaylistShortcut(action) {
             );
             break;
         case 'on-air':
-            triggerButtonMouseDown(
-                'cue-button',
-                '[playlist.js] On-Air button triggered via shortcut (synthetic mousedown).'
-            );
+            logOpe('[playlist.js] On-Air triggered via shortcut.');
+            performOnAirForEditingItem();
             break;
-        case 'Shift+Alt+D':
-            triggerButtonMouseDown(
-                'directonair-mode-button',
-                '[playlist.js] DIRECT ONAIR mode triggered via shortcut (synthetic mousedown).'
-            );
+        case 'Shift+Alt+D': {
+            const directOnAirButton = document.getElementById('directonair-mode-button');
+            if (directOnAirButton) {
+                const mouseDownEvent = new MouseEvent('mousedown', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    button: 0,
+                });
+                directOnAirButton.dispatchEvent(mouseDownEvent);
+                logOpe('[playlist.js] DIRECT ONAIR mode triggered via shortcut.');
+            } else {
+                logInfo('[playlist.js] DIRECT ONAIR shortcut: directonair-mode-button not found.');
+            }
             break;
-        case 'Shift+Alt+S':
-            triggerButtonMouseDown(
-                'soundpad-mode-button',
-                '[playlist.js] SOUND PAD mode triggered via shortcut (synthetic mousedown).'
-            );
+        }
+        case 'Shift+Alt+S': {
+            const soundPadButton = document.getElementById('soundpad-mode-button');
+            if (soundPadButton) {
+                const mouseDownEvent = new MouseEvent('mousedown', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    button: 0,
+                });
+                soundPadButton.dispatchEvent(mouseDownEvent);
+                logOpe('[playlist.js] SOUND PAD mode triggered via shortcut.');
+            } else {
+                logInfo('[playlist.js] SOUND PAD shortcut: soundpad-mode-button not found.');
+            }
             break;
+        }
         case 'Shift+D':
             triggerButtonMouseDown(
                 'dsk-button',
@@ -3474,7 +3507,7 @@ function changePlaylistSelection(direction) {
     });
 
     // クリック処理
-    selectedItem.click();
+    handlePlaylistItemClick(selectedItem, currentSelectedIndex);
     logOpe(`[playlist.js] Playlist selection changed to index: ${currentSelectedIndex}`);
 }
 
