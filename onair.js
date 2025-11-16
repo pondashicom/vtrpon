@@ -1623,7 +1623,7 @@ function onairHandleEndModeOff() {
     const { onairOffAirButton } = elements;
 
     if (onairOffAirButton) {
-        onairOffAirButton.click();
+        triggerOnAirMouseDown('off-air-button');
         logInfo('[onair.js] Off-Air button click triggered.');
     } else {
         logInfo('[onair.js] Off-Air button not found. Resetting manually.');
@@ -1743,11 +1743,11 @@ function onairHandleEndModeFTB() {
 
         logInfo('[onair.js] FTB complete - Paused at the last frame.');
 
-        // 0.5秒後にオフエアボタンをクリックし、FTBボタンの点滅を停止
+        // 0.5秒後にオフエアボタンの mousedown を擬似的に発火し、FTBボタンの点滅を停止
         ftbOffAirTimeout = setTimeout(() => {
             if (onairOffAirButton) {
                 logInfo('[onair.js] Clicking Off-Air button automatically after FTB.');
-                onairOffAirButton.click();
+                triggerOnAirMouseDown('off-air-button');
             } else {
                 logInfo('[onair.js] Off-Air button not found. Automatic click skipped.');
             }
