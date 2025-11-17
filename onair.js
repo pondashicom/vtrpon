@@ -2,36 +2,10 @@
 //     onair.js
 //     ver 2.4.7
 // -----------------------
+
 // -----------------------
-// 初期設定
-// -----------------------
-
-// 共通補助関数
-
-// 時間のフォーマット
-function onairFormatTime(seconds) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    const centiseconds = Math.floor((seconds % 1) * 100); 
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${centiseconds.toString().padStart(2, '0')}`;
-}
-
-// 型の変換: 時間文字列を秒数に変換
-function onairParseTimeToSeconds(timeString) {
-    if (!timeString) return 0;
-    const parts = timeString.split(':').map(parseFloat);
-    let hours = 0, minutes = 0, seconds = 0;
-    if (parts.length === 3) { // hh:mm:ss
-        [hours, minutes, seconds] = parts;
-    } else if (parts.length === 4) { // hh:mm:ss:cs
-        [hours, minutes, seconds] = parts.slice(0, 3);
-        seconds += parts[3] / 100; 
-    }
-    return (hours * 3600) + (minutes * 60) + seconds;
-}
-
 // グローバル変数
+// -----------------------
 let onairCurrentState = null;
 let onairNowOnAir = false;
 let onairIsPlaying = false;
@@ -56,10 +30,36 @@ let onairSuppressFadeUntilPlaying = false;
 let onairPendingUvcFadeInSec = 0;
 
 // -----------------------
+// 共通補助関数
+// -----------------------
+
+// 時間のフォーマット
+function onairFormatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const centiseconds = Math.floor((seconds % 1) * 100); 
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${centiseconds.toString().padStart(2, '0')}`;
+}
+
+function onairParseTimeToSeconds(timeString) {
+    if (!timeString) return 0;
+    const parts = timeString.split(':').map(parseFloat);
+    let hours = 0, minutes = 0, seconds = 0;
+    if (parts.length === 3) { // hh:mm:ss
+        [hours, minutes, seconds] = parts;
+    } else if (parts.length === 4) { // hh:mm:ss:cs
+        [hours, minutes, seconds] = parts.slice(0, 3);
+        seconds += parts[3] / 100; 
+    }
+    return (hours * 3600) + (minutes * 60) + seconds;
+}
+
+// -----------------------
 // 初期化
 // -----------------------
 
-// 初回読み込み時の初期化実行
+// 初回初期化
 document.addEventListener('DOMContentLoaded', () => {
     onairInitialize();
     if (window.dskModule && typeof window.dskModule.initDSKOverlay === 'function') {
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// UI要素の取得と定義
+// UI定義
 function onairGetElements() {
     return {
         onairVideoElement: document.getElementById('on-air-video'),
@@ -95,7 +95,7 @@ function onairGetElements() {
     };
 }
 
-// オーバーレイCanvasの初期化
+// オーバーレイCanvas初期化
 function initializeOverlayCanvasOnAir() {
     // 既存キャンバス取得 or 作成
     let canvas = document.getElementById('onair-overlay-canvas');
@@ -109,7 +109,6 @@ function initializeOverlayCanvasOnAir() {
     }
 
     const parent = videoEl.parentElement;
-    // 親のpositionがstaticだと重なり順が効かないことがあるため相対配置に
     const cs = window.getComputedStyle(parent);
     if (!cs || cs.position === 'static') {
         parent.style.position = 'relative';
@@ -127,16 +126,14 @@ function initializeOverlayCanvasOnAir() {
         parent.appendChild(canvas);
     }
 
-    // z-indexを十分大きく（video / fade-canvas より前面）
     try {
         const baseZ = (fade && fade.style && fade.style.zIndex) ? (parseInt(fade.style.zIndex, 10) || 0) : 0;
-        // fullscreen側と同様、確実に最前面へ
         canvas.style.zIndex = String(Math.max(baseZ + 1, 1002));
     } catch (_) {
         canvas.style.zIndex = '1002';
     }
 
-    // サイズ同期（描画直前にも毎回実施する前提だが、初期化時にも一度合わせる）
+    // サイズ同期
     try {
         adjustFadeCanvasSize(videoEl, canvas);
         canvas.width  = canvas.clientWidth;
@@ -146,7 +143,7 @@ function initializeOverlayCanvasOnAir() {
     return canvas;
 }
 
-// 前フレームを保持し、次ソースの実描画を検知したら解除
+// 前フレーム保持、次ソース実描画検知で解除
 function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
     // 1) 黒保持中（FTB等）の場合はスキップ
     if (respectBlackHold) {
@@ -172,17 +169,14 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
     overlayCanvas.style.opacity = 1;
 
     if (onairOverlayForceBlack) {
-        // 黒一本化（UVC+FADEINなどで使用）
         ctx.save();
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
         ctx.restore();
     } else {
-        // 現在フレームを固定
         try {
             ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
         } catch (e) {
-            // drawImage失敗時は黒退避
             ctx.save();
             ctx.fillStyle = 'black';
             ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
@@ -190,7 +184,7 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
         }
     }
 
-    // 3) 解除条件（次ソースの「実描画」を検知）
+    // 3) 解除
     onairSeamlessGuardActive = true;
 
     // a) requestVideoFrameCallback が使える場合は2フレーム観測して解除
@@ -250,7 +244,7 @@ function onairCancelSeamlessOverlay(reason) {
         }
     } catch (_) {}
 
-    // フラグ類を必ずリセット
+    // フラグリセット
     onairSeamlessGuardActive = false;
     onairOverlayForceBlack = false;
     onairSuppressFadeUntilPlaying = false;
@@ -259,7 +253,7 @@ function onairCancelSeamlessOverlay(reason) {
     if (reason) logInfo('[onair.js] Seamless overlay cancelled:', reason);
 }
 
-// ビデオ要素の初期化
+// ビデオ要素初期化
 function onairInitializeVideo(elements) {
     const { onairVideoElement } = elements;
     if (!onairVideoElement) return;
@@ -273,7 +267,7 @@ function onairInitializeVideo(elements) {
     onairVideoElement.src = '';
 }
 
-// UVCのストリーム停止
+// UVCストリーム停止
 async function onairStopUVCStream(elements) {
     const { onairVideoElement } = elements;
     if (!onairVideoElement) return;
@@ -284,7 +278,7 @@ async function onairStopUVCStream(elements) {
     }
 }
 
-// ボタン状態の初期化
+// ボタン状態初期化
 function onairInitializeButtons(elements) {
     const buttonClass = 'button important-button';
     if (elements.onairPlayButton) {
@@ -307,12 +301,12 @@ function onairInitializeButtons(elements) {
     }
 }
 
-// 音量メーターの初期化
+// 音量メーター初期化
 function onairInitializeVolumeMeter(elements) {
     const { onairVolumeBarL, onairVolumeBarR } = elements;
     if (!onairVolumeBarL || !onairVolumeBarR) return;
 
-    // 音量メーターのセットアップ処理
+    // 音量メーターセットアップ
     onairVolumeBarL.innerHTML = '';
     for (let i = 0; i < 60; i++) {
         const segment = document.createElement('div');
@@ -328,7 +322,7 @@ function onairInitializeVolumeMeter(elements) {
     }
 }
 
-// 音量スライダーの初期化
+// 音量スライダー初期化
 function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
     const { onairItemVolumeSlider, onairItemVolumeValueDisplay, onairMasterVolumeSlider, onairMasterVolumeValueDisplay } = elements;
     if (!onairItemVolumeSlider || !onairItemVolumeValueDisplay || !onairMasterVolumeSlider || !onairMasterVolumeValueDisplay) return;
@@ -358,13 +352,13 @@ function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
     logDebug(`[onair.js] Item volume slider initialized to ${defaultItemVolume}% and Master volume slider initialized to ${onairMasterVolume}%`);
 }
 
-// シークバーの初期化
+// シークバー初期化
 function onairInitializeSeekBar(elements) {
     const { onairProgressSlider, onairStartTimeDisplay, onairEndTimeDisplay, onairVideoElement } = elements;
 
     if (!onairProgressSlider || !onairStartTimeDisplay || !onairEndTimeDisplay || !onairVideoElement) return;
 
-    // 初期値の設定
+    // 初期値
     onairProgressSlider.value = 0;
     onairProgressSlider.max = 0;
     onairProgressSlider.step = "0.01";
@@ -373,12 +367,10 @@ function onairInitializeSeekBar(elements) {
 
     // 動画のメタデータ読み込み後に最大値を更新
     onairVideoElement.addEventListener('loadedmetadata', () => {
-        // UVCデバイスの場合は処理をスキップ
         if (onairCurrentState?.endMode === "UVC") {
             logDebug('[onair.js] loadedmetadata event ignored for UVC device.');
             return;
         }
-
         const duration = onairVideoElement.duration || 0;
         onairProgressSlider.max = duration.toFixed(2);
         onairEndTimeDisplay.textContent = onairFormatTime(duration);
@@ -457,25 +449,25 @@ function onairInitialize() {
     // ボタンハンドラ設定
     onairSetupButtonHandlers();
 
-    // 音量スライダーの設定
+    // 音量スライダー設定
     onairInitializeVolumeSlider(elements);
 
-    // シークバーのハンドラ設定
+    // シークバーハンドラ設定
     onairSetupSeekBarHandlers(elements);
 
-    // タイマーのハンドラ設定
+    // タイマーハンドラ設定
     onairResetRemainingTimer(elements);
 
-    // 音量スライダーのハンドラ設定
+    // 音量スライダーハンドラ設定
     onairSetupVolumeSliderHandler(elements);
 
-    // 再生速度コントローラーの初期化
+    // 再生速度コントローラー初期化
     setupPlaybackSpeedController();
 
-    // 倍速プリセットボタンの初期化（0.5 / 1 / 1.25 / 1.5 / 2 / 3 / 4 / 5）
+    // 倍速プリセットボタン初期化
     setupPlaybackSpeedPresetButtons();
 
-    // モーダル状態の変更を監視するリスナー登録
+    // モーダル状態変更監視リスナー登録
     if (!onairModalListenerRegistered) {
         window.electronAPI.onModalStateChange((event, { isActive }) => {
             isOnAirModalActive = isActive;
@@ -490,38 +482,40 @@ function onairInitialize() {
     // 初期モーダル状態取得
     window.electronAPI.getModalState().then((state) => {
         isOnAirModalActive = state.isActive;
-        lastLoggedOnAirModalState = isOnAirModalActive; // 追加: ベースライン
+        lastLoggedOnAirModalState = isOnAirModalActive;
         logDebug(`[onair.js] OnAir Initial modal state: ${isOnAirModalActive}`);
     });
 
-    // FILLKEYモードの状態を反映
+    // FILLKEYモード状態反映
     updateFillKeyModeState();
 
     logDebug('[onair.js] On-Air area Initialization complete.');
 }
 
 // -----------------------------------------------
-// オンエア情報の(またはオフエア情報）受け取り
+// オンエア・オフエア情報受信
 // -----------------------------------------------
 
-// プレイリストからのオンエア開始情報受信リスナー
+// オンエア開始情報受信
 window.electronAPI.onReceiveOnAirData((itemId) => {
     logDebug(`[onair.js] Received On-Air data for item ID: ${itemId}`);
-    // オンエア開始時は Off-Air 状態を解除する
+
+    // Off-Air 状態解除
     isOffAir = false;
-    // 0 もし受信した itemId が空の場合（＝次の動画が存在しない場合）は Off-Air 処理を実行する
+
+    // itemId が空の場合は Off-Air
     if (!itemId) {
         logDebug('[onair.js] Received empty On-Air data (no next item). Triggering Off-Air.');
         onairHandleOffAirButton();
         return;
     }
-    // 1 リセット処理
+    // リセット処理
     if (onairNowOnAir) {
         logDebug('[onair.js] An item is currently on-air. Resetting before loading the new one.');
         onairReset();
     }
 
-    // 2 状態情報の取得と定義
+    // 状態情報取得
     const itemData = onairGetStateData(itemId);
     if (!itemData) {
         logDebug(`[onair.js] No valid state data found for item ID: ${itemId}`);
@@ -531,64 +525,64 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
     // nowonairフラグ管理
     onairNowOnAir = true;
 
-    // 3 フルスクリーンに情報送信
+    // フルスクリーンに情報送信
     onairSendToFullscreen(itemData);
 
-    // 4 受け取った情報でUI更新
+    // UI更新
     onairUpdateUI(itemData);
 
-    // 5 ビデオプレーヤーにセット
+    // ビデオプレーヤーセット
     onairSetupPlayer(itemData);
 
-    // UVCデバイスの場合は再生プロセスをスキップ
+    // UVCデバイスの場合はスキップ
     if (itemData.endMode === "UVC") {
         logDebug('[onair.js] UVC device detected. Skipping standard playback process.');
         return;
     }
 
-    // 6 再生プロセスの呼び出し
+    // 再生プロセス呼び出し
     onairStartPlayback(itemData);
 });
 
-// Off-Air通知を受信したら onairHandleOffAirButton を実行する
+// Off-Air通知受信
 window.electronAPI.onReceiveOffAirNotify(() => {
     logDebug('[onair.js] Received an off-air notification. Starting off-air processing.');
     onairHandleOffAirButton();
 });
 
 // ----------------------------------
-// 1 オンエアエリアのリセット
+// オンエアエリアリセット
 // ----------------------------------
 function onairReset() {
     const elements = onairGetElements();
 
-    // 前アイテムの状態をクリアして、新しい状態に影響しないようにする
+    // 前アイテム状態クリア
     onairCurrentState = null;
 
     // ビデオ初期化
     onairInitializeVideo(elements);
     onairStopUVCStream(elements);
 
-    // UI要素の初期化
+    // UI初期化
     onairInitializeButtons(elements);
     onairInitializeVolumeMeter(elements);
     onairInitializeSeekBar(elements);
     onairInitializeStatusDisplays(elements);
     onairInitializeFadeCanvas(elements);
 
-    // 音量スライダーの初期化（アイテムスライダーは新しい動画の規定音量を反映、マスタースライダーはグローバル値を維持）
+    // 音量スライダー初期化
     onairInitializeVolumeSlider(elements);
 
-    // 状態フラグをリセット
+    // 状態フラグリセット
     onairNowOnAir = false;
     onairIsPlaying = false;
 
-    // 再生速度コントローラーの同期処理（オンエア動画とフルスクリーンの再生速度をモードに応じて設定）
+    // 再生速度コントローラー同期
     const speedSlider = document.getElementById('playback-speed-slider');
     const speedInput = document.getElementById('playback-speed-input');
     const video = document.getElementById('on-air-video');
 
-    // グローバル変数のリセット（共通処理）
+    // グローバル変数リセット
     isPlaybackSpeedDragging = false;
     if (playbackSpeedAnimationFrame) {
         cancelAnimationFrame(playbackSpeedAnimationFrame);
@@ -596,8 +590,7 @@ function onairReset() {
     }
 
     if (isPlaybackSpeedFixed) {
-        // 【固定モードの場合】
-        // 数値入力で変更された場合は、両側とも1.00にリセットする
+        // 固定モード
         if (speedSlider) {
             speedSlider.value = "0"; 
             speedSlider.disabled = true;
@@ -616,13 +609,12 @@ function onairReset() {
         // 固定モード解除
         isPlaybackSpeedFixed = false;
     } else {
-        // 【スライダー操作の場合】
-        // 現在のスライダー値を保持し、その値から算出した再生速度を両側に反映する
+        // スライダー操作
         if (speedSlider) {
             speedSlider.disabled = false;
             const sRaw = parseFloat(speedSlider.value);
             const s = isNaN(sRaw) ? 0 : Math.max(-10, Math.min(10, sRaw));
-            const newRate = Math.pow(5, s / 10); // 約 0.2x?5x に制限
+            const newRate = Math.pow(5, s / 10);
             if (video) {
                 video.playbackRate = newRate;
             }
@@ -639,10 +631,10 @@ function onairReset() {
         }
     }
 
-    // フェード処理を中断
+    // フェード処理中断
     stopFade();
 
-    // FTB用タイマーのキャンセル
+    // FTBタイマーキャンセル
     if (ftbMainTimeout) {
         clearTimeout(ftbMainTimeout);
         ftbMainTimeout = null;
@@ -655,21 +647,20 @@ function onairReset() {
     // FTB再入ロック解除
     onairFtbLocked = false;
 
-
-    // 残り時間タイマーのリセット（タイマー表示を初期状態（オレンジ）に戻す）
+    // 残り時間タイマーリセット
     onairResetRemainingTimer(elements);
 
-    // リソースの解放
+    // リソース解放
     onairReleaseResources(elements);
 
     logDebug('[onair.js] On-Air area reset completed.');
 }
 
 // ----------------------------------
-// 2 アイテム情報と状態情報の取得・定義
+// アイテム状態情報取得
 // ----------------------------------
 
-// 状態情報の取得と定義
+// 状態情報取得
 function onairGetStateData(itemId) {
     const playlist = stateControl.getPlaylistState();
     if (!playlist || !Array.isArray(playlist)) {
@@ -683,7 +674,7 @@ function onairGetStateData(itemId) {
         return null;
     }
 
-    // データ型の調整と最新状態に格納
+    // データ型調整と最新状態格納
     onairCurrentState = {
         itemId: itemId,
         path: itemData.path || '',
@@ -705,16 +696,16 @@ function onairGetStateData(itemId) {
     return onairCurrentState;
 }
 
-// -----------------------
-// 3 フルスクリーンにデータ送信
-// -----------------------
+// ---------------------------
+// フルスクリーンデータ送信
+// ---------------------------
 async function onairSendToFullscreen(itemData) {
     if (!itemData) {
         logDebug('[onair.js] No item data available to send to fullscreen.');
         return;
     }
     try {
-        // 新規アイテムの場合は、受信した itemData の規定音量を使用する
+        // 新規アイテムは規定音量を使用
         const itemVal = itemData.defaultVolume !== undefined ? itemData.defaultVolume : 100;
         const masterVal = (onairMasterVolume !== undefined && onairMasterVolume !== null) ? onairMasterVolume : 100;
         const combinedVolume = (itemVal / 100) * (masterVal / 100);
@@ -741,9 +732,9 @@ async function onairSendToFullscreen(itemData) {
     }
 }
 
-// -----------------------
-// 5 動画プレーヤーのセットアップ
-// -----------------------
+// ---------------------------
+// 動画プレーヤーセットアップ
+// ---------------------------
 function onairSetupPlayer(itemData) {
     const elements = onairGetElements();
     const { onairVideoElement } = elements;
@@ -753,18 +744,18 @@ function onairSetupPlayer(itemData) {
         return;
     }
 
-	// プレビュー用動画にマウスホイール／キー操作をバインド
+	// マウスホイール／キー操作バインド
     setupMouseWheelControl(onairVideoElement);
     
-    // FILLKEYモード状態を反映する
+    // FILLKEYモード状態反映
     updateFillKeyModeState();
 
-    // UVCデバイスの判定を `endMode: "UVC"` に設定
+    // UVCデバイス判定
     if (itemData.endMode === "UVC" && itemData.deviceId) {
         logInfo(`[onair.js] Setting up UVC stream for device ID: ${itemData.deviceId}`);
         onairSetupUVCStream(onairVideoElement, itemData.deviceId)
             .then(() => {
-                // UVC再生開始後に0.3秒でフェードイン実施
+                // UVC再生開始後フェードイン
                 onairFadeFromBlack(0.3);
             })
             .catch(error => {
@@ -773,29 +764,28 @@ function onairSetupPlayer(itemData) {
         return;
     }
 
-    // 動画ファイルの処理
+    // 動画ファイル処理
     if (itemData.path) {
         logInfo(`[onair.js] Setting up video file: ${itemData.path}`);
         onairSetupVideoFile(onairVideoElement, itemData.path);
         return;
     }
 
-    // データが不正な場合
+    // データ不正
     logInfo('[onair.js] Invalid On-Air item data: Missing path or deviceId.');
 }
 
-// 動画ファイルのセットアップ
+// 動画ファイルセットアップ
 function onairSetupVideoFile(onairVideoElement, path) {
     onairVideoElement.pause();
-    // UVC デバイスでない場合、必ず安全なURLに変換する
+    // URL変換
     if (typeof path === 'string' && !path.startsWith("UVC_DEVICE")) {
         onairVideoElement.src = getSafeFileURL(path);
     } else {
         onairVideoElement.src = path;
     }
-    // loadedmetadata イベントで、動画が読み込まれたら即座にIN点へシークする
+    // IN点シーク
     onairVideoElement.addEventListener('loadedmetadata', function onMetadata() {
-        // onairCurrentState が有効で、IN点が設定されている場合はその値にシーク
         if (onairCurrentState && onairCurrentState.inPoint > 0) {
             onairVideoElement.currentTime = onairCurrentState.inPoint;
             logDebug(`[onair.js] Video metadata loaded. Seeking immediately to IN point: ${onairCurrentState.inPoint}s`);
@@ -807,27 +797,28 @@ function onairSetupVideoFile(onairVideoElement, path) {
     logDebug(`[onair.js] Video file set: ${path}`);
 }
 
-// UVCデバイスのセットアップ
+// UVCデバイスセットアップ
 async function onairSetupUVCStream(onairVideoElement, deviceId) {
     try {
         const elements = onairGetElements();
 
-        // 既存のストリームを停止
+        // 既存ストリーム停止
         if (onairVideoElement.srcObject) {
             onairVideoElement.srcObject.getTracks().forEach(track => track.stop());
         }
 
-        // まずは基本的なストリームを取得して、カメラの能力を確認する
+        // 一時ストリーム取得
         const tempStream = await navigator.mediaDevices.getUserMedia({
             video: { deviceId: { exact: deviceId } }
         });
         const capabilities = tempStream.getVideoTracks()[0].getCapabilities();
         const widthIdeal = (capabilities.width && capabilities.width.max) ? capabilities.width.max : 1280;
         const heightIdeal = (capabilities.height && capabilities.height.max) ? capabilities.height.max : 720;
-        // 不要になった一時ストリームは停止
+
+        // 一時ストリーム停止
         tempStream.getTracks().forEach(track => track.stop());
 
-        // 再度、カメラのネイティブ解像度を理想値として指定してストリームを取得する
+        // 再度、カメラネイティブ解像度を理想値として指定してストリーム取得
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
                 deviceId: { exact: deviceId },
@@ -838,17 +829,17 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
             audio: false
         });
 
-        // ストリームをセットし再生を開始
+        // 再生開始
         onairVideoElement.srcObject = stream;
         onairVideoElement.autoplay = true;
         onairVideoElement.playsInline = true;
         await onairVideoElement.play();
 
-        // カメラの実際の設定を取得してログ出力
+        // 設定取得
         const settings = stream.getVideoTracks()[0].getSettings();
         logDebug(`[onair.js] UVC stream set for device ID: ${deviceId} with native resolution ${settings.width}x${settings.height}, frameRate: ${settings.frameRate}`);
 
-        // 再生ボタンの見た目をオレンジに更新
+        // 再生ボタン
         const { onairPlayButton, onairPauseButton } = elements;
         if (onairPlayButton && onairPauseButton) {
             onairPlayButton.classList.add('important-button-orange');
@@ -857,7 +848,7 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
             onairPauseButton.classList.remove('important-button-blue');
         }
 
-        // 残り時間タイマーを開始
+        // 残り時間タイマー開始
         onairStartRemainingTimer(elements, onairCurrentState);
 
         logDebug(`[onair.js] UVC stream successfully set for device ID: ${deviceId}`);
@@ -865,36 +856,35 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
         logInfo(`[onair.js] Failed to start UVC stream for device ID: ${deviceId}: ${error.message}`);
         showMessage(`${getMessage('failed-to-start-uvc-stream')} ${error.message}`, 5000, 'error');
 
-        // ストリーム失敗時にUIをリセット
+        // ストリーム失敗時
         onairReset();
     }
 }
 
 // -----------------------
-// 4 UI更新
+// UI更新
 // -----------------------
 
-// UIを更新する関数
+// UI更新
 function onairUpdateUI(itemData) {
     const elements = onairGetElements();
 
-    // 再生ボタンの状態更新
+    // 再生ボタン状態更新
     if (itemData.endMode !== "UVC") {
-        // UVCデバイス以外の場合のみボタン状態を更新
         onairUpdatePlayPauseButtons(elements);
     } else {
         logDebug('[onair.js] Skipping play/pause button update for UVC device.');
     }
 
-    // シークバーの更新
+    // シークバー更新
     onairUpdateSeekBar(elements, itemData);
 
-    // ファイル名表示の更新
+    // ファイル名表示更新
     if (elements.onairFileNameDisplay) {
         elements.onairFileNameDisplay.textContent = itemData.name || 'No file loaded';
     }
 
-    // エンドモード表示の更新
+    // エンドモード表示更新
     if (elements.onairEndModeDisplay) {
         if (itemData.endMode) {
             const baseEnd = String(itemData.endMode).toUpperCase();
@@ -905,14 +895,14 @@ function onairUpdateUI(itemData) {
         }
     }
 
-    // 音量スライダーと音量表示の更新（アイテムスライダーのみ更新。マスターフェーダーはグローバル状態を維持）
+    // 音量スライダーと音量表示更新
     if (elements.onairItemVolumeSlider && elements.onairItemVolumeValueDisplay) {
         elements.onairItemVolumeSlider.value = itemData.defaultVolume;
         elements.onairItemVolumeValueDisplay.textContent = `${itemData.defaultVolume}%`;
         elements.onairItemVolumeSlider.style.setProperty('--value', `${elements.onairItemVolumeSlider.value}%`);
     }
 
-    // イン点・アウト点表示の更新
+    // イン点・アウト点表示更新
     if (elements.onairInPointDisplay) {
         elements.onairInPointDisplay.textContent = onairFormatTime(itemData.inPoint);
     }
@@ -920,26 +910,26 @@ function onairUpdateUI(itemData) {
         elements.onairOutPointDisplay.textContent = onairFormatTime(itemData.outPoint);
     }
 
-    // 残り時間タイマーの更新
+    // 残り時間タイマー更新
     onairUpdateRemainingTime(elements, itemData);
 
     logDebug('[onair.js] UI updated with the latest item data.');
 }
 
-// 残り時間タイマーの更新
+// 残り時間タイマー更新
 function onairUpdateRemainingTime(elements, itemData) {
     const { onairVideoElement, onairRemainTimeDisplay } = elements;
 
     if (!onairVideoElement || !onairRemainTimeDisplay) return;
 
-    // UVCの場合は "LIVE" と表示して終了
+    // UVCの場合
     if (itemData.endMode === "UVC") {
         onairRemainTimeDisplay.textContent = 'LIVE';
         onairRemainTimeDisplay.style.color = 'green';
         return;
     }
 
-    // 高速再生時（2.0x以上）は更新頻度を制限して負荷を軽減
+    // 高速再生時
     const rate = onairVideoElement.playbackRate || 1;
     if (rate >= 2) {
         const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -949,13 +939,13 @@ function onairUpdateRemainingTime(elements, itemData) {
         onairHighSpeedRemainLastUpdate = now;
     }
 
-    // 実時間ベースの残り時間を計算（再生速度を考慮）
+    // 実時間ベース残り時間
     const rawRemaining = Math.max(0, itemData.outPoint - onairVideoElement.currentTime);
     const remainingTime = rawRemaining / rate;
 
     onairRemainTimeDisplay.textContent = onairFormatTime(remainingTime);
 
-    // 残り時間が少ない場合、色を赤にする
+    // 残り時間減少警告
     if (remainingTime < 5) {
         onairRemainTimeDisplay.style.color = 'red';
     } else {
@@ -963,7 +953,7 @@ function onairUpdateRemainingTime(elements, itemData) {
     }
 }
 
-// 再生・一時停止ボタンの更新
+// 再生・一時停止ボタン更新
 function onairUpdatePlayPauseButtons(elements) {
     const { onairPlayButton, onairPauseButton } = elements;
     if (!onairPlayButton || !onairPauseButton) return;
@@ -981,7 +971,7 @@ function onairUpdatePlayPauseButtons(elements) {
     }
 }
 
-// シークバーの更新
+// シークバー更新
 function onairUpdateSeekBar(elements, itemData) {
     const { onairVideoElement, onairProgressSlider, onairStartTimeDisplay, onairEndTimeDisplay } = elements;
     if (!onairVideoElement || !onairProgressSlider || !onairStartTimeDisplay || !onairEndTimeDisplay) return;
@@ -989,14 +979,14 @@ function onairUpdateSeekBar(elements, itemData) {
     const inMarker = document.getElementById('on-air-in-marker');
     const outMarker = document.getElementById('on-air-out-marker');
 
-    // 動画ファイルのパスが未設定（空文字）または src が空の場合は、マーカーを非表示にして終了
+    // 動画ファイルパス不正な場合
     if (!itemData.path || itemData.path.trim() === "" || !onairVideoElement.src || onairVideoElement.src.trim() === "") {
         if (inMarker) inMarker.style.display = "none";
         if (outMarker) outMarker.style.display = "none";
         return;
     }
 
-    // UVCデバイスの場合は処理を行わない
+    // UVCデバイスの場合
     if (itemData.endMode === "UVC") {
         logDebug('[onair.js] Seek bar update for UVC device.');
         onairProgressSlider.value = 0;
@@ -1008,7 +998,7 @@ function onairUpdateSeekBar(elements, itemData) {
 
     onairProgressSlider.disabled = false;
 
-    // 動画のメタデータがまだ読み込まれていない場合は、マーカーを非表示して終了
+    // メタデータが読み込まれない場合
     if (onairVideoElement.readyState < 1) {
         if (inMarker) inMarker.style.display = "none";
         if (outMarker) outMarker.style.display = "none";
@@ -1024,7 +1014,7 @@ function onairUpdateSeekBar(elements, itemData) {
         return;
     }
 
-    // 正常に動画がロードされている場合、マーカーを表示
+    // 正常な動画ロード
     if (inMarker) inMarker.style.display = "block";
     if (outMarker) outMarker.style.display = "block";
 
@@ -1034,18 +1024,18 @@ function onairUpdateSeekBar(elements, itemData) {
     onairStartTimeDisplay.textContent = onairFormatTime(currentTime);
     onairEndTimeDisplay.textContent = onairFormatTime(duration);
 
-    // マーカーの位置を更新
+    // マーカー位置更新
     updateSeekBarMarkers(elements, onairCurrentState.inPoint, onairCurrentState.outPoint);
 }
 
-// シークバー上にIN/OUTマーカーの位置を更新する関数
+// IN/OUTマーカー位置更新関数
 function updateSeekBarMarkers(elements, inPoint, outPoint) {
     const slider = elements.onairProgressSlider;
     if (!slider) return;
     const duration = parseFloat(slider.max);
     if (!duration || duration <= 0) return;
 
-    // スライダー要素の位置と幅を取得
+    // スライダー要素取得
     const sliderRect = slider.getBoundingClientRect();
     const containerRect = slider.parentElement.getBoundingClientRect();
     const sliderWidth = sliderRect.width;
@@ -1063,7 +1053,7 @@ function updateSeekBarMarkers(elements, inPoint, outPoint) {
     outMarker.style.left = `${outLeft - 6}px`;
 }
 
-// 音量スライダーと音量表示の更新
+// 音量スライダーと音量表示更新
 function onairUpdateVolume(elements, volume) {
     const { onairVolumeSlider, onairVolumeValueDisplay } = elements;
 
@@ -1074,7 +1064,7 @@ function onairUpdateVolume(elements, volume) {
 }
 
 // -----------------------
-// 6 再生プロセス
+// 再生プロセス
 // -----------------------
 function onairStartPlayback(itemData) {
     const elements = onairGetElements();
@@ -1085,13 +1075,13 @@ function onairStartPlayback(itemData) {
         return;
     }
 
-    // 倍速ボタンの初期化（リピート2周目以降は状態保持のためリセットしない）
+    // 倍速ボタン初期化
     if (!onairRepeatFlag) {
         try { if (typeof window.onairResetSpeedTo1x === 'function') window.onairResetSpeedTo1x(); } catch (_) {}
         try { if (typeof window.onairSetSpeedButtonsEnabled === 'function') window.onairSetSpeedButtonsEnabled(true); } catch (_) {}
     }
 
-    // 直前のFTB黒の扱い：
+    // 直前FTB黒
     try {
         const startModeUpper = String(itemData?.startMode || 'PAUSE').toUpperCase();
         if (startModeUpper !== 'FADEIN') {
@@ -1104,8 +1094,7 @@ function onairStartPlayback(itemData) {
         }
     } catch (_) {}
 
-    // 前フレーム固定の仕込み（fullscreen仕様と同じ条件）
-    // 条件: startMode !== 'PAUSE' かつ 前がUVCではない かつ 次がUVCではない
+    // 前フレーム固定
     try {
         const startModeUpper2 = String(itemData?.startMode || 'PAUSE').toUpperCase();
         const isPrevUvc =
@@ -1124,25 +1113,25 @@ function onairStartPlayback(itemData) {
         logInfo('[onair.js] (onairStartPlayback) overlay prepare failed:', e);
     }
 
-    // 既存の監視を停止
+    // 既存監視停止
     if (typeof onairPlaybackMonitor !== 'undefined') {
         clearInterval(onairPlaybackMonitor);
         onairPlaybackMonitor = null;
         logDebug('[onair.js] Existing playback monitor cleared.');
     }
 
-    // 再生状態の定義
+    // 再生状態定義
     onairIsPlaying = false;
 
-    // 動画とUVCの処理振り分け
+    // 処理振分
     if (itemData.deviceId) {
-        // UVCの場合
+        // UVC
         logInfo('[onair.js] Starting UVC stream.');
 
-        // 他遷移の影響を完全クリア（黒張り付き防止）
+        // 他遷移影響クリア
         onairCancelSeamlessOverlay('before-start-UVC');
 
-        // FADEIN(秒数>0)のときだけ黒オーバーレイを使う
+        // FADEIN(秒数>0)
         const startModeUpper = String(itemData?.startMode || 'PAUSE').toUpperCase();
         const fadeInSec = Number(itemData?.startFadeInSec || 0);
         const useBlackOverlay = (startModeUpper === 'FADEIN' && fadeInSec > 0);
@@ -1153,7 +1142,7 @@ function onairStartPlayback(itemData) {
 
         let uvcMaxWaitTimer = null;
 
-        // 黒オーバーレイの準備
+        // 黒オーバーレイ準備
         if (useBlackOverlay) {
             const overlayCanvas = initializeOverlayCanvasOnAir();
             if (overlayCanvas) {
@@ -1172,7 +1161,7 @@ function onairStartPlayback(itemData) {
                 overlayCanvas.style.visibility = 'visible';
                 overlayCanvas.style.opacity = 1;
 
-                // 解除処理（playing/loadeddata/loadedmetadata で早期解除、最大待ちも設定）
+                // 解除処理
                 const clearBlackOverlaySmooth = () => {
                     try {
                         const oc = document.getElementById('onair-overlay-canvas');
@@ -1201,7 +1190,7 @@ function onairStartPlayback(itemData) {
                 const handleEarlyReady = () => {
                     clearBlackOverlaySmooth();
 
-                    // fullscreen 側の黒保持も解除（UVC+FADEIN）
+                    // fullscreen側黒保持解除（UVC+FADEIN）
                     try {
                         window.electronAPI.sendControlToFullscreen({
                             command: 'fade-from-black',
@@ -1213,7 +1202,7 @@ function onairStartPlayback(itemData) {
                 onairVideoElement.addEventListener('loadeddata',     handleEarlyReady, { once: true });
                 onairVideoElement.addEventListener('loadedmetadata', handleEarlyReady, { once: true });
 
-                // 最大待ち（デバイスによる遅延を吸収）
+                // デバイス遅延吸収
                 uvcMaxWaitTimer = setTimeout(() => {
                     logInfo('[onair.js] UVC early-timeout: clearing black overlay as a safety.');
                     clearBlackOverlaySmooth();
@@ -1233,13 +1222,13 @@ function onairStartPlayback(itemData) {
                 onairVideoElement.addEventListener('loadedmetadata', cleanup, { once: true });
             }
         } else {
-            // 黒オーバーレイは使わない（毎回黒が出ないようフラグも下ろしておく）
+            // 黒オーバーレイは使わない
             onairOverlayForceBlack = false;
             onairSuppressFadeUntilPlaying = false;
             onairPendingUvcFadeInSec = 0;
         }
 
-        // onairSetupUVCStream 実行（イベントは先に掛け終えている）
+        // UVC再生開始
         onairSetupUVCStream(onairVideoElement, itemData.deviceId);
 
         return;
@@ -1248,40 +1237,40 @@ function onairStartPlayback(itemData) {
     if (itemData.path) {
         logInfo('[onair.js] Starting video playback.');
         onairSetupVideoFile(onairVideoElement, itemData.path);
-        // 再生速度コントローラーの値を再適用
+        // 再生速度コントローラー適用
         const currentSpeed = parseFloat(document.getElementById('playback-speed-input').value) || 1.00;
         onairVideoElement.playbackRate = currentSpeed;
         logDebug(`[onair.js] Applied playback speed: ${currentSpeed}`);
-        // フルスクリーン側にも再生速度を送信する
+        // フルスクリーン側に再生速度送信
         window.electronAPI.sendControlToFullscreen({
             command: 'set-playback-speed',
             value: currentSpeed
         });
     }
 
-    // IN点とOUT点の取得
+    // IN点とOUT点取得
     const inPoint = itemData.inPoint || 0;
     const outPoint = itemData.outPoint || onairVideoElement.duration;
 
-    // IN点にシーク
+    // IN点シーク
     onairSeekToInPoint(onairVideoElement, inPoint);
 
-    // 進行中のFADE状態をリセット（前アイテムのFADE-OUT残りで 0% 固着を防ぐ）
+    // 進行中FADE状態リセット
     if (typeof stopItemFade === 'function') {
         try { stopItemFade(); } catch (_) {}
     }
 
-// 規定音量（%）を算出
+// 規定音量算出
     let targetVolPct = (typeof itemData.defaultVolume === 'number') ? itemData.defaultVolume : 100;
 
-// REPEAT直後（2周目以降）は直前のスライダー値を優先して保持
+// REPEAT2周目以降
     if (window.onairPreserveItemVolume) {
         const prevSlider = document.getElementById('on-air-item-volume-slider');
         const prevVal = prevSlider ? parseInt(prevSlider.value, 10) : NaN;
         if (!isNaN(prevVal)) {
             targetVolPct = prevVal;
         }
-        window.onairPreserveItemVolume = false;  // 使い切り
+        window.onairPreserveItemVolume = false;
     }
 
     const applySliderValue = (pct) => {
@@ -1292,24 +1281,23 @@ function onairStartPlayback(itemData) {
         if (valEl) valEl.textContent = `${pct}%`;
         itemSlider.style.setProperty('--value', `${pct}%`);
 
-        // 既存のスライダーhandler（WebAudio適用）を走らせる
         try { itemSlider.dispatchEvent(new Event('input')); } catch (_) {}
     };
 
-    // スタートモードに応じた処理分岐
+    // 処理分岐
     if (itemData.startMode === 'PLAY' || (onairRepeatFlag && itemData.startMode === 'PAUSE')) {
-        // 非FADEIN開始：開始直前に規定音量へ明示復帰（UI＋内部オーディオを同期）
+        // 非FADEIN
         onairVideoElement.volume = targetVolPct / 100;
         applySliderValue(targetVolPct);
 
-        // リピート時はフルスクリーン側が誤って停止しないよう、先行してplayを送る
+        // リピート時
         if (onairRepeatFlag) {
             try {
                 window.electronAPI.sendControlToFullscreen({ command: 'play' });
             } catch (_) {}
         }
 
-        // リピート直後に黒保持を確実に解除（fullscreen）
+        // リピート直後
         try {
             window.electronAPI.sendControlToFullscreen({
                 command: 'fade-from-black',
@@ -1324,9 +1312,7 @@ function onairStartPlayback(itemData) {
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via PLAY start mode.');
-                // 再度送信して確実化（先行送信との二重化で競合吸収）
                 window.electronAPI.sendControlToFullscreen({ command: 'play' });
-                // 再生確定直後に fullscreen 側の黒保持を解除
                 try {
                     window.electronAPI.sendControlToFullscreen({
                         command: 'fade-from-black',
@@ -1340,17 +1326,16 @@ function onairStartPlayback(itemData) {
                 onairUpdatePlayPauseButtons(elements);
             });
     } else if (itemData.startMode === 'FADEIN') {
-        // FADEIN開始：0%からフェードイン
+        // FADEIN開始
         onairVideoElement.volume = 0;
         applySliderValue(0);
 
-        // 映像面：フェードイン開始
         let fadeDuration = (itemData.startFadeInSec !== undefined && !isNaN(parseFloat(itemData.startFadeInSec))) ? parseFloat(itemData.startFadeInSec) : (itemData.ftbRate || 1.0);
         const totalSpan = Math.max(0, (itemData.outPoint || 0) - (itemData.inPoint || 0));
         const maxFade = Math.max(0.05, totalSpan - 0.1);
         fadeDuration = Math.min(fadeDuration, maxFade);
 
-        // ローカル側は黒を使用しない（黒オーバーレイ無効）
+        // 黒オーバーレイ無効
         try {
             const elsFTB = onairGetElements();
             const canvas = elsFTB?.onairFadeCanvas;
@@ -1363,20 +1348,19 @@ function onairStartPlayback(itemData) {
         onairIsPlaying = true;
         onairVideoElement.play()
             .then(() => {
-                // 音声フェードイン処理（0% → 既定音量へ）
+                // 音声フェードイン処理
                 audioFadeInItem(fadeDuration);
                 onairRepeatFlag = false;
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via FADEIN start mode with fade in effect.');
 
-                // 既存の実装互換のため 'fadein' も送信（どちらかに反応する環境を想定）
                 window.electronAPI.sendControlToFullscreen({
                     command: 'fadein',
                     ftbRate: fadeDuration,
                     currentTime: onairVideoElement.currentTime
                 });
-                // FADEIN開始直後に fullscreen 側の黒保持を確実に解除（映像の立ち上がりで黒張り付きを防止）
+                // fullscreen側黒保持解除
                 try {
                     window.electronAPI.sendControlToFullscreen({
                         command: 'fade-from-black',
@@ -1390,7 +1374,7 @@ function onairStartPlayback(itemData) {
                 onairUpdatePlayPauseButtons(elements);
             });
     } else {
-        // PAUSE開始：再生はしないが規定音量へ復帰しておく
+        // PAUSE開始
         onairVideoElement.pause();
         onairVideoElement.volume = targetVolPct / 100;
         applySliderValue(targetVolPct);
@@ -1407,18 +1391,20 @@ function onairStartPlayback(itemData) {
             } catch (_) {}
         }
     }
-    // 最後に再生監視を開始
+    // 再生監視
     onairMonitorPlayback(onairVideoElement, outPoint);
 }
 
-// 再生開始時にIN点にシーク
+// IN点シーク
 function onairSeekToInPoint(onairVideoElement, inPoint) {
     if (!onairVideoElement) return;
     onairVideoElement.currentTime = inPoint;
     logDebug(`[onair.js] Seeked to IN point: ${inPoint}s`);
 }
 
-// OUT点到達の監視
+// ---------------
+// OUT点到達監視
+// ---------------
 function onairMonitorPlayback(onairVideoElement, outPoint) {
     if (!onairVideoElement) return;
 
@@ -1427,10 +1413,10 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
         return;
     }
 
-    // 許容誤差（秒）を再生速度に応じて調整
+    // 許容誤差調整
     const tolerance = 0.05 * onairVideoElement.playbackRate;
 
-    // 残り時間タイマーの終了をトリガーにエンドモードを発火
+    // エンドモード発火
     function handleRemainingTimeTimerComplete() {
         const currentTime = onairVideoElement.currentTime;
         logInfo(`[onair.js] Remaining time timer reached OUT point. currentTime=${currentTime.toFixed(2)}s, outPoint=${outPoint}`);
@@ -1440,12 +1426,12 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
         onairHandleEndMode(currentEndMode);
     }
 
-    // 既存の監視を停止
+    // 既存監視停止
     if (typeof onairPlaybackMonitor !== 'undefined') {
         clearInterval(onairPlaybackMonitor);
     }
 
-    // 再生監視の設定
+    // 再生監視設定
     onairPreFtbStarted = false;
     onairPlaybackMonitor = setInterval(() => {
         if (!onairIsPlaying) {
@@ -1461,7 +1447,7 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
             return;
         }
 
-        // 事前FTBが進行中に FTB付加が外れた場合は逆フェードで復帰
+        // 事前FTBが進行中にFTB付加が外れた場合
         if (onairPreFtbStarted
             && (!onairCurrentState?.ftbEnabled)
             && (remainingTime > (tolerance + 0.10))) {
@@ -1489,7 +1475,7 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
             logInfo(`[onair.js] Pre-FTB reversed due to ftbEnabled=false (duration=${backDur.toFixed(2)}s).`);
         }
 
-        // FTBRATE > 0 かつ FTB付加 のとき、OUT-FTBRATE から事前FTB（映像/音声）開始
+        // 事前FTB開始
         const ftbRate = onairCurrentState?.ftbRate || 1.0;
         if (!onairPreFtbStarted
             && (onairCurrentState?.ftbEnabled === true)
@@ -1531,25 +1517,25 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
             logDebug(`[onair.js] Pre-FTB started: remaining=${remainingTime.toFixed(2)}s, duration=${fadeDur.toFixed(2)}s`);
         }
 
-        // 残り時間タイマーの更新
+        // 残り時間タイマー更新
         onairUpdateRemainingTime(onairGetElements(), {
             outPoint,
             currentTime: onairVideoElement.currentTime,
         });
-    }, 30); // 更新間隔を短縮して精度を向上
+    }, 30); // 更新間隔は負荷が高いため後日要調整
 
     logDebug(`[onair.js] Playback monitoring started with OUT point (tolerance=${tolerance}s).`);
 }
 
-// 動画終了時の処理（OUT点を通過してしまった場合のみのフォールバック）
+// 誤OUT点通過フォールバック
 function handleGlobalEndedEvent(videoElement) {
     const currentEndMode = onairCurrentState?.endMode || "PAUSE";
     logInfo(`[onair.js] Global ended event fired. Triggering end mode. Current endMode=${currentEndMode}`);
 
-    // エンドモードを発火
+    // エンドモード発火
     onairHandleEndMode(currentEndMode);
 
-    // 不要ならリスナーを削除
+    // リスナー削除
     if (videoElement && globalEndedListener) {
         videoElement.removeEventListener('ended', globalEndedListener);
         globalEndedListener = null;
@@ -1563,7 +1549,7 @@ function onairHandleEndMode() {
     const endMode = onairCurrentState?.endMode || 'PAUSE';
     logDebug(`[onair.js] Calling handleEndMode with endMode: ${endMode}`);
 
-    // FTBは“付加フラグ”。エンド動作の前段で黒化のみ行う（黒の撤去は次の開始側に委ねる）
+    // FTB付加フラグ
     if (onairCurrentState?.ftbEnabled === true) {
         const elsFTB = onairGetElements();
         const canvas = elsFTB?.onairFadeCanvas;
@@ -1580,7 +1566,7 @@ function onairHandleEndMode() {
         }
     }
     
-    // フルスクリーンにエンドモード通知（startModeも同送）
+    // フルスクリーン通知
     const currentTime = onairGetElements().onairVideoElement?.currentTime || 0;
     window.electronAPI.sendControlToFullscreen({
         command: 'trigger-endMode',
@@ -1593,7 +1579,7 @@ function onairHandleEndMode() {
     onairExecuteEndMode(endMode);
 }
 
-// エンドモードの振り分け
+// エンドモード振分
 function onairExecuteEndMode(endMode) {
     logInfo(`[onair.js] Executing End Mode: ${endMode}`);
 
@@ -1648,7 +1634,7 @@ function onairHandleEndModePause() {
     resetOnAirVolumeMeter();
     lastVolumeUpdateTime = null;
 
-    // フルスクリーンエリアにも停止を通知
+    // フルスクリーンエリア停止通知
     window.electronAPI.sendControlToFullscreen({
         command: 'pause',
         value: onairVideoElement.currentTime,
@@ -1668,18 +1654,18 @@ function onairHandleEndModeRepeat() {
         return;
     }
 
-    // REPEAT時は startMode に関係なく必ず再開する
-        onairRepeatFlag = true;
+    // スタートモード無視
+    onairRepeatFlag = true;
 
-    // 2周目以降の速度UI・音量を保持するための一時フラグを立てる
-        window.onairPreserveSpeed = true;
-        window.onairPreserveItemVolume = true;
+    // 2周目以降速度・音量保持
+    window.onairPreserveSpeed = true;
+    window.onairPreserveItemVolume = true;
 
-        // 進行中の音声FADEの状態をリセット（2周目以降のFADE-INが拒否されるのを防ぐ）
-        stopItemFade();
+    // 音声FADE状態リセット
+    stopItemFade();
 
-        onairStartPlayback(onairCurrentState);
-    }
+    onairStartPlayback(onairCurrentState);
+}
 
 // エンドモードFTB
 function onairHandleEndModeFTB() {
@@ -1690,41 +1676,39 @@ function onairHandleEndModeFTB() {
 
     if (!onairVideoElement || !onairFadeCanvas) {
         logInfo('[onair.js] Video element or fade canvas not found. FTB skipped.');
-        // FTBボタンの点滅も停止
+        // FTBボタン点滅停止
         stopFadeButtonBlink(document.getElementById('ftb-off-button'));
         return;
     }
 
     const ftbRate = onairCurrentState.ftbRate || 1.0;
 
-    // キャンバスサイズを調整
+    // キャンバスサイズ調整
     adjustFadeCanvasSize(onairVideoElement, onairFadeCanvas);
 
-    // いまのキャンバス不透明度を取得
+    // キャンバス不透明度取得
     let overlayOpacity = 0;
     try {
         overlayOpacity = parseFloat(window.getComputedStyle(onairFadeCanvas).opacity) || 0;
     } catch (_) { overlayOpacity = 0; }
 
-    // 事前FTB中または 90%以上黒なら「もう黒扱い」
+    // 事前FTB中または90%以上なら黒扱い
     const isPreFtb = (onairPreFtbStarted === true);
     const alreadyBlack = isPreFtb || (overlayOpacity >= 0.90);
 
-    // 仕上げに必要な残りフェード時間（すでに黒に近いなら0）
+    // 仕上げに必要なフェード時間
     let finishDur = 0;
 
     if (!alreadyBlack) {
-        // いまの黒さ(overlayOpacity)から最終的な黒(1.0)までを ftbRate に合わせて詰める
         const remain = Math.max(0, 1 - overlayOpacity);
         finishDur = Math.max(0.05, remain * ftbRate);
 
-        // 画面のフェードアウト処理（残り分だけ）
+        // フェードアウト処理（残り分）
         onairFadeToBlack(onairFadeCanvas, finishDur);
 
-        // 音声のフェードアウト処理（残り分だけ）
+        // 音声フェードアウト処理（残り分）
         audioFadeOutItem(finishDur);
     } else {
-        // すでにほぼ黒なので、色だけ正しく揃えて完全黒状態に固定
         const selectedColor = isFillKeyMode
             ? (document.getElementById('fillkey-color-picker')?.value || "#00FF00")
             : "black";
@@ -1734,7 +1718,7 @@ function onairHandleEndModeFTB() {
         logInfo('[onair.js] FTB: pre-FTB already near black. Skipping second fade.');
     }
 
-    // フェード（または保持）後に一時停止
+    // フェード後一時停止
     const pauseDelayMs = alreadyBlack ? 500 : (finishDur + 0.5) * 1000;
     ftbMainTimeout = setTimeout(() => {
         onairVideoElement.pause();
@@ -1743,7 +1727,7 @@ function onairHandleEndModeFTB() {
 
         logInfo('[onair.js] FTB complete - Paused at the last frame.');
 
-        // 0.5秒後にオフエアボタンの mousedown を擬似的に発火し、FTBボタンの点滅を停止
+        // 0.5秒後にオフエア
         ftbOffAirTimeout = setTimeout(() => {
             if (onairOffAirButton) {
                 logInfo('[onair.js] Clicking Off-Air button automatically after FTB.');
@@ -1757,7 +1741,7 @@ function onairHandleEndModeFTB() {
 
     onairIsPlaying = false;
 
-    // この時点で事前FTBフラグは不要になるのでクリア
+    // 事前FTBフラグクリア
     onairPreFtbStarted = false;
 }
 
@@ -1784,7 +1768,7 @@ function adjustFadeCanvasSize(videoElement, fadeCanvas) {
 
 // フェードアウト処理
 function onairFadeToBlack(fadeCanvas, duration) {
-    // FILL-KEY モードの場合はカラーピッカーで選択された色、そうでなければ黒に設定
+    // FILL-KEYモード時は色にフェード
     const selectedColor = isFillKeyMode ? (document.getElementById('fillkey-color-picker')?.value || "#00FF00") : "black";
     fadeCanvas.style.backgroundColor = selectedColor;
     fadeCanvas.style.visibility = 'visible';
@@ -1813,10 +1797,10 @@ function onairFadeToBlack(fadeCanvas, duration) {
 function onairHandleEndModeNext() {
     logInfo('[onair.js] End Mode: NEXT - Requesting next item.');
 
-    // 遷移直前に残存オーバーレイを確実にクリア（競合時の黒張り付き防止）
+    // 残存オーバーレイクリア
     onairCancelSeamlessOverlay('before-NEXT');
 
-    // 現在がUVCでなければ前フレーム固定→次の実描画で解除
+    // 前フレーム固定→次の実描画で解除
     try {
         const isCurrentUvc =
             !!onairCurrentState &&
@@ -1836,10 +1820,10 @@ function onairHandleEndModeNext() {
         return;
     }
 
-    // 次のアイテムをリクエスト
+    // 次アイテムリクエスト
     window.electronAPI.notifyNextModeComplete(currentItemId);
 
-    // 現在のOn-Air状態をリセット
+    // 状態リセット
     onairCurrentState = null;
     onairNowOnAir    = false;
     onairIsPlaying   = false;
@@ -1851,7 +1835,7 @@ function onairHandleEndModeNext() {
 // 再生、一時停止、オフエアボタン
 // -------------------------------
 
-// 再生ボタンの処理
+// 再生ボタン
 function onairHandlePlayButton() {
     logOpe('[onair.js] Play button invoked');
     if (!onairNowOnAir) {
@@ -1881,7 +1865,7 @@ function onairHandlePlayButton() {
         } catch (e) {
             logInfo(`[onair.js] Failed to delegate start playback: ${e?.message || e}`);
         }
-        // fullscreen 同期：INへ明示シーク→再生
+        // fullscreen 同期
         try {
             window.electronAPI.sendControlToFullscreen({
                 command: 'seek',
@@ -1897,15 +1881,14 @@ function onairHandlePlayButton() {
         return;
     }
 
-    // 短尺ファイルの場合、動画の総尺が3秒未満なら動画要素をリセットして再初期化する
+    // 短尺ファイルの場合、動画の総尺が3秒未満なら再初期化
     if ((onairCurrentState.outPoint < 3) &&
         Math.abs(onairVideoElement.currentTime - (onairCurrentState.outPoint || onairVideoElement.duration)) < (0.05 * onairVideoElement.playbackRate)) {
         logDebug('[onair.js] Short file detected: resetting video element.');
         onairVideoElement.load();
-        // 再初期化後、IN点にシークする
+        // IN点シーク
         onairSeekToInPoint(onairVideoElement, onairCurrentState.inPoint);
         logDebug(`[onair.js] For short file, seeked to IN point: ${onairCurrentState.inPoint}s`);
-        // フルスクリーンにもIN点に戻す指示を送信
         window.electronAPI.sendControlToFullscreen({
             command: 'seek',
             value: onairCurrentState.inPoint,
@@ -1914,7 +1897,7 @@ function onairHandlePlayButton() {
     }
 
     else if (Math.abs(onairVideoElement.currentTime - (onairCurrentState.outPoint || onairVideoElement.duration)) < 0.05) {
-        // 通常ファイルの場合はそのままIN点にシークする
+        // 通常ファイルIN点シーク
         onairSeekToInPoint(onairVideoElement, onairCurrentState.inPoint);
         logDebug(`[onair.js] Play button pressed: Current time is at OUT point, seeking to IN point: ${onairCurrentState.inPoint}s`);
         window.electronAPI.sendControlToFullscreen({
@@ -1924,7 +1907,7 @@ function onairHandlePlayButton() {
         logDebug(`[onair.js] IN point seek command sent to fullscreen: ${onairCurrentState.inPoint}s`);
     }
 
-    // 再生を開始
+    // 再生開始
     onairVideoElement.play()
         .then(() => {
             onairIsPlaying = true;
@@ -1941,7 +1924,7 @@ function onairHandlePlayButton() {
     onairMonitorPlayback(onairVideoElement, onairCurrentState.outPoint);
 }
 
-// 一時停止ボタンの処理
+// 一時停止ボタン
 function onairHandlePauseButton() {
     if (!onairNowOnAir) {
         logDebug('[onair.js] Pause button clicked, but On-Air is not active.');
@@ -1956,7 +1939,7 @@ function onairHandlePauseButton() {
         return;
     }
 
-    // 再生を停止
+    // 再生停止
     onairVideoElement.pause();
     onairIsPlaying = false;
     onairUpdatePlayPauseButtons(elements); 
@@ -1965,7 +1948,7 @@ function onairHandlePauseButton() {
     resetOnAirVolumeMeter();
     lastVolumeUpdateTime = null;
 
-    // フェード中であれば即時停止
+    // フェード中即時停止
     if (fadeInInProgressMain || fadeOutInProgressMain || fadeInInProgressItem || fadeOutInProgressItem) {
         logDebug('[onair.js] Pause button pressed during fade ? stopping fade process.');
         stopFade();
@@ -1975,11 +1958,11 @@ function onairHandlePauseButton() {
         fadeOutInProgressItem = false;
     }
 
-    // Fullscreen.jsに通知
+    // フルスクリーン通知
     window.electronAPI.sendControlToFullscreen({ command: 'pause' });
 }
 
-// オフエアボタンの処理
+// オフエアボタン
 function onairHandleOffAirButton() {
     logOpe('[onair.js] OffAir button invoked');
     if (isOffAir || isOffAirProcessing) {
@@ -1989,7 +1972,7 @@ function onairHandleOffAirButton() {
     isOffAirProcessing = true;
     logInfo('[onair.js] Executing off-air processing.');
     onairNowOnAir = false;
-    window.onairWasOffAir = true;  // 次のオンエア開始時に一度だけプリセット適用するためのフラグ
+    window.onairWasOffAir = true;
     onairReset();
     const elements = onairGetElements();
     onairInitializeVolumeSlider(elements, 100);
@@ -2002,18 +1985,16 @@ function onairHandleOffAirButton() {
     isOffAir = true;
 }
 
-// イベントリスナーの設定
+// イベントリスナー
 function onairSetupButtonHandlers() {
     const elements = onairGetElements();
     const { onairPlayButton, onairPauseButton, onairOffAirButton, onairFTBButton } = elements;
 
-    // マウス左ボタン押下時に即時処理するヘルパー
+    // マウス左ボタン押下時ヘルパー
     const attachImmediateHandler = (buttonElement, handler) => {
         if (!buttonElement) return;
         buttonElement.addEventListener('mousedown', (event) => {
-            // 左ボタンのみ
             if (event.button !== 0) return;
-            // 不要なフォーカス移動やドラッグ開始を減らす
             event.preventDefault();
             handler();
         });
@@ -2028,10 +2009,9 @@ function onairSetupButtonHandlers() {
 }
 
 // -----------------------
-// マウスホイール操作よるコマ送りの処理
+// マウスホイールコマ送り
 // -----------------------
 function setupMouseWheelControl(videoElement) {
-    // 動画要素をマウスホイールで操作可能にするため tabindex を設定
     videoElement.tabIndex = 0;
 
     // 動画ロード完了判定
@@ -2040,7 +2020,7 @@ function setupMouseWheelControl(videoElement) {
         isVideoLoaded = true;
     });
 
-    // ホイール操作によるシーク処理
+    // ホイール操作シーク
     videoElement.addEventListener('wheel', (event) => {
         if (!isVideoLoaded) {
             logInfo('[onair.js] Mouse wheel jog ignored because video is not loaded.');
@@ -2054,7 +2034,7 @@ function setupMouseWheelControl(videoElement) {
         );
         videoElement.currentTime = newTime;
         logOpe('[onair.js] Mouse wheel jog moved.');
-        // フルスクリーン側にもシーク通知
+        // フルスクリーン通知
         window.electronAPI.sendControlToFullscreen({ command: 'seek', value: newTime });
     });
 }
@@ -2077,7 +2057,7 @@ function onairHandleSeekBarChange(event, elements) {
         });
         logDebug('[onair.js] Seek command sent to Fullscreen.');
 
-        // シーク時に進行中の事前FTBをキャンセル
+        // 事前FTBキャンセル
         if (onairPreFtbStarted) {
             window.electronAPI.sendControlToFullscreen({ command: 'cancel-pre-ftb' });
             onairFadeFromBlack(0.2);
@@ -2088,14 +2068,13 @@ function onairHandleSeekBarChange(event, elements) {
     }
 }
 
-
-// シークバーのハンドラ設定
+// シークバーハンドラ
 function onairSetupSeekBarHandlers(elements) {
     const { onairProgressSlider, onairVideoElement } = elements;
 
     if (!onairProgressSlider || !onairVideoElement) return;
 
-    // ユーザーがシークバーを操作したときの処理
+    // シークバー操作
     onairProgressSlider.addEventListener('input', (event) => {
         if (!onairCurrentState || onairCurrentState.endMode === "UVC") {
             logDebug('[onair.js] Seek bar operation disabled for UVC device or invalid state.');
@@ -2105,18 +2084,18 @@ function onairSetupSeekBarHandlers(elements) {
         onairHandleSeekBarChange(event, elements);
     });
 
-    // ビデオの再生位置が変わったときにシークバーを更新
+    // シークバー更新
     onairVideoElement.addEventListener('timeupdate', () => {
         if (!onairCurrentState) return;
 
-        // UVCデバイスの場合、シークバー更新をスキップ
+        // UVCデバイス
         if (onairCurrentState.endMode === "UVC") return;
 
-        // 通常の動画の場合のみシークバーを更新
+        // 通常動画
         onairUpdateSeekBar(elements, onairCurrentState);
     });
 
-    // シークバーで矢印キーの動作を無効化
+    // 矢印キー動作無効化
     onairProgressSlider.addEventListener('keydown', (event) => {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
             event.preventDefault();
@@ -2148,23 +2127,20 @@ function setupPlaybackSpeedController() {
         return;
     }
 
-    // 再生速度スライダーのレンジとステップを初期化（0.5x?3.0x をフルレンジに対応させる）
-    const SLIDER_BASE = 3;          // rate = 3^(s/10)
+    // 再生速度スライダー初期化
+    const SLIDER_BASE = 3;
     const SLIDER_MIN_RATE = 0.5;
     const SLIDER_MAX_RATE = 3.0;
-
-    // 逆変換：rate → slider 値（toSliderVal と同じ式）
     const sliderMin = 10 * Math.log(SLIDER_MIN_RATE) / Math.log(SLIDER_BASE);
     const sliderMax = 10 * Math.log(SLIDER_MAX_RATE) / Math.log(SLIDER_BASE);
-
     slider.min = sliderMin.toFixed(2);
     slider.max = sliderMax.toFixed(2);
-    slider.step = "0.1"; // 必要に応じて調整（1.0 でも可）
+    slider.step = "0.1";
     if (!slider.value) {
         slider.value = "0";
     }
 
-    // 初期状態では、onairNowOnAir フラグが false なら操作を無効化（UI上も disabled 属性）
+    // 操作無効化
     if (!onairNowOnAir) {
         slider.disabled = true;
         inputField.disabled = true;
@@ -2173,7 +2149,7 @@ function setupPlaybackSpeedController() {
         inputField.disabled = false;
     }
 
-    // 動画のメタデータが読み込まれたタイミングで、onairNowOnAir が true なら操作を有効化
+    // 操作有効化
     video.addEventListener('loadedmetadata', () => {
         if (onairNowOnAir) {
             slider.disabled = false;
@@ -2182,7 +2158,7 @@ function setupPlaybackSpeedController() {
         }
     });
 
-    // スライダー操作中：更新（固定モードでなければ）
+    // スライダー更新
     slider.addEventListener('input', () => {
         logOpe(`[onair.js] Playback speed slider input: ${slider.value}`);
         if (!onairNowOnAir) {
@@ -2199,10 +2175,9 @@ function setupPlaybackSpeedController() {
         const maxVal = parseFloat(slider.max);
         const s = isNaN(sRaw) ? 0 : Math.max(minVal, Math.min(maxVal, sRaw));
 
-        // ベースのカーブ（rate = 3^(s/10)）
         let newRate = Math.pow(3, s / 10);
 
-        // 実効レンジをボタンと同じ 0.5x?3.0x にクランプ
+        // 実効レンジクランプ
         if (newRate < 0.5) newRate = 0.5;
         if (newRate > 3.0) newRate = 3.0;
 
@@ -2216,7 +2191,7 @@ function setupPlaybackSpeedController() {
         });
     });
 
-    // スライダー操作終了時の処理（1.0x に戻してからシーク）
+    // スライダー操作終了
     const releaseHandler = () => {
         logOpe('[onair.js] Playback speed slider release');
         if (!onairNowOnAir) {
@@ -2235,15 +2210,15 @@ function setupPlaybackSpeedController() {
             return;
         }
 
-        // 過去のアニメーションが残っていたら止めておく（将来のための安全対策）
+        // アニメーション停止
         if (playbackSpeedAnimationFrame) {
             cancelAnimationFrame(playbackSpeedAnimationFrame);
             playbackSpeedAnimationFrame = null;
         }
 
-        // 1) 再生速度をまず 1.0x に戻す（オンエア／フルスクリーン両方）
+        // 再生速度リセット
         const baseRate = 1.0;
-        slider.value = "0"; // 中央位置が 1.0x
+        slider.value = "0";
         video.playbackRate = baseRate;
         inputField.value = baseRate.toFixed(2);
         window.electronAPI.sendControlToFullscreen({
@@ -2251,7 +2226,7 @@ function setupPlaybackSpeedController() {
             value: baseRate
         });
 
-        // 2) 1.0x に戻した状態で、現在位置を同期シーク
+        // 同期シーク送信
         const syncTime = video.currentTime;
         window.electronAPI.sendControlToFullscreen({
             command: 'seek',
@@ -2265,7 +2240,7 @@ function setupPlaybackSpeedController() {
     slider.addEventListener('mouseleave', releaseHandler);
     slider.addEventListener('touchend', releaseHandler);
 
-    // 入力欄の手動変更時の処理
+    // 入力欄手動変更時
     inputField.addEventListener('change', () => {
         logOpe(`[onair.js] Playback speed input changed: ${inputField.value}`);
         if (!onairNowOnAir) {
@@ -2276,20 +2251,12 @@ function setupPlaybackSpeedController() {
         if (isNaN(manualRate) || manualRate <= 0) {
             manualRate = 1.0;
         }
-
-        // スライダー／ボタンと同じく 0.5x?3.0x にクランプ
         if (manualRate < 0.5) manualRate = 0.5;
         if (manualRate > 3.0) manualRate = 3.0;
-
         isPlaybackSpeedFixed = true;
-
-        // slider: -10..10, rate = 3^(s/10) の逆変換（ボタン側と同じ toSliderVal）
         const newS = 10 * Math.log(manualRate) / Math.log(3);
         slider.value = newS.toFixed(2);
-
-        // 表示も正規化された値に合わせる
         inputField.value = manualRate.toFixed(2);
-
         video.playbackRate = manualRate;
         window.electronAPI.sendControlToFullscreen({
             command: 'set-playback-speed',
@@ -2297,7 +2264,7 @@ function setupPlaybackSpeedController() {
         });
     });
 
-    // スライダーがクリックされた場合、固定モード解除
+    // スライダークリック
     slider.addEventListener('mousedown', () => {
         logOpe('[onair.js] Playback speed slider mousedown ? fixed mode disabled');
         isPlaybackSpeedFixed = false;
@@ -2318,8 +2285,6 @@ function setupPlaybackSpeedPresetButtons() {
             logInfo('[onair.js] Speed preset: required elements not found.');
             return;
         }
-
-        // 既存があれば再生成しない
         let group = document.getElementById('playback-speed-buttons');
         if (!group) {
             group = document.createElement('div');
@@ -2338,16 +2303,13 @@ function setupPlaybackSpeedPresetButtons() {
         }
 
         const buttons = Array.from(group.querySelectorAll('.speed-btn'));
-
-        // util: 変換（slider: -10..10, rate = 3^(s/10)）
         const toSliderVal = (rate) => 10 * Math.log(rate) / Math.log(3);
         const applyRate = (rate) => {
-            // スライダーと数値表示を同期
+            // スライダーと数値表示同期
             const s = toSliderVal(rate);
             slider.value = s.toFixed(2);
             inputField.value = rate.toFixed(2);
 
-            // 実再生＆フルスクリーンへ適用
             video.playbackRate = rate;
             window.electronAPI.sendControlToFullscreen({
                 command: 'set-playback-speed',
@@ -2355,7 +2317,6 @@ function setupPlaybackSpeedPresetButtons() {
             });
         };
 
-        // 点灯制御：x1 は常に消灯
         const setHighlight = (rate, lit) => {
             for (const btn of buttons) {
                 const r = parseFloat(btn.dataset.rate);
@@ -2366,23 +2327,21 @@ function setupPlaybackSpeedPresetButtons() {
             }
         };
 
-        // 有効/無効制御 & 初期化
+        // 有効/無効制御/初期化
         const setButtonsEnabled = (enabled) => {
             buttons.forEach(b => { b.disabled = !enabled; });
-            // 見た目の透明度やカーソルは既存の .button スタイルに従う
         };
 
         const resetSpeedTo1x = () => {
-            // 1.00 に初期化（x1は非点灯）
             applyRate(1);
             setHighlight(1, false);
         };
 
-        // 外部からも安全に呼べるよう公開（あれば上書き）
+        // 外部呼出公開
         window.onairSetSpeedButtonsEnabled = setButtonsEnabled;
         window.onairResetSpeedTo1x = resetSpeedTo1x;
 
-        // 初期状態：オンエアなし想定 → UIを1.00xに戻し、ボタン無効、ハイライト消灯
+        // 初期状態
         const resetSpeedUITo1x = () => {
             const s = toSliderVal(1);
             slider.value = s.toFixed(2);
@@ -2392,7 +2351,7 @@ function setupPlaybackSpeedPresetButtons() {
         setButtonsEnabled(false);
         setHighlight(1, false);
 
-        // 新規アイテム読み込み（動画メタ到達）で 1x に初期化して有効化
+        // 有効化
             const onLoadedMeta = () => {
                 // REPEAT直後（2周目以降）は初期化スキップ
                 if (window.onairPreserveSpeed) {
@@ -2414,17 +2373,15 @@ function setupPlaybackSpeedPresetButtons() {
 
         video.addEventListener('loadedmetadata', onLoadedMeta);
 
-        // オンエア喪失（srcが外れた等）でUIを1.00xへリセットし、無効化・消灯
+        // 無効化
         const onEmptied = () => {
-            // REPEAT直後（2周目以降）の初期化はスキップして保持
+            // REPEAT2周目以降初期化スキップ
             if (window.onairPreserveSpeed || onairRepeatFlag) {
-                // 保持フラグは onLoadedMeta 側で使い切る（false化）ため、ここでは触らない
                 return;
             }
 
-            // UIを1.00xに戻す
+            // リセット
             resetSpeedUITo1x();
-            // 再生速度も1.00へ（安全策：フルスクリーンにも通知）
             try { video.playbackRate = 1; } catch (_) {}
             try {
                 window.electronAPI.sendControlToFullscreen({
@@ -2441,9 +2398,8 @@ function setupPlaybackSpeedPresetButtons() {
         video.addEventListener('abort', onEmptied);
         video.addEventListener('error', onEmptied);
 
-        // ボタン押下：同じボタン再押下で消灯（速度は保持）
+        // ボタン押下
         group.addEventListener('mousedown', (e) => {
-            // 左ボタンのみ
             if (e.button !== 0) return;
             e.preventDefault();
 
@@ -2454,7 +2410,6 @@ function setupPlaybackSpeedPresetButtons() {
             const active = btn.classList.contains('button-green');
 
             if (active) {
-                // すでにアクティブなボタンを再度押した場合は消灯し、速度は現状維持
                 btn.classList.remove('button-green');
                 onairSetPlaybackRateFromUi(video);
                 setHighlight(1, false);
@@ -2462,19 +2417,19 @@ function setupPlaybackSpeedPresetButtons() {
                 return;
             }
 
-            // 一旦すべて消灯
+            // 消灯
             setHighlight(1, false);
 
-            // 新しいレートを反映。x1 は消灯のまま
+            // レート反映
             applyRate(rate);
             setHighlight(rate, true);
             if (rate === 1) setHighlight(1, false);
 
-            // オフエア時に選んだプリセットを保持（次のオンエア開始時に一度だけ適用）
+            // プリセット保持
             window.onairPresetSpeedRate = rate;
         });
 
-        // スライダー／数値入力の手動操作で消灯（x1含め常に消灯）
+        // スライダー／数値入力の手動操作
         const clearOnManualEdit = () => setHighlight(1, false);
         slider.addEventListener('input', clearOnManualEdit);
         inputField.addEventListener('input', clearOnManualEdit);
@@ -2487,17 +2442,17 @@ function setupPlaybackSpeedPresetButtons() {
 // 残り時間タイマー
 // -----------------------
 
-// 残り時間タイマーの開始
+// タイマー開始
 function onairStartRemainingTimer(elements, itemData) {
     const { onairVideoElement } = elements;
 
     if (!onairVideoElement || !itemData) return;
 
-    // タイマーをリセットして開始
+    // タイマーリセット
     if (onairRemainingTimer) clearInterval(onairRemainingTimer);
 
     onairRemainingTimer = setInterval(() => {
-        // 再生中のみタイマー更新
+        // タイマー更新
         if (onairIsPlaying) {
             onairUpdateRemainingTime(elements, itemData);
         }
@@ -2506,7 +2461,7 @@ function onairStartRemainingTimer(elements, itemData) {
     logDebug('[onair.js] Remaining time timer started.');
 }
 
-// 残り時間タイマーの停止
+// タイマー停止
 function onairStopRemainingTimer() {
     if (onairRemainingTimer) {
         clearInterval(onairRemainingTimer);
@@ -2515,17 +2470,17 @@ function onairStopRemainingTimer() {
     }
 }
 
-// 初期化でタイマーをリセット
+// 初期化
 function onairResetRemainingTimer(elements) {
     const { onairRemainTimeDisplay } = elements;
 
-    // 表示をリセット
+    // リセット
     if (onairRemainTimeDisplay) {
         onairRemainTimeDisplay.textContent = '00:00:00:00';
         onairRemainTimeDisplay.style.color = 'orange';
     }
 
-    // タイマーを停止
+    // 停止
     onairStopRemainingTimer();
 
     logDebug('[onair.js] Remaining time timer reset.');
@@ -2535,7 +2490,7 @@ function onairResetRemainingTimer(elements) {
 // 音量スライダー
 // ------------------------------
 
-// 音量スライダーのイベント設定
+// 音量スライダーイベント設定
 function onairSetupVolumeSliderHandler(elements) {
     logOpe('[onair.js] setupVolumeSliderHandler invoked');
     const { onairItemVolumeSlider, onairMasterVolumeSlider, onairItemVolumeValueDisplay, onairMasterVolumeValueDisplay } = elements;
@@ -2607,12 +2562,11 @@ function onairSetupVolumeSliderHandler(elements) {
     logDebug('[onair.js] Volume slider handlers for item and master set up.');
 }
 
-
 // ------------------------------
 // フェードイン・フェードアウト
 // ------------------------------
 
-// フェードアウト処理
+// メインフェードアウト
 function audioFadeOut(duration) {
     if (fadeOutInProgressMain || fadeInInProgressMain) return;
     fadeOutInProgressMain = true;
@@ -2666,7 +2620,7 @@ function audioFadeOut(duration) {
     requestAnimationFrame(fadeStep);
 }
 
-// MAIN フェードイン
+// メインフェードイン
 function audioFadeIn(duration) {
     if (fadeInInProgressMain || fadeOutInProgressMain) return;
     fadeInInProgressMain = true;
@@ -2725,7 +2679,7 @@ function audioFadeIn(duration) {
     requestAnimationFrame(fadeStep);
 }
 
-// フェードイン処理
+// アイテムフェードアウト
 function audioFadeOutItem(duration) {
     if (fadeOutInProgressItem || fadeInInProgressItem) return;
     fadeOutInProgressItem = true;
@@ -2774,44 +2728,58 @@ function audioFadeOutItem(duration) {
     requestAnimationFrame(fadeStep);
 }
 
+// アイテムフェードイン
+function audioFadeInItem(duration) {
+    if (fadeInInProgressItem || fadeOutInProgressItem) return;
+    fadeInInProgressItem = true;
 
-// フェードイン・フェードアウトの処理を中断する関数
-function stopFade() {
-    // 互換用：MAIN/ITEM 両方を止める
-    fadeInInProgressMain = false;
-    fadeOutInProgressMain = false;
-    fadeInInProgressItem = false;
-    fadeOutInProgressItem = false;
-    logInfo('[onair.js] All fades stopped');
+    const itemSlider = document.getElementById('on-air-item-volume-slider');
+    if (!itemSlider) {
+        logInfo('[onair.js] Error: on-air-item-volume-slider not found. Aborting fadeInItem.');
+        fadeInInProgressItem = false;
+        return;
+    }
+    const targetValue = onairCurrentState?.defaultVolume !== undefined ? onairCurrentState.defaultVolume : 100;
+    let startTime = null;
+    const currentValue = parseFloat(itemSlider.value);
 
-    // ボタンの点滅を止める（MAIN/ITEM 両方）
-    stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
-    stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
-    stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
-    stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
+    function setSliderValue(value) {
+        itemSlider.value = value;
+        const roundedValue = Math.round(value);
+        const itemVolumeDisplay = document.getElementById('on-air-item-volume-value');
+        itemVolumeDisplay.textContent = `${roundedValue}%`;
+        itemSlider.style.setProperty('--value', `${roundedValue}%`);
+        const masterVal = parseInt(document.getElementById('on-air-master-volume-slider').value, 10);
+        const finalVolume = (roundedValue / 100) * (masterVal / 100);
+        window.electronAPI.sendControlToFullscreen({
+            command: 'set-volume',
+            value: Math.pow(finalVolume, 2.2)
+        });
+        const videoElement = document.getElementById('on-air-video');
+        if (videoElement) {
+            videoElement.volume = finalVolume;
+        }
+    }
+
+    function fadeStep(timestamp) {
+        if (!fadeInInProgressItem) return;
+        if (!startTime) startTime = timestamp;
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(elapsed / (duration * 1000), 1);
+        const newValue = currentValue + (targetValue - currentValue) * progress;
+        setSliderValue(newValue);
+        if (progress < 1) {
+            requestAnimationFrame(fadeStep);
+        } else {
+            setSliderValue(targetValue);
+            fadeInInProgressItem = false;
+            stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
+        }
+    }
+    requestAnimationFrame(fadeStep);
 }
 
-// MAIN だけ止める
-function stopMainFade() {
-    const wasRunning = fadeInInProgressMain || fadeOutInProgressMain;
-    fadeInInProgressMain = false;
-    fadeOutInProgressMain = false;
-    if (wasRunning) logInfo('[onair.js] Main fade stopped');
-    stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
-    stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
-}
-
-// ITEM だけ止める
-function stopItemFade() {
-    const wasRunning = fadeInInProgressItem || fadeOutInProgressItem;
-    fadeInInProgressItem = false;
-    fadeOutInProgressItem = false;
-    if (wasRunning) logInfo('[onair.js] Item fade stopped');
-    stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
-    stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
-}
-
-// フェードイン、フェードアウトボタンのイベントリスナー
+// メインフェードイン、フェードアウトボタンイベントリスナー
 document.getElementById('on-air-fo-button').addEventListener('mousedown', (event) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -2850,80 +2818,7 @@ document.getElementById('on-air-fi-button').addEventListener('mousedown', (event
     audioFadeIn(fioRate); 
 });
 
-// フェードイン・フェードアウトボタンに点滅アニメーションを適用
-function fadeButtonBlink(button) {
-    if (button) {
-        button.classList.add('button-blink-orange');
-    }
-}
-
-// フェード完了後に点滅を停止
-function stopFadeButtonBlink(button) {
-    if (button) {
-        button.classList.remove('button-blink-orange'); 
-    }
-}
-
-// スライダーの左側の色表示を、現在の値に合わせて更新する補助関数
-function updateVolumeSliderAppearance() {
-    const elements = onairGetElements();
-    if (elements.onairItemVolumeSlider) {
-        elements.onairItemVolumeSlider.style.setProperty('--value', `${elements.onairItemVolumeSlider.value}%`);
-    }
-}
-
-// アイテム固有の音量フェードアウト処理
-function audioFadeInItem(duration) {
-    if (fadeInInProgressItem || fadeOutInProgressItem) return;
-    fadeInInProgressItem = true;
-
-    const itemSlider = document.getElementById('on-air-item-volume-slider');
-    if (!itemSlider) {
-        logInfo('[onair.js] Error: on-air-item-volume-slider not found. Aborting fadeInItem.');
-        fadeInInProgressItem = false;
-        return;
-    }
-    const targetValue = onairCurrentState?.defaultVolume !== undefined ? onairCurrentState.defaultVolume : 100;
-    let startTime = null;
-    const currentValue = parseFloat(itemSlider.value);
-
-    function setSliderValue(value) {
-        itemSlider.value = value;
-        const roundedValue = Math.round(value);
-        const itemVolumeDisplay = document.getElementById('on-air-item-volume-value');
-        itemVolumeDisplay.textContent = `${roundedValue}%`;
-        itemSlider.style.setProperty('--value', `${roundedValue}%`);
-        const masterVal = parseInt(document.getElementById('on-air-master-volume-slider').value, 10);
-        const finalVolume = (roundedValue / 100) * (masterVal / 100);
-        window.electronAPI.sendControlToFullscreen({
-            command: 'set-volume',
-            value: Math.pow(finalVolume, 2.2)
-        });
-        const videoElement = document.getElementById('on-air-video');
-        if (videoElement) {
-            videoElement.volume = finalVolume;
-        }
-    }
-
-    function fadeStep(timestamp) {
-        if (!fadeInInProgressItem) return; // 個別停止に対応
-        if (!startTime) startTime = timestamp;
-        const elapsed = timestamp - startTime;
-        const progress = Math.min(elapsed / (duration * 1000), 1);
-        const newValue = currentValue + (targetValue - currentValue) * progress;
-        setSliderValue(newValue);
-        if (progress < 1) {
-            requestAnimationFrame(fadeStep);
-        } else {
-            setSliderValue(targetValue);
-            fadeInInProgressItem = false;
-            stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
-        }
-    }
-    requestAnimationFrame(fadeStep);
-}
-
-// アイテムごとのフェードイン・フェードアウト
+// アイテムフェードイン・フェードアウトボタン
 document.getElementById('on-air-item-fo-button').addEventListener('mousedown', (event) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -2969,21 +2864,79 @@ document.getElementById('on-air-item-fi-button').addEventListener('mousedown', (
     audioFadeInItem(fadeDuration); 
 });
 
+// フェードイン・フェードアウト中断
+function stopFade() {
+    // メイン・アイテム両方を止める
+    fadeInInProgressMain = false;
+    fadeOutInProgressMain = false;
+    fadeInInProgressItem = false;
+    fadeOutInProgressItem = false;
+    logInfo('[onair.js] All fades stopped');
+
+    // ボタン点滅を止める
+    stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
+}
+
+// メインだけ止める
+function stopMainFade() {
+    const wasRunning = fadeInInProgressMain || fadeOutInProgressMain;
+    fadeInInProgressMain = false;
+    fadeOutInProgressMain = false;
+    if (wasRunning) logInfo('[onair.js] Main fade stopped');
+    stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
+}
+
+// アイテムだけ止める
+function stopItemFade() {
+    const wasRunning = fadeInInProgressItem || fadeOutInProgressItem;
+    fadeInInProgressItem = false;
+    fadeOutInProgressItem = false;
+    if (wasRunning) logInfo('[onair.js] Item fade stopped');
+    stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
+    stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
+}
+
+// 点滅アニメーション
+function fadeButtonBlink(button) {
+    if (button) {
+        button.classList.add('button-blink-orange');
+    }
+}
+
+// 点滅停止
+function stopFadeButtonBlink(button) {
+    if (button) {
+        button.classList.remove('button-blink-orange'); 
+    }
+}
+
+// 数値表示警告色更新
+function updateVolumeSliderAppearance() {
+    const elements = onairGetElements();
+    if (elements.onairItemVolumeSlider) {
+        elements.onairItemVolumeSlider.style.setProperty('--value', `${elements.onairItemVolumeSlider.value}%`);
+    }
+}
+
 // -----------------------
 // スタートモードFADEIN
 // -----------------------
 
-// フェードイン（映像）の処理：画面を黒または FILL-KEY 用の色から透明にする
+// 映像フェードイン処理
 function onairFadeFromBlack(duration) {
     const elements = onairGetElements();
     const { onairFadeCanvas } = elements;
     if (!onairFadeCanvas) return;
     
-    // FILL-KEY モードの場合はカラーピッカーで選択された色、そうでなければ黒を使用
+    // FILL-KEY確認
     const selectedColor = isFillKeyMode ? (document.getElementById('fillkey-color-picker')?.value || "#00FF00") : "black";
     onairFadeCanvas.style.backgroundColor = selectedColor;
     
-    // 初期状態：キャンバスを完全に不透明にして表示
+    // 初期状態
     onairFadeCanvas.style.opacity = 1;
     onairFadeCanvas.style.visibility = 'visible';
     
@@ -2991,7 +2944,6 @@ function onairFadeFromBlack(duration) {
     function fadeStep(timestamp) {
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
-        // opacity を 1 から 0 に向かって補間
         const newOpacity = Math.max(1 - (elapsed / (duration * 1000)), 0);
         onairFadeCanvas.style.opacity = newOpacity;
         if (elapsed < duration * 1000) {
@@ -3006,10 +2958,10 @@ function onairFadeFromBlack(duration) {
 }
 
 // -----------------------
-// アイテム状態情報の更新
+// アイテム状態情報更新
 // -----------------------
 
-// Listedit 更新は「表示と内部状態のみ」更新する
+// リストエディットからの更新通知受診
 window.electronAPI.onListeditUpdated(() => {
     logDebug('[onair.js]  Listedit update received.');
 
@@ -3024,7 +2976,6 @@ window.electronAPI.onListeditUpdated(() => {
         return;
     }
 
-    // 現在On-Airの同一アイテムのみ対象
     const updated = updatedState.find(it => it.playlistItem_id === onairCurrentState.itemId);
     if (!updated) {
         logDebug('[onair.js] Listedit update is for a different item. Ignored.');
@@ -3034,7 +2985,7 @@ window.electronAPI.onListeditUpdated(() => {
     compareAndUpdateState(updated, { source: 'listedit' });
 });
 
-
+// 状態更新
 function compareAndUpdateState(updatedItem, { source } = {}) {
     if (!onairCurrentState) {
         logInfo('[onair.js] Current state is not set. Skipping comparison.');
@@ -3042,7 +2993,7 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
     }
     logDebug('[onair.js] Comparing current state with updated item.');
 
-    // 型を正規化（stateは数値秒、updatedItemは文字列の可能性あり）
+    // 正規化
     const normIn  = typeof updatedItem.inPoint  === 'string' ? onairParseTimeToSeconds(updatedItem.inPoint)  : (updatedItem.inPoint  ?? 0);
     const normOut = typeof updatedItem.outPoint === 'string' ? onairParseTimeToSeconds(updatedItem.outPoint) : (updatedItem.outPoint ?? 0);
     const normEnd = (updatedItem.endMode || '').toString().toUpperCase() || 'PAUSE';
@@ -3051,64 +3002,58 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
     const normStart = (updatedItem.startMode || onairCurrentState.startMode || 'PAUSE').toString().toUpperCase();
     const normFtbEnabled = !!updatedItem.ftbEnabled;
 
-    // IN
+    // イン点
     if (Number(onairCurrentState.inPoint) !== Number(normIn)) {
         logInfo(`IN point updated: ${onairCurrentState.inPoint} → ${normIn}`);
         onairCurrentState.inPoint = normIn;
         handleInPointUpdate(normIn, { source }); // ← transportしない分岐へ
     }
 
-    // OUT
+    // アウト点
     if (Number(onairCurrentState.outPoint) !== Number(normOut)) {
         logInfo(`OUT point updated: ${onairCurrentState.outPoint} → ${normOut}`);
         onairCurrentState.outPoint = normOut;
         handleOutPointUpdate(normOut, { source });
     }
 
-    // StartMode
+    // スタートモード
     if ((onairCurrentState.startMode || '').toString().toUpperCase() !== normStart) {
         logInfo(`Start mode updated: ${onairCurrentState.startMode} → ${normStart}`);
         onairCurrentState.startMode = normStart;
         handleStartModeUpdate(normStart, { source });
     }
 
-    // EndMode
+    // エンドモード
     if ((onairCurrentState.endMode || '').toString().toUpperCase() !== normEnd) {
         logInfo(`End mode updated: ${onairCurrentState.endMode} → ${normEnd}`);
         onairCurrentState.endMode = normEnd;
-        handleEndModeUpdate(normEnd);
+        handleEndModeUpdate(normEnd, { source });
     }
 
-    // FTB rate
+    // FTBレート
     if (Number(onairCurrentState.ftbRate) !== Number(normFtb)) {
         logInfo(`FTB rate updated: ${onairCurrentState.ftbRate} → ${normFtb}`);
         onairCurrentState.ftbRate = normFtb;
         handleFtbRateUpdate(normFtb);
     }
 
-    // startFadeInSec
+    // FTBフラグ
+    if (Boolean(onairCurrentState.ftbEnabled) !== Boolean(normFtbEnabled)) {
+        logInfo(`FTB enabled updated: ${onairCurrentState.ftbEnabled} → ${normFtbEnabled}`);
+        handleFtbEnabledUpdate(normFtbEnabled, { source });
+    }
+
+    // フェードインレート
     if (Number(onairCurrentState.startFadeInSec ?? NaN) !== Number(normStartFi ?? NaN)) {
         logInfo(`Start Fade-in sec updated: ${onairCurrentState.startFadeInSec} → ${normStartFi}`);
         onairCurrentState.startFadeInSec = normStartFi;
         handleStartFadeInSecUpdate(normStartFi);
     }
 
-    // FTB付加フラグ
-    if (Boolean(onairCurrentState.ftbEnabled) !== Boolean(normFtbEnabled)) {
-        logInfo(`FTB enabled updated: ${onairCurrentState.ftbEnabled} → ${normFtbEnabled}`);
-        handleFtbEnabledUpdate(normFtbEnabled, { source });
-    }
-
     logDebug('[onair.js] State comparison and update completed.');
 }
 
-function handleStartFadeInSecUpdate(newSec) {
-    if (!onairCurrentState) return;
-    const v = (newSec !== undefined && !isNaN(parseFloat(newSec))) ? parseFloat(newSec) : undefined;
-    onairCurrentState.startFadeInSec = v;
-    logDebug(`[onair.js] startFadeInSec updated to: ${v}`);
-}
-
+// スタートモード更新
 function handleStartModeUpdate(newStartMode, { source } = {}) {
     if (!onairCurrentState) return;
     const mode = (newStartMode || 'PAUSE').toUpperCase();
@@ -3116,30 +3061,33 @@ function handleStartModeUpdate(newStartMode, { source } = {}) {
     logDebug(`[onair.js] startMode updated to: ${mode} (source=${source || 'unknown'})`);
 }
 
+// エンドモード表示ラベル更新
+function updateEndModeDisplayLabel() {
+    const elements = onairGetElements();
+    const { onairEndModeDisplay } = elements;
+    if (!onairEndModeDisplay) return;
+
+    const baseEnd = String(onairCurrentState?.endMode || 'PAUSE').toUpperCase();
+    const label = onairCurrentState?.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
+    onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
+}
+
+// FTB有効フラグ更新
 function handleFtbEnabledUpdate(enabled, { source } = {}) {
     if (!onairCurrentState) return;
     onairCurrentState.ftbEnabled = !!enabled;
 
-    // 表示を更新（ENDMODEラベルを再構成）
-    const elements = onairGetElements();
-    const { onairEndModeDisplay } = elements;
-    if (onairEndModeDisplay) {
-        const baseEnd = String(onairCurrentState.endMode || 'PAUSE').toUpperCase();
-        const label = onairCurrentState.ftbEnabled ? `FTB/${baseEnd}` : baseEnd;
-        onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
-    }
+    updateEndModeDisplayLabel();
 
-    // listedit 由来は視覚のみ更新・transportは触らない
     if (source === 'listedit') {
         logDebug(`[onair.js] ftbEnabled updated (visual/state only) by listedit: ${onairCurrentState.ftbEnabled}`);
         return;
     }
 
-    // それ以外（ユーザー操作/内部）はここでは transport 触らず、必要時にOUT時の分岐で反映
     logDebug(`[onair.js] ftbEnabled updated: ${onairCurrentState.ftbEnabled}`);
 }
 
-// IN点の更新処理
+// イン点更新
 function handleInPointUpdate(newInPointSeconds, { source } = {}) {
     if (!onairCurrentState) return;
 
@@ -3149,29 +3097,23 @@ function handleInPointUpdate(newInPointSeconds, { source } = {}) {
     const inSec = Number(newInPointSeconds) || 0;
     onairCurrentState.inPoint = inSec;
 
-    // UIのみ更新
     if (onairInPointDisplay) {
         onairInPointDisplay.textContent = onairFormatTime(inSec);
     }
-    // マーカー再描画
     onairUpdateSeekBar(elements, onairCurrentState);
 
-    // listedit 由来では transport を一切触らない
     if (source === 'listedit') {
         logDebug('[onair.js] IN updated (visual only, no transport) by listedit.');
         return;
     }
 
-    // それ以外（ユーザー操作/OnAir開始など）で必要な場合のみローカルを合わせる
     if (onairVideoElement && onairVideoElement.currentTime < inSec) {
         onairVideoElement.currentTime = inSec;
         logDebug(`[onair.js] IN point applied to preview video: ${inSec}s`);
     }
-    // fullscreen への seek は、ユーザー操作のハンドラ（再生ボタン/シークバー）側でのみ送る
 }
 
-
-// OUT点の更新処理
+// アウト点更新
 function handleOutPointUpdate(newOutPointSeconds, { source } = {}) {
     if (!onairCurrentState) return;
 
@@ -3184,49 +3126,34 @@ function handleOutPointUpdate(newOutPointSeconds, { source } = {}) {
     if (onairOutPointDisplay) {
         onairOutPointDisplay.textContent = onairFormatTime(outSecRaw);
     }
-    // マーカー再描画
     onairUpdateSeekBar(elements, onairCurrentState);
 
-    // listedit 由来なら“この再生セッションに限った有効OUT”を現再生位置+許容誤差まで後ろ寄せ
     let effectiveOut = outSecRaw;
     if (source === 'listedit' && onairIsPlaying && onairVideoElement) {
-        const tol = 0.05 * (onairVideoElement.playbackRate || 1); // 監視側toleranceと整合
+        const tol = 0.05 * (onairVideoElement.playbackRate || 1);
         effectiveOut = Math.max(outSecRaw, onairVideoElement.currentTime + tol);
         logDebug(`[onair.js] OUT updated by listedit. effectiveOut=${effectiveOut} (raw=${outSecRaw})`);
     }
 
-    // transport は触らない（監視の付け替えのみ）
     if (onairIsPlaying && onairVideoElement) {
         clearInterval(onairPlaybackMonitor);
         onairMonitorPlayback(onairVideoElement, effectiveOut);
     }
 }
 
-// エンドモードの更新処理
+// エンドモード更新
 function handleEndModeUpdate(newEndMode, { source } = {}) {
-    const elements = onairGetElements();
-    const { onairEndModeDisplay } = elements;
-
-    // 常に state を先に更新（停止中でも次回再生に反映させる）
     if (onairCurrentState) {
         onairCurrentState.endMode = newEndMode;
     }
 
-    // UI の更新
-    if (onairEndModeDisplay) {
-        const baseEnd = String(newEndMode || 'PAUSE').toUpperCase();
-        const label = onairCurrentState?.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
-        onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
-    }
+    updateEndModeDisplayLabel();
 
-
-    // listedit は“視覚/状態のみ”で終了（transportへは影響なし）
     if (source === 'listedit') {
         logDebug(`[onair.js] End mode updated (visual/state only) by listedit: ${newEndMode}`);
         return;
     }
 
-    // ユーザー操作や内部処理：transportはここでは何もしない（発火はOUT到達時）
     logDebug(`[onair.js] End mode updated: ${newEndMode}`);
 }
 
@@ -3242,24 +3169,29 @@ if (window?.electronAPI?.ipcRenderer?.on) {
     });
 }
 
-
-// FTBレートの更新処理
+// FTBレート更新
 function handleFtbRateUpdate(newFtbRate) {
     if (!onairCurrentState) {
         logDebug('[onair.js] No current state available for updating FTB rate.');
         return;
     }
-
-    // 最新のFTBレートを状態に反映
     onairCurrentState.ftbRate = parseFloat(newFtbRate);
     logDebug(`[onair.js] FTB rate updated to: ${onairCurrentState.ftbRate}`);
 }
 
+// フェードインレート更新
+function handleStartFadeInSecUpdate(newSec) {
+    if (!onairCurrentState) return;
+    const v = (newSec !== undefined && !isNaN(parseFloat(newSec))) ? parseFloat(newSec) : undefined;
+    onairCurrentState.startFadeInSec = v;
+    logDebug(`[onair.js] startFadeInSec updated to: ${v}`);
+}
+
 // -----------------------
-// 音量メーターのセットアップ
+// 音量メーターセットアップ
 // -----------------------
 
-// 受信停止監視用のウォッチドッグ
+// 受信停止監視
 let onAirVolumeWatchdogId = null;
 
 function setupOnAirVolumeMeter() {
@@ -3286,7 +3218,7 @@ function setupOnAirVolumeMeter() {
         volumeBarR.appendChild(segment);
     }
 
-    // 受信停止監視：一定時間更新が無ければ確実にリセット
+    // 受信停止監視
     if (onAirVolumeWatchdogId !== null) {
         clearInterval(onAirVolumeWatchdogId);
     }
@@ -3299,24 +3231,24 @@ function setupOnAirVolumeMeter() {
 }
 
 // -----------------------
-// 音量メーターの更新
+// 音量メーター更新
 // -----------------------
 
 let lastVolumeUpdateTime = null; 
 const volumeResetThreshold = 100; 
 
-// 表示用のスムージング状態
+// スムージング状態
 let displayedDbFSL = -60;
 let displayedDbFSR = -60;
 let redHoldUntilTsL = 0;
 let redHoldUntilTsR = 0;
 
-// スムージング設定（必要に応じて調整可）
+// スムージング設定
 const ATTACK_MS  = 240;            // 上がる速さ（小さいほど速い）
 const RELEASE_MS = 360;           // 下がる速さ（大きいほどゆっくり）
 const RED_HOLD_MS = 180;          // 赤域に入った後の保持時間
 
-// 数値表示＆ピークホールド（1秒）
+// ピークホールド
 let peakHoldDbFSL = -60;
 let peakHoldUntilTsL = 0;
 let peakHoldDbFSR = -60;
@@ -3484,7 +3416,7 @@ function resetOnAirVolumeMeter() {
         });
     }
 
-    // 内部状態の初期化
+    // 内部状態初期化
     displayedDbFSL = -60;
     displayedDbFSR = -60;
     redHoldUntilTsL = 0;
@@ -3494,11 +3426,9 @@ function resetOnAirVolumeMeter() {
     peakHoldUntilTsL = 0;
     peakHoldUntilTsR = 0;
 
-    // 数値表示があれば無音表示へ
+    // 無音表示
     const readout = document.getElementById('on-air-volume-readout');
     if (readout) readout.textContent = '-∞ dBFS';
-
-    // ウォッチドッグの再発火ループを避ける
     lastVolumeUpdateTime = null;
 }
 // -----------------------
@@ -3511,7 +3441,7 @@ window.electronAPI.onReceiveFullscreenVolumeLR((L, R) => {
 });
 
 // -----------------------
-// スクリーンショット機能
+// スクリーンショット
 // -----------------------
 document.addEventListener('DOMContentLoaded', () => {
     const captureBtn = document.getElementById('capture-button');
@@ -3527,7 +3457,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // -----------------------
-// 録画機能
+// 録画
 // -----------------------
 document.addEventListener('DOMContentLoaded', () => {
     const recBtn = document.getElementById('rec-button');
@@ -3554,7 +3484,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // -----------------------
-// FTBボタンの処理
+// FTBボタン
 // -----------------------
 function onairHandleFTBButton() {
     if (!onairNowOnAir) {
@@ -3580,7 +3510,7 @@ function onairHandleFTBButton() {
 
 
 // -----------------------
-// FILL-KEY MODE
+// フィルキーモード
 // -----------------------
 (function setupFillKeyMode() {
     isFillKeyMode = false;
@@ -3596,9 +3526,7 @@ function onairHandleFTBButton() {
             logDebug('[onair.js] Prevented SHIFT+ENTER default behavior on FILL-KEY button.');
         }
     });
-    // ボタンにクリックイベントリスナーを登録
     fillKeyButton.addEventListener('mousedown', (event) => {
-        // 左ボタンのみ有効にし、押した瞬間に処理する
         if (event.button !== 0) return;
         event.preventDefault();
 
@@ -3619,7 +3547,7 @@ function onairHandleFTBButton() {
             });
             logDebug('[onair.js] FILL-KEY mode enabled with color: ' + selectedColor);
         } else {
-            // モード解除: FILL-KEY MODE OFF
+            // モード解除
             isFillKeyMode = false;
             fillKeyButton.style.backgroundColor = "";
             fillKeyButton.classList.remove('button-green');
@@ -3637,7 +3565,7 @@ function onairHandleFTBButton() {
     });
 })();
 
-// FILLKEYモードの状態を onair.js 側に反映
+// FILLKEYモード状態更新
 function updateFillKeyModeState() {
     const fillKeyButton = document.getElementById('fillkey-mode-button');
     const onAirVideo = document.getElementById('on-air-video');
@@ -3667,7 +3595,7 @@ function updateFillKeyModeState() {
     }
 }
 
-// FILLKEYモード更新のための IPC 受信
+// FILLKEYモード更新IPC受信
 window.electronAPI.ipcRenderer.on('fillkey-mode-update', (event, fillKeyMode) => {
     logDebug(`[onair.js] Received fillkey-mode-update: ${fillKeyMode}`);
     if (typeof fillKeyMode === 'boolean') {
@@ -3681,7 +3609,7 @@ window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
     logDebug('[onair.js] Received clear-modes notification with value:', newFillKeyMode);
     isFillKeyMode = newFillKeyMode; 
     updateFillKeyModeState();
-    // フルスクリーン側にもフィルキー解除を伝える
+    // フルスクリーン側フィルキー解除
     window.electronAPI.sendControlToFullscreen({ command: 'set-fillkey-bg', value: '' });
     logDebug('[onair.js] FillKey mode has been updated to:', isFillKeyMode);
 });
@@ -3692,14 +3620,14 @@ window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
 // ショートカットキー管理
 // -----------------------
 
-// モーダル状態の初期化
+// モーダル状態初期化
 let isOnAirModalActive = false;
 
 // モーダル状態ログ/リスナー重複防止
 let lastLoggedOnAirModalState = null;
 let onairModalListenerRegistered = false;
 
-// 音量上下の際のフェード補助関数
+// 音量フェード補助関数
 function animateSliderTo(slider, targetValue, {
     durationMs = 120,
     syncCombinedVolume,
@@ -3750,19 +3678,19 @@ function triggerOnAirMouseDown(buttonId) {
     btn.dispatchEvent(mouseDownEvent);
 }
 
-// ショートカットキーの共通処理関数
+// ショートカットキー共通処理関数
 function handleShortcut(action) {
     if (isOnAirModalActive) {
         logDebug('[onair.js] Shortcut ignored because OnAir modal is active.');
         return;
     }
 
-    // "Shift+Alt+S" は playlist.js 側で処理しているため、onair.js では無視する
+    // "Shift+Alt+S" は playlist.js 側で処理しているため、onair.js では無視
     if (action === 'Shift+Alt+S') {
         return;
     }
 
-    // 音量更新の共通処理（ITEM/Master値から最終出力を算出して反映）
+    // 音量更新共通処理
     function syncCombinedVolume() {
         const itemSlider   = document.getElementById('on-air-item-volume-slider');
         const masterSlider = document.getElementById('on-air-master-volume-slider');
@@ -3786,19 +3714,19 @@ function handleShortcut(action) {
         itemSlider.style.setProperty('--value',   `${itemVal}%`);
         masterSlider.style.setProperty('--value', `${masterVal}%`);
 
-        // 現在のアイテム音量を状態に反映（REPEAT 2周目以降でも保持させる）
+        // 現在アイテム音量状態反映（REPEAT 2周目以降保持）
         if (onairCurrentState && typeof onairCurrentState === 'object') {
             onairCurrentState.defaultVolume = itemVal;
         }
 
-        // 最終出力（ガンマ 2.2 適用）をFullscreenへ送信
+        // 最終出力をFullscreen送信
         const finalVolume = (itemVal / 100) * (masterVal / 100);
         window.electronAPI.sendControlToFullscreen({
             command: 'set-volume',
             value: Math.pow(finalVolume, 2.2)
         });
 
-        // プレビュー側にも反映
+        // プレビュー側反映
         if (videoElement) videoElement.volume = finalVolume;
     }
 
@@ -3807,8 +3735,8 @@ function handleShortcut(action) {
     }
 
     switch (action) {
-            case 'Escape': // ESCキー（ネイティブ）
-            case 'Esc':    // メニューからのEscも同様に処理
+            case 'Escape': // ESCキー
+            case 'Esc':    // メニューからのEsc
                 logOpe('[onair.js] Shortcut: ESC pressed.');
                 onairHandleOffAirButton();
                 break;
@@ -3824,12 +3752,12 @@ function handleShortcut(action) {
 
         case 'Ctrl+,': // CTRL + , (フェードイン)
             logOpe('[onair.js] Shortcut: CTRL+, (fade in) triggered.');
-            triggerOnAirMouseDown('on-air-fi-button'); // フェードインボタンを mousedown でトリガー
+            triggerOnAirMouseDown('on-air-fi-button');
             break;
 
         case 'Ctrl+.': // CTRL + . (フェードアウト)
             logOpe('[onair.js] Shortcut: CTRL+. (fade out) triggered.');
-            triggerOnAirMouseDown('on-air-fo-button'); // フェードアウトボタンを mousedown でトリガー
+            triggerOnAirMouseDown('on-air-fo-button');
             break;
 
         case 'Shift+Alt+F': // Shift + Alt + F で FILL-KEY モードをトグル
@@ -3844,7 +3772,7 @@ function handleShortcut(action) {
 
         case 'Shift+R': // Shift+R で録画の開始／停止をトグル
             logOpe('[onair.js] Shortcut: Shift+R (recording toggle) triggered.');
-            triggerOnAirMouseDown('rec-button'); // 録画ボタンを mousedown でトリガー
+            triggerOnAirMouseDown('rec-button');
             break;
 
         // 音量ショートカット
@@ -3934,7 +3862,7 @@ function handleShortcut(action) {
     }
 }
 
-// キーボードショートカットの設定（Mac用追加）
+// キーボードショートカット設定
 document.addEventListener('keydown', (event) => {
     if (event.code === 'Space') {
         handleShortcut('Space');
@@ -3984,7 +3912,7 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-// メニューからショートカット通知を受信
+// メニューからショートカット通知受信
 window.electronAPI.onShortcutTrigger((event, action) => {
     logDebug(`[onair.js] Shortcut triggered from menu: ${action}`);
     handleShortcut(action);
