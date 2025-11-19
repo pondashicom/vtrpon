@@ -338,13 +338,13 @@ async function getValidUpdates(files, currentPlaylist) {
     for (const file of files) {
         const lowerPath = file.path.toLowerCase();
 
-        // PNG → MP4 または WebM 変換（透過判定付き）処理
-        if (lowerPath.endsWith('.png')) {
-            logInfo(`[playlist.js] Converting PNG: ${file.path}`);
+        // 静止画（PNG / JPG / JPEG）→ MP4 または WebM 変換（透過判定付き）処理
+        if (lowerPath.endsWith('.png') || lowerPath.endsWith('.jpg') || lowerPath.endsWith('.jpeg')) {
+            logInfo(`[playlist.js] Converting still image: ${file.path}`);
             try {
                 const convertedPath = await convertPNGToVideo(file.path);
                 if (!convertedPath) {
-                    logInfo(`[playlist.js] PNG conversion returned no output: ${file.path}`);
+                    logInfo(`[playlist.js] Image conversion returned no output: ${file.path}`);
                     continue;
                 }
                 file.path = convertedPath;
@@ -352,7 +352,7 @@ async function getValidUpdates(files, currentPlaylist) {
                 const processedFile = await processFileData(file, currentPlaylist);
                 if (processedFile) updatedFiles.push(processedFile);
             } catch (error) {
-                logInfo(`[playlist.js] Error converting PNG (${file.path}): ${error.message || JSON.stringify(error)}`);
+                logInfo(`[playlist.js] Error converting image (${file.path}): ${error.message || JSON.stringify(error)}`);
                 continue;
             }
             continue;
