@@ -1,6 +1,6 @@
 // -----------------------
 //     pngtomp4.js 
-//     ver 2.1.5
+//     ver 2.4.7
 // -----------------------
 
 // PNGに透過が含まれているかをチェックする関数
@@ -57,13 +57,17 @@ async function convertPNGToVideo(pngPath) {
     const durationInput = document.getElementById('fadeInDuration');
     const duration = parseInt(durationInput.value, 10) || 1;
 
+    // 出力フレーム数を算出（例：30fps固定）
+    const fps = 30;
+    const frameCount = duration * fps;
+
     let outputFilePath, ffmpegArgs;
     if (hasAlpha) {
       outputFilePath = window.electronAPI.path.join(outputDirectory, `${originalFileName}_still_${timestamp}-${counter}.webm`);
-      ffmpegArgs = `-y -loop 1 -i "${pngPath}" -c:v libvpx-vp9 -pix_fmt yuva420p -t ${duration} -auto-alt-ref 0 "${outputFilePath}"`;
+      ffmpegArgs = `-y -loop 1 -framerate ${fps} -i "${pngPath}" -c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -frames:v ${frameCount} "${outputFilePath}"`;
     } else {
       outputFilePath = window.electronAPI.path.join(outputDirectory, `${originalFileName}_still_${timestamp}-${counter}.mp4`);
-      ffmpegArgs = `-y -loop 1 -i "${pngPath}" -vf "scale=ceil(iw/2)*2:ceil(ih/2)*2" -c:v libx264 -t ${duration} -pix_fmt yuv420p "${outputFilePath}"`;
+      ffmpegArgs = `-y -loop 1 -framerate ${fps} -i "${pngPath}" -vf "scale=ceil(iw/2)*2:ceil(ih/2)*2" -c:v libx264 -pix_fmt yuv420p -frames:v ${frameCount} "${outputFilePath}"`;
     }
 
     // 一時エントリをプレイリストに追加（Loading...）

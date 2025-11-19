@@ -1872,7 +1872,7 @@ ipcMain.on('set-recording-settings', (event, newSettings) => {
 // ---------------------------------
 // プレイリストでファイル選択ダイアログを表示し、選択されたファイルの基本情報を返す
 ipcMain.handle('select-files', async () => {
-    let extensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg'];
+    let extensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'jpg', 'jpeg', 'mpeg'];
     if (pptxConverterWinax.available()) {
         extensions.push('pptx'); // WindowsでPPTX変換が可能な場合、pptxを追加
     }
@@ -1946,7 +1946,7 @@ ipcMain.handle('exec-ffmpeg', async (event, args) => {
 // ---------------------------------
 ipcMain.on('files-dropped', (event, files) => {
     console.log('[main.js] Received dropped files:', files);
-    const allowedExtensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'mpeg', 'pptx'];
+    const allowedExtensions = ['mp4', 'mkv', 'avi', 'webm', 'mov', 'wav', 'mp3', 'flac', 'aac', 'm4a', 'png', 'jpg', 'jpeg', 'mpeg', 'pptx'];
     const validFiles = [];
     const invalidFiles = [];
 
