@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.4.6
+//     ver 2.4.7
 // -----------------------
 
 // -----------------------
@@ -107,14 +107,18 @@ function initializeFadeCanvas() {
 window.electronAPI.onReceiveFullscreenData((itemData) => {
     logInfo(`[fullscreen.js] Received On-Air data in fullscreen: ${JSON.stringify(itemData)}`);
 
-    const nextIsUVC   = isUVCItem(itemData);
-    const nextIsPause = (itemData.startMode === 'PAUSE');
+    const nextIsUVC = isUVCItem(itemData);
+
+    // スタートモードを大文字で統一
+    const nextStartModeUpper = String(itemData.startMode || 'PAUSE').toUpperCase();
+    const nextIsPause  = (nextStartModeUpper === 'PAUSE');
+    const nextIsFadeIn = (nextStartModeUpper === 'FADEIN');
 
     // 次ソースがUVCなら、映像黒フェードを一時抑止
     suppressFadeUntilPlaying = nextIsUVC;
 
     // 次ソースがUVCかつスタートモードがFADEINなら、フェード秒を保持（0なら無効）
-    pendingUvcFadeInSec = (nextIsUVC && itemData.startMode === 'FADEIN' && Number(itemData.startFadeInSec) > 0)
+    pendingUvcFadeInSec = (nextIsUVC && nextIsFadeIn && Number(itemData.startFadeInSec) > 0)
         ? Number(itemData.startFadeInSec)
         : 0;
 
@@ -131,9 +135,9 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     // オーバーレイキャプチャ（前フレーム固定）は、
     // 1) 現在ソースがUVC
     // 2) 次ソースがUVC
-    // 3) 次ソースのスタートモードがPAUSE
+    // 3) 次ソースのスタートモードがPAUSE または FADEIN
     // のいずれかに該当するときはスキップする
-    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsPause;
+    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsPause || nextIsFadeIn;
 
     if (!skipOverlayCapture) {
         try {
@@ -149,15 +153,14 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
             logInfo('[fullscreen.js] Overlay capture skipped because current source is UVC.');
         } else if (nextIsPause) {
             logInfo('[fullscreen.js] Overlay capture skipped because next startMode is PAUSE.');
+        } else if (nextIsFadeIn) {
+            logInfo('[fullscreen.js] Overlay capture skipped because next startMode is FADEIN.');
         }
     }
 
     // いきなりresetせず、次の描画フレームで実施（オーバーレイ描画の確定を保証）
     requestAnimationFrame(() => {
-        // 既存のストリームや動画を初期化
         resetFullscreenState();
-
-        // メインプロセスを開始
         handleOnAirData(itemData);
     });
 });
@@ -400,7 +403,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         }
     } : null;
 
-    // ★ playing ハンドラを定義（非RVFC環境の解除契機）
+    // playing ハンドラを定義（非RVFC環境の解除契機）
     const onPlaying = () => {
         if (!useRVFC) {
             clearOverlay('playing');
@@ -437,7 +440,6 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         }
     }, 500);
 }
-
 
 // ---------------------------------------
 // オンエアデータを処理して再生する
@@ -735,6 +737,8 @@ function handleStartMode() {
         const fadeDur = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec))
             ? globalState.startFadeInSec
             : 1.0;
+
+        // 映像フェードイン（黒→映像）は fullscreen 側で完結させる
         fullscreenFadeFromBlack(fadeDur, isFillKeyMode);
 
         videoElement.play()
@@ -742,12 +746,6 @@ function handleStartMode() {
                 audioFadeIn(fadeDur);
                 startVolumeMeasurement();
                 logInfo('[fullscreen.js] Playback started with FADEIN effect.');
-                window.electronAPI.sendControlToFullscreen({
-                    command: 'fadein',
-                    startFadeInSec: fadeDur,
-                    fillKeyMode: isFillKeyMode,
-                    currentTime: videoElement.currentTime
-                });
             })
             .catch(error => logDebug(`[fullscreen.js] Playback failed to start in FADEIN mode: ${error.message}`));
 
@@ -756,6 +754,7 @@ function handleStartMode() {
     } else {
         logInfo(`[fullscreen.js] Unknown start mode: ${globalState.startMode}. No action taken.`);
     }
+
 }
 
 // ------------------------------------
@@ -801,11 +800,14 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
             if (elapsed < duration * 1000) {
                 requestAnimationFrame(step);
             } else {
+                // フェード完了後もレイヤー自体は残し、opacity だけ 0 にする
+                // （display/visibility を切り替えるとコンポジットが切り替わり映像が揺れる原因になる）
                 fc.style.opacity = '0';
-                fc.style.display = 'none';
-                fc.style.visibility = 'hidden';
+                fc.style.display = 'block';
+                fc.style.visibility = 'visible';
                 holdBlackUntilFadeIn = false;  // 黒保持解除
                 logInfo('[fullscreen.js] Fade in completed (held black released).');
+
             }
         }
         requestAnimationFrame(step);
