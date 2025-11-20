@@ -1024,8 +1024,16 @@ function renderPlaylistItem(file, index) {
         }
     });
 
+    // 右クリック時（名前変更モーダル表示）
+    item.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        logOpe(`[playlist.js] Playlist item contextmenu opened (index: ${index})`);
+        openItemRenameModal(file.playlistItem_id);
+    });
+
     // ▲▼DELの生成
     const moveButtons = createMoveButtons(item);
+
 
     // ▲▼DEL用ラッパー
     const controlsWrapper = document.createElement('div');
@@ -1477,6 +1485,35 @@ async function deletePlaylistItem(itemId) {
     }
     await simulateRightArrowKey();
     logOpe("[playlist.js] edit clear.");
+}
+
+// ---------------------------
+// プレイリストアイテム名の変更
+// ---------------------------
+async function renamePlaylistItemName(itemId, newName) {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        if (!Array.isArray(playlist)) {
+            logInfo('[playlist.js] Playlist is not an array while renaming item.');
+            return;
+        }
+
+        const updatedPlaylist = playlist.map((item) => {
+            if (String(item.playlistItem_id) === String(itemId)) {
+                return {
+                    ...item,
+                    name: newName
+                };
+            }
+            return item;
+        });
+
+        await stateControl.setPlaylistState(updatedPlaylist);
+        await updatePlaylistUI();
+        logOpe(`[playlist.js] Playlist item renamed. ID: ${itemId}, new name: ${newName}`);
+    } catch (error) {
+        logInfo(`[playlist.js] Failed to rename playlist item. Error: ${error.message}`);
+    }
 }
 
 // -------------------------------------
@@ -3125,6 +3162,120 @@ function hideModal() {
     
     // モーダル状態更新
     window.electronAPI.updateModalState(false); 
+}
+
+// ---------------------------
+// プレイリストアイテム名変更モーダル
+// ---------------------------
+async function openItemRenameModal(targetPlaylistItemId) {
+    const modal = document.getElementById('playlist-name-modal');
+    const nameInput = document.getElementById('playlist-name-input');
+    const saveButton = document.getElementById('playlist-name-save');
+    const cancelButton = document.getElementById('playlist-name-cancel');
+
+    // モーダル見出し（既存のプレイリスト名入力用タイトル）を取得
+    const titleElement = modal ? modal.querySelector('[data-label-id="playlist-name-title"]') : null;
+    const originalTitleText = titleElement ? titleElement.textContent : '';
+
+    if (!modal || !nameInput || !saveButton || !cancelButton) {
+        logInfo('[playlist.js] Failed to open rename modal: required elements not found.');
+        return;
+    }
+
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        if (!Array.isArray(playlist)) {
+            logInfo('[playlist.js] Playlist is not an array while opening rename modal.');
+            return;
+        }
+
+        const targetItem = playlist.find((item) => String(item.playlistItem_id) === String(targetPlaylistItemId));
+        if (!targetItem) {
+            logInfo(`[playlist.js] Target item for rename not found. ID: ${targetPlaylistItemId}`);
+            return;
+        }
+
+        const currentName = typeof targetItem.name === 'string' ? targetItem.name : '';
+
+        // 既存のEnterリスナー解除（SAVEモードなどからの残りを掃除）
+        if (nameInputKeydownHandler) {
+            nameInput.removeEventListener('keydown', nameInputKeydownHandler);
+            nameInputKeydownHandler = null;
+        }
+
+        // 名前変更モード用にタイトルを差し替え
+        if (titleElement) {
+            titleElement.textContent = 'ENTER ITEM NAME';
+        }
+
+        const restoreTitle = () => {
+            if (titleElement) {
+                titleElement.textContent = originalTitleText;
+            }
+        };
+
+        showModal();
+        nameInput.value = currentName;
+
+        // 末尾にカーソルを移動
+        setTimeout(() => {
+            try {
+                const length = nameInput.value.length;
+                nameInput.setSelectionRange(length, length);
+                nameInput.focus();
+            } catch (e) {
+                // ignore
+            }
+        }, 100);
+
+        let handled = false;
+
+        const fireRename = async () => {
+            if (handled) return;
+            handled = true;
+
+            const newName = nameInput.value.trim();
+            if (!newName) {
+                restoreTitle();
+                hideModal();
+                return;
+            }
+
+            await renamePlaylistItemName(targetPlaylistItemId, newName);
+            restoreTitle();
+            hideModal();
+        };
+
+        // 保存ボタン
+        saveButton.onclick = () => {
+            fireRename();
+        };
+
+        // キャンセルボタン
+        cancelButton.onclick = () => {
+            if (handled) return;
+            handled = true;
+            restoreTitle();
+            hideModal();
+        };
+
+        // Enter / Escape キー
+        nameInputKeydownHandler = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                fireRename();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                if (handled) return;
+                handled = true;
+                restoreTitle();
+                hideModal();
+            }
+        };
+        nameInput.addEventListener('keydown', nameInputKeydownHandler);
+    } catch (error) {
+        logInfo(`[playlist.js] Failed to open rename modal. Error: ${error.message}`);
+    }
 }
 
 // --------------------------------
