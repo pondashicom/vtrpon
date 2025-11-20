@@ -1081,16 +1081,13 @@ function onairStartPlayback(itemData) {
         try { if (typeof window.onairSetSpeedButtonsEnabled === 'function') window.onairSetSpeedButtonsEnabled(true); } catch (_) {}
     }
 
-    // 直前FTB黒
+    // 直前FTB黒（startMode に関係なく毎回クリア）
     try {
-        const startModeUpper = String(itemData?.startMode || 'PAUSE').toUpperCase();
-        if (startModeUpper !== 'FADEIN') {
-            const elsFTB = onairGetElements();
-            const canvas = elsFTB?.onairFadeCanvas;
-            if (canvas) {
-                canvas.style.opacity = 0;
-                canvas.style.visibility = 'hidden';
-            }
+        const elsFTB = onairGetElements();
+        const canvas = elsFTB?.onairFadeCanvas;
+        if (canvas) {
+            canvas.style.opacity = 0;
+            canvas.style.visibility = 'hidden';
         }
     } catch (_) {}
 
@@ -1260,10 +1257,10 @@ function onairStartPlayback(itemData) {
         try { stopItemFade(); } catch (_) {}
     }
 
-// 規定音量算出
+    // 規定音量算出
     let targetVolPct = (typeof itemData.defaultVolume === 'number') ? itemData.defaultVolume : 100;
 
-// REPEAT2周目以降
+    // REPEAT2周目以降
     if (window.onairPreserveItemVolume) {
         const prevSlider = document.getElementById('on-air-item-volume-slider');
         const prevVal = prevSlider ? parseInt(prevSlider.value, 10) : NaN;
@@ -1348,32 +1345,24 @@ function onairStartPlayback(itemData) {
         onairIsPlaying = true;
         onairVideoElement.play()
             .then(() => {
+                // 映像フェードイン処理（オンエア側）
+                onairFadeFromBlack(fadeDuration);
+
                 // 音声フェードイン処理
                 audioFadeInItem(fadeDuration);
                 onairRepeatFlag = false;
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via FADEIN start mode with fade in effect.');
-
-                window.electronAPI.sendControlToFullscreen({
-                    command: 'fadein',
-                    ftbRate: fadeDuration,
-                    currentTime: onairVideoElement.currentTime
-                });
-                // fullscreen側黒保持解除
-                try {
-                    window.electronAPI.sendControlToFullscreen({
-                        command: 'fade-from-black',
-                        value: { duration: fadeDuration, fillKeyMode: isFillKeyMode }
-                    });
-                } catch (_) {}
             })
             .catch(error => {
                 onairIsPlaying = false;
                 logInfo(`[onair.js] Playback failed: ${error.message}`);
                 onairUpdatePlayPauseButtons(elements);
             });
+
     } else {
+
         // PAUSE開始
         onairVideoElement.pause();
         onairVideoElement.volume = targetVolPct / 100;
@@ -1657,9 +1646,18 @@ function onairHandleEndModeRepeat() {
     // スタートモード無視
     onairRepeatFlag = true;
 
-    // 2周目以降速度・音量保持
+    // 2周目以降速度・音量保持（FTB＋REPEAT のときは音量だけ特例扱い）
     window.onairPreserveSpeed = true;
-    window.onairPreserveItemVolume = true;
+
+    const ftbEnabled = !!(onairCurrentState && onairCurrentState.ftbEnabled === true);
+    if (ftbEnabled && sm === 'PLAY') {
+        // FTB + REPEAT + StartMode=PLAY:
+        // 1周目のFTBでスライダーが 0% まで落ちているので、2周目は規定音量から再開する
+        window.onairPreserveItemVolume = false;
+    } else {
+        // 通常のREPEAT時は従来どおり直前のアイテム音量を保持
+        window.onairPreserveItemVolume = true;
+    }
 
     // 音声FADE状態リセット
     stopItemFade();
