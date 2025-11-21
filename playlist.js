@@ -1024,11 +1024,11 @@ function renderPlaylistItem(file, index) {
         }
     });
 
-    // 右クリック時（名前変更モーダル表示）
+    // 右クリック時（コンテキストメニュー表示）
     item.addEventListener('contextmenu', (event) => {
         event.preventDefault();
         logOpe(`[playlist.js] Playlist item contextmenu opened (index: ${index})`);
-        openItemRenameModal(file.playlistItem_id);
+        showPlaylistItemContextMenu(event.clientX, event.clientY, file.playlistItem_id);
     });
 
     // ▲▼DELの生成
@@ -3162,6 +3162,360 @@ function hideModal() {
     
     // モーダル状態更新
     window.electronAPI.updateModalState(false); 
+}
+
+// ---------------------------
+// プレイリストアイテム用コンテキストメニュー（サブメニュー対応）
+// ---------------------------
+let playlistContextMenuElement = null;
+let playlistContextSubMenuElement = null;
+let playlistContextMenuTargetId = null;
+let playlistContextSubmenuHideTimer = null;
+
+function createContextMenuElement(id) {
+    const menu = document.createElement('div');
+    menu.id = id;
+
+    // 最低限の見た目（CSSを触らずJSで完結）
+    menu.style.position = 'fixed';
+    menu.style.zIndex = '10000';
+    menu.style.minWidth = '200px';
+    menu.style.background = 'rgba(20, 20, 20, 0.98)';
+    menu.style.color = '#fff';
+    menu.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+    menu.style.borderRadius = '6px';
+    menu.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.45)';
+    menu.style.padding = '4px 0';
+    menu.style.fontSize = '13px';
+    menu.style.display = 'none';
+    menu.style.userSelect = 'none';
+    menu.style.whiteSpace = 'nowrap';
+
+    document.body.appendChild(menu);
+    return menu;
+}
+
+function ensurePlaylistContextMenu() {
+    if (playlistContextMenuElement && playlistContextSubMenuElement) return;
+
+    playlistContextMenuElement = createContextMenuElement('playlist-context-menu');
+    playlistContextSubMenuElement = createContextMenuElement('playlist-context-submenu');
+
+    // 親/子メニュー上に居る間はサブメニューを閉じない
+    const cancelSubmenuHide = () => {
+        if (playlistContextSubmenuHideTimer) {
+            clearTimeout(playlistContextSubmenuHideTimer);
+            playlistContextSubmenuHideTimer = null;
+        }
+    };
+    const scheduleSubmenuHide = () => {
+        cancelSubmenuHide();
+        playlistContextSubmenuHideTimer = setTimeout(() => {
+            if (playlistContextSubMenuElement) {
+                playlistContextSubMenuElement.style.display = 'none';
+                playlistContextSubMenuElement.innerHTML = '';
+            }
+        }, 180);
+    };
+
+    playlistContextMenuElement.addEventListener('mouseenter', cancelSubmenuHide);
+    playlistContextMenuElement.addEventListener('mouseleave', scheduleSubmenuHide);
+
+    playlistContextSubMenuElement.addEventListener('mouseenter', cancelSubmenuHide);
+    playlistContextSubMenuElement.addEventListener('mouseleave', scheduleSubmenuHide);
+
+    // メニュー外クリック/各種イベントで閉じる
+    document.addEventListener('click', () => {
+        if (playlistContextMenuElement.style.display === 'none') return;
+        hidePlaylistContextMenu();
+    }, true);
+
+    window.addEventListener('blur', hidePlaylistContextMenu);
+    window.addEventListener('resize', hidePlaylistContextMenu);
+    document.addEventListener('scroll', hidePlaylistContextMenu, true);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            hidePlaylistContextMenu();
+        }
+    });
+}
+
+// 対象アイテムにパッチを当てて保存→UI更新→必要ならオンエア側へ同期
+async function applyPlaylistItemPatch(playlistItemId, patch, { syncEndMode = false } = {}) {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        if (!Array.isArray(playlist)) return;
+
+        const updatedPlaylist = playlist.map(item => {
+            if (String(item.playlistItem_id) !== String(playlistItemId)) return item;
+            return { ...item, ...patch };
+        });
+
+        await stateControl.setPlaylistState(updatedPlaylist);
+        await updatePlaylistUI();
+
+        // 編集中アイテムがあればエディットエリアへ再送信
+        const latest = await stateControl.getPlaylistState();
+        const editingItem = latest.find(it => it.editingState === 'editing');
+        if (editingItem) {
+            window.electronAPI.updateEditState(editingItem);
+
+            if (syncEndMode) {
+                window.electronAPI.syncOnAirEndMode &&
+                    window.electronAPI.syncOnAirEndMode({
+                        editingItemId: editingItem.playlistItem_id,
+                        endMode: editingItem.endMode
+                    });
+                logOpe('[playlist.js] Requested On-Air endMode sync (CONTEXT MENU).');
+            }
+        }
+    } catch (e) {
+        logInfo('[playlist.js] Context menu item update error:', e);
+    }
+}
+
+function setPlaylistItemStartMode(playlistItemId, mode) {
+    logOpe(`[playlist.js] startMode set via context menu: ${mode}`);
+    applyPlaylistItemPatch(playlistItemId, { startMode: mode }, { syncEndMode: false });
+}
+
+function setPlaylistItemEndMode(playlistItemId, mode) {
+    logOpe(`[playlist.js] endMode set via context menu: ${mode}`);
+    applyPlaylistItemPatch(playlistItemId, { endMode: mode }, { syncEndMode: true });
+}
+
+// FTB は endMode と別のフラグ（ftbEnabled）としてトグルする
+async function togglePlaylistItemFtbEnabled(playlistItemId) {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        if (!Array.isArray(playlist)) return;
+
+        const item = playlist.find(it => String(it.playlistItem_id) === String(playlistItemId));
+        if (!item) return;
+
+        const nextVal = !(item.ftbEnabled === true);
+        logOpe(`[playlist.js] ftbEnabled toggled via context menu: ${nextVal}`);
+
+        applyPlaylistItemPatch(playlistItemId, { ftbEnabled: nextVal }, { syncEndMode: true });
+    } catch (e) {
+        logInfo('[playlist.js] togglePlaylistItemFtbEnabled error:', e);
+    }
+}
+
+// labels.js取得
+function getContextLabel(labelId, fallback) {
+    try {
+        if (typeof window.getLabel === 'function') {
+            const v = window.getLabel(labelId);
+            if (v && v !== labelId) return v;
+        }
+        if (typeof getLabel === 'function') {
+            const v = getLabel(labelId);
+            if (v && v !== labelId) return v;
+        }
+        if (window.labelManager && typeof window.labelManager.getLabel === 'function') {
+            const v = window.labelManager.getLabel(labelId);
+            if (v && v !== labelId) return v;
+        }
+        if (window.labelManager && typeof window.labelManager.getText === 'function') {
+            const v = window.labelManager.getText(labelId);
+            if (v && v !== labelId) return v;
+        }
+        if (typeof labels === 'object' && labels) {
+            const rawLang =
+                window.currentLanguage ||
+                window.labelLanguage ||
+                localStorage.getItem('language') ||
+                document.documentElement.lang ||
+                'ja';
+
+            const lang = String(rawLang).toLowerCase().startsWith('en') ? 'en' : 'ja';
+            const v = labels[lang] && labels[lang][labelId];
+            if (v) return v;
+        }
+    } catch (e) {
+    }
+    return fallback;
+}
+
+function buildPlaylistContextMenuItems(playlistItemId) {
+    const START_MODES = [
+        { value: 'PAUSE',  label: getContextLabel('context-start-mode-pause',  'PAUSE') },
+        { value: 'PLAY',   label: getContextLabel('context-start-mode-play',   'PLAY') },
+        { value: 'FADEIN', label: getContextLabel('context-start-mode-fadein', 'FADEIN') },
+    ];
+
+    // FTB は endMode の値ではなく ftbEnabled フラグなので END_MODES には入れない
+    const END_MODES = [
+        { value: 'OFF',    label: getContextLabel('context-end-mode-off',    'OFF') },
+        { value: 'PAUSE',  label: getContextLabel('context-end-mode-pause',  'PAUSE') },
+        { value: 'REPEAT', label: getContextLabel('context-end-mode-repeat', 'REPEAT') },
+        { value: 'NEXT',   label: getContextLabel('context-end-mode-next',   'NEXT') },
+    ];
+
+    const renameLabel =
+        getContextLabel('context-rename-item', null) ||
+        getContextLabel('rename-item', '名前の変更');
+
+    const startModeLabel =
+        getContextLabel('context-start-mode', 'スタートモード');
+
+    const endModeLabel =
+        getContextLabel('context-end-mode', 'エンドモード');
+
+    const ftbToggleLabel =
+        getContextLabel('context-end-mode-ftb', 'FTB');
+
+    const endModeChildren = [
+        {
+            label: ftbToggleLabel,
+            action: () => togglePlaylistItemFtbEnabled(playlistItemId)
+        },
+        ...END_MODES.map(m => ({
+            label: m.label,
+            action: () => setPlaylistItemEndMode(playlistItemId, m.value)
+        }))
+    ];
+
+    return [
+        {
+            label: renameLabel,
+            action: () => openItemRenameModal(playlistItemId)
+        },
+        {
+            label: startModeLabel,
+            children: START_MODES.map(m => ({
+                label: m.label,
+                action: () => setPlaylistItemStartMode(playlistItemId, m.value)
+            }))
+        },
+        {
+            label: endModeLabel,
+            children: endModeChildren
+        }
+    ];
+}
+
+function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
+    menuEl.innerHTML = '';
+
+    items.forEach((it) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'space-between';
+        row.style.padding = '6px 12px';
+        row.style.cursor = 'default';
+
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = it.label;
+        row.appendChild(labelSpan);
+
+        if (Array.isArray(it.children) && it.children.length > 0) {
+            const arrowSpan = document.createElement('span');
+            arrowSpan.textContent = '>';
+            arrowSpan.style.opacity = '0.7';
+            row.appendChild(arrowSpan);
+        }
+
+        row.addEventListener('mouseenter', () => {
+            row.style.background = 'rgba(255, 255, 255, 0.08)';
+            if (playlistContextSubmenuHideTimer) {
+                clearTimeout(playlistContextSubmenuHideTimer);
+                playlistContextSubmenuHideTimer = null;
+            }
+
+            if (Array.isArray(it.children) && it.children.length > 0) {
+                const rect = row.getBoundingClientRect();
+                renderContextMenu(playlistContextSubMenuElement, it.children, level + 1, rect);
+                let x = rect.right + 2;
+                let y = rect.top;
+
+                playlistContextSubMenuElement.style.display = 'block';
+                playlistContextSubMenuElement.style.left = `${x}px`;
+                playlistContextSubMenuElement.style.top = `${y}px`;
+                const srect = playlistContextSubMenuElement.getBoundingClientRect();
+                if (srect.right > window.innerWidth) {
+                    x = Math.max(0, rect.left - srect.width - 2);
+                }
+                if (srect.bottom > window.innerHeight) {
+                    y = Math.max(0, window.innerHeight - srect.height - 4);
+                }
+
+                playlistContextSubMenuElement.style.left = `${x}px`;
+                playlistContextSubMenuElement.style.top = `${y}px`;
+            }
+        });
+
+        row.addEventListener('mouseleave', () => {
+            row.style.background = 'transparent';
+        });
+
+        row.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (Array.isArray(it.children) && it.children.length > 0) {
+                return;
+            }
+
+            hidePlaylistContextMenu();
+            try {
+                if (typeof it.action === 'function') it.action();
+            } catch (err) {
+                logInfo(`[playlist.js] Context menu action failed: ${err}`);
+            }
+        });
+
+        menuEl.appendChild(row);
+    });
+
+    if (level === 0) {
+        playlistContextSubMenuElement.style.display = 'none';
+        playlistContextSubMenuElement.innerHTML = '';
+    }
+}
+
+function showPlaylistItemContextMenu(clientX, clientY, playlistItemId) {
+    ensurePlaylistContextMenu();
+
+    const menu = playlistContextMenuElement;
+    playlistContextMenuTargetId = playlistItemId;
+
+    const items = buildPlaylistContextMenuItems(playlistItemId);
+
+    renderContextMenu(menu, items, 0, null);
+
+    menu.style.display = 'block';
+    menu.style.left = `${clientX}px`;
+    menu.style.top = `${clientY}px`;
+
+    const rect = menu.getBoundingClientRect();
+    let x = clientX;
+    let y = clientY;
+
+    if (rect.right > window.innerWidth) {
+        x = Math.max(0, window.innerWidth - rect.width - 4);
+    }
+    if (rect.bottom > window.innerHeight) {
+        y = Math.max(0, window.innerHeight - rect.height - 4);
+    }
+
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+}
+
+function hidePlaylistContextMenu() {
+    if (playlistContextMenuElement) {
+        playlistContextMenuElement.style.display = 'none';
+        playlistContextMenuElement.innerHTML = '';
+    }
+    if (playlistContextSubMenuElement) {
+        playlistContextSubMenuElement.style.display = 'none';
+        playlistContextSubMenuElement.innerHTML = '';
+    }
+    playlistContextMenuTargetId = null;
 }
 
 // ---------------------------

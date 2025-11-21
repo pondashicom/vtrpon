@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.4.6
+//     ver 2.4.7
 // -----------------------
 
 const labels = {
@@ -127,7 +127,24 @@ const labels = {
     "on-air-play-button": "再生",
     "playlist-name-title": "プレイリスト名を入力してください",
     "playlist-name-save": "保存",
-    "playlist-name-cancel": "キャンセル"
+    "playlist-name-cancel": "キャンセル",
+
+    // コンテキストメニュー（プレイリストアイテム）
+    "context-rename-item": "名前の変更",
+    "context-start-mode": "スタートモード",
+    "context-end-mode": "エンドモード",
+
+    "context-start-mode-play": "PLAY",
+    "context-start-mode-pause": "PAUSE",
+    "context-start-mode-off": "OFF",
+
+    "context-end-mode-next": "NEXT",
+    "context-end-mode-off": "OFF",
+    "context-end-mode-pause": "PAUSE",
+    "context-end-mode-repeat": "REPEAT",
+    "context-end-mode-ftb": "FTB",
+
+    "menu-reset-edit-area": "エディットエリアリセット"
   },
   "en": {
 
@@ -252,7 +269,24 @@ const labels = {
     "on-air-play-button": "PLAY",
     "playlist-name-title": "ENTER PLAYLIST NAME",
     "playlist-name-save": "SAVE",
-    "playlist-name-cancel": "CANCEL"
+    "playlist-name-cancel": "CANCEL",
+
+    // Context menu (playlist item)
+    "context-rename-item": "Rename",
+    "context-start-mode": "Start Mode",
+    "context-end-mode": "End Mode",
+
+    "context-start-mode-play": "PLAY",
+    "context-start-mode-pause": "PAUSE",
+    "context-start-mode-off": "OFF",
+
+    "context-end-mode-next": "NEXT",
+    "context-end-mode-off": "OFF",
+    "context-end-mode-pause": "PAUSE",
+    "context-end-mode-repeat": "REPEAT",
+    "context-end-mode-ftb": "FTB",
+
+    "menu-reset-edit-area": "Reset Edit Area"
   }
 };
 
