@@ -1024,12 +1024,17 @@ function renderPlaylistItem(file, index) {
         }
     });
 
-    // 右クリック時（コンテキストメニュー表示）
+    // 右クリックコンテキストメニュー表示
     item.addEventListener('contextmenu', (event) => {
         event.preventDefault();
         logOpe(`[playlist.js] Playlist item contextmenu opened (index: ${index})`);
+
+        // 右クリックでもアイテムを選択
+        handlePlaylistItemClick(item, index);
+
         showPlaylistItemContextMenu(event.clientX, event.clientY, file.playlistItem_id);
     });
+
 
     // ▲▼DELの生成
     const moveButtons = createMoveButtons(item);
@@ -3165,7 +3170,7 @@ function hideModal() {
 }
 
 // ---------------------------
-// プレイリストアイテム用コンテキストメニュー（サブメニュー対応）
+// コンテキストメニュー
 // ---------------------------
 let playlistContextMenuElement = null;
 let playlistContextSubMenuElement = null;
@@ -3176,17 +3181,17 @@ function createContextMenuElement(id) {
     const menu = document.createElement('div');
     menu.id = id;
 
-    // 最低限の見た目（CSSを触らずJSで完結）
     menu.style.position = 'fixed';
     menu.style.zIndex = '10000';
-    menu.style.minWidth = '200px';
-    menu.style.background = 'rgba(20, 20, 20, 0.98)';
+    menu.style.minWidth = '220px';
+    menu.style.background = 'rgba(30, 30, 30, 0.98)';
     menu.style.color = '#fff';
-    menu.style.border = '1px solid rgba(255, 255, 255, 0.15)';
-    menu.style.borderRadius = '6px';
-    menu.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.45)';
-    menu.style.padding = '4px 0';
-    menu.style.fontSize = '13px';
+    menu.style.border = '1px solid rgba(255, 255, 255, 0.22)';
+    menu.style.borderRadius = '8px';
+    menu.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.55)';
+    menu.style.padding = '6px 0';
+    menu.style.fontSize = '14px';
+    menu.style.fontFamily = 'system-ui, "Segoe UI", sans-serif';
     menu.style.display = 'none';
     menu.style.userSelect = 'none';
     menu.style.whiteSpace = 'nowrap';
@@ -3201,7 +3206,6 @@ function ensurePlaylistContextMenu() {
     playlistContextMenuElement = createContextMenuElement('playlist-context-menu');
     playlistContextSubMenuElement = createContextMenuElement('playlist-context-submenu');
 
-    // 親/子メニュー上に居る間はサブメニューを閉じない
     const cancelSubmenuHide = () => {
         if (playlistContextSubmenuHideTimer) {
             clearTimeout(playlistContextSubmenuHideTimer);
@@ -3224,7 +3228,6 @@ function ensurePlaylistContextMenu() {
     playlistContextSubMenuElement.addEventListener('mouseenter', cancelSubmenuHide);
     playlistContextSubMenuElement.addEventListener('mouseleave', scheduleSubmenuHide);
 
-    // メニュー外クリック/各種イベントで閉じる
     document.addEventListener('click', () => {
         if (playlistContextMenuElement.style.display === 'none') return;
         hidePlaylistContextMenu();
@@ -3285,7 +3288,7 @@ function setPlaylistItemEndMode(playlistItemId, mode) {
     applyPlaylistItemPatch(playlistItemId, { endMode: mode }, { syncEndMode: true });
 }
 
-// FTB は endMode と別のフラグ（ftbEnabled）としてトグルする
+// FTB トグル
 async function togglePlaylistItemFtbEnabled(playlistItemId) {
     try {
         const playlist = await stateControl.getPlaylistState();
@@ -3346,7 +3349,6 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         { value: 'FADEIN', label: getContextLabel('context-start-mode-fadein', 'FADEIN') },
     ];
 
-    // FTB は endMode の値ではなく ftbEnabled フラグなので END_MODES には入れない
     const END_MODES = [
         { value: 'OFF',    label: getContextLabel('context-end-mode-off',    'OFF') },
         { value: 'PAUSE',  label: getContextLabel('context-end-mode-pause',  'PAUSE') },
@@ -3367,22 +3369,28 @@ function buildPlaylistContextMenuItems(playlistItemId) {
     const ftbToggleLabel =
         getContextLabel('context-end-mode-ftb', 'FTB');
 
+    const copyStateLabel =
+        getContextLabel('context-copy-item-state', 'アイテムの状態をコピー');
+
+    const pasteStateLabel =
+        getContextLabel('context-paste-item-state', 'アイテムの状態をペースト');
+
+    const hasCopiedState = (typeof copiedItemState !== 'undefined') && !!copiedItemState;
+
+    // 希望順: OFF/PAUSE/REPEAT/NEXT → 最後に FTB トグル
     const endModeChildren = [
-        {
-            label: ftbToggleLabel,
-            action: () => togglePlaylistItemFtbEnabled(playlistItemId)
-        },
         ...END_MODES.map(m => ({
             label: m.label,
             action: () => setPlaylistItemEndMode(playlistItemId, m.value)
-        }))
+        })),
+        {
+            label: ftbToggleLabel,
+            action: () => togglePlaylistItemFtbEnabled(playlistItemId)
+        }
     ];
 
+    // 希望順: START → END → COPY → PASTE(条件付き無効) → RENAME
     return [
-        {
-            label: renameLabel,
-            action: () => openItemRenameModal(playlistItemId)
-        },
         {
             label: startModeLabel,
             children: START_MODES.map(m => ({
@@ -3393,9 +3401,23 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         {
             label: endModeLabel,
             children: endModeChildren
+        },
+        {
+            label: copyStateLabel,
+            action: () => copyItemState()
+        },
+        {
+            label: pasteStateLabel,
+            disabled: !hasCopiedState,
+            action: () => pasteItemState()
+        },
+        {
+            label: renameLabel,
+            action: () => openItemRenameModal(playlistItemId)
         }
     ];
 }
+
 
 function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
     menuEl.innerHTML = '';
@@ -3405,12 +3427,18 @@ function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
         row.style.display = 'flex';
         row.style.alignItems = 'center';
         row.style.justifyContent = 'space-between';
-        row.style.padding = '6px 12px';
+        row.style.padding = '8px 14px';
+        row.style.minHeight = '30px';
         row.style.cursor = 'default';
+        row.style.lineHeight = '1.4';
 
         const labelSpan = document.createElement('span');
         labelSpan.textContent = it.label;
         row.appendChild(labelSpan);
+
+        if (it.disabled) {
+            row.style.opacity = '0.45';
+        }
 
         if (Array.isArray(it.children) && it.children.length > 0) {
             const arrowSpan = document.createElement('span');
@@ -3420,6 +3448,16 @@ function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
         }
 
         row.addEventListener('mouseenter', () => {
+            // disabled 行はハイライト/操作しない
+            if (it.disabled) {
+                row.style.background = 'transparent';
+                if (level === 0 && playlistContextSubMenuElement) {
+                    playlistContextSubMenuElement.style.display = 'none';
+                    playlistContextSubMenuElement.innerHTML = '';
+                }
+                return;
+            }
+
             row.style.background = 'rgba(255, 255, 255, 0.08)';
             if (playlistContextSubmenuHideTimer) {
                 clearTimeout(playlistContextSubmenuHideTimer);
@@ -3445,6 +3483,12 @@ function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
 
                 playlistContextSubMenuElement.style.left = `${x}px`;
                 playlistContextSubMenuElement.style.top = `${y}px`;
+            } else {
+                // ルートメニューで子がない行に乗ったらサブメニューを閉じる
+                if (level === 0 && playlistContextSubMenuElement) {
+                    playlistContextSubMenuElement.style.display = 'none';
+                    playlistContextSubMenuElement.innerHTML = '';
+                }
             }
         });
 
@@ -3455,6 +3499,10 @@ function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
         row.addEventListener('mousedown', (e) => {
             e.preventDefault();
             e.stopPropagation();
+
+            if (it.disabled) {
+                return;
+            }
 
             if (Array.isArray(it.children) && it.children.length > 0) {
                 return;
@@ -3527,7 +3575,7 @@ async function openItemRenameModal(targetPlaylistItemId) {
     const saveButton = document.getElementById('playlist-name-save');
     const cancelButton = document.getElementById('playlist-name-cancel');
 
-    // モーダル見出し（既存のプレイリスト名入力用タイトル）を取得
+    // モーダル見出し取得
     const titleElement = modal ? modal.querySelector('[data-label-id="playlist-name-title"]') : null;
     const originalTitleText = titleElement ? titleElement.textContent : '';
 
