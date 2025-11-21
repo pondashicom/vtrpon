@@ -356,10 +356,12 @@ function buildMenuTemplate(labels) {
           label: labels["menu-language"],
           submenu: [
             {
-              label: "English",
+              label: labels["menu-language-english"] || "English",
               type: 'radio',
               checked: global.currentLanguage === 'en',
               click: () => {
+                if (global.currentLanguage === 'en') return;
+
                 global.currentLanguage = 'en';
                 saveConfig({ language: 'en' });
                 BrowserWindow.getAllWindows().forEach(win => {
@@ -370,10 +372,12 @@ function buildMenuTemplate(labels) {
               }
             },
             {
-              label: "Japanese",
+              label: labels["menu-language-japanese"] || "Japanese",
               type: 'radio',
               checked: global.currentLanguage === 'ja',
               click: () => {
+                if (global.currentLanguage === 'ja') return;
+
                 global.currentLanguage = 'ja';
                 saveConfig({ language: 'ja' });
                 BrowserWindow.getAllWindows().forEach(win => {

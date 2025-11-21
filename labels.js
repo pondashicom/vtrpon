@@ -137,13 +137,13 @@ const labels = {
     "context-start-mode-play": "PLAY",
     "context-start-mode-pause": "PAUSE",
     "context-start-mode-off": "OFF",
-
     "context-end-mode-next": "NEXT",
     "context-end-mode-off": "OFF",
     "context-end-mode-pause": "PAUSE",
     "context-end-mode-repeat": "REPEAT",
     "context-end-mode-ftb": "FTB",
-
+    "context-copy-item-state": "アイテムの状態をコピー",
+    "context-paste-item-state": "アイテムの状態をペースト",
     "menu-reset-edit-area": "エディットエリアリセット"
   },
   "en": {
@@ -285,6 +285,9 @@ const labels = {
     "context-end-mode-pause": "PAUSE",
     "context-end-mode-repeat": "REPEAT",
     "context-end-mode-ftb": "FTB",
+
+    "context-copy-item-state": "Copy Item State",
+    "context-paste-item-state": "Paste Item State",
 
     "menu-reset-edit-area": "Reset Edit Area"
   }
