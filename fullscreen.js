@@ -684,6 +684,17 @@ function handleStartMode() {
             videoElement.currentTime = globalState.inPoint;
             videoElement.volume = 0;
 
+            // 直前の Pre-FTB の黒キャンバスが残っている場合に備えて、
+            // fadeCanvas(id="fadeCanvas") を強制的に「黒保持」扱いに戻す
+            const preCanvas = document.getElementById('fadeCanvas');
+            if (preCanvas) {
+                preCanvas.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+                preCanvas.style.opacity = '1';
+                preCanvas.style.display = 'block';
+                preCanvas.style.visibility = 'visible';
+                holdBlackUntilFadeIn = true;
+            }
+
             // フェードイン（映像/音声）
             const fadeDur = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec))
                 ? globalState.startFadeInSec
