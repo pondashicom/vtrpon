@@ -3184,6 +3184,17 @@ let isModalActive = false;
 
 // Enterキーリスナー参照保持（リーク防止用）
 let nameInputKeydownHandler = null;
+let nameInputKeypressHandler = null;
+let nameInputKeyupHandler = null;
+
+// モーダル中 Enter を全体でガードするためのハンドラ参照
+let modalEnterGuardHandler = null;
+let modalEnterGuardKeyupHandler = null;
+
+// IME（日本語変換）中かどうかを追跡
+let isNameInputComposing = false;
+let nameInputCompositionStartHandler = null;
+let nameInputCompositionEndHandler = null;
 
 // モーダル初期状態取得
 window.electronAPI.getModalState().then((state) => {
@@ -3204,6 +3215,98 @@ function showModal() {
     // モーダル状態更新
     window.electronAPI.updateModalState(true);
 
+    if (inputElement) {
+        // 既存リスナーがあれば掃除（重複防止）
+        if (nameInputKeydownHandler) {
+            inputElement.removeEventListener('keydown', nameInputKeydownHandler);
+        }
+        if (nameInputKeypressHandler) {
+            inputElement.removeEventListener('keypress', nameInputKeypressHandler);
+        }
+        if (nameInputKeyupHandler) {
+            inputElement.removeEventListener('keyup', nameInputKeyupHandler);
+        }
+        if (nameInputCompositionStartHandler) {
+            inputElement.removeEventListener('compositionstart', nameInputCompositionStartHandler);
+        }
+        if (nameInputCompositionEndHandler) {
+            inputElement.removeEventListener('compositionend', nameInputCompositionEndHandler);
+        }
+
+        // IME状態を追跡
+        nameInputCompositionStartHandler = () => {
+            isNameInputComposing = true;
+        };
+        nameInputCompositionEndHandler = () => {
+            isNameInputComposing = false;
+        };
+        inputElement.addEventListener('compositionstart', nameInputCompositionStartHandler);
+        inputElement.addEventListener('compositionend', nameInputCompositionEndHandler);
+
+        // 入力欄側で Enter を全フェーズで封じる
+        const blockEnter = (event) => {
+            if (event.key !== 'Enter') return;
+
+            // IME変換確定の Enter：defaultは殺さず、伝播だけ完全停止
+            if (event.isComposing || isNameInputComposing || event.keyCode === 229) {
+                event.stopImmediatePropagation();
+                event.stopPropagation();
+                return;
+            }
+
+            // 通常の Enter：保存・フォーム送信等へ行かせない
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            event.stopPropagation();
+        };
+
+        nameInputKeydownHandler = blockEnter;
+        nameInputKeypressHandler = blockEnter;
+        nameInputKeyupHandler = blockEnter;
+
+        inputElement.addEventListener('keydown', nameInputKeydownHandler);
+        inputElement.addEventListener('keypress', nameInputKeypressHandler);
+        inputElement.addEventListener('keyup', nameInputKeyupHandler);
+    }
+
+    // モーダル中は document の capture でも Enter を握る（グローバル拾い対策）
+    if (!modalEnterGuardHandler) {
+        modalEnterGuardHandler = (event) => {
+            if (!isModalActive) return;
+            if (event.key !== 'Enter') return;
+
+            // IME変換確定の Enter：defaultは殺さず、伝播のみ止める
+            if (event.isComposing || isNameInputComposing || event.keyCode === 229) {
+                event.stopImmediatePropagation();
+                event.stopPropagation();
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            event.stopPropagation();
+        };
+        document.addEventListener('keydown', modalEnterGuardHandler, true); // capture
+    }
+
+    if (!modalEnterGuardKeyupHandler) {
+        modalEnterGuardKeyupHandler = (event) => {
+            if (!isModalActive) return;
+            if (event.key !== 'Enter') return;
+
+            if (event.isComposing || isNameInputComposing || event.keyCode === 229) {
+                event.stopImmediatePropagation();
+                event.stopPropagation();
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            event.stopPropagation();
+        };
+        document.addEventListener('keyup', modalEnterGuardKeyupHandler, true); // capture
+    }
+
     setTimeout(() => {
         if (inputElement) inputElement.focus();
     }, 100);
@@ -3212,13 +3315,43 @@ function showModal() {
 function hideModal() {
     document.getElementById('playlist-name-modal').classList.add('hidden');
 
-    // Enterキーリスナー掃除（リーク防止）
     const nameInput = document.getElementById('playlist-name-input');
+
+    // Enterキーリスナー掃除（リーク防止）
     if (nameInput && nameInputKeydownHandler) {
         nameInput.removeEventListener('keydown', nameInputKeydownHandler);
         nameInputKeydownHandler = null;
     }
-    
+    if (nameInput && nameInputKeypressHandler) {
+        nameInput.removeEventListener('keypress', nameInputKeypressHandler);
+        nameInputKeypressHandler = null;
+    }
+    if (nameInput && nameInputKeyupHandler) {
+        nameInput.removeEventListener('keyup', nameInputKeyupHandler);
+        nameInputKeyupHandler = null;
+    }
+
+    // IMEリスナー掃除
+    if (nameInput && nameInputCompositionStartHandler) {
+        nameInput.removeEventListener('compositionstart', nameInputCompositionStartHandler);
+        nameInputCompositionStartHandler = null;
+    }
+    if (nameInput && nameInputCompositionEndHandler) {
+        nameInput.removeEventListener('compositionend', nameInputCompositionEndHandler);
+        nameInputCompositionEndHandler = null;
+    }
+    isNameInputComposing = false;
+
+    // document側 Enter ガード掃除
+    if (modalEnterGuardHandler) {
+        document.removeEventListener('keydown', modalEnterGuardHandler, true);
+        modalEnterGuardHandler = null;
+    }
+    if (modalEnterGuardKeyupHandler) {
+        document.removeEventListener('keyup', modalEnterGuardKeyupHandler, true);
+        modalEnterGuardKeyupHandler = null;
+    }
+
     // モーダル状態更新
     window.electronAPI.updateModalState(false); 
 }
