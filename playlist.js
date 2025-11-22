@@ -1524,7 +1524,6 @@ async function renamePlaylistItemName(itemId, newName) {
 // -------------------------------------
 // ドラッグ＆ドロップによる並び替え処理
 // -------------------------------------
-
 async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId, dropPosition) {
     try {
         const playlist = await stateControl.getPlaylistState();
@@ -1758,10 +1757,29 @@ window.electronAPI.onReceiveOffAirNotify(async () => {
         logInfo('[playlist.js] Failed to reset playlist items Off-Air state:', error);
     }
     
+    
+    // 現在の選択アイテムIDを取得（ユーザーの編集中選択を尊重）
+    let currentSelectedItemId = null;
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        if (Array.isArray(playlist)) {
+            const selectedItem = playlist.find(item => item.selectionState === "selected");
+            if (selectedItem) {
+                currentSelectedItemId = selectedItem.playlistItem_id;
+            }
+        }
+    } catch (error) {
+        logDebug('[playlist.js] Failed to get current selected item:', error);
+    }
+
     // 最後にオンエアだったアイテムがあれば次のアイテムを自動選択
-    if (lastOnAirItemId) {
-        logInfo(`[playlist.js] Auto-selecting next item (without On-Air) after Off-Air for last On-Air item ID: ${lastOnAirItemId}`);
+    // ただし、現在の選択が「最後のオンエアアイテム」または「選択なし」のときだけ実行する
+    if (lastOnAirItemId && (!currentSelectedItemId || currentSelectedItemId === lastOnAirItemId)) {
+        logInfo(`[playlist.js] Auto-selecting next item (without...ir) after Off-Air for last On-Air item ID: ${lastOnAirItemId}`);
         await selectNextPlaylistItem(lastOnAirItemId);
+        lastOnAirItemId = null;
+    } else if (lastOnAirItemId) {
+        logDebug(`[playlist.js] Skipped auto-select next item after Off-Air (user selection preserved). selected=${currentSelectedItemId}, lastOnAir=${lastOnAirItemId}`);
         lastOnAirItemId = null;
     }
 });
@@ -2947,6 +2965,23 @@ async function handleNextModePlaylist(currentItemId) {
         logOpe('[playlist.js] Off-Air通知を送信しました。（プレイリスト空）');
         return;
     }
+
+    // 現在の選択アイテムIDを取得
+    let currentSelectedItemId = null;
+    try {
+        const selectedItem = playlist.find(item => item.selectionState === "selected");
+        if (selectedItem) {
+            currentSelectedItemId = selectedItem.playlistItem_id;
+        }
+    } catch (error) {
+        logDebug('[playlist.js] Failed to get current selected item:', error);
+    }
+
+    // 自動選択してよい条件
+    //  - 現在選択なし
+    //  - または現在の選択が「今終わったオンエアアイテム」
+    const shouldAutoSelectNext = (!currentSelectedItemId || currentSelectedItemId === currentItemId);
+
     // ソート
     const sortedPlaylist = playlist.slice().sort((a, b) => a.order - b.order);
     const currentIndex = sortedPlaylist.findIndex(item => item.playlistItem_id === currentItemId);
@@ -2977,43 +3012,62 @@ async function handleNextModePlaylist(currentItemId) {
     logInfo(`[playlist.js] NEXT mode: Next selected item -> ID: ${nextItem.playlistItem_id}, Name: ${nextItem.name}`);
 
     if (nextItem) {
-        // プレイリスト全体ステータス更新
-        const updatedPlaylist = playlist.map(item => {
-            return {
-                ...item,
-                selectionState: item.playlistItem_id === nextItem.playlistItem_id ? 'selected' : 'unselected',
-                editingState: item.playlistItem_id === nextItem.playlistItem_id ? 'editing' : null,
-                onAirState: null,
-            };
-        });
+        let updatedPlaylist;
+
+        if (shouldAutoSelectNext) {
+            // 次を選択する
+            updatedPlaylist = playlist.map(item => {
+                return {
+                    ...item,
+                    selectionState: item.playlistItem_id === nextItem.playlistItem_id ? 'selected' : 'unselected',
+                    editingState: item.playlistItem_id === nextItem.playlistItem_id ? 'editing' : null,
+                    onAirState: null,
+                };
+            });
+        } else {
+            // ユーザーが別アイテムを編集中なので、選択/編集状態は維持してオンエア状態だけ消す
+            updatedPlaylist = playlist.map(item => {
+                return {
+                    ...item,
+                    selectionState: item.selectionState,
+                    editingState: item.editingState,
+                    onAirState: null,
+                };
+            });
+        }
 
         // プレイリスト状態設定
         await stateControl.setPlaylistState(updatedPlaylist);
 
-        // 次アイテム選択
+        // NEXTは必ず算出した nextItem をオンエア対象にする
+        lastOnAirItemId = nextItem.playlistItem_id;
         await stateControl.setOnAirState(nextItem.playlistItem_id);
         logInfo(`[playlist.js] Next item set as On-Air: ${nextItem.name}`);
 
-        // UVCデバイスの場合はエディットエリアに送らない
-        if (nextItem.path.startsWith("UVC_DEVICE")) {
-            logInfo(`[playlist.js] Next item is a UVC device. Skipping edit area update.`);
-            logOpe("[playlist.js] edit clear.");
-        } else {
-            await window.electronAPI.updateEditState(nextItem);
-            logInfo(`[playlist.js] Next item sent to edit area: ${nextItem.name}`);
-        }
+        // メインプロセスへ nextItem を通知（cue-button に依存しない）
+        notifyOnAirItemId(nextItem.playlistItem_id);
 
-        // オンエア開始
-        triggerButtonMouseDown(
-            'cue-button',
-            '[playlist.js] Cue button clicked to trigger On-Air.'
-        );
+        // エディットエリア更新は「自動選択してよい条件」のときだけ
+        if (shouldAutoSelectNext) {
+            // UVCデバイスの場合はエディットエリアに送らない
+            if (nextItem.path.startsWith("UVC_DEVICE")) {
+                logInfo(`[playlist.js] Next item is a UVC device. Skipping edit area update.`);
+                logOpe("[playlist.js] edit clear.");
+            } else {
+                await window.electronAPI.updateEditState(nextItem);
+                logInfo(`[playlist.js] Next item sent to edit area: ${nextItem.name}`);
+            }
+        } else {
+            logDebug(`[playlist.js] Skipped auto-select/edit/scroll in NEXT mode (user selection preserved). selected=${currentSelectedItemId}, currentOnAir=${currentItemId}`);
+        }
 
         // プレイリストUI更新
         await updatePlaylistUI();
 
-        // 次のアイテム表示
-        scrollToPlaylistItem(nextItem.playlistItem_id);
+        // スクロールも「自動選択してよい条件」のときだけ
+        if (shouldAutoSelectNext) {
+            scrollToPlaylistItem(nextItem.playlistItem_id);
+        }
 
     } else {
         logInfo('[playlist.js] No next item available in playlist.');
