@@ -1,4 +1,4 @@
-﻿<!-- fullscreen.html 2.3.7-->
+﻿<!-- fullscreen.html 2.4.7-->
 
 <!DOCTYPE html>
 <html lang="ja">
@@ -10,16 +10,15 @@
             body {
                 margin: 0;
                 overflow: hidden;
-                cursor: none; /* マウスカーソルを非表示にする */
-                background-color: black; /* 起動時の背景を黒に */
+                cursor: none; /* マウスカーソル非表示 */
+                background-color: black;
             }
 
             video {
-                width: 100vw; /* 画面全体の幅 */
-                height: 100vh; /* 画面全体の高さ */
-                object-fit: contain; /* アスペクト比を保ちながら、フルスクリーンで表示 */
-                background: black !important;  /* 黒背景を維持 */
-                /* mix-blend-mode: lighten; 削除 */
+                width: 100vw;
+                height: 100vh;
+                object-fit: contain;
+                background: black !important;
             }
             /* オーバーレイ用キャンバス */
             #overlay-canvas {

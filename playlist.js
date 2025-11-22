@@ -3564,7 +3564,7 @@ function buildPlaylistContextMenuItems(playlistItemId) {
 
     const hasCopiedState = (typeof copiedItemState !== 'undefined') && !!copiedItemState;
 
-    // 希望順: OFF/PAUSE/REPEAT/NEXT → 最後に FTB トグル
+    // OFF/PAUSE/REPEAT/NEXT → FTB トグル
     const endModeChildren = [
         ...END_MODES.map(m => ({
             label: m.label,
@@ -3576,7 +3576,7 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         }
     ];
 
-    // 希望順: START → END → COPY → PASTE(条件付き無効) → RENAME
+    // START → END → COPY → PASTE(条件付き無効) → RENAME
     return [
         {
             label: startModeLabel,
@@ -3604,7 +3604,6 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         }
     ];
 }
-
 
 function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
     menuEl.innerHTML = '';
