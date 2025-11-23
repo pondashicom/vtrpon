@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.4.7
+//     ver 2.4.8
 // -----------------------
 
 const labels = {
@@ -70,11 +70,11 @@ const labels = {
     
     "in-point": "イン点",
     "out-point": "アウト点",
-    "start-mode-title": "再生開始モード",
+    "start-mode-title": "スタートモード",
     "start-pause-button": "一時停止",
     "start-play-button": "再生",
     "start-fadein-button": "F/I",
-    "end-mode-title": "再生終了モード",
+    "end-mode-title": "エンドモード",
     "end-off-button": "オフ",
     "end-pause-button": "ポーズ",
     "end-repeat-button": "繰返し",
@@ -88,7 +88,7 @@ const labels = {
     "uvc-device": "UVCデバイス",
     "other-source-title": "その他ソース",
     "addUVCToPlaylistButton": "リストに追加",
-    "still-capture-title": "スチルキャプチャ/PNG動画変換の時間設定",
+    "still-capture-title": "スチルキャプチャ/PNG/JPG/PPTX動画変換の時間設定",
     "still-button": "キャプチャ",
     "dsk-title": "ダウンストリームキー",
     "dsk-button": "DSK",
@@ -134,13 +134,13 @@ const labels = {
     "context-start-mode": "スタートモード",
     "context-end-mode": "エンドモード",
 
-    "context-start-mode-play": "PLAY",
-    "context-start-mode-pause": "PAUSE",
-    "context-start-mode-off": "OFF",
-    "context-end-mode-next": "NEXT",
-    "context-end-mode-off": "OFF",
-    "context-end-mode-pause": "PAUSE",
-    "context-end-mode-repeat": "REPEAT",
+    "context-start-mode-play": "再生",
+    "context-start-mode-pause": "一時停止",
+    "context-start-mode-fadein": "フェードイン",
+    "context-end-mode-next": "次",
+    "context-end-mode-off": "オフ",
+    "context-end-mode-pause": "一時停止",
+    "context-end-mode-repeat": "繰返し",
     "context-end-mode-ftb": "FTB",
     "context-copy-item-state": "アイテムの状態をコピー",
     "context-paste-item-state": "アイテムの状態をペースト",
@@ -278,7 +278,7 @@ const labels = {
 
     "context-start-mode-play": "PLAY",
     "context-start-mode-pause": "PAUSE",
-    "context-start-mode-off": "OFF",
+    "context-start-mode-fadein": "FADEIN",
 
     "context-end-mode-next": "NEXT",
     "context-end-mode-off": "OFF",
