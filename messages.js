@@ -1,7 +1,7 @@
 ﻿
 // -----------------------
 //     messages.js
-//     ver 2.4.3
+//     ver 2.4.8
 // -----------------------
 
 const messages = {
@@ -14,6 +14,7 @@ const messages = {
     "in-before-out": "OUT点の前にIN点を設定する必要があります。",
     "out-after-in": "IN点の後にOUT点を設定する必要があります。",
     "failed-to-start-uvc-stream": "UVCストリームの開始に失敗しました:",
+    "fade-duration-too-long": "フェードイン＋フェードアウトの合計がクリップ長を超えています。",
     "not-supported-file-error": "サポートされていないファイルです。エラー",
     "conversion-in-progress-cannot-select-item": "変換中です。アイテムを選択できません。",
     "invalid-files-dropped": "読み込めないファイルをスキップしました", 
@@ -63,6 +64,7 @@ const messages = {
     "in-before-out": "IN point must be set before the OUT point.",
     "out-after-in": "OUT point must be set after the IN point.",
     "failed-to-start-uvc-stream": "Failed to start UVC stream:",
+    "fade-duration-too-long": "Fade-in + fade-out exceed clip length.",
     "not-supported-file-error": "Not Supported FILE! Error",
     "conversion-in-progress-cannot-select-item": "Conversion in progress. Cannot select item.",
     "invalid-files-dropped": "Skipped unreadable files.", 

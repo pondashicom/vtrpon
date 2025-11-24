@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.4.7
+//     ver 2.4.8
 // -----------------------
 
 // -----------------------
@@ -408,6 +408,95 @@ function handleEndedEvent() {
     videoElement.pause(); 
     videoElement.currentTime = videoElement.duration;
     updateUIForVideoState();
+}
+
+// -----------------------
+//  フェード時間の整合チェック
+// -----------------------
+let lastFadeDurationWarningAt = 0;
+
+// フェード時間が尺を超える場合の警告メッセージ取得（ラベル未定義時はフォールバック）
+function getFadeDurationWarningMessage() {
+    if (typeof getMessage === 'function') {
+        const m = getMessage('fade-duration-too-long');
+        if (m && m !== 'fade-duration-too-long') {
+            return m;
+        }
+    }
+    return 'フェードイン＋フェードアウトの合計がクリップ長を超えています / Fade-in + fade-out exceed clip length';
+}
+
+// クリップ長とフェード時間の整合を確認し、違反時は警告を表示する
+async function validateFadeDurationConstraint({ proposedStartFadeInSec = null, proposedFtbRate = null } = {}) {
+    if (!isVideoLoaded || !currentEditingItemId) return { ok: true };
+
+    const videoElement = document.getElementById('listedit-video') || document.getElementById('edit-video');
+    const duration = (videoElement && typeof videoElement.duration === 'number' && isFinite(videoElement.duration))
+        ? parseFloat(videoElement.duration.toFixed(2))
+        : 0;
+
+    const playlist = await stateControl.getPlaylistState();
+    const currentItem = playlist.find(item => item.playlistItem_id === currentEditingItemId);
+    if (!currentItem) return { ok: true };
+
+    const inSec = (typeof inPoint === 'number')
+        ? inPoint
+        : (currentItem.inPoint ? parseTime(currentItem.inPoint) : 0);
+
+    const outSec = (typeof outPoint === 'number')
+        ? outPoint
+        : (currentItem.outPoint ? parseTime(currentItem.outPoint) : duration);
+
+    const clipLen = Math.max(0, outSec - inSec);
+
+    const startMode = String(currentItem.startMode || 'PAUSE').toUpperCase();
+    const ftbEnabled = Boolean(currentItem.ftbEnabled);
+
+    const startFadeInSec = (typeof proposedStartFadeInSec === 'number')
+        ? proposedStartFadeInSec
+        : (typeof currentItem.startFadeInSec === 'number' ? currentItem.startFadeInSec : 1.0);
+
+    const ftbRate = (typeof proposedFtbRate === 'number')
+        ? proposedFtbRate
+        : (typeof currentItem.ftbRate === 'number' ? currentItem.ftbRate : 1.0);
+
+    const activeFadeIn = (startMode === 'FADEIN') ? startFadeInSec : 0;
+    const activeFadeOut = (ftbEnabled) ? ftbRate : 0;
+    const sumActive = activeFadeIn + activeFadeOut;
+
+    const shouldCheck = (startMode === 'FADEIN') || ftbEnabled;
+
+    if (shouldCheck && clipLen > 0 && clipLen < sumActive - 0.0001) {
+        const now = Date.now();
+        if (now - lastFadeDurationWarningAt > 800) {
+            lastFadeDurationWarningAt = now;
+            const msg = getFadeDurationWarningMessage();
+            if (typeof showMessage === 'function') {
+                showMessage(msg, 5000, 'alert');
+            } else {
+                alert(msg);
+            }
+        }
+        return {
+            ok: false,
+            clipLen,
+            startMode,
+            ftbEnabled,
+            startFadeInSec,
+            ftbRate,
+            currentItem
+        };
+    }
+
+    return {
+        ok: true,
+        clipLen,
+        startMode,
+        ftbEnabled,
+        startFadeInSec,
+        ftbRate,
+        currentItem
+    };
 }
 
 // -----------------------
@@ -1591,6 +1680,7 @@ async function updateInOutPoint(pointType, newTime) {
     logOpe(`[listedit.js] ${pointType} updated to: ${newTime.toFixed(2)} seconds`);
     window.electronAPI.notifyListeditUpdate();
     updateListeditSeekBarMarkers(inPoint, outPoint);
+    await validateFadeDurationConstraint();
 }
 
 // 時間フォーマット関数（小数点以下2桁の秒数形式）
@@ -1663,6 +1753,7 @@ async function updateStartModeState(newMode) {
     await stateControl.setPlaylistState(updatedPlaylist);
 
     updateStartModeButtons(newMode);
+    await validateFadeDurationConstraint();
     window.electronAPI.notifyListeditUpdate();
 }
 
@@ -1710,7 +1801,7 @@ function setupEndModeControls(videoElement) {
         return;
     }
 
-    // EndModeボタンは従来通り排他で更新
+    // EndMode排他セット
     Object.entries(modeButtons).forEach(([mode, button]) => {
         attachImmediateButtonHandler(button, () => {
             logOpe(`[listedit.js] End mode ${mode} button clicked`);
@@ -1753,6 +1844,7 @@ function setupEndModeControls(videoElement) {
         }
 
         // 通知（従来と同じ）
+        await validateFadeDurationConstraint();
         window.electronAPI.notifyListeditUpdate();
     });
 }
@@ -1773,6 +1865,7 @@ async function updateEndModeState(newMode) {
     });
     await stateControl.setPlaylistState(updatedPlaylist);
     updateEndModeButtons(newMode);
+    await validateFadeDurationConstraint();
 
     // 状態更新後通知
     window.electronAPI.notifyListeditUpdate();
@@ -1844,10 +1937,31 @@ function setupFtbRateListener(ftbRateInput) {
             return;
         }
 
-        const newRate = parseFloat(event.target.value);
-        if (isNaN(newRate) || newRate <= 0) {
+        let newRate = parseFloat(event.target.value);
+        if (isNaN(newRate) || newRate < 0) {
             ftbRateInput.value = '1.0';
             return;
+        }
+        // 小数1桁に丸め
+        newRate = parseFloat(newRate.toFixed(1));
+
+        // フェード長の整合チェック（必要時は上限クランプ）
+        const fadeCheck = await validateFadeDurationConstraint({ proposedFtbRate: newRate });
+        if (!fadeCheck.ok && fadeCheck.ftbEnabled) {
+            let maxAllowed = fadeCheck.clipLen;
+            if (fadeCheck.startMode === 'FADEIN') {
+                const inFade = (typeof fadeCheck.currentItem?.startFadeInSec === 'number')
+                    ? fadeCheck.currentItem.startFadeInSec
+                    : 1.0;
+                maxAllowed -= inFade;
+            }
+            if (maxAllowed < 0) maxAllowed = 0;
+            maxAllowed = parseFloat(maxAllowed.toFixed(1));
+            if (newRate > maxAllowed) {
+                newRate = maxAllowed;
+                ftbRateInput.value = newRate.toFixed(1);
+                logInfo(`[listedit.js] FTB Rate clamped to ${newRate.toFixed(1)} due to clip length.`);
+            }
         }
 
         logOpe(`[listedit.js] FTB Rate updated to: ${newRate.toFixed(1)}`);
@@ -1939,6 +2053,26 @@ function setupStartFadeInSecListener(startFadeInInput) {
         }
         // 小数1桁に丸め
         sec = parseFloat(sec.toFixed(1));
+
+        // フェード長の整合チェック（必要時は上限クランプ）
+        const fadeCheck = await validateFadeDurationConstraint({ proposedStartFadeInSec: sec });
+        if (!fadeCheck.ok && fadeCheck.startMode === 'FADEIN') {
+            let maxAllowed = fadeCheck.clipLen;
+            if (fadeCheck.ftbEnabled) {
+                const outFade = (typeof fadeCheck.currentItem?.ftbRate === 'number')
+                    ? fadeCheck.currentItem.ftbRate
+                    : 1.0;
+                maxAllowed -= outFade;
+            }
+            if (maxAllowed < 0) maxAllowed = 0;
+            maxAllowed = parseFloat(maxAllowed.toFixed(1));
+            if (sec > maxAllowed) {
+                sec = maxAllowed;
+                startFadeInInput.value = sec.toFixed(1);
+                logInfo(`[listedit.js] Start Fade-in seconds clamped to ${sec.toFixed(1)} due to clip length.`);
+            }
+        }
+
         logOpe(`[listedit.js] Start Fade-in seconds updated to: ${sec.toFixed(1)}`);
 
         const playlist = await stateControl.getPlaylistState();
