@@ -15,11 +15,16 @@ jobs:
         with:
           python-version: '3.9'
 
+      - name: Compute lock hash (macOS)
+        id: lockhash-mac
+        run: |
+          echo "hash=$(shasum -a 256 package-lock.json | awk '{print $1}')" >> $GITHUB_OUTPUT
+
       - name: Cache node modules (macOS)
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: macos-node-${{ hashFiles('package-lock.json') }}
+          key: macos-node-${{ steps.lockhash-mac.outputs.hash }}
           restore-keys: |
             macos-node-
 
