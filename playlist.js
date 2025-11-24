@@ -1211,7 +1211,6 @@ function createStatusContainer(file) {
     return statusContainer;
 }
 
-// アイテムの状態反映
 function updateItemStateClass(item, file) {
     item.classList.remove('onair', 'editing', 'selected');
 
@@ -1235,6 +1234,27 @@ function updateItemStateClass(item, file) {
     }
     if (file.dskActive) {
         item.classList.add('dsk-active');
+    }
+
+    // 背景色（プレイリスト色分け）反映
+    const bgKeyRaw = (file.bgColor || 'default');
+    const bgKey = String(bgKeyRaw).toLowerCase();
+
+    const BG_COLOR_MAP = {
+        default: '',
+        gray: '',
+        grey: '',
+        red: 'rgba(255, 120, 120, 0.28)',
+        yellow: 'rgba(255, 235, 120, 0.30)',
+        blue: 'rgba(120, 180, 255, 0.28)',
+        green: 'rgba(140, 230, 160, 0.28)'
+    };
+
+    const nextBg = BG_COLOR_MAP[bgKey] ?? '';
+    if (nextBg) {
+        item.style.backgroundColor = nextBg;
+    } else {
+        item.style.backgroundColor = '';
     }
 }
 
@@ -2403,6 +2423,7 @@ async function doExportPlaylist() {
             order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
             startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
             endMode: (item.endMode !== undefined && item.endMode !== null) ? item.endMode : "PAUSE",
+            bgColor: (item.bgColor !== undefined && item.bgColor !== null) ? item.bgColor : "default",
             defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null) ? item.defaultVolume : 100,
             ftbEnabled: item.ftbEnabled === true,
             ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
@@ -2430,6 +2451,7 @@ async function doExportPlaylist() {
                         order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
                         startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
                         endMode: (item.endMode !== undefined && item.endMode !== null) ? item.endMode : "PAUSE",
+                        bgColor: (item.bgColor !== undefined && item.bgColor !== null) ? item.bgColor : "default",
                         defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null) ? item.defaultVolume : 100,
                         ftbEnabled: item.ftbEnabled === true,
                         ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
@@ -3475,8 +3497,15 @@ function setPlaylistItemEndMode(playlistItemId, mode) {
     applyPlaylistItemPatch(playlistItemId, { endMode: mode }, { syncEndMode: true });
 }
 
-// FTB トグル
+// 背景色変更
+function setPlaylistItemBgColor(playlistItemId, colorKey) {
+    logOpe(`[playlist.js] bgColor set via context menu: ${colorKey}`);
+    applyPlaylistItemPatch(playlistItemId, { bgColor: colorKey }, { syncEndMode: false });
+}
+
+// FTBトグル
 async function togglePlaylistItemFtbEnabled(playlistItemId) {
+
     try {
         const playlist = await stateControl.getPlaylistState();
         if (!Array.isArray(playlist)) return;
@@ -3543,6 +3572,14 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         { value: 'NEXT',   label: getContextLabel('context-end-mode-next',   'NEXT') },
     ];
 
+    const BG_COLORS = [
+        { value: 'default', label: getContextLabel('context-bg-color-default', 'Default') },
+        { value: 'red',     label: getContextLabel('context-bg-color-red',     'Red') },
+        { value: 'yellow',  label: getContextLabel('context-bg-color-yellow',  'Yellow') },
+        { value: 'blue',    label: getContextLabel('context-bg-color-blue',    'Blue') },
+        { value: 'green',   label: getContextLabel('context-bg-color-green',   'Green') },
+    ];
+
     const renameLabel =
         getContextLabel('context-rename-item', null) ||
         getContextLabel('rename-item', '名前の変更');
@@ -3555,6 +3592,9 @@ function buildPlaylistContextMenuItems(playlistItemId) {
 
     const ftbToggleLabel =
         getContextLabel('context-end-mode-ftb', 'FTB');
+
+    const bgColorLabel =
+        getContextLabel('context-bg-color', '背景色');
 
     const copyStateLabel =
         getContextLabel('context-copy-item-state', 'アイテムの状態をコピー');
@@ -3576,7 +3616,7 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         }
     ];
 
-    // START → END → COPY → PASTE(条件付き無効) → RENAME
+    // START → END → BGCOLOR → COPY → PASTE(条件付き無効) → RENAME
     return [
         {
             label: startModeLabel,
@@ -3597,6 +3637,13 @@ function buildPlaylistContextMenuItems(playlistItemId) {
             label: pasteStateLabel,
             disabled: !hasCopiedState,
             action: () => pasteItemState()
+        },
+        {
+            label: bgColorLabel,
+            children: BG_COLORS.map(c => ({
+                label: c.label,
+                action: () => setPlaylistItemBgColor(playlistItemId, c.value)
+            }))
         },
         {
             label: renameLabel,
@@ -4168,7 +4215,8 @@ function copyItemState() {
         startMode: item.startMode,
         endMode: item.endMode,
         ftbRate: item.ftbRate,
-        ftbEnabled: !!item.ftbEnabled
+        ftbEnabled: !!item.ftbEnabled,
+        bgColor: item.bgColor
     };
     logOpe(`[playlist.js] Copied state: ${JSON.stringify(copiedItemState)}`);
     showMessage(getMessage('item-state-copied'), 3000, 'success');
@@ -4193,6 +4241,9 @@ async function pasteItemState() {
     item.ftbRate = copiedItemState.ftbRate;
     if (typeof copiedItemState.ftbEnabled !== 'undefined') {
         item.ftbEnabled = !!copiedItemState.ftbEnabled;
+    }
+    if (typeof copiedItemState.bgColor !== 'undefined') {
+        item.bgColor = copiedItemState.bgColor;
     }
     await stateControl.setPlaylistState(playlist);
     await updatePlaylistUI();
