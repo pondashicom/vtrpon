@@ -1405,6 +1405,10 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
     // 許容誤差調整
     const tolerance = 0.05 * onairVideoElement.playbackRate;
 
+    // OUT点到達の完了判定は少し厳しめにする（残り表示とのズレを減らす）
+    // 1xで約0.01s、2xで約0.02sの誤差で発火
+    const completionTolerance = 0.01 * onairVideoElement.playbackRate;
+
     // エンドモード発火
     function handleRemainingTimeTimerComplete() {
         const currentTime = onairVideoElement.currentTime;
@@ -1430,7 +1434,7 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
 
         const remainingTime = outPoint - onairVideoElement.currentTime;
 
-        if (remainingTime <= tolerance) {
+        if (remainingTime <= completionTolerance) {
             clearInterval(onairPlaybackMonitor);
             handleRemainingTimeTimerComplete();
             return;
