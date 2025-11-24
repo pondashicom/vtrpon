@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.4.7
+//     ver 2.4.8
 // -----------------------
 
 // -----------------------
@@ -1853,11 +1853,24 @@ function onairHandlePlayButton() {
     const nearOut =
         Math.abs(onairVideoElement.currentTime - (onairCurrentState.outPoint || onairVideoElement.duration)) <
         (0.05 * (onairVideoElement.playbackRate || 1));
-    const endModeUpper = String(onairCurrentState.endMode || '').toUpperCase();
-    const isFtbPauseStop = (!onairIsPlaying) && nearOut && (endModeUpper === 'PAUSE') && (onairCurrentState.ftbEnabled === true);
 
-    if (isFtbPauseStop) {
-        logDebug('[onair.js] Resuming from FTB+PAUSE at OUT: delegate to onairStartPlayback() for full reapply.');
+    const ftbEnabled = (onairCurrentState.ftbEnabled === true);
+
+    // フェードキャンバスが黒(FTB状態)かどうかを確認
+    let overlayOpacity = 0;
+    try {
+        const canvas = onairGetElements().onairFadeCanvas;
+        if (canvas) {
+            overlayOpacity = parseFloat(window.getComputedStyle(canvas).opacity) || 0;
+        }
+    } catch (_) { overlayOpacity = 0; }
+
+    const isBlackOverlay = (onairPreFtbStarted === true) || (overlayOpacity >= 0.90);
+
+    const isFtbStopAtOut = (!onairIsPlaying) && nearOut && ftbEnabled && isBlackOverlay;
+
+    if (isFtbStopAtOut) {
+        logDebug('[onair.js] Resuming from FTB stop at OUT: delegate to onairStartPlayback() for full reapply.');
         try {
             onairStartPlayback(onairCurrentState);
         } catch (e) {
