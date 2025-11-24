@@ -24,9 +24,18 @@ async function syncTime() {
         const localNow = Date.now();
         timeOffset = serverUtc - localNow;
 
+        // 現在のローカルタイムゾーン名とUTCオフセットを取得
+        const tzName = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'local';
+        const offsetMin = new Date().getTimezoneOffset(); // JSTなら -540
+        const sign = offsetMin <= 0 ? '+' : '-';
+        const absMin = Math.abs(offsetMin);
+        const hh = String(Math.floor(absMin / 60)).padStart(2, '0');
+        const mm = String(absMin % 60).padStart(2, '0');
+        const tzOffsetStr = `UTC${sign}${hh}:${mm}`;
+
         console.log('[clock.js] Time sync successful. Offset:', timeOffset, 'ms');
         if (typeof showMessage === 'function') {
-            showMessage(`Time sync successful. Offset: ${timeOffset} ms`, 3000, 'info');
+            showMessage(`Time sync successful. Offset: ${timeOffset} ms (${tzName}, ${tzOffsetStr})`, 3000, 'info');
         }
     } catch (err) {
         console.warn('[clock.js] Time sync failed:', err);
