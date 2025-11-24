@@ -2421,9 +2421,8 @@ function setupPlaybackSpeedPresetButtons() {
             const active = btn.classList.contains('button-green');
 
             if (active) {
-                btn.classList.remove('button-green');
-                onairSetPlaybackRateFromUi(video);
-                setHighlight(1, false);
+                // 同じプリセット再押下 = 1.00x に戻す（UI/Fullscreen含めて確実に同期）
+                resetSpeedTo1x();
                 window.onairPresetSpeedRate = 1;
                 return;
             }
