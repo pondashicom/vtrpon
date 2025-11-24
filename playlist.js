@@ -930,6 +930,40 @@ function renderPlaylistItem(file, index) {
     item.setAttribute('data-file-path', file.path);
     item.setAttribute('draggable', 'true');
 
+    // ドラッグ挿入位置の視覚インジケータ（●-----）
+    const dragIndicator = document.createElement('div');
+    dragIndicator.classList.add('drag-indicator');
+    dragIndicator.style.position = 'absolute';
+    dragIndicator.style.left = '0';
+    dragIndicator.style.right = '0';
+    dragIndicator.style.height = '6px';               // 太さ
+    dragIndicator.style.display = 'none';
+    dragIndicator.style.pointerEvents = 'none';
+    dragIndicator.style.zIndex = '10';
+    dragIndicator.style.display = 'none';
+    dragIndicator.style.alignItems = 'center';
+    dragIndicator.style.gap = '0px';
+
+    const dragIndicatorDot = document.createElement('div');
+    dragIndicatorDot.style.width = '30px';
+    dragIndicatorDot.style.height = '30px';
+    dragIndicatorDot.style.borderRadius = '50%';
+    dragIndicatorDot.style.background = 'rgba(0, 150, 255, 1)';
+
+    const dragIndicatorBar = document.createElement('div');
+    dragIndicatorBar.style.flex = '1';
+    dragIndicatorBar.style.height = '6px';
+    dragIndicatorBar.style.background = 'rgba(0, 150, 255, 1)';
+    dragIndicatorBar.style.borderRadius = '3px';
+
+    dragIndicator.appendChild(dragIndicatorDot);
+    dragIndicator.appendChild(dragIndicatorBar);
+
+    // absolute を効かせるため relative にしてインジケータを持たせる
+    item.style.position = 'relative';
+    item.appendChild(dragIndicator);
+    item._dragIndicator = dragIndicator;
+
     // ドラッグ開始
     item.addEventListener('dragstart', (e) => {
         draggedPlaylistItemId = file.playlistItem_id;
@@ -969,11 +1003,17 @@ function renderPlaylistItem(file, index) {
         if (isAfter) {
             // 下側
             item.dataset.dropPosition = 'after';
-            item.style.boxShadow = '0 3px 0 0 rgba(0, 150, 255, 1)';
+            if (item._dragIndicator) {
+                item._dragIndicator.style.top = `${rect.height - 3}px`; // 6px の半分だけ外へ
+                item._dragIndicator.style.display = 'flex';
+            }
         } else {
             // 上側
             item.dataset.dropPosition = 'before';
-            item.style.boxShadow = '0 -3px 0 0 rgba(0, 150, 255, 1)';
+            if (item._dragIndicator) {
+                item._dragIndicator.style.top = `-3px`; // 6px の半分だけ外へ
+                item._dragIndicator.style.display = 'flex';
+            }
         }
     });
 
@@ -1073,6 +1113,10 @@ function clearDragIndicators() {
         el.classList.remove('drag-over');
         el.style.boxShadow = '';
         el.removeAttribute('data-drop-position');
+
+        if (el._dragIndicator) {
+            el._dragIndicator.style.display = 'none';
+        }
     });
 }
 
