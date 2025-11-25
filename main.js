@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.4.7
+//     ver 2.4.8
 // -----------------------
 
 // ---------------------
@@ -1021,16 +1021,27 @@ app.whenReady().then(async () => {
         // ディスプレイが1つの場合はそのディスプレイを使用する
         defaultFullscreenVideoOutputDevice = displays[0].id;
     }
+
+    // 既存の config から deviceSettings を読み出し、なければデフォルトを使う
+    const appConfig = loadConfig();
+    const savedDeviceSettings = appConfig.deviceSettings || {};
+
     global.deviceSettings = {
-        editAudioMonitorDevice: "non-default",  // OS標準出力以外のデバイス
-        onairAudioOutputDevice: "default",        // OS標準出力
-        fullscreenVideoOutputDevice: defaultFullscreenVideoOutputDevice,
-        uvcAudioInputDevice: ""                   // 空（後で設定予定）
+        editAudioMonitorDevice:
+            savedDeviceSettings.editAudioMonitorDevice ?? "non-default",   // 既存設定 or デフォルト
+        onairAudioOutputDevice:
+            savedDeviceSettings.onairAudioOutputDevice ?? "default",       // 既存設定 or デフォルト
+        fullscreenVideoOutputDevice:
+            savedDeviceSettings.fullscreenVideoOutputDevice ?? defaultFullscreenVideoOutputDevice,
+        // UVC 用の音声マッピング（複数デバイス対応）
+        uvcAudioBindings:
+            savedDeviceSettings.uvcAudioBindings || {}
     };
     console.log('[main.js] Initial device setup:', global.deviceSettings);
 
     // ウインドウ初期化を実行
     createFullscreenWindow();
+
     createMainWindow();
     registerSafeFileProtocol();
 
@@ -1215,7 +1226,7 @@ function createAtemSettingsWindow() {
 function createDeviceSettingsWindow() {
     deviceSettingsWindow = new BrowserWindow({
         width: 500,
-        height: 320,
+        height: 600,
         title: 'Device Settings',
         parent: mainWindow, // メインウィンドウを親に設定
         modal: true,
@@ -1272,8 +1283,21 @@ ipcMain.handle('get-display-list', () => {
 });
 
 ipcMain.on('set-device-settings', (event, settings) => {
-    global.deviceSettings = settings;
+    // 既存の deviceSettings とマージして保持
+    const current = global.deviceSettings || {};
+    global.deviceSettings = {
+        ...current,
+        ...settings
+    };
+
     console.log('[main.js] Updated device settings:', global.deviceSettings);
+
+    // 設定を config に永続化
+    const cfg = loadConfig();
+    cfg.deviceSettings = global.deviceSettings;
+    saveConfig(cfg);
+    console.log('[main.js] set-device-settings saved deviceSettings:', cfg.deviceSettings);
+
     // 全ウィンドウへ新しいデバイス設定情報をブロードキャストする
     BrowserWindow.getAllWindows().forEach(win => {
         win.webContents.send('device-settings-updated', global.deviceSettings);
@@ -1282,7 +1306,16 @@ ipcMain.on('set-device-settings', (event, settings) => {
 
 // メインプロセス側でデバイス設定を返すハンドラー
 ipcMain.handle('get-device-settings', () => {
-    return global.deviceSettings || {};
+    // 毎回 config.json から最新の deviceSettings を読み出して返す
+    const cfg = loadConfig();
+    const saved = cfg.deviceSettings || {};
+
+    // 常に config 側の値をそのまま採用する
+    global.deviceSettings = saved;
+
+    console.log('[main.js] get-device-settings returning:', global.deviceSettings);
+
+    return global.deviceSettings;
 });
 
 // ---------------------------------------------

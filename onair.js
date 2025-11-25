@@ -766,6 +766,16 @@ function onairSetupPlayer(itemData) {
 
     // 動画ファイル処理
     if (itemData.path) {
+        const isUvcPath = (typeof itemData.path === 'string' && itemData.path.startsWith('UVC_DEVICE:'));
+
+        // deviceId が無い UVC アイテムでも UVC として扱う
+        if (isUvcPath) {
+            const parsedDeviceId = itemData.path.substring('UVC_DEVICE:'.length);
+            logInfo(`[onair.js] Detected UVC path. Redirecting to UVC stream with deviceId: ${parsedDeviceId}`);
+            onairSetupUVCStream(onairVideoElement, parsedDeviceId);
+            return;
+        }
+
         logInfo(`[onair.js] Setting up video file: ${itemData.path}`);
         onairSetupVideoFile(onairVideoElement, itemData.path);
         return;
@@ -778,6 +788,18 @@ function onairSetupPlayer(itemData) {
 // 動画ファイルセットアップ
 function onairSetupVideoFile(onairVideoElement, path) {
     onairVideoElement.pause();
+
+    // UVC デバイスはファイルとして読み込まない（ERR_FILE_NOT_FOUND 回避）
+    if (typeof path === 'string' && path.startsWith("UVC_DEVICE")) {
+        try {
+            onairVideoElement.removeAttribute('src');
+            onairVideoElement.src = '';
+            onairVideoElement.load(); // 要素状態のリセットのみ
+        } catch (_e) {}
+        logDebug(`[onair.js] UVC path detected. Skipping file setup: ${path}`);
+        return;
+    }
+
     // URL変換
     if (typeof path === 'string' && !path.startsWith("UVC_DEVICE")) {
         onairVideoElement.src = getSafeFileURL(path);
@@ -807,7 +829,7 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
             onairVideoElement.srcObject.getTracks().forEach(track => track.stop());
         }
 
-        // 一時ストリーム取得
+        // 一時ストリーム取得（解像度情報だけ使うので映像のみでOK）
         const tempStream = await navigator.mediaDevices.getUserMedia({
             video: { deviceId: { exact: deviceId } }
         });
@@ -818,6 +840,26 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
         // 一時ストリーム停止
         tempStream.getTracks().forEach(track => track.stop());
 
+        // Device Settings から UVC 用の音声デバイス紐付けを取得
+        let audioConstraints = false;
+        try {
+            const deviceSettings = await window.electronAPI.getDeviceSettings();
+            const bindings = deviceSettings?.uvcAudioBindings || {};
+            const boundAudioDeviceId = bindings[deviceId];
+
+            if (boundAudioDeviceId) {
+                audioConstraints = {
+                    deviceId: { exact: boundAudioDeviceId }
+                };
+                logDebug(`[onair.js] UVC audio binding found for video device ${deviceId}: audio device ${boundAudioDeviceId}`);
+            } else {
+                logDebug(`[onair.js] No UVC audio binding for video device ${deviceId}. Using video-only.`);
+            }
+        } catch (e) {
+            logDebug('[onair.js] Failed to load UVC audio binding from device settings:', e);
+            audioConstraints = false;
+        }
+
         // 再度、カメラネイティブ解像度を理想値として指定してストリーム取得
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -826,7 +868,7 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
                 height: { ideal: heightIdeal },
                 frameRate: { ideal: 30 }
             },
-            audio: false
+            audio: audioConstraints
         });
 
         // 再生開始
@@ -3627,8 +3669,6 @@ window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
     window.electronAPI.sendControlToFullscreen({ command: 'set-fillkey-bg', value: '' });
     logDebug('[onair.js] FillKey mode has been updated to:', isFillKeyMode);
 });
-
-
 
 // -----------------------
 // ショートカットキー管理

@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     statecontrol.js
-//     ver 2.4.3
+//     ver 2.4.8
 // -----------------------
 
 
@@ -368,7 +368,7 @@ function createUVCDeviceItem(selectedDevice) {
         endMode: "UVC",
         inPoint: "UVC",
         outPoint: "UVC",
-        defaultVolume: 0,
+        defaultVolume: 100,
         ftbEnabled: false,
         selectionState: "unselected",
         editingState: null,

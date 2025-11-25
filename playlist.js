@@ -753,7 +753,9 @@ async function generateThumbnail(filePath) {
 // -----------------------
 async function processFileData(file, currentPlaylist) {
     try {
-        if (file.path === "UVC_DEVICE") {
+        if (file.path && file.path.startsWith("UVC_DEVICE")) {
+            // 必要なら deviceId を取り出す
+            // const deviceId = file.path.replace("UVC_DEVICE:", "");
             const uvcItem = {
                 playlistItem_id: file.playlistItem_id || `${Date.now()}-${Math.random()}`,
                 path: file.path,
@@ -1494,6 +1496,7 @@ async function handlePlaylistItemClick(item, index) {
         if (selectedItem && (selectedItem.endMode === "UVC" || (typeof selectedItem.path === 'string' && selectedItem.path.startsWith("UVC_DEVICE")))) {
             logInfo(`[playlist.js] UVC device "${selectedItem.name}" selected. Skipping edit area update.`);
             showMessage(getMessage('uvc-devices-cannot-be-edited'), 5000, 'info');
+            simulateRightArrowKey();
             return;
         }
 

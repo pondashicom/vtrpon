@@ -1,4 +1,4 @@
-﻿<!-- devicesettings.html 2.4.7 -->
+﻿<!-- devicesettings.html 2.4.8 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -17,27 +17,14 @@
         <label for="onairAudioOutputDevice">ONAIR AUDIO OUTPUT DEVICE</label>
         <select id="onairAudioOutputDevice"></select>
 
-        <!--
-        <label for="uvcAudioInputDevice">UVC INPUT AUDIO DEVICE</label>
-        <select id="uvcAudioInputDevice"></select>-->
+        <h3>UVC AUDIO MAPPING</h3>
+        <div id="uvcAudioMappingContainer"></div>
 
-        <!--
-        <div class="section">
-            <h3>VIDEO</h3>
-            <label for="fullscreenVideoOutputDevice">FULLSCREEN VIDEO OUTPUT DEVICE</label>
-            <select id="fullscreenVideoOutputDevice"></select>
-        </div> -->
     </div>
 
     <div class="device-button-row">
         <button id="okButton">OK</button>
     </div>
-
-    <script>
-        document.getElementById('okButton').addEventListener('click', () => {
-            window.electronAPI.closeDeviceSettings(); // `preload.js` 経由で `main.js` に通知
-        });
-    </script>
 
     <div id="customConfirmModal" class="modal-overlay" style="display: none;">
         <div class="modal-content">

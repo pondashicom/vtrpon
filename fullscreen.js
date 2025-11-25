@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.4.7
+//     ver 2.4.8
 // -----------------------
 
 // -----------------------
@@ -45,6 +45,28 @@ function initializeFullscreenArea() {
             tracks.forEach(track => track.stop());
             videoElement.srcObject = null;
         }
+    }
+
+    // fullscreen 側で保持しているストリーム停止
+    if (globalState && globalState.stream && typeof globalState.stream.getTracks === 'function') {
+        try {
+            const gsTracks = globalState.stream.getTracks();
+            gsTracks.forEach(track => track.stop());
+            logInfo('[fullscreen.js] Stopped all tracks from globalState.stream.');
+        } catch (e) {
+            logInfo('[fullscreen.js] Failed to stop tracks from globalState.stream: ' + e);
+        }
+    }
+
+    // オーディオチェーン側のゲインミュート
+    try {
+        if (typeof FullscreenAudioManager !== 'undefined' && fullscreenGainNode) {
+            const audioContext = FullscreenAudioManager.getContext();
+            fullscreenGainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            logDebug('[fullscreen.js] Fullscreen gain node muted during reset.');
+        }
+    } catch (e) {
+        logInfo('[fullscreen.js] Failed to mute fullscreen gain node during reset: ' + e);
     }
 
     // グローバル状態をリセット
@@ -199,6 +221,8 @@ function setInitialData(itemData) {
         playlistItemId: itemData.playlistItem_id || null,
         path: itemData.path || '',
         deviceId: itemData.deviceId || null,
+        // UVC 用に音声デバイスIDも保持
+        uvcAudioDeviceId: itemData.uvcAudioDeviceId || null,
         inPoint: parseFloat(itemData.inPoint || 0),
         outPoint: parseFloat(itemData.outPoint || 0),
         startMode: itemData.startMode || 'PAUSE',
@@ -464,8 +488,10 @@ function handleOnAirData(itemData) {
     cancelAudioFade();
     setInitialData(itemData);
 
+    const isUvc = !!(globalState.deviceId || (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE:')));
+
     // 動画とUVCの振り分け（path からのUVC判定も許容し、deviceId を補完）
-    if (globalState.deviceId || (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE:'))) {
+    if (isUvc) {
         if (!globalState.deviceId && typeof globalState.path === 'string') {
             const id = globalState.path.substring('UVC_DEVICE:'.length);
             if (id) {
@@ -475,6 +501,7 @@ function handleOnAirData(itemData) {
         }
         logInfo('[fullscreen.js] Detected UVC device. Setting up UVC device stream.');
         setupUVCDevice();
+        return; // UVC は setupUVCDevice 側で play/pause を制御する
     } else if (globalState.path) {
         logInfo('[fullscreen.js] Detected video file. Setting up video player.');
         setupVideoPlayer();
@@ -482,7 +509,7 @@ function handleOnAirData(itemData) {
         logInfo('[fullscreen.js] No valid video file or UVC device detected. Skipping setup.');
     }
 
-    // スタートモードに沿って再生を開始
+    // ファイル再生のみ、ここでスタートモードに沿って再生開始
     handleStartMode();
 }
 
@@ -536,10 +563,9 @@ function setupVideoPlayer() {
             logInfo('[fullscreen.js] channelCount detection failed (fallback to stereo path): ' + e);
         }
 
-        if (!setupFullscreenAudio.initialized) {
-            setupFullscreenAudio(videoElement);
-            logDebug('[fullscreen.js] Audio initialized during setupVideoPlayer.');
-        }
+        // src / ソース切替のたびに必ず再バインド
+        setupFullscreenAudio(videoElement);
+        logDebug('[fullscreen.js] Audio (re)initialized during setupVideoPlayer.');
 
         // メタデータ確定後に再確認して音量を適用
         videoElement.volume = initialVolume;
@@ -587,27 +613,128 @@ async function setupUVCDevice() {
     }
 
     try {
-        // デバイスストリームを取得
+        // Device Settings から UVC 用の音声デバイス紐付けを取得
+        let audioConstraints = false;
+        try {
+            const deviceSettings = await window.electronAPI.getDeviceSettings();
+            const bindings = deviceSettings?.uvcAudioBindings || {};
+            const boundAudioDeviceId = bindings[deviceId];
+
+            if (boundAudioDeviceId) {
+                // NDI / ラインレベル入力などに対して WebRTC の音声処理がかかると
+                // 音が「ぐにゃぐにゃ」に崩れるため、明示的に無効化する
+                audioConstraints = {
+                    deviceId: { exact: boundAudioDeviceId },
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    channelCount: 2
+                };
+                logDebug(`[fullscreen.js] UVC audio binding found for video device ${deviceId}: audio device ${boundAudioDeviceId}`);
+            } else {
+                logDebug(`[fullscreen.js] No UVC audio binding for video device ${deviceId}. Using video-only.`);
+            }
+        } catch (e) {
+            logDebug('[fullscreen.js] Failed to load UVC audio binding from device settings:', e);
+            audioConstraints = false;
+        }
+
+        // デバイスストリームを取得（映像 + 必要なら音声）
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: deviceId } }
+            video: { deviceId: { exact: deviceId } },
+            audio: audioConstraints
         });
 
-        // 初期音量（ファイル再生と同等のロジック）
-        const initialVolume = (globalState.volume !== undefined ? globalState.volume : (globalState.defaultVolume / 100));
+        // 初期音量（ファイル再生と同等のロジック）＋UVC/NDI入力は 0dBFS を超えないようクランプ
+        let initialVolume = (globalState.volume !== undefined ? globalState.volume : (globalState.defaultVolume / 100));
+        if (typeof initialVolume !== 'number' || isNaN(initialVolume)) {
+            initialVolume = 1.0;
+        }
+        const maxStreamGain = 1.0; // UVC/NDI ソースの安全上限（0dB）
+        initialVolume = Math.max(0.0, Math.min(maxStreamGain, initialVolume));
         videoElement.volume = initialVolume;
 
         // ストリームをセット
         videoElement.srcObject = stream;
 
+        // 入力チャンネル数をチェック（mono の場合は dual-mono アップミックスフラグ）
+        isMonoSource = false;
+        try {
+            const capture = videoElement.captureStream?.();
+            const aTrack = capture && capture.getAudioTracks ? capture.getAudioTracks()[0] : null;
+            const ch = aTrack && aTrack.getSettings ? (aTrack.getSettings().channelCount || 0) : 0;
+            if (ch === 1) {
+                isMonoSource = true;
+                logInfo('[fullscreen.js] (UVC) Detected mono source (channelCount=1). Will upmix to dual-mono.');
+            } else {
+                logInfo('[fullscreen.js] (UVC) Detected channelCount=' + ch + ' (treat as stereo path).');
+            }
+        } catch (e) {
+            logInfo('[fullscreen.js] (UVC) channelCount detection failed (fallback to stereo path): ' + e);
+        }
+
+        // srcObject が切り替わるたびに必ず再バインド
+        setupFullscreenAudio(videoElement);
+        logDebug('[fullscreen.js] Audio (re)initialized during setupUVCDevice.');
+
+        // ゲインノードにも初期音量を反映
+        if (fullscreenGainNode) {
+            const audioContext = FullscreenAudioManager.getContext();
+            fullscreenGainNode.gain.setValueAtTime(initialVolume, audioContext.currentTime);
+        }
+
+        const smUpper = String(globalState.startMode || 'PLAY').toUpperCase();
+
+        // startMode=PAUSE の場合はストリームだけセットして再生しない
+        if (smUpper === 'PAUSE') {
+            globalState.stream = stream;
+            stopVolumeMeasurement();
+            logInfo('[fullscreen.js] UVC startMode=PAUSE: stream set, awaiting manual play.');
+            return;
+        }
+
+        const fadeSec = (typeof pendingUvcFadeInSec !== 'undefined' && pendingUvcFadeInSec > 0)
+            ? pendingUvcFadeInSec
+            : 0.3;
+
         // 「動き出し」を保証する playing でフェード開始（canplay だと静止フレームのままの可能性）
         const handlePlaying = () => {
-            fullscreenFadeFromBlack(0.3, isFillKeyMode);
+            fullscreenFadeFromBlack(fadeSec, isFillKeyMode);
             videoElement.removeEventListener('playing', handlePlaying);
+
+            // playing が立ち上がったタイミングでも、メーター計測を確実に開始
+            try {
+                if (!isVolumeMeasurementActive) {
+                    startVolumeMeasurement(60);
+                    logDebug('[fullscreen.js] Volume measurement started from setupUVCDevice (playing event).');
+                }
+            } catch (_e) {}
         };
         videoElement.addEventListener('playing', handlePlaying, { once: true });
 
         await videoElement.play();
         globalState.stream = stream;
+
+        // 念のため、play() 成功後にもメーター計測開始を試みる
+        try {
+            if (!isVolumeMeasurementActive) {
+                startVolumeMeasurement(60);
+                logDebug('[fullscreen.js] Volume measurement started from setupUVCDevice (post-play).');
+            }
+        } catch (_e) {}
+        videoElement.addEventListener('playing', handlePlaying, { once: true });
+
+        await videoElement.play();
+        globalState.stream = stream;
+
+        // 念のため、play() 成功後にもメーター計測開始を試みる
+        try {
+            if (!isVolumeMeasurementActive) {
+                startVolumeMeasurement(60);
+                logDebug('[fullscreen.js] Volume measurement started from setupUVCDevice (post-play).');
+            }
+        } catch (_e) {}
+
         logInfo('[fullscreen.js] UVC device stream initialized successfully.');
         logDebug(`[fullscreen.js] Device ID: ${deviceId}`);
     } catch (error) {
@@ -647,7 +774,7 @@ function handleStartMode() {
                     : 1);
 
             videoElement.currentTime = globalState.inPoint;
-            videoElement.muted = false;
+            videoElement.muted = true;
             videoElement.volume = initialVol;
 
             videoElement.play()
@@ -765,7 +892,6 @@ function handleStartMode() {
     } else {
         logInfo(`[fullscreen.js] Unknown start mode: ${globalState.startMode}. No action taken.`);
     }
-
 }
 
 // ------------------------------------
@@ -965,7 +1091,6 @@ function stopMonitoringPlayback() {
 // ------------------------
 // 操作情報の受信
 // ------------------------
-
 window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
     const fullscreenVideoElement = document.getElementById('fullscreen-video');
 
@@ -1353,6 +1478,9 @@ let fullscreenMerger   = null;
 let fullscreenGainNode = null;
 let fullscreenUpmixNode = null;
 let fullscreenSourceNode = null;
+let fullscreenElementSourceNode = null; // ファイル再生用（MediaElementSource）は一度だけ作って再利用
+let fullscreenStreamSourceNode = null;  // UVC/NDI 用（MediaStreamSource）
+let fullscreenSourceKind = null;        // 'element' | 'stream'
 let fullscreenMediaDest = null;
 let animationFrameId = null;
 let isDualMonoApplied = false;
@@ -1360,7 +1488,7 @@ let isDualMonoApplied = false;
 // メーター用デュアルモノ
 let isMeterDualMono = false;
 
-// 音量計測停止の遅延用タイマー
+// 音量測定停止の遅延用タイマー
 let fullscreenLingerTimerId = null;
 
 // 音声初期化フラグ
@@ -1368,9 +1496,17 @@ setupFullscreenAudio.initialized = false;
 
 // 音声初期化：analyser は常に原音 L/R を計測。mono 時の出力のみ dual-mono。
 function setupFullscreenAudio(videoElement) {
-    if (setupFullscreenAudio.initialized) return;
-
     const audioContext = FullscreenAudioManager.getContext();
+
+    // 既に初期化済みでも、srcObject / ソース切替のたびに必ず再バインドする
+    // （initialized で return すると旧ストリームを見続け、メーターが無音固定になる）
+    if (setupFullscreenAudio.initialized) {
+        try { if (fullscreenSourceNode) fullscreenSourceNode.disconnect(); } catch (_e) {}
+        try { if (fullscreenGainNode) fullscreenGainNode.disconnect(); } catch (_e) {}
+        try { if (fullscreenUpmixNode) fullscreenUpmixNode.disconnect(); } catch (_e) {}
+        try { if (fullscreenSplitter) fullscreenSplitter.disconnect(); } catch (_e) {}
+        try { if (fullscreenMerger) fullscreenMerger.disconnect(); } catch (_e) {}
+    }
 
     if (!fullscreenAnalyserL) {
         fullscreenAnalyserL = audioContext.createAnalyser();
@@ -1390,34 +1526,55 @@ function setupFullscreenAudio(videoElement) {
         fullscreenMerger = audioContext.createChannelMerger(2);
     }
 
-    if (!fullscreenSourceNode || fullscreenSourceNode.mediaElement !== videoElement) {
-        if (fullscreenSourceNode) {
-            fullscreenSourceNode.disconnect();
-        }
+    // UVC を含め、videoElement の音声を必ず Analyser に流し込む
+    // - srcObject に MediaStream が入っている場合: MediaStreamSource を使用（都度作成）
+    // - それ以外（通常ファイル再生など）   : MediaElementSource を一度だけ作って再利用
+    if (fullscreenSourceNode) {
         try {
-            fullscreenSourceNode = audioContext.createMediaElementSource(videoElement);
+            fullscreenSourceNode.disconnect();
+        } catch (_e) {}
+        fullscreenSourceNode = null;
+    }
 
-            // analyser用経路
-            fullscreenSourceNode.connect(fullscreenGainNode);
-
-            // （新規）解析用：明示的に2chへアップミックスしてからSplit（listedit.jsと同等）
-            if (!fullscreenUpmixNode) {
-                fullscreenUpmixNode = audioContext.createGain();
-                fullscreenUpmixNode.channelCountMode = 'explicit';
-                fullscreenUpmixNode.channelCount = 2;
-                fullscreenUpmixNode.channelInterpretation = 'speakers';
+    try {
+        if (videoElement.srcObject instanceof MediaStream) {
+            // UVC / getUserMedia 系: MediaStreamSource はストリームごとに作り直す
+            if (fullscreenStreamSourceNode) {
+                try {
+                    fullscreenStreamSourceNode.disconnect();
+                } catch (_e) {}
+                fullscreenStreamSourceNode = null;
             }
-            fullscreenGainNode.connect(fullscreenUpmixNode);
-            fullscreenUpmixNode.connect(fullscreenSplitter);
-            fullscreenSplitter.connect(fullscreenAnalyserL, 0);
-            fullscreenSplitter.connect(fullscreenAnalyserR, 1);
-        } catch (error) {
-            if (error.name === 'InvalidStateError') {
-                logInfo('MediaElementSourceNode already exists. Skipping creation.');
-            } else {
-                logInfo('Error creating MediaElementSourceNode:', error);
+            fullscreenStreamSourceNode = audioContext.createMediaStreamSource(videoElement.srcObject);
+            fullscreenSourceNode = fullscreenStreamSourceNode;
+            fullscreenSourceKind = 'stream';
+            logDebug('[fullscreen.js] Using MediaStreamSource for fullscreen audio.');
+        } else {
+            // 通常のファイル再生: 同一 video 要素に対しては一度だけ生成して使い回す
+            if (!fullscreenElementSourceNode) {
+                fullscreenElementSourceNode = audioContext.createMediaElementSource(videoElement);
             }
+            fullscreenSourceNode = fullscreenElementSourceNode;
+            fullscreenSourceKind = 'element';
+            logDebug('[fullscreen.js] Using MediaElementSource for fullscreen audio.');
         }
+
+        // analyser 用経路
+        fullscreenSourceNode.connect(fullscreenGainNode);
+
+        // 明示的に 2ch にアップミックスしてから Split（listedit.js と同等）
+        if (!fullscreenUpmixNode) {
+            fullscreenUpmixNode = audioContext.createGain();
+            fullscreenUpmixNode.channelCountMode = 'explicit';
+            fullscreenUpmixNode.channelCount = 2;
+            fullscreenUpmixNode.channelInterpretation = 'speakers';
+        }
+        fullscreenGainNode.connect(fullscreenUpmixNode);
+        fullscreenUpmixNode.connect(fullscreenSplitter);
+        fullscreenSplitter.connect(fullscreenAnalyserL, 0);
+        fullscreenSplitter.connect(fullscreenAnalyserR, 1);
+    } catch (error) {
+        logInfo('[fullscreen.js] Error creating fullscreen audio source node:', error);
     }
 
     const mediaStreamDest = audioContext.createMediaStreamDestination();
@@ -1463,7 +1620,10 @@ function setupFullscreenAudio(videoElement) {
     setupFullscreenAudio.initialized = true;
 
     const video = document.getElementById('fullscreen-video');
-    if (video) {
+    if (video && !video.__vtrponAudioResumeBound) {
+        // 初回のみリスナを張る（再バインドのたびに増殖させない）
+        video.__vtrponAudioResumeBound = true;
+
         const resumeMeasure = () => {
             try {
                 if (typeof fullscreenLingerTimerId !== 'undefined' && fullscreenLingerTimerId) {
@@ -1473,17 +1633,52 @@ function setupFullscreenAudio(videoElement) {
                 const ctx = FullscreenAudioManager.getContext();
                 if (fullscreenGainNode) {
                     const t = ctx.currentTime;
-                    const targetGain = Math.max(0.001, (globalState?.defaultVolume ?? 100) / 100);
+                    const rawGain = (typeof globalState.volume === 'number')
+                        ? globalState.volume
+                        : (globalState?.defaultVolume ?? 100) / 100;
+
+                    // ストリームソース（UVC/NDI）は 0dB（1.0）まで、それ以外は最大 4.0 まで
+                    const maxGain = (fullscreenSourceKind === 'stream') ? 0.35 : 4.0;
+                    const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
+
                     fullscreenGainNode.gain.cancelScheduledValues(t);
                     fullscreenGainNode.gain.setValueAtTime(targetGain, t);
                 }
             } catch (_e) {}
             try { startVolumeMeasurement(60); } catch (_e) {}
         };
+
         video.addEventListener('playing',  resumeMeasure, { passive: true });
         video.addEventListener('canplay',  resumeMeasure, { passive: true });
         video.addEventListener('seeked',   resumeMeasure, { passive: true });
+    } else if (video && isRebind) {
+        // 再バインド時は、即座にゲイン復帰と計測再開を試す
+        try {
+            const ctx = FullscreenAudioManager.getContext();
+            if (fullscreenGainNode) {
+                const t = ctx.currentTime;
+                const rawGain = (typeof globalState.volume === 'number')
+                    ? globalState.volume
+                    : (globalState?.defaultVolume ?? 100) / 100;
+
+                // ストリームソース（UVC/NDI）は 0dB（1.0）まで、それ以外は最大 4.0 まで
+                const maxGain = (fullscreenSourceKind === 'stream') ? 0.35 : 4.0;
+                const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
+
+                fullscreenGainNode.gain.cancelScheduledValues(t);
+                fullscreenGainNode.gain.setValueAtTime(targetGain, t);
+            }
+        } catch (_e) {}
+        try { startVolumeMeasurement(60); } catch (_e) {}
     }
+
+    // 音声チェーン初期化直後に計測ループ起動
+    try {
+        if (!isVolumeMeasurementActive && fullscreenAnalyserL && fullscreenAnalyserR) {
+            startVolumeMeasurement(60);
+            logDebug('[fullscreen.js] Volume measurement started from setupFullscreenAudio.');
+        }
+    } catch (_e) {}
 }
 
 // Device Settings 更新時に隠し audio 要素の出力先を更新するリスナー
@@ -1509,11 +1704,62 @@ function resetFullscreenAudio() {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
     }
+
+    // ソースノードの切断と破棄
     if (fullscreenSourceNode) {
-        fullscreenSourceNode.disconnect();
+        try {
+            fullscreenSourceNode.disconnect();
+        } catch (_e) {}
         fullscreenSourceNode = null;
     }
+    if (fullscreenElementSourceNode) {
+        try {
+            fullscreenElementSourceNode.disconnect();
+        } catch (_e) {}
+        fullscreenElementSourceNode = null;
+    }
+    if (fullscreenStreamSourceNode) {
+        try {
+            fullscreenStreamSourceNode.disconnect();
+        } catch (_e) {}
+        fullscreenStreamSourceNode = null;
+    }
+
+    // 解析・ゲイン・ルーティング系ノードもすべて切断して破棄
+    try { if (fullscreenAnalyserL) fullscreenAnalyserL.disconnect(); } catch (_e) {}
+    try { if (fullscreenAnalyserR) fullscreenAnalyserR.disconnect(); } catch (_e) {}
+    try { if (fullscreenGainNode)   fullscreenGainNode.disconnect(); } catch (_e) {}
+    try { if (fullscreenSplitter)   fullscreenSplitter.disconnect(); } catch (_e) {}
+    try { if (fullscreenMerger)     fullscreenMerger.disconnect(); } catch (_e) {}
+    try { if (fullscreenUpmixNode)  fullscreenUpmixNode.disconnect(); } catch (_e) {}
+
+    fullscreenAnalyserL = null;
+    fullscreenAnalyserR = null;
+    fullscreenGainNode   = null;
+    fullscreenSplitter   = null;
+    fullscreenMerger     = null;
+    fullscreenUpmixNode  = null;
+    fullscreenMediaDest  = null;
+
+    // メーター関連フラグのリセット
+    if (fullscreenLingerTimerId) {
+        clearTimeout(fullscreenLingerTimerId);
+        fullscreenLingerTimerId = null;
+    }
+    isVolumeMeasurementActive = false;
+
+    // mono 判定などのフラグもリセット
+    if (typeof isMonoSource !== 'undefined') {
+        isMonoSource = false;
+    }
+    fullscreenSourceKind = null;
+
+    // AudioContext のリセット
     FullscreenAudioManager.resetContext();
+
+    // 初期化フラグを戻して、次回 setupFullscreenAudio で完全再構築させる
+    setupFullscreenAudio.initialized = false;
+
     logDebug('[fullscreen.js] Fullscreen audio reset completed.');
 }
 
@@ -1546,15 +1792,49 @@ function audioFadeIn(duration) {
 // ------------------------------------
 // 音量測定とデータ送信
 // ------------------------------------
-
 // 音量測定ループフラグ
 let isVolumeMeasurementActive = false;
 
+// デバッグ用：送信ログの間引きタイムスタンプ
+let lastVolumeSendLogTs = 0;
+
 // メーター計測
 function startVolumeMeasurement(updateInterval = 60) {
-    if (isVolumeMeasurementActive || !fullscreenAnalyserL || !fullscreenAnalyserR) return;
+    const audioContext = FullscreenAudioManager.getContext();
+
+    if (!fullscreenAnalyserL) {
+        fullscreenAnalyserL = audioContext.createAnalyser();
+        fullscreenAnalyserL.fftSize = 2048;
+    }
+    if (!fullscreenAnalyserR) {
+        fullscreenAnalyserR = audioContext.createAnalyser();
+        fullscreenAnalyserR.fftSize = 2048;
+    }
+
+    // すでにループが動いていれば新しくは起動しない
+    if (isVolumeMeasurementActive) {
+        return;
+    }
 
     isVolumeMeasurementActive = true;
+    logDebug('[fullscreen.js] Volume measurement loop started.');
+
+    // stopVolumeMeasurement の linger で Gain が極小に落ちたままになるのを防ぐ
+    try {
+        const t = audioContext.currentTime;
+        const rawGain = (typeof globalState.volume === 'number')
+            ? globalState.volume
+            : (globalState.defaultVolume ?? 100) / 100;
+
+        // ストリームソース（UVC/NDI）は 0dB（1.0）まで、それ以外は従来どおり最大 4.0 まで許容
+        const maxGain = (fullscreenSourceKind === 'stream') ? 1.0 : 4.0;
+        const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
+
+        if (fullscreenGainNode) {
+            fullscreenGainNode.gain.cancelScheduledValues(t);
+            fullscreenGainNode.gain.setValueAtTime(targetGain, t);
+        }
+    } catch (_e) {}
 
     try { fullscreenAnalyserL.fftSize = 2048; } catch (_e) {}
     try { fullscreenAnalyserR.fftSize = 2048; } catch (_e) {}
@@ -1578,9 +1858,21 @@ function startVolumeMeasurement(updateInterval = 60) {
     const DETECT_WINDOW_FRAMES = Math.max(8, Math.floor(800 / Math.max(1, effectiveInterval)));
     let monoLikeFrames = 0;
 
+    // デバッグ用：最初の数フレームは必ずピーク値をログ
+    let debugFrameCount = 0;
+    const DEBUG_MAX_FRAMES = 20;
+
     const intervalId = setInterval(() => {
         if (!isVolumeMeasurementActive) {
             clearInterval(intervalId);
+            return;
+        }
+
+        // analyser が何らかの理由で消えていたら即停止
+        if (!fullscreenAnalyserL || !fullscreenAnalyserR) {
+            clearInterval(intervalId);
+            isVolumeMeasurementActive = false;
+            logInfo('[fullscreen.js] Analyser nodes missing. Volume measurement loop aborted.');
             return;
         }
 
@@ -1590,7 +1882,6 @@ function startVolumeMeasurement(updateInterval = 60) {
             const v = Math.abs(bufL[i]);
             if (v > peakL) peakL = v;
         }
-        let dbL = 20 * Math.log10(Math.max(peakL, 1e-9));
 
         fullscreenAnalyserR.getFloatTimeDomainData(bufR);
         let peakR = 0.0;
@@ -1598,6 +1889,14 @@ function startVolumeMeasurement(updateInterval = 60) {
             const v = Math.abs(bufR[i]);
             if (v > peakR) peakR = v;
         }
+
+        // 最初の数フレームはピーク値をそのままログ
+        if (debugFrameCount < DEBUG_MAX_FRAMES) {
+            debugFrameCount++;
+            logDebug(`[fullscreen.js] Volume raw peak: L=${peakL.toFixed(6)}, R=${peakR.toFixed(6)}`);
+        }
+
+        let dbL = 20 * Math.log10(Math.max(peakL, 1e-9));
         let dbR = 20 * Math.log10(Math.max(peakR, 1e-9));
 
         if (skipFrames > 0) {
@@ -1609,12 +1908,20 @@ function startVolumeMeasurement(updateInterval = 60) {
         dbL = Math.min(maxDb, Math.max(minDb, dbL));
         dbR = Math.min(maxDb, Math.max(minDb, dbR));
 
-        // モノラル検出
+        // モノラル検出：mono ソースなら L を R にも流用
         const reportR = isMonoSource ? dbL : dbR;
 
+        // fullscreen → main へ送信
         window.electronAPI.ipcRenderer.send('fullscreen-audio-level-lr', { L: dbL, R: reportR });
         const dbMax = Math.max(dbL, reportR);
         window.electronAPI.ipcRenderer.send('fullscreen-audio-level', dbMax);
+
+        // dB でのデバッグログ（0.5秒に1回）
+        const nowTs = Date.now();
+        if (nowTs - lastVolumeSendLogTs >= 500) {
+            lastVolumeSendLogTs = nowTs;
+            logDebug(`[fullscreen.js] Volume dBFS: L=${dbL.toFixed(1)}, R=${reportR.toFixed(1)}, max=${dbMax.toFixed(1)}`);
+        }
     }, effectiveInterval);
 }
 

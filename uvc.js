@@ -22,6 +22,19 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
             const resolution = await getUVCResolution(selectedDevice.id);
             logDebug(`[playlist.js] Actual camera resolution: ${resolution}`);
 
+            // UVCごとの音声デバイス設定を取得
+            let boundUvcAudioDeviceId = "";
+            try {
+                const deviceSettings = await window.electronAPI.getDeviceSettings();
+                if (deviceSettings &&
+                    deviceSettings.uvcAudioBindings &&
+                    deviceSettings.uvcAudioBindings[selectedDevice.id]) {
+                    boundUvcAudioDeviceId = deviceSettings.uvcAudioBindings[selectedDevice.id];
+                }
+            } catch (error) {
+                logDebug('[uvc.js] Failed to load UVC audio binding from device settings:', error);
+            }
+
             // 仮の「Loading...」サムネイルを作成
             const loadingThumbnail = createLoadingThumbnail();
 
@@ -36,7 +49,8 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
                 endMode: "UVC",
                 inPoint: "UVC",
                 outPoint: "UVC",
-                defaultVolume: 0,
+                defaultVolume: 100,
+                uvcAudioDeviceId: boundUvcAudioDeviceId,
                 selectionState: "unselected",
                 editingState: null,
                 order: await getPlaylistOrder().length,

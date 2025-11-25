@@ -1,6 +1,6 @@
 ﻿//------------------------------
 //  devicesettings.js
-//   2.2.8
+//   2.4.8
 //------------------------------
 
 // ログ機能の取得
@@ -21,12 +21,25 @@ async function initializeDeviceSettings() {
     if (!elements) return;
     
     const savedSettings = await window.electronAPI.getDeviceSettings();
+
+    // enumerateDevices の前に一度だけ権限を確保（label/deviceId の安定化、NDI仮想マイクの列挙目的）
+    try {
+        const tmp = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        tmp.getTracks().forEach(t => t.stop());
+        logDebug('[devicesettings.js] Media permissions warmed up for device enumeration.');
+    } catch (e) {
+        logDebug('[devicesettings.js] Media permission warm-up skipped/failed:', e);
+    }
+
     const devices = await getMediaDevices();
-    
+
     populateAudioSelect(elements.onairAudioSelect, devices.audioOutputs, savedSettings?.onairAudioOutputDevice, true);
     populateAudioSelect(elements.editAudioSelect, devices.audioOutputs, savedSettings?.editAudioMonitorDevice, false, true);
     addAudioSelectionWarnings(elements.editAudioSelect, elements.onairAudioSelect);
     addAudioSelectionWarnings(elements.onairAudioSelect, elements.editAudioSelect);
+
+    const uvcDevices = await getUVCDevicesForSettings();
+    buildUvcAudioMappingUI(uvcDevices, devices.audioInputs, savedSettings?.uvcAudioBindings || {});
     
     elements.okButton.addEventListener('click', () => saveSettings(elements));
 }
@@ -59,6 +72,12 @@ async function getMediaDevices() {
     };
 }
 
+// UVC（ビデオ入力）デバイス一覧を取得（UVC用マッピングUI向け）
+async function getUVCDevicesForSettings() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(device => device.kind === 'videoinput');
+}
+
 async function getDisplayDevices() {
     return await window.electronAPI.getDisplayList();
 }
@@ -76,22 +95,52 @@ function populateAudioSelect(selectElement, devices, savedDeviceId, isDefault = 
     noneOption.textContent = "No Device Selected";
     selectElement.appendChild(noneOption);
 
+    // ONAIR 用セレクトでは OS のデフォルト出力を明示的な選択肢として追加
+    if (isDefault) {
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "default";
+        defaultOption.textContent = "System Default Output";
+        selectElement.appendChild(defaultOption);
+    }
+
+    let foundSaved = false;
+
     devices.forEach(device => {
         const option = document.createElement("option");
         option.value = device.deviceId;
         option.textContent = device.label || `Audio Output ${device.deviceId}`;
-        if (savedDeviceId === device.deviceId) {
+
+        if (savedDeviceId && savedDeviceId === device.deviceId) {
             option.selected = true;
+            foundSaved = true;
         }
+
         selectElement.appendChild(option);
     });
 
-    // `uvcAudioSelect` の場合、規定値を "No Device Selected" にする
-    if (!savedDeviceId && addNoneOption) {
-        selectElement.value = "";
+    // 保存された ID に一致するデバイスがなかった場合のフォールバック
+    if (!foundSaved) {
+        if (isDefault && savedDeviceId === "default") {
+            // ONAIR が "default" で保存されている場合は「System Default Output」を選択
+            selectElement.value = "default";
+        } else if (!savedDeviceId && isDefault) {
+            // onair 用など savedDeviceId が空で「何も指定されていない」場合は
+            // 最初の実デバイスを選択（従来の挙動）
+            if (devices.length > 0) {
+                selectElement.value = devices[0].deviceId;
+            } else {
+                selectElement.value = "";
+            }
+        } else if (!savedDeviceId && addNoneOption) {
+            // UVC マッピングなど、「No Audio」を初期値としたい場合
+            selectElement.value = "";
+        } else if (savedDeviceId && savedDeviceId !== "default") {
+            // savedDeviceId があるが enumerateDevices に出てこない場合は、
+            // いったん "No Device Selected" に戻す
+            selectElement.value = "";
+        }
     }
 }
-
 
 function populateVideoSelect(selectElement, devices, savedDeviceId) {
     selectElement.innerHTML = "";
@@ -103,6 +152,57 @@ function populateVideoSelect(selectElement, devices, savedDeviceId) {
             option.selected = true;
         }
         selectElement.appendChild(option);
+    });
+}
+
+// UVCデバイスごとの音声マッピングUIを構築
+function buildUvcAudioMappingUI(uvcDevices, audioInputs, savedBindings) {
+    const container = document.getElementById('uvcAudioMappingContainer');
+    if (!container) {
+        logInfo("[devicesettings.js] UVC audio mapping container not found.");
+        return;
+    }
+
+    container.innerHTML = "";
+
+    if (!Array.isArray(uvcDevices) || uvcDevices.length === 0) {
+        const info = document.createElement("p");
+        info.textContent = "No UVC devices detected.";
+        container.appendChild(info);
+        return;
+    }
+
+    uvcDevices.forEach((uvc) => {
+        const row = document.createElement("div");
+        row.classList.add("uvc-audio-row");
+
+        const label = document.createElement("span");
+        label.classList.add("uvc-audio-label");
+        label.textContent = uvc.label || `UVC ${uvc.deviceId}`;
+
+        const select = document.createElement("select");
+        select.dataset.uvcDeviceId = uvc.deviceId;
+
+        const noneOption = document.createElement("option");
+        noneOption.value = "";
+        noneOption.textContent = "No Audio";
+        select.appendChild(noneOption);
+
+        audioInputs.forEach((audio) => {
+            const option = document.createElement("option");
+            option.value = audio.deviceId;
+            option.textContent = audio.label || `Audio Input ${audio.deviceId}`;
+            select.appendChild(option);
+        });
+
+        const savedId = savedBindings[uvc.deviceId];
+        if (savedId) {
+            select.value = savedId;
+        }
+
+        row.appendChild(label);
+        row.appendChild(select);
+        container.appendChild(row);
     });
 }
 
@@ -159,12 +259,24 @@ function customConfirm(message) {
 //-------------------
 // 設定の保存
 //-------------------
-
 function saveSettings(elements) {
     const settings = {
         editAudioMonitorDevice: elements.editAudioSelect.value,
-        onairAudioOutputDevice: elements.onairAudioSelect.value
+        onairAudioOutputDevice: elements.onairAudioSelect.value,
+        uvcAudioBindings: {}
     };
+
+    const container = document.getElementById('uvcAudioMappingContainer');
+    if (container) {
+        const selects = container.querySelectorAll('select[data-uvc-device-id]');
+        selects.forEach((sel) => {
+            const uvcId = sel.dataset.uvcDeviceId;
+            const audioId = sel.value || "";
+            if (uvcId) {
+                settings.uvcAudioBindings[uvcId] = audioId;
+            }
+        });
+    }
 
     window.electronAPI.setDeviceSettings(settings);
     window.electronAPI.closeDeviceSettings();
