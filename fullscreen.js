@@ -1637,7 +1637,7 @@ function setupFullscreenAudio(videoElement) {
 
                     // ストリームソース（UVC/NDI）はゲイン 0.35（約 -9 dB）を上限とし、
                     // それ以外は従来どおりゲイン 4.0（約 +12 dB）まで許容する
-                    const maxGain = (fullscreenSourceKind === 'stream') ? 0.35 : 4.0;
+                    const maxGain = (fullscreenSourceKind === 'stream') ? 0.5 : 4.0;
                     const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
 
                     // いきなりステップさせると「プチッ」とノイズが出るため、
