@@ -366,15 +366,19 @@ function onairInitializeSeekBar(elements) {
     onairEndTimeDisplay.textContent = '00:00:00:00';
 
     // 動画のメタデータ読み込み後に最大値を更新
-    onairVideoElement.addEventListener('loadedmetadata', () => {
-        if (onairCurrentState?.endMode === "UVC") {
-            logDebug('[onair.js] loadedmetadata event ignored for UVC device.');
-            return;
-        }
-        const duration = onairVideoElement.duration || 0;
-        onairProgressSlider.max = duration.toFixed(2);
-        onairEndTimeDisplay.textContent = onairFormatTime(duration);
-    });
+    if (!onairVideoElement.__vtrponLoadedMetadataBound) {
+        onairVideoElement.__vtrponLoadedMetadataBound = true;
+
+        onairVideoElement.addEventListener('loadedmetadata', () => {
+            // UVC デバイスは duration が安定しないため、シークバー更新は行わない
+            if (onairCurrentState?.endMode === "UVC") {
+                return;
+            }
+            const duration = onairVideoElement.duration || 0;
+            onairProgressSlider.max = duration.toFixed(2);
+            onairEndTimeDisplay.textContent = onairFormatTime(duration);
+        });
+    }
 
     // IN点OUT点マーカーの表示を消す
     const inMarker = document.getElementById('on-air-in-marker');
