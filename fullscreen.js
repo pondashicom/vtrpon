@@ -1640,8 +1640,11 @@ function setupFullscreenAudio(videoElement) {
                     const maxGain = (fullscreenSourceKind === 'stream') ? 0.35 : 4.0;
                     const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
 
+                    // いきなりステップさせると「プチッ」とノイズが出るため、
+                    // 一度ごく小さな値から 30ms かけて滑らかに目標ゲインまでフェードさせる
                     fullscreenGainNode.gain.cancelScheduledValues(t);
-                    fullscreenGainNode.gain.setValueAtTime(targetGain, t);
+                    fullscreenGainNode.gain.setValueAtTime(0.0001, t);
+                    fullscreenGainNode.gain.linearRampToValueAtTime(targetGain, t + 0.03);
                 }
             } catch (_e) {}
             try { startVolumeMeasurement(60); } catch (_e) {}
@@ -1650,26 +1653,6 @@ function setupFullscreenAudio(videoElement) {
         video.addEventListener('playing',  resumeMeasure, { passive: true });
         video.addEventListener('canplay',  resumeMeasure, { passive: true });
         video.addEventListener('seeked',   resumeMeasure, { passive: true });
-    } else if (video && isRebind) {
-        // 再バインド時は、即座にゲイン復帰と計測再開を試す
-        try {
-            const ctx = FullscreenAudioManager.getContext();
-            if (fullscreenGainNode) {
-                const t = ctx.currentTime;
-                const rawGain = (typeof globalState.volume === 'number')
-                    ? globalState.volume
-                    : (globalState?.defaultVolume ?? 100) / 100;
-
-                // ストリームソース（UVC/NDI）はゲイン 0.35（約 -9 dB）を上限とし、
-                // それ以外は従来どおりゲイン 4.0（約 +12 dB）まで許容する
-                const maxGain = (fullscreenSourceKind === 'stream') ? 0.35 : 4.0;
-                const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
-
-                fullscreenGainNode.gain.cancelScheduledValues(t);
-                fullscreenGainNode.gain.setValueAtTime(targetGain, t);
-            }
-        } catch (_e) {}
-        try { startVolumeMeasurement(60); } catch (_e) {}
     }
 
     // 音声チェーン初期化直後に計測ループ起動
