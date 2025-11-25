@@ -1470,7 +1470,6 @@ const FullscreenAudioManager = (function () {
 })();
 
 // 音声処理のフラグ
-let fullscreenAnalyser = null;
 let fullscreenAnalyserL = null;
 let fullscreenAnalyserR = null;
 let fullscreenSplitter = null;
@@ -1479,20 +1478,17 @@ let fullscreenGainNode = null;
 let fullscreenUpmixNode = null;
 let fullscreenSourceNode = null;
 let fullscreenElementSourceNode = null; // ファイル再生用（MediaElementSource）は一度だけ作って再利用
-let fullscreenStreamSourceNode = null;  // UVC/NDI 用（MediaStreamSource）
-let fullscreenSourceKind = null;        // 'element' | 'stream'
+let fullscreenStreamSourceNode = null; // UVC/NDI 用（MediaStreamSource）
+let fullscreenSourceKind = null; // 'element' | 'stream'
 let fullscreenMediaDest = null;
-let animationFrameId = null;
-let isDualMonoApplied = false;
+let fullscreenLingerTimerId = null; // 音量測定停止の遅延用タイマー
+setupFullscreenAudio.initialized = false; // 音声初期化フラグ
 
-// メーター用デュアルモノ
-let isMeterDualMono = false;
-
-// 音量測定停止の遅延用タイマー
-let fullscreenLingerTimerId = null;
-
-// 音声初期化フラグ
-setupFullscreenAudio.initialized = false;
+// 削除したはずのフラグ（念のため残す
+// let fullscreenAnalyser = null;
+// let animationFrameId = null;
+// let isDualMonoApplied = false;
+// let isMeterDualMono = false;
 
 // 音声初期化：analyser は常に原音 L/R を計測。mono 時の出力のみ dual-mono。
 function setupFullscreenAudio(videoElement) {
@@ -1550,7 +1546,7 @@ function setupFullscreenAudio(videoElement) {
             fullscreenSourceKind = 'stream';
             logDebug('[fullscreen.js] Using MediaStreamSource for fullscreen audio.');
         } else {
-            // 通常のファイル再生: 同一 video 要素に対しては一度だけ生成して使い回す
+            // AudioContext をリセットするたびに MediaElementSource も作り直す
             if (!fullscreenElementSourceNode) {
                 fullscreenElementSourceNode = audioContext.createMediaElementSource(videoElement);
             }
@@ -1637,7 +1633,8 @@ function setupFullscreenAudio(videoElement) {
                         ? globalState.volume
                         : (globalState?.defaultVolume ?? 100) / 100;
 
-                    // ストリームソース（UVC/NDI）は 0dB（1.0）まで、それ以外は最大 4.0 まで
+                    // ストリームソース（UVC/NDI）はゲイン 0.35（約 -9 dB）を上限とし、
+                    // それ以外は従来どおりゲイン 4.0（約 +12 dB）まで許容する
                     const maxGain = (fullscreenSourceKind === 'stream') ? 0.35 : 4.0;
                     const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
 
@@ -1661,7 +1658,8 @@ function setupFullscreenAudio(videoElement) {
                     ? globalState.volume
                     : (globalState?.defaultVolume ?? 100) / 100;
 
-                // ストリームソース（UVC/NDI）は 0dB（1.0）まで、それ以外は最大 4.0 まで
+                // ストリームソース（UVC/NDI）はゲイン 0.35（約 -9 dB）を上限とし、
+                // それ以外は従来どおりゲイン 4.0（約 +12 dB）まで許容する
                 const maxGain = (fullscreenSourceKind === 'stream') ? 0.35 : 4.0;
                 const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
 
@@ -1795,9 +1793,6 @@ function audioFadeIn(duration) {
 // 音量測定ループフラグ
 let isVolumeMeasurementActive = false;
 
-// デバッグ用：送信ログの間引きタイムスタンプ
-let lastVolumeSendLogTs = 0;
-
 // メーター計測
 function startVolumeMeasurement(updateInterval = 60) {
     const audioContext = FullscreenAudioManager.getContext();
@@ -1855,8 +1850,9 @@ function startVolumeMeasurement(updateInterval = 60) {
     const minDb = -60;
     const maxDb = 0;
 
-    const DETECT_WINDOW_FRAMES = Math.max(8, Math.floor(800 / Math.max(1, effectiveInterval)));
-    let monoLikeFrames = 0;
+    // mono 判定→未使用ロジック
+    // const DETECT_WINDOW_FRAMES = Math.max(8, Math.floor(800 / Math.max(1, effectiveInterval)));
+    // let monoLikeFrames = 0;
 
     // デバッグ用：最初の数フレームは必ずピーク値をログ
     let debugFrameCount = 0;
@@ -1890,12 +1886,6 @@ function startVolumeMeasurement(updateInterval = 60) {
             if (v > peakR) peakR = v;
         }
 
-        // 最初の数フレームはピーク値をそのままログ
-        if (debugFrameCount < DEBUG_MAX_FRAMES) {
-            debugFrameCount++;
-            logDebug(`[fullscreen.js] Volume raw peak: L=${peakL.toFixed(6)}, R=${peakR.toFixed(6)}`);
-        }
-
         let dbL = 20 * Math.log10(Math.max(peakL, 1e-9));
         let dbR = 20 * Math.log10(Math.max(peakR, 1e-9));
 
@@ -1916,12 +1906,6 @@ function startVolumeMeasurement(updateInterval = 60) {
         const dbMax = Math.max(dbL, reportR);
         window.electronAPI.ipcRenderer.send('fullscreen-audio-level', dbMax);
 
-        // dB でのデバッグログ（0.5秒に1回）
-        const nowTs = Date.now();
-        if (nowTs - lastVolumeSendLogTs >= 500) {
-            lastVolumeSendLogTs = nowTs;
-            logDebug(`[fullscreen.js] Volume dBFS: L=${dbL.toFixed(1)}, R=${reportR.toFixed(1)}, max=${dbMax.toFixed(1)}`);
-        }
     }, effectiveInterval);
 }
 
