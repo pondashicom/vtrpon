@@ -35,8 +35,6 @@ function initializeFullscreenArea() {
     const videoElement = document.getElementById('fullscreen-video');
 
     if (videoElement) {
-        videoElement.muted = true;
-        videoElement.volume = 0;
         videoElement.pause();
         videoElement.src = '';
         videoElement.currentTime = 0;
