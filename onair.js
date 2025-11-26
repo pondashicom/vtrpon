@@ -618,7 +618,18 @@ function onairReset() {
             speedSlider.disabled = false;
             const sRaw = parseFloat(speedSlider.value);
             const s = isNaN(sRaw) ? 0 : Math.max(-10, Math.min(10, sRaw));
-            const newRate = Math.pow(5, s / 10);
+            let newRate = Math.pow(5, s / 10);
+
+            // 1. 1.0 のごく近傍は「強制的に 1.0」にスナップ
+            if (Math.abs(newRate - 1.0) < 0.02) {
+                newRate = 1.0;
+            }
+
+            // 2. 0.5 刻みにスナップ（0.5?3.0 の範囲に制限）
+            const step = 0.5;
+            newRate = Math.max(0.5, Math.min(3.0, Math.round(newRate / step) * step));
+
+            // 3. 最後に video と fullscreen へ送る
             if (video) {
                 video.playbackRate = newRate;
             }
