@@ -41,6 +41,12 @@ async function initializeDeviceSettings() {
     const uvcDevices = await getUVCDevicesForSettings();
     buildUvcAudioMappingUI(uvcDevices, devices.audioInputs, savedSettings?.uvcAudioBindings || {});
     
+    // 「Restore on next startup」チェックボックスの初期状態を反映
+    const restoreInput = document.getElementById('restoreOnStartup');
+    if (restoreInput) {
+        restoreInput.checked = savedSettings?.restoreOnStartup ?? false;
+    }
+    
     elements.okButton.addEventListener('click', () => saveSettings(elements));
 }
 
@@ -263,7 +269,8 @@ function saveSettings(elements) {
     const settings = {
         editAudioMonitorDevice: elements.editAudioSelect.value,
         onairAudioOutputDevice: elements.onairAudioSelect.value,
-        uvcAudioBindings: {}
+        uvcAudioBindings: {},
+        restoreOnStartup: false
     };
 
     const container = document.getElementById('uvcAudioMappingContainer');
@@ -276,6 +283,12 @@ function saveSettings(elements) {
                 settings.uvcAudioBindings[uvcId] = audioId;
             }
         });
+    }
+
+    // 「Restore on next startup」のチェック状態を反映
+    const restoreInput = document.getElementById('restoreOnStartup');
+    if (restoreInput) {
+        settings.restoreOnStartup = !!restoreInput.checked;
     }
 
     window.electronAPI.setDeviceSettings(settings);
