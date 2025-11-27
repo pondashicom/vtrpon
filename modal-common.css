@@ -1,4 +1,4 @@
-﻿/* devicesettings.css 2.4.7 */
+﻿/* devicesettings.css 2.4.8 */
 
 /* ------------------ */
 /*     共通スタイル      */
@@ -13,8 +13,10 @@ body {
 }
 
 /* ------------------ */
-/*   コンテナ（ウィンドウ全体） */
+/*   コンテナ         */
 /* ------------------ */
+
+/* ウィンドウ全体 */
 .container {
     background-color: #383838;
     padding: 20px;
@@ -23,6 +25,17 @@ body {
     max-width: 400px;
     margin: 0 auto;
     box-shadow: 0 0 2px rgba(128,128,128,0.5), 0 0 6px rgba(128,128,128,0.3);
+}
+
+/* UVC AUDIO MAPPING 用スクロール領域 */
+#uvcAudioMappingContainer {
+    background-color: #444444;
+    padding: 20px;
+    border-radius: 5px;
+    max-height: 210px;   /* UVC デバイスが 4 台前後見える高さを想定 */
+    overflow-y: auto;    /* この領域だけ縦スクロール */
+    margin-top: 8px;
+    padding-right: 4px;  /* スクロールバーぶんの余白 */
 }
 
 /* ------------------ */

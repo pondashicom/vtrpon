@@ -1226,7 +1226,7 @@ function createAtemSettingsWindow() {
 function createDeviceSettingsWindow() {
     deviceSettingsWindow = new BrowserWindow({
         width: 500,
-        height: 600,
+        height: 630,
         title: 'Device Settings',
         parent: mainWindow, // メインウィンドウを親に設定
         modal: true,
