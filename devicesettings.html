@@ -6,30 +6,32 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
     <title>Device Settings</title>
     <link rel="stylesheet" href="modal-common.css">
+    <script src="labels.js"></script>
+    <script src="labelManager.js" defer></script>
     <script src="devicesettings.js" defer></script>
 </head>
 <body>
     <div class="container">
 
         <!-- デバイス列挙中に表示するローディングメッセージ -->
-        <div id="deviceLoadingMessage" class="device-loading-message">
+        <div id="deviceLoadingMessage" class="device-loading-message" data-label-id="device-loading-message">
             Device Loading...
         </div>
 
-        <h3>AUDIO</h3>
-        <label for="editAudioMonitorDevice">PFL AUDIO MONITOR DEVICE</label>
+        <h3 data-label-id="audio-section-title">AUDIO</h3>
+        <label for="editAudioMonitorDevice" data-label-id="edit-audio-monitor-label">PFL AUDIO MONITOR DEVICE</label>
         <select id="editAudioMonitorDevice"></select>
         
-        <label for="onairAudioOutputDevice">ONAIR AUDIO OUTPUT DEVICE</label>
+        <label for="onairAudioOutputDevice" data-label-id="onair-audio-output-label">ONAIR AUDIO OUTPUT DEVICE</label>
         <select id="onairAudioOutputDevice"></select>
 
-        <h3>UVC AUDIO MAPPING</h3>
+        <h3 data-label-id="uvc-audio-mapping-title">UVC AUDIO MAPPING</h3>
         <div id="uvcAudioMappingContainer"></div>
 
         <div class="field-col">
             <label for="restoreOnStartup">
                 <input type="checkbox" id="restoreOnStartup" />
-                Restore on next startup
+                <span data-label-id="restore-on-startup-label">Restore on next startup</span>
             </label>
         </div>
     </div>

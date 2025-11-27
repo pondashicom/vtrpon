@@ -1,4 +1,4 @@
-﻿<!-- recordingSettings.html ver2.4.7 -->
+﻿<!-- recordingSettings.html ver2.4.8 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -7,26 +7,28 @@
         content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
   <title>Recording Settings</title>
   <link rel="stylesheet" href="modal-common.css">
+  <script src="labels.js"></script>
+  <script src="labelManager.js" defer></script>
   <script src="recordingSettings.js" defer></script>
 </head>
 <body>
   <div class="container">
-    <h3>RECORDING</h3>
+    <h3 data-label-id="recording-section-title">RECORDING</h3>
     <!-- Recording Quality -->
     <div class="field-col">
-        <label for="recordingQualitySelect">RECORDING QUALITY</label>
+        <label for="recordingQualitySelect" data-label-id="recording-quality-label">RECORDING QUALITY</label>
     </div>
     <div class="field-col">
         <select id="recordingQualitySelect">
-            <option value="10000000">HIGH QUALITY (10Mbps)</option>
-            <option value="8000000" selected>STANDARD (8Mbps)</option>
-            <option value="6000000">PERFORMANCE (6Mbps)</option>
+            <option value="10000000" data-label-id="recording-quality-high">HIGH QUALITY (10Mbps)</option>
+            <option value="8000000" selected data-label-id="recording-quality-standard">STANDARD (8Mbps)</option>
+            <option value="6000000" data-label-id="recording-quality-performance">PERFORMANCE (6Mbps)</option>
         </select>
     </div>
 
     <!-- File Name Prefix -->
     <div class="field-col">
-      <label for="recordingPrefixInput">FILE NAME PREFIX</label>
+      <label for="recordingPrefixInput" data-label-id="recording-filename-prefix-label">FILE NAME PREFIX</label>
     </div>
     <div class="field-col">
       <input type="text" id="recordingPrefixInput">
@@ -34,18 +36,18 @@
 
     <!-- Save Directory -->
     <div class="field-col">
-      <label for="recordingDirInput">SAVE DIRECTORY</label>
+      <label for="recordingDirInput" data-label-id="recording-save-directory-label">SAVE DIRECTORY</label>
     </div>
     <div class="field-col">
       <div class="dir-input-row">
         <input type="text" id="recordingDirInput" readonly>
-        <button id="browseButton">BROWSE...</button>
+        <button id="browseButton" data-label-id="recording-browse-button">BROWSE...</button>
       </div>
     </div>
   </div>
     <!-- OK ボタン -->
     <div class="modal-button-row">
-      <button id="okButton">OK</button>
+      <button id="okButton" data-label-id="recording-ok-button">OK</button>
     </div>
 </body>
 </html>

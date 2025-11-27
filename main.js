@@ -1196,7 +1196,7 @@ function createAtemSettingsWindow() {
     }
     atemSettingsWindow = new BrowserWindow({
         width: 500,
-        height: 550,
+        height: 570,
         title: 'ATEM Connection',
         parent: mainWindow,
         modal: true,
@@ -1226,7 +1226,7 @@ function createAtemSettingsWindow() {
 function createDeviceSettingsWindow() {
     deviceSettingsWindow = new BrowserWindow({
         width: 500,
-        height: 630,
+        height: 650,
         title: 'Device Settings',
         parent: mainWindow, // メインウィンドウを親に設定
         modal: true,
@@ -1326,7 +1326,7 @@ ipcMain.handle('get-device-settings', () => {
 function createRecordingSettingsWindow() {
   recordingSettingsWindow = new BrowserWindow({
     width: 500,
-    height: 400,
+    height: 420,
     title: 'Recording Settings',
     parent: mainWindow,
     modal: true,

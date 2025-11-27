@@ -6,6 +6,7 @@
 const labels = {
   "ja": {
 
+    // メニュー
     "menu-file": "ファイル",
     "menu-add-file": "ファイル追加",
     "menu-export-playlist": "プレイリストエクスポート",
@@ -63,11 +64,14 @@ const labels = {
     "menu-about": "バージョン情報",
     "menu-check-update": "アップデートの確認",
     "menu-readme": "Readme",
-    
+    "menu-reset-edit-area": "エディットエリアリセット",
+
+    // エリアタイトル
     "edit-title": "編集",
     "playlist-title": "プレイリスト",
     "on-air-title": "オンエアモニタリング",
-    
+
+    // エディット画面
     "in-point": "イン点",
     "out-point": "アウト点",
     "start-mode-title": "スタートモード",
@@ -94,6 +98,8 @@ const labels = {
     "dsk-button": "DSK",
     "fadeInDuration": "変換時間（秒）",
     "pptxDissolve": "ディゾルブ",
+
+    // プレイリスト画面
     "list-mode-title": "モード",
     "list-repeat-button": "全リピート",
     "list-list-button": "リストを一巡",
@@ -111,6 +117,8 @@ const labels = {
     "playliseclear-button": "クリア",
     "file-button": "ファイル追加",
     "cue-button": "オンエア",
+
+    // オンエア画面
     "on-air-item-fo-button": "F/O",
     "on-air-item-fi-button": "F/I",
     "on-air-fo-button": "F/O",
@@ -125,6 +133,8 @@ const labels = {
     "ftb-off-button": "FTB",
     "on-air-pause-button": "一時停止",
     "on-air-play-button": "再生",
+
+    // プレイリスト名モーダル
     "playlist-name-title": "プレイリスト名を入力してください",
     "playlist-name-save": "保存",
     "playlist-name-cancel": "キャンセル",
@@ -149,7 +159,38 @@ const labels = {
     "context-end-mode-ftb": "FTB",
     "context-copy-item-state": "アイテムの状態をコピー",
     "context-paste-item-state": "アイテムの状態をペースト",
-    "menu-reset-edit-area": "エディットエリアリセット"
+
+    // デバイス設定
+    "device-settings-title": "デバイス設定",
+    "device-loading-message": "デバイスを読み込み中...",
+    "audio-section-title": "オーディオ",
+    "edit-audio-monitor-label": "PFL オーディオモニターデバイス",
+    "onair-audio-output-label": "オンエアオーディオ出力デバイス",
+    "uvc-audio-mapping-title": "UVC オーディオマッピング",
+    "restore-on-startup-label": "次回起動時にこの設定を復元",
+
+    // 録画設定
+    "recording-settings-title": "録画設定",
+    "recording-section-title": "録画設定",
+    "recording-quality-label": "録画品質",
+    "recording-quality-high": "高画質 (10Mbps)",
+    "recording-quality-standard": "標準画質 (8Mbps)",
+    "recording-quality-performance": "性能優先 (6Mbps)",
+    "recording-filename-prefix-label": "ファイル名プレフィックス",
+    "recording-save-directory-label": "保存先フォルダー",
+    "recording-browse-button": "参照...",
+    "recording-ok-button": "OK",
+
+    // ATEM設定
+    "atem-settings-title": "ATEM 接続設定",
+    "atem-control-enable": "VTR-PON から ATEM を制御",
+    "atem-auto-switch-enable": "ATEM から VTR-PON を制御",
+    "atem-ip-address-label": "IP アドレス",
+    "atem-input-number-label": "ATEMにVTR-PONを入力している番号",
+    "atem-switch-delay-label": "切り替えディレイ (ms)",
+    "atem-restore-on-startup-label": "次回起動時にこの設定を復元",
+    "atem-save-button": "保存",
+    "atem-cancel-button": "キャンセル"
   },
   "en": {
 
@@ -300,7 +341,35 @@ const labels = {
     "context-copy-item-state": "Copy Item State",
     "context-paste-item-state": "Paste Item State",
 
-    "menu-reset-edit-area": "Reset Edit Area"
+    "menu-reset-edit-area": "Reset Edit Area",
+    "device-settings-title": "Device Settings",
+    "device-loading-message": "Device Loading...",
+    "audio-section-title": "Audio",
+    "edit-audio-monitor-label": "PFL Audio Monitor Device",
+    "onair-audio-output-label": "On-Air Audio Output Device",
+    "uvc-audio-mapping-title": "UVC Audio Mapping",
+    "restore-on-startup-label": "Restore on next startup",
+
+    "recording-settings-title": "Recording Settings",
+    "recording-section-title": "Recording",
+    "recording-quality-label": "Recording Quality",
+    "recording-quality-high": "High Quality (10Mbps)",
+    "recording-quality-standard": "Standard (8Mbps)",
+    "recording-quality-performance": "Performance (6Mbps)",
+    "recording-filename-prefix-label": "File Name Prefix",
+    "recording-save-directory-label": "Save Directory",
+    "recording-browse-button": "Browse...",
+    "recording-ok-button": "OK",
+
+    "atem-settings-title": "ATEM Connection",
+    "atem-control-enable": "Control ATEM from VTR-PON",
+    "atem-auto-switch-enable": "Control VTR-PON from ATEM",
+    "atem-ip-address-label": "IP Address",
+    "atem-input-number-label": "VTR-PON Input Number",
+    "atem-switch-delay-label": "Switch Delay (ms)",
+    "atem-restore-on-startup-label": "Restore on next startup",
+    "atem-save-button": "Save",
+    "atem-cancel-button": "Cancel"
   }
 };
 
