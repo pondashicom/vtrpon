@@ -24,9 +24,10 @@ async function initializeDeviceSettings() {
 
     // enumerateDevices の前に一度だけ権限を確保（label/deviceId の安定化、NDI仮想マイクの列挙目的）
     try {
-        const tmp = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        // 映像は開かず、音声デバイスだけ権限ウォームアップすることで起動を軽くする
+        const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
         tmp.getTracks().forEach(t => t.stop());
-        logDebug('[devicesettings.js] Media permissions warmed up for device enumeration.');
+        logDebug('[devicesettings.js] Media permissions warmed up for device enumeration (audio only).');
     } catch (e) {
         logDebug('[devicesettings.js] Media permission warm-up skipped/failed:', e);
     }
@@ -45,6 +46,12 @@ async function initializeDeviceSettings() {
     const restoreInput = document.getElementById('restoreOnStartup');
     if (restoreInput) {
         restoreInput.checked = savedSettings?.restoreOnStartup ?? false;
+    }
+
+    // デバイスの読み込みが一通り完了したのでローディングメッセージを消す
+    const loadingMessage = document.getElementById('deviceLoadingMessage');
+    if (loadingMessage) {
+        loadingMessage.style.display = 'none';
     }
     
     elements.okButton.addEventListener('click', () => saveSettings(elements));

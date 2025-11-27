@@ -354,3 +354,15 @@ button:active {
 .dir-input-row button {
     margin-top: 0;
 }
+
+/* ------------------ */
+/*  デバイスローディング表示 */
+/* ------------------ */
+.device-loading-message {
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    background-color: #444444;
+    border-radius: 4px;
+    font-size: 0.8em;
+    text-align: center;
+}
