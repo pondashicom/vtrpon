@@ -363,7 +363,12 @@ function buildMenuTemplate(labels) {
                 if (global.currentLanguage === 'en') return;
 
                 global.currentLanguage = 'en';
-                saveConfig({ language: 'en' });
+
+                // 既存の設定を保持したまま language だけ更新
+                const cfg = loadConfig();
+                cfg.language = 'en';
+                saveConfig(cfg);
+
                 BrowserWindow.getAllWindows().forEach(win => {
                   win.webContents.send('language-changed', 'en');
                 });
@@ -379,7 +384,12 @@ function buildMenuTemplate(labels) {
                 if (global.currentLanguage === 'ja') return;
 
                 global.currentLanguage = 'ja';
-                saveConfig({ language: 'ja' });
+
+                // 既存の設定を保持したまま language だけ更新
+                const cfg = loadConfig();
+                cfg.language = 'ja';
+                saveConfig(cfg);
+
                 BrowserWindow.getAllWindows().forEach(win => {
                   win.webContents.send('language-changed', 'ja');
                 });
