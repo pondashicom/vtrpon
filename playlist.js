@@ -1495,7 +1495,9 @@ async function handlePlaylistItemClick(item, index) {
         // UVCデバイスの場合はエディットエリアに送らない
         if (selectedItem && (selectedItem.endMode === "UVC" || (typeof selectedItem.path === 'string' && selectedItem.path.startsWith("UVC_DEVICE")))) {
             logInfo(`[playlist.js] UVC device "${selectedItem.name}" selected. Skipping edit area update.`);
-            showMessage(getMessage('uvc-devices-cannot-be-edited'), 5000, 'info');
+            showMessage(getMessage('uvc-devices-cannot-be-edited'), 10000, 'info');
+            // エディットエリアをクリア
+            window.electronAPI.updateEditState(null);
             return;
         }
 
