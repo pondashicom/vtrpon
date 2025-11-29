@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.4.8
+//     ver 2.5.0
 // -----------------------
 
 const labels = {
@@ -65,6 +65,9 @@ const labels = {
     "menu-check-update": "アップデートの確認",
     "menu-readme": "Readme",
     "menu-reset-edit-area": "エディットエリアリセット",
+    "menu-tools-generate-smpte-bars": "SMPTEカラーバー",
+    "menu-tools-generate-checker": "カラーチェッカーボード",
+    "menu-tools-generate-1khz-tone": "1kHzテストトーン",
 
     // エリアタイトル
     "edit-title": "編集",
@@ -251,6 +254,9 @@ const labels = {
     "menu-about": "About",
     "menu-check-update": "Check Update",
     "menu-readme": "Readme",
+    "menu-tools-generate-smpte-bars": "Generate SMPTE color bars",
+    "menu-tools-generate-checker": "Generate color checkerboard",
+    "menu-tools-generate-1khz-tone": "Generate 1kHz test tone",
     
     "edit-title": "EDIT",
     "playlist-title": "PLAYLIST",

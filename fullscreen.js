@@ -1499,12 +1499,6 @@ let fullscreenMediaDest = null;
 let fullscreenLingerTimerId = null; // 音量測定停止の遅延用タイマー
 setupFullscreenAudio.initialized = false; // 音声初期化フラグ
 
-// 削除したはずのフラグ（念のため残す
-// let fullscreenAnalyser = null;
-// let animationFrameId = null;
-// let isDualMonoApplied = false;
-// let isMeterDualMono = false;
-
 // 音声初期化：analyser は常に原音 L/R を計測。mono 時の出力のみ dual-mono。
 function setupFullscreenAudio(videoElement) {
     const audioContext = FullscreenAudioManager.getContext();

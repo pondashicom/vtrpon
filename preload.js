@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.4.1
+//     ver 2.5.0
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -336,7 +336,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ----------------------------
     onInfoMessage: (callback) => ipcRenderer.on('info-message', (event, key) => callback(key)),
 
+    // ------------------------------
+    //    テストパターン生成関連
+    // ------------------------------
+    onGenerateTestPattern: (callback) => {
+        ipcRenderer.on('tools-generate-testpattern', (event, payload) => {
+            if (typeof callback === 'function') {
+                callback(payload);
+            }
+        });
+    },
 
+    execFFmpeg: (args) => ipcRenderer.invoke('exec-ffmpeg', args),
     // ------------------------------
     //    時刻同期
     // ------------------------------

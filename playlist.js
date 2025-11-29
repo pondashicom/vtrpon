@@ -4370,6 +4370,27 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
+
+// -----------------
+//     API
+//------------------
+
+window.playlistAPI = {
+    addFilesFromPaths: async (paths) => {
+        if (!Array.isArray(paths) || paths.length === 0) {
+            logInfo('[playlist.js] playlistAPI.addFilesFromPaths called with empty paths.');
+            return;
+        }
+        const files = paths.map((p) => ({
+            path: p,
+            name: window.electronAPI.path.basename(p),
+        }));
+
+        logOpe(`[playlist.js] playlistAPI.addFilesFromPaths called. count=${files.length}`);
+        enqueueImport(files);
+    },
+};
+
 // ----------------------//
 //     初期化実行        //
 //-----------------------//

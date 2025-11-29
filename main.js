@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.4.8
+//     ver 2.5.0
 // -----------------------
 
 // ---------------------
@@ -742,9 +742,35 @@ function buildMenuTemplate(labels) {
               mainWindow.webContents.send('sync-time');
             }
           }
+        },
+        { type: 'separator' },
+        {
+          label: labels["menu-tools-generate-smpte-bars"],
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('tools-generate-testpattern', { type: 'smpte' });
+            }
+          }
+        },
+        {
+          label: labels["menu-tools-generate-checker"],
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('tools-generate-testpattern', { type: 'checker' });
+            }
+          }
+        },
+        {
+          label: labels["menu-tools-generate-1khz-tone"],
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('tools-generate-testpattern', { type: 'tone' });
+            }
+          }
         }
       ]
     },
+
     {
       label: labels["menu-help"],
       submenu: [
