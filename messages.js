@@ -1,7 +1,7 @@
 ﻿
 // -----------------------
 //     messages.js
-//     ver 2.4.8
+//     ver 2.5.0
 // -----------------------
 
 const messages = {
@@ -34,6 +34,7 @@ const messages = {
     "failed-to-import-playlist": "プレイリストのインポートに失敗しました.",
     "playlists-imported-successfully": "プレイリストが正常にインポートされました。",
     "files-not-found": "以下のファイルが見つかりませんでした:",
+    "playlist-importing-cannot-edit": "プレイリスト読み込み中は編集できません。",
     "repeat-mode-activated": "リピートモードが有効になりました: 各アイテムのスタートモードと、エンドモードが変更されました。",
     "list-mode-activated": "リストモードが有効になりました: 各アイテムのスタートモードと、エンドモードが変更されました。",
     "sound-pad-on-air-triggered": "SOUND PAD On-Airがトリガーされました。アイテム:",
@@ -83,6 +84,7 @@ const messages = {
     "failed-to-export-playlist": "Failed to export playlist",
     "failed-to-import-playlist": "Failed to import playlist.",
     "playlists-imported-successfully": "Playlists successfully imported",
+    "playlist-importing-cannot-edit": "You cannot edit items while playlist import is in progress.",
     "files-not-found": "The following files were not found:",
     "repeat-mode-activated": "Repeat mode activated.",
     "list-mode-activated": "List mode activated.",

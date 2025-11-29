@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.4.8
+//     ver 2.5.0
 // -----------------------
 
 
@@ -1073,6 +1073,7 @@ function renderPlaylistItem(file, index) {
         // プレイリスト読み込み中は編集禁止
         if (isImporting) {
             logInfo('[playlist.js] Playlist is currently importing. Context menu actions are disabled.');
+            showMessage(getMessage('playlist-importing-cannot-edit'), 5000, 'info');
             return;
         }
 
