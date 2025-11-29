@@ -1069,6 +1069,13 @@ function renderPlaylistItem(file, index) {
     // 右クリックコンテキストメニュー表示
     item.addEventListener('contextmenu', (event) => {
         event.preventDefault();
+
+        // プレイリスト読み込み中は編集禁止
+        if (isImporting) {
+            logInfo('[playlist.js] Playlist is currently importing. Context menu actions are disabled.');
+            return;
+        }
+
         logOpe(`[playlist.js] Playlist item contextmenu opened (index: ${index})`);
 
         // 右クリックでもアイテムを選択
