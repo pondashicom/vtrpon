@@ -180,6 +180,9 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
         }
     }
 
+    // 次ソース種別に応じて fullscreen-video のミュート状態を更新（入口で毎回判定）
+    applyMuteStateForNextSource(itemData);
+
     // いきなりresetせず、次の描画フレームで実施（オーバーレイ描画の確定を保証）
     requestAnimationFrame(() => {
         resetFullscreenState();
@@ -202,6 +205,18 @@ function isCurrentSourceUVC() {
     if (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE')) return true;
     if (globalState.deviceId && globalState.deviceId !== null) return true;
     return false;
+}
+
+// 次ソース種別に応じて fullscreen-video のミュート状態を更新
+function applyMuteStateForNextSource(itemData) {
+    const videoElement = document.getElementById('fullscreen-video');
+    if (!videoElement) return;
+
+    const shouldMute = isUVCItem(itemData);
+
+    videoElement.muted = shouldMute;
+
+    logDebug(`[fullscreen.js] applyMuteStateForNextSource: isUVC=${shouldMute}, muted=${videoElement.muted}`);
 }
 
 // --------------------------------------------
