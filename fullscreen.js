@@ -1473,10 +1473,11 @@ function handleEndModeREPEAT() {
         logInfo('[fullscreen.js] Video element not found. Cannot handle REPEAT mode.');
         return;
     }
+    captureLastFrameAndHoldUntilNextReady(true);
 
     globalState.repeatFlag = true; 
     logInfo('[fullscreen.js] End Mode: REPEAT - Setting repeat flag and restarting playback.');
-
+    
     handleStartMode();
 }
 
