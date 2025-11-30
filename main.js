@@ -2239,16 +2239,31 @@ ipcMain.handle('saveBlobToFile', async (event, arrayBuffer, fileName) => {
 // 時間のフォーマット
 // ---------------------------------
 
-// 時間を hh:mm:ss 形式にフォーマットする関数
+// 時間を hh:mm:ss.xx 形式にフォーマットする関数
 function formatDuration(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    const fractionalSeconds = (seconds % 1).toFixed(2).substring(1); // 小数部分 ".xx" を取得
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}${fractionalSeconds}`;
+    // 不正値ガード
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) {
+        seconds = 0;
+    }
+
+    // 1/100秒単位に「切り捨て」して整数化（実尺より長くならない）
+    const totalCentiseconds = Math.floor(seconds * 100); // 例: 43.529 → 4352 (43.52s)
+
+    const h = Math.floor(totalCentiseconds / (3600 * 100));
+    const m = Math.floor((totalCentiseconds % (3600 * 100)) / (60 * 100));
+    const s = Math.floor((totalCentiseconds % (60 * 100)) / 100);
+    const cs = totalCentiseconds % 100; // centiseconds (0?99)
+
+    // hh:mm:ss.xx 形式で返す
+    return (
+        String(h).padStart(2, '0') + ':' +
+        String(m).padStart(2, '0') + ':' +
+        String(s).padStart(2, '0') + '.' +
+        String(cs).padStart(2, '0')
+    );
 }
 
-// フレーム対応の時間フォーマット関数
+// フレーム対応の時間フォーマット関数（変更なし）
 function formatTimeWithFrames(seconds, fps) {
     const totalFrames = Math.round(seconds * fps); // 総フレーム数を計算
     const h = Math.floor(totalFrames / (3600 * fps));

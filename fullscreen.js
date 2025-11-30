@@ -1080,15 +1080,28 @@ function monitorVideoPlayback() {
     // 監視を開始
     clearInterval(playbackMonitor);
     playbackMonitor = setInterval(() => {
-        if (!globalState.outPoint || globalState.outPoint <= 0) {
+        const duration = (typeof videoElement.duration === 'number' && !Number.isNaN(videoElement.duration) && videoElement.duration > 0)
+            ? videoElement.duration
+            : null;
+
+        let effectiveOutPoint = globalState.outPoint;
+
+        // duration が取れていて、OUT点が 0 以下または duration より長い場合は duration を優先
+        if (duration !== null && (!effectiveOutPoint || effectiveOutPoint <= 0 || effectiveOutPoint > duration)) {
+            effectiveOutPoint = duration;
+        }
+
+        if (!effectiveOutPoint || effectiveOutPoint <= 0) {
             logDebug('[fullscreen.js] Invalid OUT point. Stopping playback monitor.');
             clearInterval(playbackMonitor);
             playbackMonitor = null;
             return;
         }
 
-        if (videoElement.currentTime >= globalState.outPoint) {
-            logInfo(`[fullscreen.js] OUT point reached: ${globalState.outPoint}s`);
+        const currentTime = videoElement.currentTime;
+
+        if (currentTime >= effectiveOutPoint || videoElement.ended) {
+            logInfo(`[fullscreen.js] OUT point reached: ${effectiveOutPoint}s (currentTime=${currentTime.toFixed(2)}s, duration=${duration !== null ? duration.toFixed(2) : 'N/A'})`);
             clearInterval(playbackMonitor);
             stopVolumeMeasurement();
             playbackMonitor = null;
@@ -1096,6 +1109,13 @@ function monitorVideoPlayback() {
         }
     }, 100);
 }
+
+function stopMonitoringPlayback() {
+    clearInterval(playbackMonitor);
+    playbackMonitor = null;
+    logInfo('[fullscreen.js] Playback monitoring stopped.');
+}
+
 
 function stopMonitoringPlayback() {
     clearInterval(playbackMonitor);

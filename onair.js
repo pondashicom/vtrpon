@@ -1489,9 +1489,33 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
             return;
         }
 
-        const remainingTime = outPoint - onairVideoElement.currentTime;
+        const currentTime = onairVideoElement.currentTime;
 
-        if (remainingTime <= completionTolerance) {
+        // 実際の動画の尺（取得できる場合）
+        const duration = (typeof onairVideoElement.duration === 'number'
+            && !Number.isNaN(onairVideoElement.duration)
+            && onairVideoElement.duration > 0)
+            ? onairVideoElement.duration
+            : null;
+
+        // 実際の尺とOUT点から「有効なOUT点」を決定
+        let effectiveOutPoint = outPoint;
+        if (duration !== null) {
+            if (!effectiveOutPoint || effectiveOutPoint <= 0 || effectiveOutPoint > duration) {
+                // OUT未指定 or durationを超えている場合は、実際の尺を優先
+                effectiveOutPoint = duration;
+            }
+        }
+
+        const remainingTime = effectiveOutPoint - currentTime;
+        const remainingByDuration = (duration !== null) ? (duration - currentTime) : remainingTime;
+
+        // 実際の動画終了との誤差吸収
+        if (
+            remainingTime <= completionTolerance ||
+            remainingByDuration <= completionTolerance ||
+            onairVideoElement.ended
+        ) {
             clearInterval(onairPlaybackMonitor);
             handleRemainingTimeTimerComplete();
             return;
@@ -1567,10 +1591,10 @@ function onairMonitorPlayback(onairVideoElement, outPoint) {
             logDebug(`[onair.js] Pre-FTB started: remaining=${remainingTime.toFixed(2)}s, duration=${fadeDur.toFixed(2)}s`);
         }
 
-        // 残り時間タイマー更新
+        // 残り時間タイマー更新（有効なOUT点を基準に表示）
         onairUpdateRemainingTime(onairGetElements(), {
-            outPoint,
-            currentTime: onairVideoElement.currentTime,
+            outPoint: effectiveOutPoint,
+            currentTime,
         });
     }, 30); // 更新間隔は負荷が高いため後日要調整
 
