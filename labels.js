@@ -65,8 +65,11 @@ const labels = {
     "menu-check-update": "アップデートの確認",
     "menu-readme": "Readme",
     "menu-reset-edit-area": "エディットエリアリセット",
+    "menu-tools-testpattern": "テストパターン",
     "menu-tools-generate-smpte-bars": "SMPTEカラーバー",
     "menu-tools-generate-checker": "カラーチェッカーボード",
+    "menu-tools-generate-grid": "グリッド",
+    "menu-tools-generate-gray": "グレースケール",
     "menu-tools-generate-1khz-tone": "1kHzテストトーン",
 
     // エリアタイトル
@@ -254,10 +257,13 @@ const labels = {
     "menu-about": "About",
     "menu-check-update": "Check Update",
     "menu-readme": "Readme",
+    "menu-tools-testpattern": "Test pattern",
     "menu-tools-generate-smpte-bars": "SMPTE color bars",
     "menu-tools-generate-checker": "Color checkerboard",
+    "menu-tools-generate-grid": "Grid",
+    "menu-tools-generate-gray": "Grayscale",
     "menu-tools-generate-1khz-tone": "1kHz test tone",
-    
+
     "edit-title": "EDIT",
     "playlist-title": "PLAYLIST",
     "on-air-title": "ON AIR",

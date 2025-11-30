@@ -114,6 +114,14 @@ function buildTestPatternInfo(type) {
             return {
                 path: 'assets/video/colorchecker_1080p30_1kHz_-18dBFS_20s.mp4'
             };
+        case 'grid':
+            return {
+                path: 'assets/video/grid_1080p30_1kHz_-18dBFS_20s.mp4'
+            };
+        case 'gray':
+            return {
+                path: 'assets/video/grayramp_1080p30_1kHz_-18dBFS_20s.mp4'
+            };
         case 'tone':
             return {
                 path: 'assets/video/testtone_1kHz_-18dBFS_20s.wav'
@@ -122,3 +130,4 @@ function buildTestPatternInfo(type) {
             return null;
     }
 }
+

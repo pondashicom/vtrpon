@@ -746,28 +746,49 @@ function buildMenuTemplate(labels) {
         },
         { type: 'separator' },
         {
-          label: labels["menu-tools-generate-smpte-bars"],
-          click: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('tools-generate-testpattern', { type: 'smpte' });
+          label: labels["menu-tools-testpattern"],
+          submenu: [
+            {
+              label: labels["menu-tools-generate-smpte-bars"],
+              click: () => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('tools-generate-testpattern', { type: 'smpte' });
+                }
+              }
+            },
+            {
+              label: labels["menu-tools-generate-checker"],
+              click: () => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('tools-generate-testpattern', { type: 'checker' });
+                }
+              }
+            },
+            {
+              label: labels["menu-tools-generate-grid"],
+              click: () => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('tools-generate-testpattern', { type: 'grid' });
+                }
+              }
+            },
+            {
+              label: labels["menu-tools-generate-gray"],
+              click: () => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('tools-generate-testpattern', { type: 'gray' });
+                }
+              }
+            },
+            {
+              label: labels["menu-tools-generate-1khz-tone"],
+              click: () => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('tools-generate-testpattern', { type: 'tone' });
+                }
+              }
             }
-          }
-        },
-        {
-          label: labels["menu-tools-generate-checker"],
-          click: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('tools-generate-testpattern', { type: 'checker' });
-            }
-          }
-        },
-        {
-          label: labels["menu-tools-generate-1khz-tone"],
-          click: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('tools-generate-testpattern', { type: 'tone' });
-            }
-          }
+          ]
         }
       ]
     },
