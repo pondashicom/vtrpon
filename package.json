@@ -56,6 +56,12 @@
           "**/node_modules/ffmpeg-static/**",
           "**/node_modules/ffprobe-static/**"
         ],
+        "extraResources": [
+          {
+            "from": "assets",
+            "to": "assets"
+          }
+        ],
         "npmRebuild": false
     }
 }

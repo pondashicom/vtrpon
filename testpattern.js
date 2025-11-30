@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ------------------------------
-// テストパターンメニューハンドラ
+// テストパターン追加処理
 // ------------------------------
 async function handleTestPatternRequest(type) {
     if (!type) {
@@ -42,7 +42,7 @@ async function handleTestPatternRequest(type) {
 
     if (isAddingTestPattern) {
         if (typeof tpLogDebug === 'function') {
-            tpLogDebug('[testpattern.js] Another test pattern addition is already in progress.');
+            tpLogDebug(`[testpattern.js] Test pattern add is already in progress. type=${type}`);
         }
         return;
     }
@@ -53,47 +53,44 @@ async function handleTestPatternRequest(type) {
         const info = buildTestPatternInfo(type);
         if (!info || !info.path) {
             if (typeof tpLogInfo === 'function') {
-                tpLogInfo(`[testpattern.js] Unknown test pattern type: ${type}`);
+                tpLogInfo(`[testpattern.js] Unsupported test pattern type: ${type}`);
             }
             return;
+        }
+
+        const playlistAPI =
+            (window.playlistAPI && typeof window.playlistAPI.addFilesFromPaths === 'function')
+                ? window.playlistAPI
+                : (window.electronAPI &&
+                   window.electronAPI.playlistAPI &&
+                   typeof window.electronAPI.playlistAPI.addFilesFromPaths === 'function')
+                    ? window.electronAPI.playlistAPI
+                    : null;
+
+        if (!playlistAPI) {
+            console.error('[testpattern.js] playlistAPI.addFilesFromPaths is not available.');
+            return;
+        }
+
+        const paths = [info.path];
+        const result = playlistAPI.addFilesFromPaths(paths);
+
+        // Promise が返ってきた場合のみ待機
+        if (result && typeof result.then === 'function') {
+            await result;
         }
 
         if (typeof tpLogOpe === 'function') {
-            tpLogOpe(`[testpattern.js] Adding test pattern to playlist. type=${type}, file=${info.path}`);
+            tpLogOpe(`[testpattern.js] Test pattern added to playlist. type=${type}, path=${info.path}`);
         }
-
-        if (!window.playlistAPI || typeof window.playlistAPI.addFilesFromPaths !== 'function') {
-            if (typeof tpLogInfo === 'function') {
-                tpLogInfo('[testpattern.js] window.playlistAPI.addFilesFromPaths is not available.');
-            }
-            if (typeof showMessage === 'function') {
-                const msg = (typeof getMessage === 'function'
-                    ? getMessage('testpattern-playlist-not-ready')
-                    : 'Playlist module is not ready.');
-                showMessage(msg, 3000, 'alert');
-            }
-            return;
-        }
-
-        // プレイリスト側の公開 API
-        await window.playlistAPI.addFilesFromPaths([info.path]);
-
-        if (typeof showMessage === 'function') {
-            const msg = (typeof getMessage === 'function'
-                ? getMessage('testpattern-added-to-playlist')
-                : 'Test pattern added to playlist.');
-            showMessage(msg, 3000, 'info');
-        }
-    } catch (err) {
-        const message = (err && err.message) ? err.message : String(err);
+    } catch (error) {
+        console.error('[testpattern.js] Failed to add test pattern:', error);
         if (typeof tpLogInfo === 'function') {
-            tpLogInfo(`[testpattern.js] Failed to add test pattern: ${message}`);
-        }
-        if (typeof showMessage === 'function') {
-            const msg = (typeof getMessage === 'function'
-                ? getMessage('testpattern-add-failed')
-                : 'Failed to add test pattern.');
-            showMessage(msg, 5000, 'alert');
+            tpLogInfo(
+                `[testpattern.js] Failed to add test pattern: ${
+                    error && error.message ? error.message : String(error)
+                }`
+            );
         }
     } finally {
         isAddingTestPattern = false;
@@ -103,35 +100,45 @@ async function handleTestPatternRequest(type) {
 // ------------------------------
 // ファイルパス
 // ------------------------------
+
 function buildTestPatternInfo(type) {
-    // アプリ実行ディレクトリからの相対パスとして扱う
+    const pathApi = window.electronAPI && window.electronAPI.path;
+    const join = pathApi && typeof pathApi.join === 'function'
+        ? pathApi.join
+        : (...parts) => parts.join('/');
+
+    // ベースディレクトリ（開発時／ビルド版で切替）
+    let baseDir = 'assets/video';
+    if (window.electronAPI && typeof window.electronAPI.getTestPatternBaseDir === 'function') {
+        baseDir = window.electronAPI.getTestPatternBaseDir();
+    }
+
     switch (type) {
         case 'smpte':
             return {
-                path: 'assets/video/smpte_1080p30_1kHz_-18dBFS_20s.mp4'
+                path: join(baseDir, 'smpte_1080p30_1kHz_-18dBFS_20s.mp4')
             };
         case 'checker':
             return {
-                path: 'assets/video/colorchecker_1080p30_1kHz_-18dBFS_20s.mp4'
+                path: join(baseDir, 'colorchecker_1080p30_1kHz_-18dBFS_20s.mp4')
             };
         case 'grid':
             return {
-                path: 'assets/video/grid_1080p30_1kHz_-18dBFS_20s.mp4'
+                path: join(baseDir, 'grid_1080p30_1kHz_-18dBFS_20s.mp4')
             };
         case 'gray':
             return {
-                path: 'assets/video/grayramp_1080p30_1kHz_-18dBFS_20s.mp4'
+                path: join(baseDir, 'grayramp_1080p30_1kHz_-18dBFS_20s.mp4')
             };
         case 'pink':
             return {
-                path: 'assets/video/pinknoise_20s.wav'
+                path: join(baseDir, 'pinknoise_20s.wav')
             };
         case 'tone':
             return {
-                path: 'assets/video/testtone_1kHz_-18dBFS_20s.wav'
+                path: join(baseDir, 'testtone_1kHz_-18dBFS_20s.wav')
             };
         default:
             return null;
     }
 }
-
