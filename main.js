@@ -781,6 +781,14 @@ function buildMenuTemplate(labels) {
               }
             },
             {
+              label: labels["menu-tools-generate-pink"],
+              click: () => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('tools-generate-testpattern', { type: 'pink' });
+                }
+              }
+            },
+            {
               label: labels["menu-tools-generate-1khz-tone"],
               click: () => {
                 if (mainWindow && !mainWindow.isDestroyed()) {

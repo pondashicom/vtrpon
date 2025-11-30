@@ -122,6 +122,10 @@ function buildTestPatternInfo(type) {
             return {
                 path: 'assets/video/grayramp_1080p30_1kHz_-18dBFS_20s.mp4'
             };
+        case 'pink':
+            return {
+                path: 'assets/video/pinknoise_20s.wav'
+            };
         case 'tone':
             return {
                 path: 'assets/video/testtone_1kHz_-18dBFS_20s.wav'

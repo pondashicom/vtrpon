@@ -70,6 +70,7 @@ const labels = {
     "menu-tools-generate-checker": "カラーチェッカーボード",
     "menu-tools-generate-grid": "グリッド",
     "menu-tools-generate-gray": "グレースケール",
+    "menu-tools-generate-pink": "ピンクノイズ",
     "menu-tools-generate-1khz-tone": "1kHzテストトーン",
 
     // エリアタイトル
@@ -262,6 +263,7 @@ const labels = {
     "menu-tools-generate-checker": "Color checkerboard",
     "menu-tools-generate-grid": "Grid",
     "menu-tools-generate-gray": "Grayscale",
+    "menu-tools-generate-pink": "Pink noise",
     "menu-tools-generate-1khz-tone": "1kHz test tone",
 
     "edit-title": "EDIT",
