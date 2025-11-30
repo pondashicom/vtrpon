@@ -254,9 +254,9 @@ const labels = {
     "menu-about": "About",
     "menu-check-update": "Check Update",
     "menu-readme": "Readme",
-    "menu-tools-generate-smpte-bars": "Generate SMPTE color bars",
-    "menu-tools-generate-checker": "Generate color checkerboard",
-    "menu-tools-generate-1khz-tone": "Generate 1kHz test tone",
+    "menu-tools-generate-smpte-bars": "SMPTE color bars",
+    "menu-tools-generate-checker": "Color checkerboard",
+    "menu-tools-generate-1khz-tone": "1kHz test tone",
     
     "edit-title": "EDIT",
     "playlist-title": "PLAYLIST",

@@ -353,6 +353,13 @@ function buildMenuTemplate(labels) {
         },
         { type: 'separator' },
         {
+          label: labels["menu-tools-atem-connection"],
+          click: () => {
+            createAtemSettingsWindow();
+          }
+        },
+        { type: 'separator' },
+        {
           label: labels["menu-language"],
           submenu: [
             {
@@ -730,12 +737,6 @@ function buildMenuTemplate(labels) {
       label: labels["menu-tools"],
       submenu: [
         {
-          label: labels["menu-tools-atem-connection"],
-          click: () => {
-            createAtemSettingsWindow();
-          }
-        },
-        {
           label: 'Clock Sync',
           click: () => {
             if (mainWindow && !mainWindow.isDestroyed()) {
@@ -770,7 +771,6 @@ function buildMenuTemplate(labels) {
         }
       ]
     },
-
     {
       label: labels["menu-help"],
       submenu: [
