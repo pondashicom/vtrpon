@@ -236,8 +236,8 @@ function initUpdateCheck() {
                 ? `新しいバージョン (${latestInfo['Version']}) が利用可能です。`
                 : `A new version (${latestInfo['Version']}) is available.`,
             detail: global.currentLanguage === 'ja'
-                ? `リリース日: ${latestInfo['Release Date'] || '不明'}\n更新内容: ${updateDetails}`
-                : `Release Date: ${latestInfo['Release Date'] || 'Unknown'}\nUpdate Details: ${updateDetails}`
+                ? `リリース日: ${latestInfo['Release Date'] || '不明'}\n更新内容\n${updateDetails}`
+                : `Release Date: ${latestInfo['Release Date'] || 'Unknown'}\nUpdate Details\n${updateDetails}`
         };
 
         dialog.showMessageBox(mainWindow, options).then(result => {
