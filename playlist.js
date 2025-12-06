@@ -2473,18 +2473,26 @@ async function doExportPlaylist() {
             ? nameLabel.textContent.trim()
             : 'プレイリスト0';
 
-        // liveState 正規化
-        const normalizedLiveData = liveState.map(item => ({
-            ...item,
-            order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
-            startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
-            endMode: (item.endMode !== undefined && item.endMode !== null) ? item.endMode : "PAUSE",
-            bgColor: (item.bgColor !== undefined && item.bgColor !== null) ? item.bgColor : "default",
-            defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null) ? item.defaultVolume : 100,
-            ftbEnabled: item.ftbEnabled === true,
-            ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
-            startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
-        }));
+        // liveState 正規化（playlist0 はエクスポート時に新しい ID を振る）
+        const normalizedLiveData = liveState.map((item, index) => {
+            const normalized = {
+                ...item,
+                order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
+                startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
+                endMode: (item.endMode !== undefined && item.endMode !== null) ? item.endMode : "PAUSE",
+                bgColor: (item.bgColor !== undefined && item.bgColor !== null) ? item.bgColor : "default",
+                defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null) ? item.defaultVolume : 100,
+                ftbEnabled: item.ftbEnabled === true,
+                ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
+                startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
+            };
+
+            // playlist0 用にエクスポート時点で一意な ID を再採番
+            // 形式も他プレイリストと合わせて Date.now() + Math.random() にする
+            normalized.playlistItem_id = `${Date.now()}-${Math.random()}`;
+
+            return normalized;
+        });
 
         allPlaylists.push({
             index: 0,
