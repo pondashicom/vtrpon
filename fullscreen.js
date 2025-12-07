@@ -532,8 +532,7 @@ function handleOnAirData(itemData) {
 // ビデオプレーヤーに動画をセットする関数
 // ----------------------------------------
 function setupVideoPlayer() {
-    const videoElement = document.getElementById('fullscreen-video'); 
-
+    const videoElement = document.getElementById('fullscreen-video');
     if (!videoElement) {
         logInfo('[fullscreen.js] Video player element not found.');
         return;
@@ -568,6 +567,7 @@ function setupVideoPlayer() {
             const stream = videoElement.captureStream?.();
             const aTrack = stream && stream.getAudioTracks ? stream.getAudioTracks()[0] : null;
             const ch = aTrack && aTrack.getSettings ? (aTrack.getSettings().channelCount || 0) : 0;
+
             if (ch === 1) {
                 isMonoSource = true;
                 logInfo('[fullscreen.js] Detected mono source (channelCount=1). Will upmix to dual-mono.');
@@ -781,24 +781,15 @@ function handleStartMode() {
         }
         if (sm === 'PAUSE') {
             logInfo('[fullscreen.js] Repeat with startMode=PAUSE -> auto-play from IN on repeat.');
-
-            const initialVol = (typeof globalState.volume === 'number')
-                ? Math.max(0, Math.min(1, globalState.volume))
-                : (typeof globalState.defaultVolume === 'number'
-                    ? Math.max(0, Math.min(1, globalState.defaultVolume / 100))
-                    : 1);
-
+            const initialVol = (typeof globalState.volume === 'number') ? Math.max(0, Math.min(1, globalState.volume)) : (typeof globalState.defaultVolume === 'number' ? Math.max(0, Math.min(1, globalState.defaultVolume / 100)) : 1);
             videoElement.currentTime = globalState.inPoint;
-            videoElement.muted = true;
             videoElement.volume = initialVol;
-
             videoElement.play()
                 .then(() => {
                     startVolumeMeasurement();
                     logInfo('[fullscreen.js] Repeat playback started (PAUSE overridden to PLAY on repeat).');
                 })
                 .catch(error => logDebug(`[fullscreen.js] Repeat playback (PAUSE->PLAY) failed: ${error.message}`));
-
             monitorVideoPlayback();
             globalState.repeatFlag = false;
             return;
