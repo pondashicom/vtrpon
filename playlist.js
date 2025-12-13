@@ -1246,7 +1246,27 @@ function createStatusContainer(file) {
     const startVal = file.startMode;
 
     const baseEnd = file.endMode || 'OFF';
-    const endVal = file.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
+    let endVal = file.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
+
+    // REPEAT の場合は回数/終了後エンドモードを表示に含める
+    if (baseEnd === 'REPEAT') {
+        const rawCount = file.repeatCount;
+        const parsedCount = (Number.isFinite(Number(rawCount)) && Number(rawCount) >= 1)
+            ? Math.floor(Number(rawCount))
+            : undefined;
+        const countStr = (parsedCount !== undefined) ? String(parsedCount) : '∞';
+
+        const rawAfter = file.repeatEndMode;
+        const afterVal = (rawAfter === 'PAUSE' || rawAfter === 'OFF' || rawAfter === 'NEXT')
+            ? rawAfter
+            : '';
+
+        let repeatText = `REPEAT(${countStr})`;
+        if (parsedCount !== undefined && afterVal) {
+            repeatText += `→${afterVal}`;
+        }
+        endVal = file.ftbEnabled ? `FTB_${repeatText}` : repeatText;
+    }
 
     const statusList = [
         { label: 'START', value: startVal },
@@ -2108,6 +2128,8 @@ async function savePlaylist(storeNumber) {
                 ...item,
                 order: item.order,
                 playlistItem_id: item.playlistItem_id || `${playlist_id}-${item.order}`,
+                repeatCount: item.repeatCount,
+                repeatEndMode: item.repeatEndMode,
                 selectionState: "unselected",
                 editingState: null,
                 onAirState: null,
@@ -2485,6 +2507,8 @@ async function doExportPlaylist() {
                 ftbEnabled: item.ftbEnabled === true,
                 ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
                 startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
+                repeatCount: item.repeatCount,
+                repeatEndMode: item.repeatEndMode,
             };
 
             // playlist0 用にエクスポート時点で一意な ID を再採番
@@ -2520,6 +2544,8 @@ async function doExportPlaylist() {
                         ftbEnabled: item.ftbEnabled === true,
                         ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
                         startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
+                        repeatCount: item.repeatCount,
+                        repeatEndMode: item.repeatEndMode,
                     }));
 
                     allPlaylists.push({
@@ -2615,6 +2641,8 @@ async function doImportPlaylists() {
                         startMode: (file.startMode !== undefined && file.startMode !== null) ? file.startMode : "PAUSE",
                         endMode: (file.endMode !== undefined && file.endMode !== null) ? file.endMode : "PAUSE",
                         defaultVolume: (file.defaultVolume !== undefined && file.defaultVolume !== null) ? file.defaultVolume : 100,
+                        repeatCount: (Number.isFinite(Number(file.repeatCount)) && Number(file.repeatCount) >= 1) ? Math.floor(Number(file.repeatCount)) : undefined,
+                        repeatEndMode: (file.repeatEndMode === "PAUSE" || file.repeatEndMode === "OFF" || file.repeatEndMode === "NEXT") ? file.repeatEndMode : undefined,
                     };
 
                     // UVC デバイスサムネイル再生成
