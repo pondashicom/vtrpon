@@ -1783,6 +1783,14 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     accent-color: rgb(102, 205, 102);
 }
 
+#repeatInfinityLabel {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #bbb;
+    margin-left: 0.125rem;
+    line-height: 1;
+}
+
 /* placeholder */
 input#repeatCount::placeholder,
 input#repeatCount::-webkit-input-placeholder {

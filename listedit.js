@@ -38,6 +38,9 @@ function initializeEditArea() {
     const outPointButton = document.getElementById('out-point');
     const ftbRateInput = document.getElementById('ftbRate'); 
     const startFadeInInput = document.getElementById('startFadeInSec');
+    const repeatCountInput = document.getElementById('repeatCount');
+    const repeatInfinityCheckbox = document.getElementById('repeatInfinity');
+    const repeatEndModeSelect = document.getElementById('end-repeat-endmode-select');
 
     const startModeButtons = [
         document.getElementById('start-pause-button'),
@@ -160,6 +163,7 @@ function initializeEditArea() {
     setupFtbRate(ftbRateInput); 
     setupFtbRateListener(ftbRateInput);
     setupStartFadeInSecListener(startFadeInInput);
+    setupRepeatConfigControls(repeatCountInput, repeatInfinityCheckbox, repeatEndModeSelect);
     setupVolumeControl();
     setVideoLoadedState(false);
 }
@@ -271,6 +275,7 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
             updateStartModeButtons(startMode);
             updateEndModeButtons(endMode);
             updateFtbButton(!!currentItem?.ftbEnabled);
+            updateRepeatConfigUI();
 
             // 音量の復元処理
             const volumeSlider = document.getElementById('listedit-volume-slider');
@@ -315,12 +320,17 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
             const startFadeInInput = document.getElementById('startFadeInSec');
             updateStartFadeInSecUI(startFadeInInput);
 
+            // Repeat 回数・終了後エンドモードの UI を更新
+            const repeatCountInput = document.getElementById('repeatCount');
+            const repeatInfinityCheckbox = document.getElementById('repeatInfinity');
+            const repeatEndModeSelect = document.getElementById('end-repeat-endmode-select');
+            updateRepeatConfigUI(repeatCountInput, repeatInfinityCheckbox, repeatEndModeSelect);
+
             // INOUTマーカー位置を更新
             updateListeditSeekBarMarkers(inPoint, outPoint);
         });
     });
 }
-
 
 // INOUT状態の復元時にフォーマットされた時間を数値に変換
 function parseTime(timeString) {
@@ -340,6 +350,7 @@ function parseTime(timeString) {
 function setVideoLoadedState(loaded) {
     isVideoLoaded = loaded;
     updateUIForVideoState();
+    updateRepeatConfigUI();
 }
 
 // UIの状態を動画の読み込み状態に応じて更新する関数
@@ -1851,8 +1862,30 @@ function setupEndModeControls(videoElement) {
 
 // END MODEの状態を更新
 async function updateEndModeState(newMode) {
+
+    // 動画未ロード時は制御不可
+    if (!isVideoLoaded || !currentEditingItemId) {
+        updateRepeatConfigUI();
+        return;
+    }
+
     const playlist = await stateControl.getPlaylistState();
     logOpe('[listedit.js] updateEndModeState called with newMode:', newMode);
+
+    // REPEATに切り替えた最初のタイミングで、リピート設定のデフォルトを作る
+    if (newMode === 'REPEAT'
+        && typeof stateControl.getRepeatConfigForItem === 'function'
+        && typeof stateControl.setRepeatConfigForItem === 'function') {
+
+        const cfg = stateControl.getRepeatConfigForItem(currentEditingItemId);
+        const hasAnyConfig = !!cfg && (typeof cfg.repeatCount !== 'undefined' || typeof cfg.repeatEndMode !== 'undefined');
+
+        if (!hasAnyConfig) {
+            stateControl.setRepeatConfigForItem(currentEditingItemId, undefined, 'PAUSE');
+        } else if (typeof cfg.repeatEndMode === 'undefined') {
+            stateControl.setRepeatConfigForItem(currentEditingItemId, cfg.repeatCount, 'PAUSE');
+        }
+    }
 
     const updatedPlaylist = playlist.map(file => {
         if (file.playlistItem_id === currentEditingItemId) {
@@ -1865,6 +1898,7 @@ async function updateEndModeState(newMode) {
     });
     await stateControl.setPlaylistState(updatedPlaylist);
     updateEndModeButtons(newMode);
+    updateRepeatConfigUI();
     await validateFadeDurationConstraint();
 
     // 状態更新後通知
@@ -2137,6 +2171,219 @@ async function resetFadeParamsForCurrentItem() {
 
     logOpe('[listedit.js] Reset ftbRate and startFadeInSec to defaults (1.0).');
 }
+
+// --------------------------------
+//  REPEAT回数 / 指定回数終了時のエンドモード UI
+// --------------------------------
+
+let isRepeatConfigUIUpdating = false;
+
+function getRepeatConfigUIElements() {
+    return {
+        repeatCountInput: document.getElementById('repeatCount'),
+        repeatInfinityCheckbox: document.getElementById('repeatInfinity'),
+        repeatEndModeSelect: document.getElementById('end-repeat-endmode-select'),
+    };
+}
+
+function setupRepeatConfigControls(repeatCountInput, repeatInfinityCheckbox, repeatEndModeSelect) {
+    if (!repeatCountInput || !repeatInfinityCheckbox || !repeatEndModeSelect) {
+        return;
+    }
+
+    // 起動時ディフォルト：∞はOFF（リピートボタンを押した時にONへ）
+    repeatCountInput.value = '';
+    repeatInfinityCheckbox.checked = false;
+    repeatEndModeSelect.value = 'PAUSE';
+
+    // 未ロード時は操作不可
+    repeatCountInput.disabled = true;
+    repeatInfinityCheckbox.disabled = true;
+    repeatEndModeSelect.disabled = true;
+
+    repeatInfinityCheckbox.addEventListener('change', async () => {
+        if (isRepeatConfigUIUpdating) return;
+
+        // 未ロード・未選択時は制御不可
+        if (!isVideoLoaded || !currentEditingItemId) {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        const playlist = await stateControl.getPlaylistState();
+        const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+        if (!currentItem || currentItem.endMode !== 'REPEAT') {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        isRepeatConfigUIUpdating = true;
+        try {
+            const repeatEndMode = repeatEndModeSelect.value || 'PAUSE';
+
+            if (repeatInfinityCheckbox.checked) {
+                repeatCountInput.value = '';
+                repeatCountInput.disabled = true;
+                await stateControl.setRepeatConfigForItem(currentEditingItemId, undefined, repeatEndMode);
+                logOpe(`[listedit.js] Repeat config changed: infinity=ON, endMode=${repeatEndMode}`);
+            } else {
+                let val = parseInt(repeatCountInput.value, 10);
+                if (!Number.isFinite(val) || val < 1) val = 1;
+                repeatCountInput.value = String(val);
+                repeatCountInput.disabled = false;
+                await stateControl.setRepeatConfigForItem(currentEditingItemId, val, repeatEndMode);
+                logOpe(`[listedit.js] Repeat config changed: count=${val}, endMode=${repeatEndMode}`);
+            }
+        } finally {
+            isRepeatConfigUIUpdating = false;
+        }
+
+        window.electronAPI.notifyListeditUpdate();
+        updateRepeatConfigUI();
+    });
+
+    repeatCountInput.addEventListener('input', () => {
+        if (repeatCountInput.value === '') return;
+        const n = parseInt(repeatCountInput.value, 10);
+        if (Number.isFinite(n) && n >= 1) {
+            repeatInfinityCheckbox.checked = false;
+        }
+    });
+
+    repeatCountInput.addEventListener('change', async () => {
+        if (isRepeatConfigUIUpdating) return;
+
+        if (!isVideoLoaded || !currentEditingItemId) {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        const playlist = await stateControl.getPlaylistState();
+        const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+        if (!currentItem || currentItem.endMode !== 'REPEAT') {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        isRepeatConfigUIUpdating = true;
+        try {
+            const repeatEndMode = repeatEndModeSelect.value || 'PAUSE';
+            let val = parseInt(repeatCountInput.value, 10);
+
+            if (!Number.isFinite(val) || val < 1) {
+                // 数値が不正なら∞に戻す（排他）
+                repeatCountInput.value = '';
+                repeatInfinityCheckbox.checked = true;
+                repeatCountInput.disabled = true;
+                await stateControl.setRepeatConfigForItem(currentEditingItemId, undefined, repeatEndMode);
+            } else {
+                repeatInfinityCheckbox.checked = false;
+                repeatCountInput.value = String(val);
+                repeatCountInput.disabled = false;
+                await stateControl.setRepeatConfigForItem(currentEditingItemId, val, repeatEndMode);
+            }
+        } finally {
+            isRepeatConfigUIUpdating = false;
+        }
+
+        window.electronAPI.notifyListeditUpdate();
+        updateRepeatConfigUI();
+    });
+
+    repeatEndModeSelect.addEventListener('change', async () => {
+        if (isRepeatConfigUIUpdating) return;
+
+        if (!isVideoLoaded || !currentEditingItemId) {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        const playlist = await stateControl.getPlaylistState();
+        const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+        if (!currentItem || currentItem.endMode !== 'REPEAT') {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        isRepeatConfigUIUpdating = true;
+        try {
+            const repeatEndMode = repeatEndModeSelect.value || 'PAUSE';
+            let repeatCount = undefined;
+
+            if (!repeatInfinityCheckbox.checked) {
+                let val = parseInt(repeatCountInput.value, 10);
+                if (!Number.isFinite(val) || val < 1) val = 1;
+                repeatCountInput.value = String(val);
+                repeatCount = val;
+            } else {
+                repeatCountInput.value = '';
+            }
+
+            await stateControl.setRepeatConfigForItem(currentEditingItemId, repeatCount, repeatEndMode);
+        } finally {
+            isRepeatConfigUIUpdating = false;
+        }
+
+        window.electronAPI.notifyListeditUpdate();
+        updateRepeatConfigUI();
+    });
+
+    updateRepeatConfigUI();
+}
+
+async function updateRepeatConfigUI() {
+    const { repeatCountInput, repeatInfinityCheckbox, repeatEndModeSelect } = getRepeatConfigUIElements();
+    if (!repeatCountInput || !repeatInfinityCheckbox || !repeatEndModeSelect) return;
+    if (isRepeatConfigUIUpdating) return;
+
+    // 未ロード・未選択時は操作不可 + 起動時ディフォルト表示
+    if (!isVideoLoaded || !currentEditingItemId) {
+        repeatCountInput.value = '';
+        repeatInfinityCheckbox.checked = false;
+        repeatEndModeSelect.value = 'PAUSE';
+
+        repeatCountInput.disabled = true;
+        repeatInfinityCheckbox.disabled = true;
+        repeatEndModeSelect.disabled = true;
+        return;
+    }
+
+    const playlist = await stateControl.getPlaylistState();
+    const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+
+    // エンドモードがREPEAT以外は操作不可（表示はニュートラル）
+    if (!currentItem || currentItem.endMode !== 'REPEAT') {
+        repeatCountInput.value = '';
+        repeatInfinityCheckbox.checked = false;
+        repeatEndModeSelect.value = 'PAUSE';
+
+        repeatCountInput.disabled = true;
+        repeatInfinityCheckbox.disabled = true;
+        repeatEndModeSelect.disabled = true;
+        return;
+    }
+
+    const cfg = (typeof stateControl.getRepeatConfigForItem === 'function')
+        ? stateControl.getRepeatConfigForItem(currentEditingItemId)
+        : { repeatCount: undefined, repeatEndMode: undefined };
+
+    const repeatEndMode = cfg.repeatEndMode || 'PAUSE';
+    repeatEndModeSelect.value = repeatEndMode;
+
+    if (cfg.repeatCount === undefined || cfg.repeatCount === null) {
+        repeatInfinityCheckbox.checked = true;
+        repeatCountInput.value = '';
+        repeatCountInput.disabled = true;
+    } else {
+        repeatInfinityCheckbox.checked = false;
+        repeatCountInput.value = String(cfg.repeatCount);
+        repeatCountInput.disabled = false;
+    }
+
+    repeatInfinityCheckbox.disabled = false;
+    repeatEndModeSelect.disabled = false;
+}
+
 // --------------------------------
 //  キーボードショートカット
 // --------------------------------
@@ -2403,18 +2650,14 @@ window.electronAPI.onShortcutTrigger((_, action, payload) => {
 });
 
 // 右矢印キーによるエディットエリアリセット時に、プレイリストの選択状態も解除
-async function clearPlaylistSelection() {
-    const playlist = await stateControl.getPlaylistState();
-    const updatedPlaylist = playlist.map(item => ({
-        ...item,
-        selectionState: "unselected",
-        editingState: null
-    }));
-    await stateControl.setPlaylistState(updatedPlaylist);
-    logOpe('[listedit.js] Cleared playlist selection.');
+function clearPlaylistSelection() {
+    document.querySelectorAll('.playlist-item').forEach(item => {
+        item.classList.remove('selected');
+    });
 }
 
 // メニューからのショートカット通知
+
 window.electronAPI?.onShortcutTrigger((event, action) => {
     handleShortcutAction(action);
 });
