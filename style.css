@@ -1775,6 +1775,14 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     line-height: 1;
 }
 
+/* REPEAT 無限(∞)チェックボックスとラベル */
+#repeatInfinity {
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.25rem;
+    accent-color: rgb(102, 205, 102);
+}
+
 /* placeholder */
 input#repeatCount::placeholder,
 input#repeatCount::-webkit-input-placeholder {
