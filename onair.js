@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.5.0
+//     ver 2.5.1
 // -----------------------
 
 // -----------------------
@@ -689,6 +689,32 @@ function onairGetStateData(itemId) {
         return null;
     }
 
+    const prevState = onairCurrentState;
+
+    // REPEAT設定の取り込み（後方互換・未設定は∞扱い）
+    let repeatCount;
+    if (itemData.repeatCount !== undefined && itemData.repeatCount !== null) {
+        const parsed = parseInt(itemData.repeatCount, 10);
+        if (!isNaN(parsed) && parsed >= 1) {
+            repeatCount = parsed;
+        }
+    }
+
+    let repeatEndMode;
+    if (itemData.repeatEndMode === 'PAUSE' || itemData.repeatEndMode === 'OFF' || itemData.repeatEndMode === 'NEXT') {
+        repeatEndMode = itemData.repeatEndMode;
+    }
+
+    let repeatRemaining;
+    if (typeof repeatCount === 'number') {
+        const prevRemaining = (prevState && prevState.itemId === itemId) ? prevState.repeatRemaining : undefined;
+        if (typeof prevRemaining === 'number' && prevRemaining >= 0) {
+            repeatRemaining = prevRemaining;
+        } else {
+            repeatRemaining = repeatCount;
+        }
+    }
+
     // データ型調整と最新状態格納
     onairCurrentState = {
         itemId: itemId,
@@ -705,6 +731,9 @@ function onairGetStateData(itemId) {
         startFadeInSec: (itemData.startFadeInSec !== undefined && !isNaN(parseFloat(itemData.startFadeInSec)))
             ? parseFloat(itemData.startFadeInSec) : undefined,
         fillKeyMode: typeof itemData.fillKeyMode !== 'undefined' ? itemData.fillKeyMode : false,
+        repeatCount: repeatCount,
+        repeatEndMode: repeatEndMode,
+        repeatRemaining: repeatRemaining,
     };
 
     logDebug('[onair.js] State data updated:', onairCurrentState);
@@ -944,9 +973,9 @@ function onairUpdateUI(itemData) {
     // エンドモード表示更新
     if (elements.onairEndModeDisplay) {
         if (itemData.endMode) {
-            const baseEnd = String(itemData.endMode).toUpperCase();
-            const label = itemData.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
-            elements.onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
+            // 表示ロジックは updateEndModeDisplayLabel() に統一（REPEAT回数表示も反映）
+            onairCurrentState = itemData;
+            updateEndModeDisplayLabel();
         } else {
             elements.onairEndModeDisplay.textContent = 'ENDMODE';
         }
@@ -1136,6 +1165,47 @@ function onairStartPlayback(itemData) {
     if (!onairRepeatFlag) {
         try { if (typeof window.onairResetSpeedTo1x === 'function') window.onairResetSpeedTo1x(); } catch (_) {}
         try { if (typeof window.onairSetSpeedButtonsEnabled === 'function') window.onairSetSpeedButtonsEnabled(true); } catch (_) {}
+
+        // REPEAT指定回数のカウンタ初期化（手動開始時のみ）
+        try {
+            const endModeUpper = String(itemData?.endMode || '').toUpperCase();
+
+            let repeatCount;
+            if (itemData && itemData.repeatCount !== undefined && itemData.repeatCount !== null) {
+                const parsed = parseInt(itemData.repeatCount, 10);
+                if (!isNaN(parsed) && parsed >= 1) {
+                    repeatCount = parsed;
+                }
+            }
+
+            const sameItem =
+                !!onairCurrentState &&
+                !!itemData &&
+                (
+                    (onairCurrentState.itemId === itemData.itemId) ||
+                    (onairCurrentState.itemId === itemData.playlistItem_id)
+                );
+
+            if (endModeUpper === 'REPEAT' && typeof repeatCount === 'number') {
+                itemData.repeatCount = repeatCount;
+                itemData.repeatRemaining = repeatCount;
+                itemData.repeatPlayedCount = 0;
+
+                if (sameItem) {
+                    onairCurrentState.repeatCount = repeatCount;
+                    onairCurrentState.repeatRemaining = repeatCount;
+                    onairCurrentState.repeatPlayedCount = 0;
+                }
+            } else {
+                itemData.repeatRemaining = undefined;
+                itemData.repeatPlayedCount = undefined;
+
+                if (sameItem) {
+                    onairCurrentState.repeatRemaining = undefined;
+                    onairCurrentState.repeatPlayedCount = undefined;
+                }
+            }
+        } catch (_) {}
     }
 
     // 直前FTB黒（startMode に関係なく毎回クリア）
@@ -1621,7 +1691,40 @@ function handleGlobalEndedEvent(videoElement) {
 // -----------------------
 function onairHandleEndMode() {
     const endMode = onairCurrentState?.endMode || 'PAUSE';
-    logDebug(`[onair.js] Calling handleEndMode with endMode: ${endMode}`);
+
+    // 実際に今回発動させるエンドモード（fullscreen通知とローカル実行を一致させる）
+    let effectiveEndMode = endMode;
+
+    // REPEAT指定回数（有限）の場合は OUT到達ごとに残り回数を減らし、最終回でrepeatEndModeへ切替
+    if (endMode === 'REPEAT' && onairCurrentState) {
+        const rc = onairCurrentState.repeatCount;
+        if (typeof rc === 'number' && rc >= 1) {
+            if (typeof onairCurrentState.repeatRemaining !== 'number' || isNaN(onairCurrentState.repeatRemaining)) {
+                onairCurrentState.repeatRemaining = rc;
+            }
+
+            // 1回の再生終了（OUT到達）＝残り回数を1減らす
+            onairCurrentState.repeatRemaining = Math.max(0, onairCurrentState.repeatRemaining - 1);
+
+            // 表示用（完了した回数）
+            onairCurrentState.repeatPlayedCount = Math.max(0, rc - onairCurrentState.repeatRemaining);
+
+            // 残りが尽きたら repeatEndMode を発動（未設定は安全側PAUSE）
+            if (onairCurrentState.repeatRemaining <= 0) {
+                const rem = onairCurrentState.repeatEndMode;
+                if (rem === 'PAUSE' || rem === 'OFF' || rem === 'NEXT') {
+                    effectiveEndMode = rem;
+                } else {
+                    effectiveEndMode = 'PAUSE';
+                }
+            } else {
+                effectiveEndMode = 'REPEAT';
+            }
+        }
+        // repeatCount が未設定（∞扱い）の場合は従来どおり REPEAT のまま
+    }
+
+    logDebug(`[onair.js] Calling handleEndMode with endMode: ${endMode}, effectiveEndMode: ${effectiveEndMode}`);
 
     // FTB付加フラグ
     if (onairCurrentState?.ftbEnabled === true) {
@@ -1644,13 +1747,13 @@ function onairHandleEndMode() {
     const currentTime = onairGetElements().onairVideoElement?.currentTime || 0;
     window.electronAPI.sendControlToFullscreen({
         command: 'trigger-endMode',
-        value: endMode,
+        value: effectiveEndMode,
         currentTime: currentTime,
         startMode: (onairCurrentState?.startMode || 'PAUSE')
     });
-    logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: ${endMode}, currentTime: ${currentTime} }, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
+    logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: ${effectiveEndMode}, currentTime: ${currentTime} }, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
 
-    onairExecuteEndMode(endMode);
+    onairExecuteEndMode(effectiveEndMode);
 }
 
 // エンドモード振分
@@ -1746,6 +1849,9 @@ function onairHandleEndModeRepeat() {
 
     // 音声FADE状態リセット
     stopItemFade();
+
+    // REPEAT指定回数表示を更新（6/1のまま固定されるのを防ぐ）
+    updateEndModeDisplayLabel();
 
     onairStartPlayback(onairCurrentState);
 }
@@ -3097,6 +3203,17 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
     const normStart = (updatedItem.startMode || onairCurrentState.startMode || 'PAUSE').toString().toUpperCase();
     const normFtbEnabled = !!updatedItem.ftbEnabled;
 
+    // REPEAT設定（回数/終了後エンドモード）正規化：未設定は∞扱い
+    let normRepeatCount;
+    if (updatedItem.repeatCount !== undefined && updatedItem.repeatCount !== null) {
+        const parsed = parseInt(updatedItem.repeatCount, 10);
+        if (!isNaN(parsed) && parsed >= 1) {
+            normRepeatCount = parsed;
+        }
+    }
+    const tmpRepeatEnd = (updatedItem.repeatEndMode || '').toString().toUpperCase();
+    const normRepeatEndMode = (tmpRepeatEnd === 'PAUSE' || tmpRepeatEnd === 'OFF' || tmpRepeatEnd === 'NEXT') ? tmpRepeatEnd : undefined;
+
     // イン点
     if (Number(onairCurrentState.inPoint) !== Number(normIn)) {
         logInfo(`IN point updated: ${onairCurrentState.inPoint} → ${normIn}`);
@@ -3123,6 +3240,18 @@ function compareAndUpdateState(updatedItem, { source } = {}) {
         logInfo(`End mode updated: ${onairCurrentState.endMode} → ${normEnd}`);
         onairCurrentState.endMode = normEnd;
         handleEndModeUpdate(normEnd, { source });
+    }
+
+    // REPEAT設定（回数/終了後エンドモード）
+    const curRc = (typeof onairCurrentState.repeatCount === 'number' && !isNaN(onairCurrentState.repeatCount)) ? onairCurrentState.repeatCount : undefined;
+    const curRe = (onairCurrentState.repeatEndMode || '').toString().toUpperCase();
+    const curRepeatEndMode = (curRe === 'PAUSE' || curRe === 'OFF' || curRe === 'NEXT') ? curRe : undefined;
+
+    const rcChanged = curRc !== normRepeatCount;
+    const reChanged = curRepeatEndMode !== normRepeatEndMode;
+
+    if (rcChanged || reChanged) {
+        handleRepeatConfigUpdate(normRepeatCount, normRepeatEndMode, { source });
     }
 
     // FTBレート
@@ -3163,7 +3292,42 @@ function updateEndModeDisplayLabel() {
     if (!onairEndModeDisplay) return;
 
     const baseEnd = String(onairCurrentState?.endMode || 'PAUSE').toUpperCase();
-    const label = onairCurrentState?.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
+    let label = baseEnd;
+
+    // REPEAT時は回数表示を付加（∞は→不要）
+    if (baseEnd === 'REPEAT') {
+        const rc = onairCurrentState?.repeatCount;
+
+        // 有限回数
+        if (typeof rc === 'number' && rc >= 1) {
+            const rem = onairCurrentState?.repeatRemaining;
+
+            // 現在の再生回数（1-based）
+            let current = 1;
+            if (typeof rem === 'number' && !isNaN(rem)) {
+                if (rem <= 0) {
+                    current = rc;
+                } else {
+                    current = Math.min(rc, Math.max(1, (rc - rem) + 1));
+                }
+            }
+
+            // 終了後エンドモード（未設定/不正は安全側PAUSE）
+            const remMode = onairCurrentState?.repeatEndMode;
+            const after = (remMode === 'PAUSE' || remMode === 'OFF' || remMode === 'NEXT') ? remMode : 'PAUSE';
+
+            label = `REPEAT(${rc}/${current})→${after}`;
+        } else {
+            // ∞扱い（従来REPEAT相当）
+            label = 'REPEAT(∞)';
+        }
+    }
+
+    // FTB付加は先頭に付ける（例: FTB_REPEAT(8/1)→OFF）
+    if (onairCurrentState?.ftbEnabled) {
+        label = `FTB_${label}`;
+    }
+
     onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
 }
 
@@ -3250,6 +3414,65 @@ function handleEndModeUpdate(newEndMode, { source } = {}) {
     }
 
     logDebug(`[onair.js] End mode updated: ${newEndMode}`);
+}
+
+// REPEAT設定更新（再生中の進捗はリセットしない）
+function handleRepeatConfigUpdate(newRepeatCount, newRepeatEndMode, { source } = {}) {
+    if (!onairCurrentState) return;
+
+    const isRepeat = String(onairCurrentState.endMode || '').toUpperCase() === 'REPEAT';
+
+    // 進捗（完了回数）を確保：なければ既存値から推定
+    const oldCount = (typeof onairCurrentState.repeatCount === 'number' && !isNaN(onairCurrentState.repeatCount)) ? onairCurrentState.repeatCount : undefined;
+    const oldRem = (typeof onairCurrentState.repeatRemaining === 'number' && !isNaN(onairCurrentState.repeatRemaining)) ? onairCurrentState.repeatRemaining : undefined;
+
+    if (!(typeof onairCurrentState.repeatPlayedCount === 'number' && !isNaN(onairCurrentState.repeatPlayedCount))) {
+        let played = 0;
+        if (typeof oldCount === 'number' && typeof oldRem === 'number') {
+            played = Math.max(0, oldCount - oldRem);
+        }
+        onairCurrentState.repeatPlayedCount = played;
+    }
+
+    const played = Math.max(0, Number(onairCurrentState.repeatPlayedCount) || 0);
+    const currentLoop = played + 1;
+
+    // まずは状態を反映（∞は未設定扱い）
+    onairCurrentState.repeatCount = (typeof newRepeatCount === 'number' && newRepeatCount >= 1) ? newRepeatCount : undefined;
+    onairCurrentState.repeatEndMode = (newRepeatEndMode === 'PAUSE' || newRepeatEndMode === 'OFF' || newRepeatEndMode === 'NEXT') ? newRepeatEndMode : undefined;
+
+    // REPEAT動作中でなければ、表示更新だけで終える
+    if (!isRepeat) {
+        updateEndModeDisplayLabel();
+        return;
+    }
+
+    // ∞へ変更：残数は管理しない（従来REPEAT）
+    if (onairCurrentState.repeatCount === undefined) {
+        onairCurrentState.repeatRemaining = undefined;
+        updateEndModeDisplayLabel();
+        return;
+    }
+
+    // 有限回数：進捗は維持して残数だけ調整
+    const rc = onairCurrentState.repeatCount;
+
+    if (rc >= currentLoop) {
+        // 増やした（または十分大きい）→ 残数を増やす（進捗は維持）
+        onairCurrentState.repeatRemaining = Math.max(1, rc - played);
+    } else {
+        // 減らした（現在周回より小さい）→ 「今の再生を最後」にする（次周回を作らない）
+        onairCurrentState.repeatRemaining = 1;
+    }
+
+    updateEndModeDisplayLabel();
+
+    if (source === 'listedit') {
+        logDebug(`[onair.js] repeat config updated by listedit: repeatCount=${onairCurrentState.repeatCount}, repeatEndMode=${onairCurrentState.repeatEndMode}, repeatRemaining=${onairCurrentState.repeatRemaining}`);
+        return;
+    }
+
+    logDebug(`[onair.js] repeat config updated: repeatCount=${onairCurrentState.repeatCount}, repeatEndMode=${onairCurrentState.repeatEndMode}, repeatRemaining=${onairCurrentState.repeatRemaining}`);
 }
 
 // プレイリストモード更新時のエンドモード更新
