@@ -1240,6 +1240,39 @@ function createFileInfo(file, index) {
 }
 
 // ステータスエリア生成
+function resolveGotoDisplayForStatus(endGotoPlaylist, endGotoItemId) {
+    const storeNumber = Number(endGotoPlaylist);
+    if (!Number.isFinite(storeNumber) || storeNumber < 1 || storeNumber > 5) {
+        return null;
+    }
+
+    const itemId = (typeof endGotoItemId === 'string' && endGotoItemId) ? endGotoItemId : null;
+
+    let itemNumber = null;
+    if (itemId) {
+        const key = `vtrpon_playlist_store_${storeNumber}`;
+        const stored = localStorage.getItem(key);
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                const data = Array.isArray(parsed.data) ? parsed.data : [];
+                const sorted = data.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+                const idx = sorted.findIndex((it) => it && it.playlistItem_id === itemId);
+                if (idx !== -1) {
+                    itemNumber = idx + 1;
+                }
+            } catch (e) {
+                itemNumber = null;
+            }
+        }
+    }
+
+    if (itemNumber !== null) {
+        return `${storeNumber}/${itemNumber}`;
+    }
+    return `${storeNumber}/?`;
+}
+
 function createStatusContainer(file) {
     const statusContainer = document.createElement('div');
     statusContainer.classList.add('status-container');
@@ -1266,6 +1299,17 @@ function createStatusContainer(file) {
             repeatText += `→${afterVal}`;
         }
         endVal = file.ftbEnabled ? `FTB_${repeatText}` : repeatText;
+    }
+
+    // GOTO の場合はとび先プレイリスト/アイテム番号を表示に含める
+    if (baseEnd === 'GOTO') {
+        const gotoDisplay = resolveGotoDisplayForStatus(file.endGotoPlaylist, file.endGotoItemId);
+        if (gotoDisplay) {
+            const prefix = file.ftbEnabled ? 'FTB_' : '';
+            endVal = `${prefix}GOTO→${gotoDisplay}`;
+        } else {
+            endVal = file.ftbEnabled ? 'FTB_GOTO' : 'GOTO';
+        }
     }
 
     const statusList = [
@@ -2130,11 +2174,16 @@ async function savePlaylist(storeNumber) {
                 playlistItem_id: item.playlistItem_id || `${playlist_id}-${item.order}`,
                 repeatCount: item.repeatCount,
                 repeatEndMode: item.repeatEndMode,
+                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 5)
+                    ? Number(item.endGotoPlaylist)
+                    : undefined,
+                endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
                 selectionState: "unselected",
                 editingState: null,
                 onAirState: null,
             })),
         };
+
         const orderLog = playlistData.data.map(item => item.order);
 
         // 保存処理
@@ -2219,8 +2268,17 @@ async function loadPlaylist(storeNumber) {
             logInfo('[playlist.js] Load aborted: newer request detected (after clearState).');
             return;
         }
-        const reorderedData = playlistData.data.sort((a, b) => a.order - b.order);
+        const reorderedData = playlistData.data
+            .map((item) => ({
+                ...item,
+                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 5)
+                    ? Number(item.endGotoPlaylist)
+                    : undefined,
+                endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
+            }))
+            .sort((a, b) => a.order - b.order);
         await stateControl.setPlaylistState(reorderedData);
+
         if (token !== __loadState.token) {
             logInfo('[playlist.js] Load aborted: newer request detected (after setPlaylistState).');
             return;
@@ -2509,6 +2567,10 @@ async function doExportPlaylist() {
                 startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
                 repeatCount: item.repeatCount,
                 repeatEndMode: item.repeatEndMode,
+                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 5)
+                    ? Number(item.endGotoPlaylist)
+                    : undefined,
+                endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
             };
 
             // playlist0 用にエクスポート時点で一意な ID を再採番
@@ -2546,6 +2608,10 @@ async function doExportPlaylist() {
                         startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
                         repeatCount: item.repeatCount,
                         repeatEndMode: item.repeatEndMode,
+                        endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 5)
+                            ? Number(item.endGotoPlaylist)
+                            : undefined,
+                        endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
                     }));
 
                     allPlaylists.push({
@@ -2643,6 +2709,10 @@ async function doImportPlaylists() {
                         defaultVolume: (file.defaultVolume !== undefined && file.defaultVolume !== null) ? file.defaultVolume : 100,
                         repeatCount: (Number.isFinite(Number(file.repeatCount)) && Number(file.repeatCount) >= 1) ? Math.floor(Number(file.repeatCount)) : undefined,
                         repeatEndMode: (file.repeatEndMode === "PAUSE" || file.repeatEndMode === "OFF" || file.repeatEndMode === "NEXT") ? file.repeatEndMode : undefined,
+                        endGotoPlaylist: (Number.isFinite(Number(file.endGotoPlaylist)) && Number(file.endGotoPlaylist) >= 1 && Number(file.endGotoPlaylist) <= 5)
+                            ? Number(file.endGotoPlaylist)
+                            : undefined,
+                        endGotoItemId: (typeof file.endGotoItemId === 'string' && file.endGotoItemId) ? file.endGotoItemId : undefined,
                     };
 
                     // UVC デバイスサムネイル再生成
@@ -3096,6 +3166,30 @@ function findStoredPlaylistByItemId(targetItemId) {
     return null;
 }
 
+function getStoredPlaylistByNumber(storeNumber) {
+    const num = Number(storeNumber);
+    if (!Number.isFinite(num) || num < 1 || num > 5) return null;
+
+    const key = `vtrpon_playlist_store_${num}`;
+    const stored = localStorage.getItem(key);
+    if (!stored) return null;
+
+    try {
+        const parsed = JSON.parse(stored);
+        const data = Array.isArray(parsed.data) ? parsed.data : [];
+        return {
+            storeNumber: num,
+            key,
+            name: parsed.name || `Playlist ${num}`,
+            playlist_id: parsed.playlist_id || null,
+            data,
+        };
+    } catch (error) {
+        logDebug(`[playlist.js] Failed to parse playlist store: ${key}`, error);
+        return null;
+    }
+}
+
 async function handleNextModePlaylist(currentItemId) {
     const playlist = await stateControl.getPlaylistState();
 
@@ -3174,25 +3268,88 @@ async function handleNextModePlaylist(currentItemId) {
         shouldAutoSelectNext = true;
     }
 
-    let nextIndex = currentIndex + 1;
-    if (nextIndex >= sortedPlaylist.length) {
-        nextIndex = 0;
+    const currentItem = sortedPlaylist[currentIndex];
+
+    let nextItem = null;
+
+    // -----------------------
+    // GOTO
+    // -----------------------
+    if (currentItem && currentItem.endMode === "GOTO") {
+        const gotoStoreNumber = (currentItem.endGotoPlaylist !== undefined && currentItem.endGotoPlaylist !== null) ? Number(currentItem.endGotoPlaylist) : NaN;
+        const gotoItemId = currentItem.endGotoItemId;
+
+        if (!Number.isFinite(gotoStoreNumber) || gotoStoreNumber < 1 || gotoStoreNumber > 5 || !gotoItemId) {
+            logInfo('[playlist.js] GOTO mode: Destination not configured. Sending Off-Air.');
+            window.electronAPI.sendOffAirEvent();
+            logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: destination not configured）');
+            return;
+        }
+
+        const targetPlaylist = getStoredPlaylistByNumber(gotoStoreNumber);
+
+        if (!targetPlaylist || !Array.isArray(targetPlaylist.data) || targetPlaylist.data.length === 0) {
+            logInfo(`[playlist.js] GOTO mode: Stored playlist not found or empty. Sending Off-Air. storeNumber=${gotoStoreNumber}`);
+            window.electronAPI.sendOffAirEvent();
+            logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: stored playlist not found）');
+            return;
+        }
+
+        // 対象プレイリストへ切り替え（選択状態もここで作り直す）
+        setActiveStoreButton(gotoStoreNumber);
+
+        const normalizedTargetData = targetPlaylist.data.map((item, index) => ({
+            ...item,
+            order: (item.order !== undefined && item.order !== null) ? Number(item.order) : index,
+            selectionState: item.playlistItem_id === gotoItemId ? 'selected' : 'unselected',
+            editingState: item.playlistItem_id === gotoItemId ? 'editing' : null,
+            onAirState: null,
+        }));
+
+        sortedPlaylist = normalizedTargetData.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+        nextItem = sortedPlaylist.find(item => item.playlistItem_id === gotoItemId);
+
+        if (!nextItem) {
+            logInfo('[playlist.js] GOTO mode: Target item not found in stored playlist. Sending Off-Air.');
+            window.electronAPI.sendOffAirEvent();
+            logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: target item not found）');
+            return;
+        }
+
+        // GOTOは指定アイテムに固定（利用不可ならOff-Air）
+        if (nextItem.mediaOffline || nextItem.dskActive) {
+            logInfo('[playlist.js] GOTO mode: Target item is not available (media offline or DSK active). Sending Off-Air.');
+            window.electronAPI.sendOffAirEvent();
+            logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: target item unavailable）');
+            return;
+        }
+
+        // GOTOでプレイリストを切り替えるため、自動選択を許可する
+        currentSelectedItemId = gotoItemId;
+        shouldAutoSelectNext = true;
+
+        logInfo(`[playlist.js] GOTO MODE: Jump to store #${gotoStoreNumber}, itemId=${gotoItemId}, Name: ${nextItem.name}`);
+    } else {
+        let nextIndex = currentIndex + 1;
+        if (nextIndex >= sortedPlaylist.length) {
+            nextIndex = 0;
+        }
+
+        // メディアオフラインなら次の利用可能なアイテムを探す
+        const availableIndex = findNextAvailableIndex(sortedPlaylist, nextIndex);
+        if (availableIndex === -1) {
+            logInfo('[playlist.js] No available next item (all items are media offline).');
+            window.electronAPI.sendOffAirEvent();
+            logOpe('[playlist.js] Off-Air通知を送信しました。（全アイテムがオフライン）');
+            return;
+        }
+
+        nextIndex = availableIndex;
+        nextItem = sortedPlaylist[nextIndex];
+
+        logInfo(`[playlist.js] NEXT MODE (sorted): currentIndex=${currentIndex}, nextIndex=${nextIndex}, sortedPlaylistLength=${sortedPlaylist.length}`);
+        logInfo(`[playlist.js] NEXT mode: Next selected item -> ID: ${nextItem.playlistItem_id}, Name: ${nextItem.name}`);
     }
-
-    // メディアオフラインなら次の利用可能なアイテムを探す
-    const availableIndex = findNextAvailableIndex(sortedPlaylist, nextIndex);
-    if (availableIndex === -1) {
-        logInfo('[playlist.js] No available next item (all items are media offline).');
-        window.electronAPI.sendOffAirEvent();
-        logOpe('[playlist.js] Off-Air通知を送信しました。（全アイテムがオフライン）');
-        return;
-    }
-
-    nextIndex = availableIndex;
-    const nextItem = sortedPlaylist[nextIndex];
-
-    logInfo(`[playlist.js] NEXT MODE (sorted): currentIndex=${currentIndex}, nextIndex=${nextIndex}, sortedPlaylistLength=${sortedPlaylist.length}`);
-    logInfo(`[playlist.js] NEXT mode: Next selected item -> ID: ${nextItem.playlistItem_id}, Name: ${nextItem.name}`);
 
     if (!nextItem) {
         logInfo('[playlist.js] No next item available in playlist.');
@@ -3226,7 +3383,7 @@ async function handleNextModePlaylist(currentItemId) {
     // プレイリスト状態設定
     await stateControl.setPlaylistState(updatedPlaylist);
 
-    // NEXTは必ず算出した nextItem をオンエア対象にする
+    // NEXT/GOTO は必ず算出した nextItem をオンエア対象にする
     lastOnAirItemId = nextItem.playlistItem_id;
     await stateControl.setOnAirState(nextItem.playlistItem_id);
     logInfo(`[playlist.js] Next item set as On-Air: ${nextItem.name}`);
