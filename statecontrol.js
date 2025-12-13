@@ -29,6 +29,24 @@ function normalizeRepeatEndMode(value) {
     return value;
 }
 
+function normalizeEndGotoPlaylist(value) {
+    if (value === undefined || value === null || value === '') {
+        return undefined;
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 1 || n > 5) {
+        return undefined;
+    }
+    return Math.floor(n);
+}
+
+function normalizeEndGotoItemId(value) {
+    if (value === undefined || value === null || value === '') {
+        return undefined;
+    }
+    return String(value);
+}
+
 // ------------------------------
 //   プレイリスト全体の状態管理
 // ------------------------------
@@ -111,6 +129,16 @@ function setPlaylistState(newState) {
                 (typeof newItem.repeatEndMode !== 'undefined')
                     ? newItem.repeatEndMode
                     : existingItem?.repeatEndMode
+            ),
+            endGotoPlaylist: normalizeEndGotoPlaylist(
+                (typeof newItem.endGotoPlaylist !== 'undefined')
+                    ? newItem.endGotoPlaylist
+                    : existingItem?.endGotoPlaylist
+            ),
+            endGotoItemId: normalizeEndGotoItemId(
+                (typeof newItem.endGotoItemId !== 'undefined')
+                    ? newItem.endGotoItemId
+                    : existingItem?.endGotoItemId
             ),
             defaultVolume: newItem.defaultVolume ?? existingItem?.defaultVolume ?? 100,
             ftbEnabled: typeof newItem.ftbEnabled !== 'undefined'
@@ -245,6 +273,24 @@ function setRepeatConfigForItem(itemId, repeatCount, repeatEndMode) {
     item.repeatEndMode = normalizeRepeatEndMode(repeatEndMode);
 
     clearRepeatRuntime(itemId);
+    return true;
+}
+
+function getGotoConfigForItem(itemId) {
+    const item = playlist.find(i => i.playlistItem_id === itemId);
+    return {
+        endGotoPlaylist: normalizeEndGotoPlaylist(item?.endGotoPlaylist),
+        endGotoItemId: normalizeEndGotoItemId(item?.endGotoItemId),
+    };
+}
+
+function setGotoConfigForItem(itemId, endGotoPlaylist, endGotoItemId) {
+    const item = playlist.find(i => i.playlistItem_id === itemId);
+    if (!item) return false;
+
+    item.endGotoPlaylist = normalizeEndGotoPlaylist(endGotoPlaylist);
+    item.endGotoItemId = normalizeEndGotoItemId(endGotoItemId);
+
     return true;
 }
 
@@ -386,6 +432,10 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
             repeatCount: normalizeRepeatCount(item.repeatCount),
             repeatEndMode: normalizeRepeatEndMode(item.repeatEndMode),
 
+            // GOTO（終了後に指定アイテムへジャンプ）
+            endGotoPlaylist: normalizeEndGotoPlaylist(item.endGotoPlaylist),
+            endGotoItemId: normalizeEndGotoItemId(item.endGotoItemId),
+
             // 音量など
             defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null)
                 ? item.defaultVolume
@@ -501,6 +551,8 @@ module.exports = {
     resetOnAirState,
     getRepeatConfigForItem,
     setRepeatConfigForItem,
+    getGotoConfigForItem,
+    setGotoConfigForItem,
     initRepeatRuntime,
     getRepeatRemaining,
     decrementRepeatRemaining,
