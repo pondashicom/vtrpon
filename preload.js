@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.5.0
+//     ver 2.5.1
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getOnAirState: stateControl.getOnAirState,
         moveItemInPlaylist: stateControl.moveItemInPlaylist,
         deleteItemFromPlaylist: stateControl.deleteItemFromPlaylist,
+        getRepeatConfigForItem: stateControl.getRepeatConfigForItem,
+        setRepeatConfigForItem: stateControl.setRepeatConfigForItem,
     },
 
     // ----------------------------

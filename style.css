@@ -1,4 +1,4 @@
-﻿/* style.css 2.4.6 */
+﻿/* style.css 2.5.1 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -38,6 +38,21 @@ body {
     height: 100vh;
     margin: 0;
     box-sizing: border-box;
+}
+
+/* スチルキャプチャコントロール*/
+.still-capture-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.9375rem; /* 既存の .controls と同じ間隔 */
+    width: 100%;
+}
+
+.still-capture-controls .still-capture-col {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.3125rem;
 }
 /* ------------------ */
 /*    セクション共通  */
@@ -211,7 +226,6 @@ html {
     padding: 0.2rem 0.2rem;
     margin: 0;
 }
-
 
 /* ----------------------------- */
 /* 移動と削除ボタン              */
@@ -953,13 +967,119 @@ html {
     width: 100%;
 }
 
-.end-mode-area .control-button {
-    width: calc(100% / 4 - 0.9375rem); /* 15px → 0.9375rem */
+.controls,
+.mode-controls {
+    display: flex;
+    gap: 0.9375rem;                /* 15px → 0.9375rem */
+    justify-content: center;
+    align-items: center;
+    width: 100%;
 }
 
-.listedit-container {
+/* ----------------- */
+/* END MODE エリア   */
+/* ----------------- */
+
+/* 上段ボタン */
+.end-mode-area .end-mode-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 0.4rem;                 /* ボタン間の余白を少しだけ詰める */
+}
+
+/* END MODE 内のボタンだけ少し細くする */
+.end-mode-area .end-mode-buttons .button {
+    width: 5rem;                 /* デフォルト(約5.94rem)より少し狭く */
+}
+
+/* Settings 全体 */
+.end-mode-area .end-mode-settings {
+    margin-top: 0.5rem;
+}
+
+.end-mode-area .end-mode-settings-title {
+    margin: 0 0 0.3rem 0;
+    font-size: 0.8rem;
     text-align: center;
-    padding-top: 0.3125rem;        /* 5px → 0.3125rem */
+    opacity: 0.8;
+}
+
+/* 3行をまとめるコンテナ */
+.end-mode-area .end-mode-settings-rows {
+    max-width: 450px;
+    margin: 0 auto;
+}
+
+/* 各行：左ラベル＋右フィールド群 */
+.end-mode-area .end-mode-row {
+    display: grid;
+    grid-template-columns: 6rem 1fr;
+    column-gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.25rem;
+    font-size: 0.75em;
+    color: #bbb;
+}
+
+/* 左側ラベル列 */
+.end-mode-area .end-mode-row-label {
+    text-align: right;
+    opacity: 0.9;
+}
+
+/* 右側フィールド部分 */
+.end-mode-area .end-mode-row-fields {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* 小ラベル */
+.end-mode-area .field-label {
+    opacity: 0.8;
+}
+
+/* 入力系 */
+.end-mode-area .end-mode-input {
+    width: 4.5rem;
+    min-width: 4.5rem;
+    height: 1.4rem;
+    padding: 0.125rem 0.3rem;
+    font-size: 0.75rem;
+    box-sizing: border-box;
+}
+.end-mode-area .end-mode-select {
+    width: 7rem;
+    min-width: 7rem;
+    height: 1.4rem;
+    padding: 0.125rem 0.3rem;
+    font-size: 0.75rem;
+    box-sizing: border-box;
+}
+
+/* FTB RATE / REPEAT COUNT の数値表示位置を揃える（基本） */
+.end-mode-area .end-mode-input[type="number"] {
+    text-align: center;
+}
+
+.end-mode-area .end-mode-select {
+    background-color: #2e2e2e;
+    color: #ffffff;
+    border: 0.0625rem solid #444444;
+    border-radius: 0.3rem;
+    box-shadow: 0 0.125rem 0.3rem rgba(0, 0, 0, 0.3);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+/* END MODE 内に限り、ftbRate / repeatCount をIDレベルで上書きして完全に揃える */
+.end-mode-area #ftbRate,
+.end-mode-area #repeatCount {
+    width: 4.5rem;
+    min-width: 4.5rem;
+    padding-right: 0.3rem;
+    text-align: center;
 }
 
 /* --------------------- */
@@ -1633,7 +1753,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     padding: 0.3125rem;
     padding-right: 0.1875rem;
     box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
-    text-align: right;
+    text-align: center;
     cursor: text;
     -moz-appearance: textfield;
 }
@@ -1655,11 +1775,20 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     line-height: 1;
 }
 
-/* repeatCountだけ幅を少し狭くし、数字とスピンの間を広げる */
-#repeatCount {
-    width: 3.2rem;
-    padding-right: 0.5rem;
-    text-align: center;
+/* REPEAT 無限(∞)チェックボックスとラベル */
+#repeatInfinity {
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.25rem;
+    accent-color: rgb(102, 205, 102);
+}
+
+#repeatInfinityLabel {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #bbb;
+    margin-left: 0.125rem;
+    line-height: 1;
 }
 
 /* placeholder */

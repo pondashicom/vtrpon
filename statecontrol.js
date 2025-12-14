@@ -1,6 +1,6 @@
-﻿// -----------------------
+// -----------------------
 //     statecontrol.js
-//     ver 2.4.8
+//     ver 2.5.1
 // -----------------------
 
 
@@ -9,6 +9,42 @@
 // ---------------------------------------------
 function generateUniqueId(prefix = '') {
     return `${prefix}${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function normalizeRepeatCount(value) {
+    if (value === undefined || value === null || value === '') {
+        return undefined;
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 1) {
+        return undefined;
+    }
+    return Math.floor(n);
+}
+
+function normalizeRepeatEndMode(value) {
+    if (value === undefined || value === null || value === '') {
+        return undefined;
+    }
+    return value;
+}
+
+function normalizeEndGotoPlaylist(value) {
+    if (value === undefined || value === null || value === '') {
+        return undefined;
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 1 || n > 5) {
+        return undefined;
+    }
+    return Math.floor(n);
+}
+
+function normalizeEndGotoItemId(value) {
+    if (value === undefined || value === null || value === '') {
+        return undefined;
+    }
+    return String(value);
 }
 
 // ------------------------------
@@ -84,6 +120,26 @@ function setPlaylistState(newState) {
             onAirState: onAirState.currentOnAirItem === newItem.playlistItem_id ? "onair" : null,
             startMode: newItem.startMode || existingItem?.startMode || "PAUSE",
             endMode: newItem.endMode || existingItem?.endMode || "PAUSE",
+            repeatCount: normalizeRepeatCount(
+                (typeof newItem.repeatCount !== 'undefined')
+                    ? newItem.repeatCount
+                    : existingItem?.repeatCount
+            ),
+            repeatEndMode: normalizeRepeatEndMode(
+                (typeof newItem.repeatEndMode !== 'undefined')
+                    ? newItem.repeatEndMode
+                    : existingItem?.repeatEndMode
+            ),
+            endGotoPlaylist: normalizeEndGotoPlaylist(
+                (typeof newItem.endGotoPlaylist !== 'undefined')
+                    ? newItem.endGotoPlaylist
+                    : existingItem?.endGotoPlaylist
+            ),
+            endGotoItemId: normalizeEndGotoItemId(
+                (typeof newItem.endGotoItemId !== 'undefined')
+                    ? newItem.endGotoItemId
+                    : existingItem?.endGotoItemId
+            ),
             defaultVolume: newItem.defaultVolume ?? existingItem?.defaultVolume ?? 100,
             ftbEnabled: typeof newItem.ftbEnabled !== 'undefined'
                 ? newItem.ftbEnabled
@@ -194,6 +250,91 @@ function resetOnAirState() {
 }
 
 // -----------------------
+// リピート回数（指定回数リピート）の実行中状態
+// -----------------------
+
+const repeatRuntime = {
+    items: {},
+};
+
+function getRepeatConfigForItem(itemId) {
+    const item = playlist.find(i => i.playlistItem_id === itemId);
+    return {
+        repeatCount: normalizeRepeatCount(item?.repeatCount),
+        repeatEndMode: normalizeRepeatEndMode(item?.repeatEndMode),
+    };
+}
+
+function setRepeatConfigForItem(itemId, repeatCount, repeatEndMode) {
+    const item = playlist.find(i => i.playlistItem_id === itemId);
+    if (!item) return false;
+
+    item.repeatCount = normalizeRepeatCount(repeatCount);
+    item.repeatEndMode = normalizeRepeatEndMode(repeatEndMode);
+
+    clearRepeatRuntime(itemId);
+    return true;
+}
+
+function getGotoConfigForItem(itemId) {
+    const item = playlist.find(i => i.playlistItem_id === itemId);
+    return {
+        endGotoPlaylist: normalizeEndGotoPlaylist(item?.endGotoPlaylist),
+        endGotoItemId: normalizeEndGotoItemId(item?.endGotoItemId),
+    };
+}
+
+function setGotoConfigForItem(itemId, endGotoPlaylist, endGotoItemId) {
+    const item = playlist.find(i => i.playlistItem_id === itemId);
+    if (!item) return false;
+
+    item.endGotoPlaylist = normalizeEndGotoPlaylist(endGotoPlaylist);
+    item.endGotoItemId = normalizeEndGotoItemId(endGotoItemId);
+
+    return true;
+}
+
+function initRepeatRuntime(itemId) {
+    const item = playlist.find(i => i.playlistItem_id === itemId);
+    if (!item) return false;
+
+    const count = normalizeRepeatCount(item.repeatCount);
+    if (count === undefined) {
+        repeatRuntime.items[itemId] = { remaining: null, isInfinite: true };
+        return true;
+    }
+
+    repeatRuntime.items[itemId] = { remaining: count, isInfinite: false };
+    return true;
+}
+
+function getRepeatRemaining(itemId) {
+    const st = repeatRuntime.items[itemId];
+    if (!st) return null;
+    return st.isInfinite ? null : st.remaining;
+}
+
+function decrementRepeatRemaining(itemId) {
+    const st = repeatRuntime.items[itemId];
+    if (!st || st.isInfinite) return null;
+
+    if (typeof st.remaining !== 'number') {
+        return null;
+    }
+
+    st.remaining = Math.max(0, st.remaining - 1);
+    return st.remaining;
+}
+
+function clearRepeatRuntime(itemId = null) {
+    if (itemId) {
+        delete repeatRuntime.items[itemId];
+        return;
+    }
+    repeatRuntime.items = {};
+}
+
+// -----------------------
 // プレイリストの順番管理
 // -----------------------
 
@@ -215,6 +356,7 @@ function deleteItemFromPlaylist(itemId) {
     const index = playlist.findIndex(item => item.playlistItem_id === itemId);
     if (index === -1) return false;
     playlist.splice(index, 1);
+    clearRepeatRuntime(itemId);
     return true;
 }
 
@@ -285,6 +427,14 @@ function setPlaylistStateWithId(playlist_id, playlistData) {
             endMode: (item.endMode !== undefined && item.endMode !== null)
                 ? item.endMode
                 : "PAUSE",
+
+            // リピート（指定回数リピート）
+            repeatCount: normalizeRepeatCount(item.repeatCount),
+            repeatEndMode: normalizeRepeatEndMode(item.repeatEndMode),
+
+            // GOTO（終了後に指定アイテムへジャンプ）
+            endGotoPlaylist: normalizeEndGotoPlaylist(item.endGotoPlaylist),
+            endGotoItemId: normalizeEndGotoItemId(item.endGotoItemId),
 
             // 音量など
             defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null)
@@ -385,6 +535,7 @@ function clearState() {
     playlist.length = 0;
     playlists.length = 0;
     editState.currentEditingItem = null;
+    clearRepeatRuntime();
 }
 
 // エクスポート
@@ -398,6 +549,14 @@ module.exports = {
     setOnAirState,
     getOnAirState,
     resetOnAirState,
+    getRepeatConfigForItem,
+    setRepeatConfigForItem,
+    getGotoConfigForItem,
+    setGotoConfigForItem,
+    initRepeatRuntime,
+    getRepeatRemaining,
+    decrementRepeatRemaining,
+    clearRepeatRuntime,
     clearState,
     getPlaylistById,
     setPlaylistStateWithId,

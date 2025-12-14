@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.4.8
+//     ver 2.5.1
 // -----------------------
 
 // -----------------------
@@ -38,6 +38,11 @@ function initializeEditArea() {
     const outPointButton = document.getElementById('out-point');
     const ftbRateInput = document.getElementById('ftbRate'); 
     const startFadeInInput = document.getElementById('startFadeInSec');
+    const repeatCountInput = document.getElementById('repeatCount');
+    const repeatInfinityCheckbox = document.getElementById('repeatInfinity');
+    const repeatEndModeSelect = document.getElementById('end-repeat-endmode-select');
+    const endGotoPlaylistSelect = document.getElementById('end-goto-playlist');
+    const endGotoItemSelect = document.getElementById('end-goto-item');
 
     const startModeButtons = [
         document.getElementById('start-pause-button'),
@@ -51,8 +56,9 @@ function initializeEditArea() {
         document.getElementById('end-ftb-button'),
         document.getElementById('end-repeat-button'),
         document.getElementById('end-next-button'),
+        document.getElementById('end-goto-button'),
     ];
-    
+
     const inOutButtons = [
         document.getElementById('in-point-button'),
         document.getElementById('out-point-button')
@@ -160,6 +166,8 @@ function initializeEditArea() {
     setupFtbRate(ftbRateInput); 
     setupFtbRateListener(ftbRateInput);
     setupStartFadeInSecListener(startFadeInInput);
+    setupRepeatConfigControls(repeatCountInput, repeatInfinityCheckbox, repeatEndModeSelect);
+    setupGotoConfigControls(endGotoPlaylistSelect, endGotoItemSelect);
     setupVolumeControl();
     setVideoLoadedState(false);
 }
@@ -169,6 +177,7 @@ function rebindEndModeControls(videoElement) {
     const ids = [
         'end-ftb-button',
         'end-next-button',
+        'end-goto-button',
         'end-repeat-button',
         'end-off-button',
         'end-pause-button'
@@ -222,6 +231,9 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
         // 現在編集中のアイテムIDを記憶
         currentEditingItemId = itemData.playlistItem_id;
 
+        // 別アイテム読み込み開始時点で、UIを一度初期化（前アイテムのGOTO表示が残るのを防ぐ）
+        setVideoLoadedState(false);
+
         // ファイル名と動画パスを反映
         filenameDisplay.textContent = itemData.name || 'Unknown File';
         // UVCデバイス以外の場合、必ず安全なURLに変換してセットする
@@ -271,6 +283,8 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
             updateStartModeButtons(startMode);
             updateEndModeButtons(endMode);
             updateFtbButton(!!currentItem?.ftbEnabled);
+            updateRepeatConfigUI();
+            updateGotoConfigUI();
 
             // 音量の復元処理
             const volumeSlider = document.getElementById('listedit-volume-slider');
@@ -315,12 +329,17 @@ function setupVideoPlayer(videoElement, filenameDisplay) {
             const startFadeInInput = document.getElementById('startFadeInSec');
             updateStartFadeInSecUI(startFadeInInput);
 
+            // Repeat 回数・終了後エンドモードの UI を更新
+            const repeatCountInput = document.getElementById('repeatCount');
+            const repeatInfinityCheckbox = document.getElementById('repeatInfinity');
+            const repeatEndModeSelect = document.getElementById('end-repeat-endmode-select');
+            updateRepeatConfigUI(repeatCountInput, repeatInfinityCheckbox, repeatEndModeSelect);
+
             // INOUTマーカー位置を更新
             updateListeditSeekBarMarkers(inPoint, outPoint);
         });
     });
 }
-
 
 // INOUT状態の復元時にフォーマットされた時間を数値に変換
 function parseTime(timeString) {
@@ -340,6 +359,8 @@ function parseTime(timeString) {
 function setVideoLoadedState(loaded) {
     isVideoLoaded = loaded;
     updateUIForVideoState();
+    updateRepeatConfigUI();
+    updateGotoConfigUI();
 }
 
 // UIの状態を動画の読み込み状態に応じて更新する関数
@@ -1793,6 +1814,10 @@ function setupEndModeControls(videoElement) {
         REPEAT: document.getElementById('end-repeat-button'),
         NEXT: document.getElementById('end-next-button'),
     };
+    const gotoButton = document.getElementById('end-goto-button');
+    if (gotoButton) {
+        modeButtons.GOTO = gotoButton;
+    }
     // FTBは独立トグル
     const ftbButton = document.getElementById('end-ftb-button');
 
@@ -1851,20 +1876,60 @@ function setupEndModeControls(videoElement) {
 
 // END MODEの状態を更新
 async function updateEndModeState(newMode) {
+
+    // 動画未ロード時は制御不可
+    if (!isVideoLoaded || !currentEditingItemId) {
+        updateRepeatConfigUI();
+        updateGotoConfigUI();
+        return;
+    }
+
     const playlist = await stateControl.getPlaylistState();
     logOpe('[listedit.js] updateEndModeState called with newMode:', newMode);
 
+    // REPEATに切り替えた最初のタイミングで、リピート設定のデフォルトを作る
+    if (newMode === 'REPEAT'
+        && typeof stateControl.getRepeatConfigForItem === 'function'
+        && typeof stateControl.setRepeatConfigForItem === 'function') {
+
+        const cfg = stateControl.getRepeatConfigForItem(currentEditingItemId) || {};
+        if (typeof cfg.repeatCount === 'undefined' && typeof cfg.repeatEndMode === 'undefined') {
+            stateControl.setRepeatConfigForItem(currentEditingItemId, undefined, 'PAUSE');
+        } else if (typeof cfg.repeatEndMode === 'undefined') {
+            stateControl.setRepeatConfigForItem(currentEditingItemId, cfg.repeatCount, 'PAUSE');
+        }
+    }
+
+    // GOTOに切り替えた最初のタイミングで、GOTO設定のデフォルトを作る
+    let gotoDefaults = null;
+    if (newMode === 'GOTO') {
+        const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+        if (currentItem) {
+            gotoDefaults = getDefaultGotoConfigForItem(currentItem);
+        }
+    }
+
     const updatedPlaylist = playlist.map(file => {
         if (file.playlistItem_id === currentEditingItemId) {
-            return {
+
+            const updated = {
                 ...file,
                 endMode: newMode
             };
+
+            if (newMode === 'GOTO' && gotoDefaults) {
+                updated.endGotoPlaylist = gotoDefaults.endGotoPlaylist;
+                updated.endGotoItemId = gotoDefaults.endGotoItemId;
+            }
+
+            return updated;
         }
         return file;
     });
     await stateControl.setPlaylistState(updatedPlaylist);
     updateEndModeButtons(newMode);
+    updateRepeatConfigUI();
+    updateGotoConfigUI();
     await validateFadeDurationConstraint();
 
     // 状態更新後通知
@@ -1902,6 +1967,507 @@ function updateFtbButton(enabled) {
     } else {
         ftbBtn.classList.remove('button-green');
         ftbBtn.classList.add('button-gray');
+    }
+}
+
+// --------------------------------
+//  REPEAT回数 / 指定回数終了時のエンドモード
+// --------------------------------
+
+let isRepeatConfigUIUpdating = false;
+
+function getRepeatConfigUIElements() {
+    return {
+        repeatCountInput: document.getElementById('repeatCount'),
+        repeatInfinityCheckbox: document.getElementById('repeatInfinity'),
+        repeatEndModeSelect: document.getElementById('end-repeat-endmode-select'),
+    };
+}
+
+function setupRepeatConfigControls(repeatCountInput, repeatInfinityCheckbox, repeatEndModeSelect) {
+    if (!repeatCountInput || !repeatInfinityCheckbox || !repeatEndModeSelect) {
+        return;
+    }
+
+    // 起動時ディフォルト：∞はOFF（リピートボタンを押した時にONへ）
+    repeatCountInput.value = '';
+    repeatInfinityCheckbox.checked = false;
+    repeatEndModeSelect.value = 'PAUSE';
+
+    // 未ロード時は操作不可
+    repeatCountInput.disabled = true;
+    repeatInfinityCheckbox.disabled = true;
+    repeatEndModeSelect.disabled = true;
+
+
+    repeatInfinityCheckbox.addEventListener('change', async () => {
+        if (isRepeatConfigUIUpdating) return;
+
+        // 未ロード・未選択時は制御不可
+        if (!isVideoLoaded || !currentEditingItemId) {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        const playlist = await stateControl.getPlaylistState();
+        const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+        if (!currentItem || currentItem.endMode !== 'REPEAT') {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        isRepeatConfigUIUpdating = true;
+        try {
+            const repeatEndMode = repeatEndModeSelect.value || 'PAUSE';
+
+            if (repeatInfinityCheckbox.checked) {
+                repeatCountInput.value = '';
+                repeatCountInput.disabled = true;
+                await stateControl.setRepeatConfigForItem(currentEditingItemId, undefined, repeatEndMode);
+                logOpe(`[listedit.js] Repeat config changed: infinity=ON, endMode=${repeatEndMode}`);
+            } else {
+                let val = parseInt(repeatCountInput.value, 10);
+                if (!Number.isFinite(val) || val < 1) val = 1;
+                repeatCountInput.value = String(val);
+                repeatCountInput.disabled = false;
+                await stateControl.setRepeatConfigForItem(currentEditingItemId, val, repeatEndMode);
+                logOpe(`[listedit.js] Repeat config changed: count=${val}, endMode=${repeatEndMode}`);
+            }
+        } finally {
+            isRepeatConfigUIUpdating = false;
+        }
+
+        window.electronAPI.notifyListeditUpdate();
+        updateRepeatConfigUI();
+    });
+
+    repeatCountInput.addEventListener('input', () => {
+        if (repeatCountInput.value === '') return;
+        const n = parseInt(repeatCountInput.value, 10);
+        if (Number.isFinite(n) && n >= 1) {
+            repeatInfinityCheckbox.checked = false;
+        }
+    });
+
+    repeatCountInput.addEventListener('change', async () => {
+        if (isRepeatConfigUIUpdating) return;
+
+        if (!isVideoLoaded || !currentEditingItemId) {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        const playlist = await stateControl.getPlaylistState();
+        const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+        if (!currentItem || currentItem.endMode !== 'REPEAT') {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        isRepeatConfigUIUpdating = true;
+        try {
+            const repeatEndMode = repeatEndModeSelect.value || 'PAUSE';
+            let val = parseInt(repeatCountInput.value, 10);
+
+            if (!Number.isFinite(val) || val < 1) {
+                // 数値が不正なら∞に戻す（排他）
+                repeatCountInput.value = '';
+                repeatInfinityCheckbox.checked = true;
+                repeatCountInput.disabled = true;
+                await stateControl.setRepeatConfigForItem(currentEditingItemId, undefined, repeatEndMode);
+            } else {
+                repeatInfinityCheckbox.checked = false;
+                repeatCountInput.value = String(val);
+                repeatCountInput.disabled = false;
+                await stateControl.setRepeatConfigForItem(currentEditingItemId, val, repeatEndMode);
+            }
+        } finally {
+            isRepeatConfigUIUpdating = false;
+        }
+
+        window.electronAPI.notifyListeditUpdate();
+        updateRepeatConfigUI();
+    });
+
+    repeatEndModeSelect.addEventListener('change', async () => {
+        if (isRepeatConfigUIUpdating) return;
+
+        if (!isVideoLoaded || !currentEditingItemId) {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        const playlist = await stateControl.getPlaylistState();
+        const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+        if (!currentItem || currentItem.endMode !== 'REPEAT') {
+            updateRepeatConfigUI();
+            return;
+        }
+
+        isRepeatConfigUIUpdating = true;
+        try {
+            const repeatEndMode = repeatEndModeSelect.value || 'PAUSE';
+            let repeatCount = undefined;
+
+            if (!repeatInfinityCheckbox.checked) {
+                let val = parseInt(repeatCountInput.value, 10);
+                if (!Number.isFinite(val) || val < 1) val = 1;
+                repeatCountInput.value = String(val);
+                repeatCount = val;
+            } else {
+                repeatCountInput.value = '';
+            }
+
+            await stateControl.setRepeatConfigForItem(currentEditingItemId, repeatCount, repeatEndMode);
+        } finally {
+            isRepeatConfigUIUpdating = false;
+        }
+
+        window.electronAPI.notifyListeditUpdate();
+        updateRepeatConfigUI();
+    });
+
+    updateRepeatConfigUI();
+}
+
+async function updateRepeatConfigUI() {
+    const { repeatCountInput, repeatInfinityCheckbox, repeatEndModeSelect } = getRepeatConfigUIElements();
+    if (!repeatCountInput || !repeatInfinityCheckbox || !repeatEndModeSelect) return;
+    if (isRepeatConfigUIUpdating) return;
+
+    // 未ロード・未選択時は操作不可 + 起動時ディフォルト表示
+    if (!isVideoLoaded || !currentEditingItemId) {
+        repeatCountInput.value = '';
+        repeatInfinityCheckbox.checked = false;
+        repeatEndModeSelect.value = 'PAUSE';
+
+        repeatCountInput.disabled = true;
+        repeatInfinityCheckbox.disabled = true;
+        repeatEndModeSelect.disabled = true;
+        return;
+    }
+
+    const playlist = await stateControl.getPlaylistState();
+    const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+
+    // エンドモードがREPEAT以外は操作不可（表示はニュートラル）
+    if (!currentItem || currentItem.endMode !== 'REPEAT') {
+        repeatCountInput.value = '';
+        repeatInfinityCheckbox.checked = false;
+        repeatEndModeSelect.value = 'PAUSE';
+
+        repeatCountInput.disabled = true;
+        repeatInfinityCheckbox.disabled = true;
+        repeatEndModeSelect.disabled = true;
+        return;
+    }
+
+    const cfg = (typeof stateControl.getRepeatConfigForItem === 'function')
+        ? stateControl.getRepeatConfigForItem(currentEditingItemId)
+        : { repeatCount: undefined, repeatEndMode: undefined };
+
+    const repeatEndMode = cfg.repeatEndMode || 'PAUSE';
+    repeatEndModeSelect.value = repeatEndMode;
+
+    if (cfg.repeatCount === undefined || cfg.repeatCount === null) {
+        repeatInfinityCheckbox.checked = true;
+        repeatCountInput.value = '';
+        repeatCountInput.disabled = true;
+    } else {
+        repeatInfinityCheckbox.checked = false;
+        repeatCountInput.value = String(cfg.repeatCount);
+        repeatCountInput.disabled = false;
+    }
+
+    repeatInfinityCheckbox.disabled = false;
+    repeatEndModeSelect.disabled = false;
+}
+
+// -----------------------
+//  GOTO 設定UI
+// -----------------------
+let isGotoConfigUIUpdating = false;
+
+function readSavedPlaylistsForGoto() {
+    const saved = [];
+    for (let i = 1; i <= 5; i++) {
+        try {
+            const raw = localStorage.getItem(`vtrpon_playlist_store_${i}`);
+            if (!raw) {
+                continue;
+            }
+            const parsed = JSON.parse(raw);
+            if (!parsed || !Array.isArray(parsed.data)) {
+                continue;
+            }
+            const items = parsed.data.slice();
+            items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+            saved.push({ slot: i, name: parsed.name || `Playlist ${i}`, items });
+        } catch (e) {
+            // ignore
+        }
+    }
+    return saved;
+}
+
+// updateEndModeState() からも呼ばれる（function宣言なので巻き上げされる）
+function getDefaultGotoConfigForItem(item) {
+    const saved = readSavedPlaylistsForGoto();
+    if (!saved || saved.length === 0) {
+        return { endGotoPlaylist: undefined, endGotoItemId: undefined, items: [] };
+    }
+
+    let slot = parseInt(item?.endGotoPlaylist, 10);
+    if (!Number.isFinite(slot) || !saved.some(pl => pl.slot === slot)) {
+        slot = saved[0].slot;
+    }
+
+    const target = saved.find(pl => pl.slot === slot);
+    const items = target ? target.items : [];
+    if (!items || items.length === 0) {
+        return { endGotoPlaylist: slot, endGotoItemId: undefined, items: [] };
+    }
+
+    let itemId = item?.endGotoItemId;
+    if (typeof itemId !== 'string' || !items.some(it => it.playlistItem_id === itemId)) {
+        itemId = items[0].playlistItem_id;
+    }
+
+    return { endGotoPlaylist: slot, endGotoItemId: itemId, items };
+}
+
+function setupGotoConfigControls(endGotoPlaylistSelect, endGotoItemSelect) {
+    if (!endGotoPlaylistSelect || !endGotoItemSelect) {
+        return;
+    }
+
+    const refreshLater = (tries = 0) => {
+        if (!isGotoConfigUIUpdating) {
+            updateGotoConfigUI();
+            return;
+        }
+        if (tries >= 5) {
+            return;
+        }
+        setTimeout(() => refreshLater(tries + 1), 0);
+    };
+
+    const handleOpen = () => {
+        if (isGotoConfigUIUpdating) {
+            setTimeout(() => {
+                if (!isGotoConfigUIUpdating) {
+                    updateGotoConfigUI();
+                }
+            }, 0);
+            return;
+        }
+        updateGotoConfigUI();
+    };
+
+    const handleKeyOpen = (event) => {
+        if (!event) {
+            return;
+        }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+            handleOpen();
+        }
+    };
+
+    // プルダウンを開く瞬間に毎回ストレージを読み直して最新の候補を反映する
+    endGotoPlaylistSelect.addEventListener('mousedown', handleOpen);
+    endGotoPlaylistSelect.addEventListener('click', handleOpen);
+    endGotoPlaylistSelect.addEventListener('focus', handleOpen);
+    endGotoPlaylistSelect.addEventListener('keydown', handleKeyOpen);
+
+    endGotoItemSelect.addEventListener('mousedown', handleOpen);
+    endGotoItemSelect.addEventListener('click', handleOpen);
+    endGotoItemSelect.addEventListener('focus', handleOpen);
+    endGotoItemSelect.addEventListener('keydown', handleKeyOpen);
+
+    endGotoPlaylistSelect.addEventListener('change', async () => {
+        if (isGotoConfigUIUpdating || !isVideoLoaded || !currentEditingItemId) {
+            return;
+        }
+        const slot = parseInt(endGotoPlaylistSelect.value, 10);
+        if (!Number.isFinite(slot)) {
+            return;
+        }
+
+        const saved = readSavedPlaylistsForGoto();
+        const target = saved.find(pl => pl.slot === slot);
+        const firstItemId = (target && target.items && target.items.length > 0) ? target.items[0].playlistItem_id : undefined;
+
+        if (typeof stateControl.setGotoConfigForItem === 'function') {
+            stateControl.setGotoConfigForItem(currentEditingItemId, slot, firstItemId);
+        } else if (typeof stateControl.setPlaylistState === 'function' && typeof stateControl.getPlaylistState === 'function') {
+            const current = stateControl.getPlaylistState();
+            const updated = current.map(file => {
+                if (file.playlistItem_id === currentEditingItemId) {
+                    return {
+                        ...file,
+                        endGotoPlaylist: slot,
+                        endGotoItemId: firstItemId,
+                    };
+                }
+                return file;
+            });
+            await stateControl.setPlaylistState(updated);
+        }
+
+        updateGotoConfigUI();
+        window.electronAPI.notifyListeditUpdate();
+    });
+
+    endGotoItemSelect.addEventListener('change', async () => {
+        if (isGotoConfigUIUpdating || !isVideoLoaded || !currentEditingItemId) {
+            return;
+        }
+        const slot = parseInt(endGotoPlaylistSelect.value, 10);
+        if (!Number.isFinite(slot)) {
+            return;
+        }
+        const itemId = endGotoItemSelect.value || undefined;
+
+        if (typeof stateControl.setGotoConfigForItem === 'function') {
+            stateControl.setGotoConfigForItem(currentEditingItemId, slot, itemId);
+        } else if (typeof stateControl.setPlaylistState === 'function' && typeof stateControl.getPlaylistState === 'function') {
+            const current = stateControl.getPlaylistState();
+            const updated = current.map(file => {
+                if (file.playlistItem_id === currentEditingItemId) {
+                    return {
+                        ...file,
+                        endGotoPlaylist: slot,
+                        endGotoItemId: itemId,
+                    };
+                }
+                return file;
+            });
+            await stateControl.setPlaylistState(updated);
+        }
+
+        updateGotoConfigUI();
+        window.electronAPI.notifyListeditUpdate();
+    });
+    updateGotoConfigUI();
+}
+
+function updateGotoConfigUI() {
+    const endGotoPlaylistSelect = document.getElementById('end-goto-playlist');
+    const endGotoItemSelect = document.getElementById('end-goto-item');
+    if (!endGotoPlaylistSelect || !endGotoItemSelect) {
+        return;
+    }
+
+    // 動画未ロード時は操作不可（グレーアウト）
+    if (!isVideoLoaded || !currentEditingItemId) {
+        endGotoPlaylistSelect.innerHTML = '';
+        endGotoItemSelect.innerHTML = '';
+
+        const optPl = document.createElement('option');
+        optPl.value = '';
+        optPl.textContent = '(No saved playlists)';
+        endGotoPlaylistSelect.appendChild(optPl);
+
+        const optIt = document.createElement('option');
+        optIt.value = '';
+        optIt.textContent = '(No items)';
+        endGotoItemSelect.appendChild(optIt);
+
+        endGotoPlaylistSelect.disabled = true;
+        endGotoItemSelect.disabled = true;
+        return;
+    }
+
+    const playlist = stateControl.getPlaylistState();
+    const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+
+    // エンドモードがGOTO以外は操作不可（グレーアウト）
+    if (!currentItem || currentItem.endMode !== 'GOTO') {
+        endGotoPlaylistSelect.innerHTML = '';
+        endGotoItemSelect.innerHTML = '';
+        endGotoPlaylistSelect.disabled = true;
+        endGotoItemSelect.disabled = true;
+        return;
+    }
+
+    isGotoConfigUIUpdating = true;
+    try {
+        const saved = readSavedPlaylistsForGoto();
+        const defaults = getDefaultGotoConfigForItem(currentItem);
+
+        // playlist
+        endGotoPlaylistSelect.innerHTML = '';
+        if (!saved || saved.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '(No saved playlists)';
+            endGotoPlaylistSelect.appendChild(opt);
+        } else {
+            saved.forEach(pl => {
+                const opt = document.createElement('option');
+                opt.value = String(pl.slot);
+                opt.textContent = `${pl.slot}: ${pl.name}`;
+                endGotoPlaylistSelect.appendChild(opt);
+            });
+            endGotoPlaylistSelect.value = String(defaults.endGotoPlaylist);
+        }
+
+        // items
+        endGotoItemSelect.innerHTML = '';
+        const items = defaults.items || [];
+        if (!items || items.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '(No items)';
+            endGotoItemSelect.appendChild(opt);
+        } else {
+            items.forEach((item, idx) => {
+                const opt = document.createElement('option');
+                const itemId = item.playlistItem_id;
+                opt.value = itemId ? String(itemId) : '';
+                const orderNumber = (typeof item.order === 'number') ? (item.order + 1) : (idx + 1);
+                const itemName = item.name || item.path || 'Untitled';
+                opt.textContent = `${orderNumber}: ${itemName}`;
+                endGotoItemSelect.appendChild(opt);
+            });
+            endGotoItemSelect.value = defaults.endGotoItemId ? String(defaults.endGotoItemId) : '';
+        }
+
+        if (!saved || saved.length === 0) {
+            endGotoPlaylistSelect.disabled = true;
+            endGotoItemSelect.disabled = true;
+            return;
+        }
+
+        endGotoPlaylistSelect.disabled = false;
+        endGotoItemSelect.disabled = (items.length === 0);
+
+        // 旧データ（GOTO設定なし）でもクラッシュしないよう、未設定の場合のみデフォルトを確定させる
+        const isUnset = (
+            typeof currentItem.endGotoPlaylist === 'undefined' ||
+            typeof currentItem.endGotoItemId === 'undefined'
+        );
+        if (isUnset) {
+            if (typeof stateControl.setGotoConfigForItem === 'function') {
+                stateControl.setGotoConfigForItem(currentEditingItemId, defaults.endGotoPlaylist, defaults.endGotoItemId);
+            } else if (typeof stateControl.setPlaylistState === 'function' && typeof stateControl.getPlaylistState === 'function') {
+                const current = stateControl.getPlaylistState();
+                const updated = current.map(file => {
+                    if (file.playlistItem_id === currentEditingItemId) {
+                        return {
+                            ...file,
+                            endGotoPlaylist: defaults.endGotoPlaylist,
+                            endGotoItemId: defaults.endGotoItemId,
+                        };
+                    }
+                    return file;
+                });
+                stateControl.setPlaylistState(updated);
+            }
+        }
+
+    } finally {
+        isGotoConfigUIUpdating = false;
     }
 }
 
@@ -2137,6 +2703,7 @@ async function resetFadeParamsForCurrentItem() {
 
     logOpe('[listedit.js] Reset ftbRate and startFadeInSec to defaults (1.0).');
 }
+
 // --------------------------------
 //  キーボードショートカット
 // --------------------------------
@@ -2403,18 +2970,14 @@ window.electronAPI.onShortcutTrigger((_, action, payload) => {
 });
 
 // 右矢印キーによるエディットエリアリセット時に、プレイリストの選択状態も解除
-async function clearPlaylistSelection() {
-    const playlist = await stateControl.getPlaylistState();
-    const updatedPlaylist = playlist.map(item => ({
-        ...item,
-        selectionState: "unselected",
-        editingState: null
-    }));
-    await stateControl.setPlaylistState(updatedPlaylist);
-    logOpe('[listedit.js] Cleared playlist selection.');
+function clearPlaylistSelection() {
+    document.querySelectorAll('.playlist-item').forEach(item => {
+        item.classList.remove('selected');
+    });
 }
 
 // メニューからのショートカット通知
+
 window.electronAPI?.onShortcutTrigger((event, action) => {
     handleShortcutAction(action);
 });

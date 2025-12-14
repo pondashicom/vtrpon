@@ -1,4 +1,4 @@
-﻿<!-- index.html 2.5.0 -->
+﻿<!-- index.html 2.5.1 -->
 
 <!DOCTYPE html>
 <html lang="ja">
@@ -98,14 +98,61 @@
             <!-- END MODE -->
             <div id="end-mode-area" class="end-mode-area">
                 <p data-label-id="end-mode-title"></p>
-                <div class="controls">
-                    <button id="end-off-button" class="button button button-gray" data-tooltip-id="end-off-button" data-label-id="end-off-button"></button>
-                    <button id="end-pause-button" class="button button button-gray" data-tooltip-id="end-pause-button" data-label-id="end-pause-button"></button>
-                    <button id="end-repeat-button" class="button button button-gray" data-tooltip-id="end-repeat-button" data-label-id="end-repeat-button"></button>
-                    <!-- <input type="number" id="repeatCount" min="1" step="1" placeholder="∞" class="ftb-rate-input" aria-label="Repeat Count" data-tooltip-id="repeatCount" data-label-id="repeatCount" oninput="document.body.dataset.repeatFinite = (this.value && parseInt(this.value,10)>0) ? '1' : ''"> -->
-                    <button id="end-next-button" class="button button button-gray" data-tooltip-id="end-next-button" data-label-id="end-next-button"></button>
-                    <button id="end-ftb-button" class="button button button-gray" data-tooltip-id="end-ftb-button" data-label-id="end-ftb-button"></button>
-                    <input type="number" id="ftbRate" min="0.1" step="0.1" value="1.0" class="ftb-rate-input" aria-label="FTB Rate" data-tooltip-id="ftbRate" data-label-id="ftbRate">
+
+                <!-- END MODE ボタン -->
+                <div class="end-mode-buttons">
+                    <button id="end-off-button" class="button button-gray" data-label-id="end-off-button"></button>
+                    <button id="end-pause-button" class="button button-gray" data-label-id="end-pause-button"></button>
+                    <button id="end-repeat-button" class="button button-gray" data-label-id="end-repeat-button"></button>
+                    <button id="end-next-button" class="button button-gray" data-label-id="end-next-button"></button>
+                    <button id="end-goto-button" class="button button-gray" data-label-id="end-goto-button"></button>
+                    <button id="end-ftb-button" class="button button-gray" data-label-id="end-ftb-button"></button>
+                </div>
+
+                <!-- Mode Settings -->
+                <div class="end-mode-settings">
+                    <div class="end-mode-settings-rows">
+                        <!-- Row 1: FTB -->
+                        <div class="end-mode-row">
+                            <div class="end-mode-row-label" data-label-id="end-mode-row-label-ftb"></div>
+                            <div class="end-mode-row-fields">
+                                <input type="number" id="ftbRate" min="0.1" step="0.1" value="1.0" class="end-mode-input" data-label-id="ftbRate">
+                            </div>
+                        </div>
+
+                        <!-- Row 2: REPEAT -->
+                        <div class="end-mode-row">
+                            <div class="end-mode-row-label" data-label-id="end-mode-row-label-repeat"></div>
+                            <div class="end-mode-row-fields">
+                                <input type="number" id="repeatCount" min="1" step="1" class="end-mode-input" data-label-id="repeatCount">
+                                <span id="repeatInfinityLabel" data-label-id="repeatInfinity"></span>
+                                <input type="checkbox" id="repeatInfinity" data-tooltip-id="repeatInfinity">
+                                <select id="end-repeat-endmode-select" class="end-mode-select" data-label-id="end-repeat-endmode-select">
+                                    <option value="PAUSE">PAUSE</option>
+                                    <option value="OFF">OFF</option>
+                                    <option value="NEXT">NEXT</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Row 3: GOTO -->
+                        <div class="end-mode-row">
+                            <div class="end-mode-row-label" data-label-id="end-mode-row-label-goto"></div>
+                            <div class="end-mode-row-fields">
+                                <select id="end-goto-playlist" class="end-mode-select" data-label-id="end-goto-playlist">
+                                    <option value="0">NONE</option>
+                                    <option value="1">Playlist 1</option>
+                                    <option value="2">Playlist 2</option>
+                                    <option value="3">Playlist 3</option>
+                                    <option value="4">Playlist 4</option>
+                                    <option value="5">Playlist 5</option>
+                                </select>
+                                <select id="end-goto-item" class="end-mode-select" data-label-id="end-goto-item">
+                                    <option value="">NONE</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -130,13 +177,20 @@
             </div>
             <div id="control-area" class="control-area">
                 <p data-label-id="still-capture-title"></p>
-                <div class="controls">
-                    <button id="still-button" class="button button button-gray" data-tooltip-id="still-button" data-label-id="still-button"></button>
-                    <input type="number" id="fadeInDuration" min="1" step="1" value="1" class="pngtomp4-duration-input" aria-label="PNG to MP4 Duration" data-tooltip-id="fadeInDuration" data-label-id="fadeInDuration">
-                    <span id="pptxDissolveLabel" data-label-id="pptxDissolve"></span>
-                    <input type="checkbox" id="pptxDissolve" data-tooltip-id="pptxDissolve">
+                <div class="controls still-capture-controls">
+                    <div class="still-capture-col">
+                        <button id="still-button" class="button button button-gray" data-tooltip-id="still-button" data-label-id="still-button"></button>
+                    </div>
+                    <div class="still-capture-col">
+                        <input type="number" id="fadeInDuration" min="1" step="1" value="1" class="pngtomp4-duration-input" aria-label="PNG to MP4 Duration" data-tooltip-id="fadeInDuration" data-label-id="fadeInDuration">
+                    </div>
+                    <div class="still-capture-col">
+                        <span id="pptxDissolveLabel" data-label-id="pptxDissolve"></span>
+                        <input type="checkbox" id="pptxDissolve" data-tooltip-id="pptxDissolve">
+                    </div>
                 </div>
             </div>
+
             <div id="control-area" class="control-area">
                 <p data-label-id="dsk-title"></p>
                 <div class="controls">
