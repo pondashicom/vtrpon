@@ -2970,14 +2970,18 @@ window.electronAPI.onShortcutTrigger((_, action, payload) => {
 });
 
 // 右矢印キーによるエディットエリアリセット時に、プレイリストの選択状態も解除
-function clearPlaylistSelection() {
-    document.querySelectorAll('.playlist-item').forEach(item => {
-        item.classList.remove('selected');
-    });
+async function clearPlaylistSelection() {
+    const playlist = await stateControl.getPlaylistState();
+    const updatedPlaylist = playlist.map(item => ({
+        ...item,
+        selectionState: "unselected",
+        editingState: null
+    }));
+    await stateControl.setPlaylistState(updatedPlaylist);
+    logOpe('[listedit.js] Cleared playlist selection.');
 }
 
 // メニューからのショートカット通知
-
 window.electronAPI?.onShortcutTrigger((event, action) => {
     handleShortcutAction(action);
 });
