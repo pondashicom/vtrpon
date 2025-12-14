@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.0
+//     ver 2.5.1
 // -----------------------
 
 // -----------------------
@@ -117,6 +117,7 @@ function initializeFadeCanvas() {
     fadeCanvas.style.height = '100vh';
     fadeCanvas.style.backgroundColor = 'black';
     fadeCanvas.style.opacity = '0';
+    fadeCanvas.style.zIndex = '1000';
     fadeCanvas.style.pointerEvents = 'none';
 
     document.body.appendChild(fadeCanvas);
@@ -471,13 +472,38 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         // onPlaying で clearOverlay('playing') が走る
     }
 
-    // セーフティ（実描画が極端に遅れても過度に残留しないための保険）
-    setTimeout(() => {
-        if (seamlessGuardActive) {
-            logInfo('[fullscreen.js] Overlay auto-cleared by safety timeout (no black).');
-            clearOverlay('safety-timeout');
+    // セーフティ：
+    // 遅い環境でここで強制クリアすると黒フラになるため、「フレームが来るまで基本は保持」する。
+    // 極端に遅い場合はポーリングしつつ、状態だけログに残す（次ソース受信で自然に上書きされる）。
+    const SAFETY_TIMEOUT_MS = 5000;
+    const SAFETY_POLL_MS = 100;
+    const safetyStart = performance.now();
+
+    const safetyPoll = () => {
+        if (!seamlessGuardActive) return;
+
+        const hasFrameLike =
+            (videoElement.readyState >= 2) &&
+            ((videoElement.videoWidth | 0) > 0) &&
+            ((videoElement.videoHeight | 0) > 0) &&
+            !videoElement.paused;
+
+        if (hasFrameLike) {
+            clearOverlay('safety-has-frame');
+            return;
         }
-    }, 500);
+
+        const elapsed = performance.now() - safetyStart;
+        if (elapsed >= SAFETY_TIMEOUT_MS) {
+            logInfo('[fullscreen.js] Overlay still active after safety timeout; keeping it until first frame to avoid black flash.');
+            setTimeout(safetyPoll, 250);
+            return;
+        }
+
+        setTimeout(safetyPoll, SAFETY_POLL_MS);
+    };
+
+    setTimeout(safetyPoll, SAFETY_POLL_MS);
 }
 
 // ---------------------------------------
@@ -737,18 +763,7 @@ async function setupUVCDevice() {
                 logDebug('[fullscreen.js] Volume measurement started from setupUVCDevice (post-play).');
             }
         } catch (_e) {}
-        videoElement.addEventListener('playing', handlePlaying, { once: true });
 
-        await videoElement.play();
-        globalState.stream = stream;
-
-        // 念のため、play() 成功後にもメーター計測開始を試みる
-        try {
-            if (!isVolumeMeasurementActive) {
-                startVolumeMeasurement(60);
-                logDebug('[fullscreen.js] Volume measurement started from setupUVCDevice (post-play).');
-            }
-        } catch (_e) {}
 
         logInfo('[fullscreen.js] UVC device stream initialized successfully.');
         logDebug(`[fullscreen.js] Device ID: ${deviceId}`);
@@ -1597,9 +1612,10 @@ function setupFullscreenAudio(videoElement) {
     const mediaStreamDest = audioContext.createMediaStreamDestination();
     fullscreenMediaDest = mediaStreamDest;
 
-    // 出力のみ切替（mono は merger、stereo は gain）
+    // 出力のみ切替（mono は merger、stereo/多ch は upmix(2ch強制)）
     try { fullscreenGainNode.disconnect(mediaStreamDest); } catch (_e) {}
     try { fullscreenMerger.disconnect && fullscreenMerger.disconnect(mediaStreamDest); } catch (_e) {}
+    try { fullscreenUpmixNode && fullscreenUpmixNode.disconnect(mediaStreamDest); } catch (_e) {}
 
     if (isMonoSource && fullscreenMerger) {
         try { fullscreenMerger.connect(mediaStreamDest); } catch (_e) {}
@@ -1608,7 +1624,13 @@ function setupFullscreenAudio(videoElement) {
             fullscreenGainNode.connect(fullscreenMerger, 0, 1);
         } catch (_e) {}
     } else {
-        try { fullscreenGainNode.connect(mediaStreamDest); } catch (_e) {}
+        // メーター経路と同様に、必ず 2ch 化したものを出力へ流す
+        if (fullscreenUpmixNode) {
+            try { fullscreenUpmixNode.connect(mediaStreamDest); } catch (_e) {}
+        } else {
+            // 念のためのフォールバック（通常ここには来ない）
+            try { fullscreenGainNode.connect(mediaStreamDest); } catch (_e) {}
+        }
     }
 
     let hiddenAudio = document.getElementById('fullscreen-hidden-audio');
