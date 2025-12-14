@@ -514,6 +514,12 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
         return;
     }
     // リセット処理
+    // 既に同じ UVC アイテムがオンエア中なら、再通知で reset/reload しない（UVC/NDI Webcam の切断回避）
+    if (onairNowOnAir && onairCurrentState && onairCurrentState.itemId === itemId && onairCurrentState.endMode === 'UVC') {
+        logDebug('[onair.js] Same UVC itemId received while already on-air. Skipping reset/reload to prevent device disconnect.');
+        return;
+    }
+
     if (onairNowOnAir) {
         logDebug('[onair.js] An item is currently on-air. Resetting before loading the new one.');
         onairReset();
