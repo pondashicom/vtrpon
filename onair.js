@@ -1724,6 +1724,11 @@ function onairHandleEndMode() {
         // repeatCount が未設定（∞扱い）の場合は従来どおり REPEAT のまま
     }
 
+    // GOTO は NEXT 完了通知経路を流用するため、実行系は NEXT として扱う
+    if (effectiveEndMode === 'GOTO') {
+        effectiveEndMode = 'NEXT';
+    }
+
     logDebug(`[onair.js] Calling handleEndMode with endMode: ${endMode}, effectiveEndMode: ${effectiveEndMode}`);
 
     // FTB付加フラグ
@@ -1751,7 +1756,7 @@ function onairHandleEndMode() {
         currentTime: currentTime,
         startMode: (onairCurrentState?.startMode || 'PAUSE')
     });
-    logDebug(`[onair.js] EndMode command sent to fullscreen: { endMode: ${effectiveEndMode}, currentTime: ${currentTime} }, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
+    logDebug(`[onair.js] EndMode command sent to fullscre... }, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
 
     onairExecuteEndMode(effectiveEndMode);
 }
@@ -3320,6 +3325,40 @@ function updateEndModeDisplayLabel() {
         } else {
             // ∞扱い（従来REPEAT相当）
             label = 'REPEAT(∞)';
+        }
+    }
+
+    // GOTO時はとび先表示を付加（例: GOTO→3-12）
+    if (baseEnd === 'GOTO') {
+        const pl = onairCurrentState?.endGotoPlaylist;
+        const targetId = onairCurrentState?.endGotoItemId;
+        let itemNo = '?';
+
+        if (typeof pl === 'number' && pl >= 1 && pl <= 5 && typeof targetId === 'string' && targetId) {
+            try {
+                const raw = localStorage.getItem(`vtrpon_playlist_store_${pl}`);
+                if (raw) {
+                    const stored = JSON.parse(raw);
+                    const data = stored?.data;
+                    if (Array.isArray(data)) {
+                        const idx = data.findIndex(it => String(it?.playlistItem_id || '') === targetId);
+                        if (idx >= 0) {
+                            const ord = data[idx]?.order;
+                            if (typeof ord === 'number' && !isNaN(ord)) {
+                                itemNo = String(ord >= 1 ? ord : (ord + 1));
+                            } else {
+                                itemNo = String(idx + 1);
+                            }
+                        }
+                    }
+                }
+            } catch (_) {}
+        }
+
+        if (typeof pl === 'number' && pl >= 1 && pl <= 5) {
+            label = `GOTO→${pl}-${itemNo}`;
+        } else {
+            label = 'GOTO';
         }
     }
 
