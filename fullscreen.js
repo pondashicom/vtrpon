@@ -132,6 +132,15 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
 
     const nextIsUVC = isUVCItem(itemData);
 
+    // 切替直前のフェード系レイヤーを必ず解除する。
+    cancelPreFTB();
+    cancelFadeOut();
+    const ffCanvas = document.getElementById('fullscreen-fade-canvas');
+    if (ffCanvas) {
+        ffCanvas.style.opacity = '0';
+        ffCanvas.style.visibility = 'hidden';
+    }
+
     // スタートモードを大文字で統一
     const nextStartModeUpper = String(itemData.startMode || 'PAUSE').toUpperCase();
     const nextIsPause  = (nextStartModeUpper === 'PAUSE');
@@ -473,8 +482,6 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     }
 
     // セーフティ：
-    // 遅い環境でここで強制クリアすると黒フラになるため、「フレームが来るまで基本は保持」する。
-    // 極端に遅い場合はポーリングしつつ、状態だけログに残す（次ソース受信で自然に上書きされる）。
     const SAFETY_TIMEOUT_MS = 5000;
     const SAFETY_POLL_MS = 100;
     const safetyStart = performance.now();
@@ -482,26 +489,16 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     const safetyPoll = () => {
         if (!seamlessGuardActive) return;
 
-        const hasFrameLike =
-            (videoElement.readyState >= 2) &&
-            ((videoElement.videoWidth | 0) > 0) &&
-            ((videoElement.videoHeight | 0) > 0) &&
-            !videoElement.paused;
-
-        if (hasFrameLike) {
-            clearOverlay('safety-has-frame');
-            return;
-        }
-
         const elapsed = performance.now() - safetyStart;
         if (elapsed >= SAFETY_TIMEOUT_MS) {
-            logInfo('[fullscreen.js] Overlay still active after safety timeout; keeping it until first frame to avoid black flash.');
+            logInfo('[fullscreen.js] Overlay still active after safety timeout; keeping it until first frame to avoid flash.');
             setTimeout(safetyPoll, 250);
             return;
         }
 
         setTimeout(safetyPoll, SAFETY_POLL_MS);
     };
+
 
     setTimeout(safetyPoll, SAFETY_POLL_MS);
 }
@@ -1058,6 +1055,15 @@ window.electronAPI.ipcRenderer.on('control', (event, data) => {
         return;
     }
     if (data.command === 'fadein') {
+        // シームレスガード（前フレーム掲出）中は映像フェードを禁止
+        if (seamlessGuardActive) {
+            return;
+        }
+        // 次ソースがUVCで再生開始（playing）前は、フェードを抑止（初期遅延と競合させない）
+        if (suppressFadeUntilPlaying) {
+            return;
+        }
+
         let fadeDur = 1.0;
         if (typeof data.startFadeInSec === 'number' && !isNaN(data.startFadeInSec)) {
             fadeDur = data.startFadeInSec;
