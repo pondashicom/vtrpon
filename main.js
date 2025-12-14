@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.5.0
+//     ver 2.5.1
 // -----------------------
 
 // ---------------------
@@ -2199,34 +2199,49 @@ ipcMain.handle('import-playlist', async () => {
             return { success: false, error: 'Invalid playlist data structure' };
         }
 
-        // ファイルの存在確認
-        // 1) path が "UVC_DEVICE" で始まる場合は存在チェックから除外
-        // 2) それ以外は fs.existsSync() で実ファイルを確認
-        const invalidFiles = playlistData.playlists.flatMap(playlist =>
-            playlist.data.filter(file => {
-                // UVCデバイスならOK
-                if (typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE')) {
-                    return false; // 不正ファイルではない
+        // 欠落ファイルがあっても import 自体は成功させ、該当アイテムを mediaOffline=true にする
+        const missingFiles = [];
+
+        for (const playlist of playlistData.playlists) {
+            if (!playlist || !Array.isArray(playlist.data)) continue;
+
+            for (const file of playlist.data) {
+                if (!file || typeof file !== 'object') continue;
+
+                const hasPath = (typeof file.path === 'string' && file.path.length > 0);
+                const isUVC = (hasPath && file.path.startsWith('UVC_DEVICE'));
+
+                // UVC は存在チェックしない
+                if (isUVC) {
+                    file.mediaOffline = false;
+                    continue;
                 }
-                // UVCデバイス以外で実ファイルが存在しない場合は不正ファイル
-                return !fs.existsSync(file.path);
-            })
-        );
-        if (invalidFiles.length > 0) {
-            return {
-                success: false,
-                error: `Some files are missing: ${invalidFiles.map(f => f.path).join(', ')}`,
-            };
+
+                let exists = false;
+                if (hasPath) {
+                    try {
+                        exists = fs.existsSync(file.path);
+                    } catch (e) {
+                        exists = false;
+                    }
+                }
+
+                if (!exists) {
+                    file.mediaOffline = true;
+                    missingFiles.push(file.path || file.name || 'Unknown file');
+                } else {
+                    file.mediaOffline = false;
+                }
+            }
         }
 
         console.log(`[main.js] Playlist imported from: ${filePaths[0]}`);
-        return { success: true, data: playlistData };
+        return { success: true, data: playlistData, missingFiles };
     } catch (error) {
         console.error('Error importing playlist:', error);
-        return { success: false, error: 'Failed to read or parse JSON file' };
+        return { success: false, error: (error && error.message) ? error.message : 'Failed to read or parse JSON file' };
     }
 });
-
 
 // ファイルの存在をチェックするハンドラー
 ipcMain.handle('check-file-exists', async (event, filePath) => {

@@ -2695,40 +2695,54 @@ async function doImportPlaylists() {
 
             const validData = [];
             for (const file of data) {
-                const exists = await window.electronAPI.checkFileExists(file.path);
-                const isUVC = (typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE'));
+                const hasPath = (typeof file.path === 'string' && file.path.length > 0);
+                const isUVC = (hasPath && file.path.startsWith('UVC_DEVICE'));
 
-                if (exists || isUVC) {
-                    const restoredFile = {
-                        ...file,
-                        ftbEnabled: file.ftbEnabled === true,
-                        ftbRate: (file.ftbRate !== undefined && file.ftbRate !== null) ? file.ftbRate : 1.0,
-                        startFadeInSec: (file.startFadeInSec !== undefined && file.startFadeInSec !== null) ? file.startFadeInSec : 1.0,
-                        startMode: (file.startMode !== undefined && file.startMode !== null) ? file.startMode : "PAUSE",
-                        endMode: (file.endMode !== undefined && file.endMode !== null) ? file.endMode : "PAUSE",
-                        defaultVolume: (file.defaultVolume !== undefined && file.defaultVolume !== null) ? file.defaultVolume : 100,
-                        repeatCount: (Number.isFinite(Number(file.repeatCount)) && Number(file.repeatCount) >= 1) ? Math.floor(Number(file.repeatCount)) : undefined,
-                        repeatEndMode: (file.repeatEndMode === "PAUSE" || file.repeatEndMode === "OFF" || file.repeatEndMode === "NEXT") ? file.repeatEndMode : undefined,
-                        endGotoPlaylist: (Number.isFinite(Number(file.endGotoPlaylist)) && Number(file.endGotoPlaylist) >= 1 && Number(file.endGotoPlaylist) <= 5)
-                            ? Number(file.endGotoPlaylist)
-                            : undefined,
-                        endGotoItemId: (typeof file.endGotoItemId === 'string' && file.endGotoItemId) ? file.endGotoItemId : undefined,
-                    };
-
-                    // UVC デバイスサムネイル再生成
-                    if (isUVC) {
-                        try {
-                            restoredFile.thumbnail = await generateThumbnail(restoredFile.path);
-                        } catch (e) {
-                            logInfo('[playlist.js] Failed to regenerate UVC thumbnail on import:', e);
-                        }
+                // checkFileExists は例外を飲み込み、インポート全体を失敗させない
+                let exists = false;
+                if (hasPath && !isUVC) {
+                    try {
+                        exists = await window.electronAPI.checkFileExists(file.path);
+                    } catch (e) {
+                        exists = false;
+                        logInfo('[playlist.js] checkFileExists failed on import:', e);
                     }
-
-                    validData.push(restoredFile);
-                } else {
-                    logInfo(`File not found: ${file.path}`);
-                    missingFiles.push(file.path || file.name || 'Unknown file');
                 }
+
+                const restoredFile = {
+                    ...file,
+                    ftbEnabled: file.ftbEnabled === true,
+                    ftbRate: (file.ftbRate !== undefined && file.ftbRate !== null) ? file.ftbRate : 1.0,
+                    startFadeInSec: (file.startFadeInSec !== undefined && file.startFadeInSec !== null) ? file.startFadeInSec : 1.0,
+                    startMode: (file.startMode !== undefined && file.startMode !== null) ? file.startMode : "PAUSE",
+                    endMode: (file.endMode !== undefined && file.endMode !== null) ? file.endMode : "PAUSE",
+                    defaultVolume: (file.defaultVolume !== undefined && file.defaultVolume !== null) ? file.defaultVolume : 100,
+                    repeatCount: (Number.isFinite(Number(file.repeatCount)) && Number(file.repeatCount) >= 1) ? Math.floor(Number(file.repeatCount)) : undefined,
+                    repeatEndMode: (file.repeatEndMode === "PAUSE" || file.repeatEndMode === "OFF" || file.repeatEndMode === "NEXT") ? file.repeatEndMode : undefined,
+                    endGotoPlaylist: (Number.isFinite(Number(file.endGotoPlaylist)) && Number(file.endGotoPlaylist) >= 1 && Number(file.endGotoPlaylist) <= 5)
+                        ? Number(file.endGotoPlaylist)
+                        : undefined,
+                    endGotoItemId: (typeof file.endGotoItemId === 'string' && file.endGotoItemId) ? file.endGotoItemId : undefined,
+                };
+
+                // UVC デバイスサムネイル再生成
+                if (isUVC) {
+                    restoredFile.mediaOffline = false;
+                    try {
+                        restoredFile.thumbnail = await generateThumbnail(restoredFile.path);
+                    } catch (e) {
+                        logInfo('[playlist.js] Failed to regenerate UVC thumbnail on import:', e);
+                    }
+                } else {
+                    // 通常ファイル：無い場合でも落とさず Media Offline として保持
+                    restoredFile.mediaOffline = !exists;
+                    if (!exists) {
+                        logInfo(`File not found: ${file.path}`);
+                        missingFiles.push(file.path || file.name || 'Unknown file');
+                    }
+                }
+
+                validData.push(restoredFile);
             }
 
             const playlistData = {
@@ -2743,6 +2757,7 @@ async function doImportPlaylists() {
                 active: index === activePlaylistIndex
             });
         }
+
         for (const pl of newPlaylists) {
             const storeKey = `vtrpon_playlist_store_${pl.index}`;
             const storePayload = {
