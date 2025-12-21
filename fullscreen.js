@@ -1650,16 +1650,65 @@ function setupFullscreenAudio(videoElement) {
 
     window.fullscreenAudioStream = mediaStreamDest.stream;
 
-    window.electronAPI.getDeviceSettings().then(settings => {
-        const outputDeviceId = settings.onairAudioOutputDevice;
-        if (hiddenAudio.setSinkId) {
-            hiddenAudio.setSinkId(outputDeviceId)
-                .then(() => { logDebug('[fullscreen.js] Hidden audio output routed to device: ' + outputDeviceId); })
-                .catch(err => { logInfo('[fullscreen.js] Failed to set hidden audio output device: ' + err); });
-        } else {
-            logInfo('[fullscreen.js] hiddenAudio.setSinkId is not supported.');
+    window.electronAPI.getDeviceSettings().then(async settings => {
+        const outputDeviceId = (settings && settings.onairAudioOutputDevice) ? settings.onairAudioOutputDevice : 'default';
+
+        // 念のため AudioContext を起こす（suspended のまま進む個体差を避ける）
+        try {
+            const ctx = FullscreenAudioManager.getContext();
+            if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+                await ctx.resume();
+            }
+        } catch (_e) {}
+
+        // まず出力先を確定させてから play（順序を固定）
+        try {
+            if (hiddenAudio.setSinkId) {
+                await hiddenAudio.setSinkId(outputDeviceId);
+                logDebug('[fullscreen.js] Hidden audio output routed to device: ' + outputDeviceId);
+            } else {
+                logInfo('[fullscreen.js] hiddenAudio.setSinkId is not supported.');
+            }
+        } catch (err) {
+            logInfo('[fullscreen.js] Failed to set hidden audio output device: ' + err);
         }
-        hiddenAudio.play().catch(err => { logInfo('[fullscreen.js] Hidden audio play failed: ' + err); });
+
+        // play が失敗する個体があるため、失敗時は隠し audio を作り直して 1 回だけリトライ
+        try {
+            await hiddenAudio.play();
+        } catch (err) {
+            logInfo('[fullscreen.js] Hidden audio play failed: ' + err);
+
+            try {
+                const old = hiddenAudio;
+                const parent = old.parentNode;
+
+                hiddenAudio = document.createElement('audio');
+                hiddenAudio.id = 'fullscreen-hidden-audio';
+                hiddenAudio.style.display = 'none';
+                if (parent) {
+                    parent.removeChild(old);
+                    parent.appendChild(hiddenAudio);
+                } else {
+                    document.body.appendChild(hiddenAudio);
+                }
+
+                hiddenAudio.srcObject = mediaStreamDest.stream;
+
+                try {
+                    if (hiddenAudio.setSinkId) {
+                        await hiddenAudio.setSinkId(outputDeviceId);
+                        logDebug('[fullscreen.js] Hidden audio output routed to device (retry): ' + outputDeviceId);
+                    }
+                } catch (e2) {
+                    logInfo('[fullscreen.js] Failed to set hidden audio output device (retry): ' + e2);
+                }
+
+                await hiddenAudio.play();
+            } catch (e3) {
+                logInfo('[fullscreen.js] Hidden audio retry failed: ' + e3);
+            }
+        }
     });
 
     setupFullscreenAudio.initialized = true;
