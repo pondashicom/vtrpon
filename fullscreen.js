@@ -27,6 +27,10 @@ let seamlessGuardActive = false;
 let suppressFadeUntilPlaying = false;
 let pendingUvcFadeInSec = 0;
 let overlayForceBlack = false;
+let fullscreenSeamlessCleanup = null;
+let fullscreenApplySeq = 0;
+let fullscreenApplyRafId = null;
+
 
 // ----------------------------------------
 // フルスクリーンエリアの初期化
@@ -194,7 +198,20 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     applyMuteStateForNextSource(itemData);
 
     // いきなりresetせず、次の描画フレームで実施（オーバーレイ描画の確定を保証）
-    requestAnimationFrame(() => {
+    // ただし連打時に古いrAFが遅れて実行されるとフラッシュの原因になるため、世代ガードする
+    fullscreenApplySeq += 1;
+    const applySeq = fullscreenApplySeq;
+
+    if (fullscreenApplyRafId !== null) {
+        try { cancelAnimationFrame(fullscreenApplyRafId); } catch (_) {}
+        fullscreenApplyRafId = null;
+    }
+
+    fullscreenApplyRafId = requestAnimationFrame(() => {
+        // このrAFが最新でなければ何もしない（古いreset/適用を無効化）
+        if (applySeq !== fullscreenApplySeq) return;
+
+        fullscreenApplyRafId = null;
         resetFullscreenState();
         handleOnAirData(itemData);
     });
@@ -333,8 +350,10 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     // FTB黒保持中は黒一本化のためスキップ
     if (respectBlackHold) {
         const fc = document.getElementById('fadeCanvas');
-        if (typeof holdBlackUntilFadeIn !== 'undefined' &&
-            (holdBlackUntilFadeIn || (fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9))) {
+        const fcBlackHold = !!(fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9);
+
+        // holdBlackUntilFadeIn が残留しても、fadeCanvas が実際に黒保持していないならスキップしない
+        if (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn && fcBlackHold) {
             logInfo('[fullscreen.js] Overlay capture skipped due to black hold.');
             return;
         }
@@ -346,6 +365,55 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         logInfo('[fullscreen.js] Overlay capture skipped due to missing element.');
         return;
     }
+
+    // 連打対策：前回の「解除監視（RVFC/イベント/タイマー）」が残っていると、
+    // 新しい切替中に古い解除が走ってフラッシュ誘発＆連鎖しやすくなるため、ここで必ず終了する
+    if (typeof fullscreenSeamlessCleanup === 'function') {
+        try { fullscreenSeamlessCleanup(); } catch (_) {}
+        fullscreenSeamlessCleanup = null;
+    }
+
+    // 念のため：過去の状態が残っていると overlay-canvas への drawImage が抑止され続けるため解除
+    overlayForceBlack = false;
+
+    // この capture 呼び出しの世代トークン
+    const captureToken = `${Date.now()}-${Math.random()}`;
+    try { overlayCanvas.dataset.seamlessToken = captureToken; } catch (_) {}
+    const isCurrentToken = () => {
+        try { return overlayCanvas.dataset.seamlessToken === captureToken; } catch (_) { return true; }
+    };
+
+    // 「旧srcのフレーム」で解除が成立してしまうのを防ぐための基準
+    const capturedSrc = String(videoElement.currentSrc || videoElement.src || '');
+    const capturedTime = Number(videoElement.currentTime || 0);
+    const capturedAt = performance.now();
+
+    // src が同じでも、reset/seek 等で再生位置が変わった場合は「切替済み」とみなして解除する
+    const isReadyToRelease = (nowSrc) => {
+        if (!nowSrc) return false;
+
+        // 通常：src が変わったら切替済み
+        if (nowSrc !== capturedSrc) return true;
+
+        // 例外：同一srcでも「巻き戻り／先頭付近に戻った」なら切替済み
+        const nowTime = Number(videoElement.currentTime || 0);
+        if (nowTime <= 0.12 && capturedTime > 0.30) return true;
+        if (nowTime + 0.25 < capturedTime) return true;
+
+        // 最終セーフティ：同一srcのまま解除契機が来ない場合でも、一定時間経過して再生が進んでいれば解除
+        // capturedTime が 0 付近で差分が出ないケースでも、再生が進んでいれば解除できるようにする
+        const elapsed = performance.now() - capturedAt;
+        if (
+            elapsed >= 1500 &&
+            (videoElement.readyState >= 2) &&
+            !videoElement.paused &&
+            (Math.abs(nowTime - capturedTime) >= 0.30 || nowTime >= 0.25)
+        ) {
+            return true;
+        }
+
+        return false;
+    };
 
     const ctx = overlayCanvas.getContext('2d');
 
@@ -376,9 +444,9 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
                 const dx = Math.floor((cw - dw) / 2);
                 const dy = Math.floor((ch - dh) / 2);
 
-                // 背景を黒でクリアしてから中央配置で描画
+                // 背景を塗ってから中央配置で描画（FILL-KEY時は指定色、それ以外は黒）
                 ctx.save();
-                ctx.fillStyle = 'black';
+                ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
                 ctx.fillRect(0, 0, cw, ch);
                 ctx.drawImage(videoElement, dx, dy, dw, dh);
                 ctx.restore();
@@ -416,91 +484,226 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             }
         }
     } catch (e) {
-        // drawImage失敗などの場合は黒退避（過度な露出防止）
+        // drawImage失敗などの場合は退避（FILL-KEY時は指定色、それ以外は黒）
         try {
             ctx.save();
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
             ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             ctx.restore();
             overlayCanvas.style.display = 'none';
         } catch (_) {}
     }
 
-    const clearOverlay = (reason) => {
-        const RELEASE_DELAY_MS = 50; // ほんの少し遅らせて黒露出を抑える
-        setTimeout(() => {
-            try {
-                overlayCanvas.style.display = 'none';
-                try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
-            } catch (_) {}
-            seamlessGuardActive = false;
-            overlayForceBlack = false;
-            logDebug(`[fullscreen.js] Overlay cleared after small delay (${RELEASE_DELAY_MS}ms)${reason ? ' [' + reason + ']' : ''}.`);
-            detach();
-        }, RELEASE_DELAY_MS);
-    };
-
-    // 実描画検知
     const useRVFC = !!(videoElement && typeof videoElement.requestVideoFrameCallback === 'function');
     let rvfcCount = 0;
-    const rvfc = useRVFC ? (ts, md) => {
-        rvfcCount += 1;
-        if (rvfcCount >= 2) {
-            clearOverlay('rvfc');
-        } else {
-            try { videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
-        }
-    } : null;
 
-    // playing ハンドラを定義（非RVFC環境の解除契機）
-    const onPlaying = () => {
-        if (!useRVFC) {
-            clearOverlay('playing');
-        }
+    // RVFCのcallback回数ではなく「実際に提示されたフレームの進行」を見て解除する
+    let rvfcArmed = false;
+    let rvfcArmedAt = 0;
+    let rvfcLastPresentedFrames = 0;
+
+    let rvfcHandle = null;
+    let safetyTimerId = null;
+
+    const onLoadedData = () => {
+        if (!isCurrentToken()) return;
+        // RVFC 環境では 2フレーム待ち（rvfc）で解除する。イベントで即解除するとフラッシュしやすい。
+        if (useRVFC) return;
+        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+        if (isReadyToRelease(nowSrc)) clearOverlay('loadeddata');
     };
-    const onLoadedData = () => {};
-    const onCanPlay = () => {};
-    const onSeeked   = () => {};
+    const onCanPlay = () => {
+        if (!isCurrentToken()) return;
+        if (useRVFC) return;
+        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+        if (isReadyToRelease(nowSrc)) clearOverlay('canplay');
+    };
+    const onSeeked = () => {
+        if (!isCurrentToken()) return;
+        if (useRVFC) return;
+        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+        if (isReadyToRelease(nowSrc)) clearOverlay('seeked');
+    };
+    const onTimeUpdate = () => {
+        if (!isCurrentToken()) return;
+        if (useRVFC) return;
+        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+        if (isReadyToRelease(nowSrc)) clearOverlay('timeupdate');
+    };
 
+    // detach は cleanup からも呼ぶ（世代が変わったら必ず掃除する）
     const detach = () => {
         videoElement.removeEventListener('playing', onPlaying);
         videoElement.removeEventListener('loadeddata', onLoadedData);
         videoElement.removeEventListener('canplay', onCanPlay);
         videoElement.removeEventListener('seeked', onSeeked);
+        videoElement.removeEventListener('timeupdate', onTimeUpdate);
     };
+
+    const cleanup = () => {
+        try { detach(); } catch (_) {}
+
+        if (useRVFC && rvfcHandle && typeof videoElement.cancelVideoFrameCallback === 'function') {
+            try { videoElement.cancelVideoFrameCallback(rvfcHandle); } catch (_) {}
+        }
+        rvfcHandle = null;
+
+        if (safetyTimerId) {
+            try { clearTimeout(safetyTimerId); } catch (_) {}
+            safetyTimerId = null;
+        }
+    };
+
+    // 次回の capture 呼び出しで必ず殺せるよう、グローバルに登録
+    fullscreenSeamlessCleanup = cleanup;
+
+    const clearOverlay = (reason) => {
+        const RELEASE_DELAY_MS = 50; // ほんの少し遅らせて黒露出を抑える
+        setTimeout(() => {
+            // 古い世代の解除が新しいオーバーレイを消さないようにする
+            if (!isCurrentToken()) {
+                cleanup();
+                // 自分が登録した cleanup なら解放（新しい世代のものは消さない）
+                if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+                return;
+            }
+
+            try {
+                overlayCanvas.style.display = 'none';
+                try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
+            } catch (_) {}
+
+            seamlessGuardActive = false;
+            overlayForceBlack = false;
+
+            logDebug(`[fullscreen.js] Overlay cleared after smal... (${RELEASE_DELAY_MS}ms)${reason ? ' [' + reason + ']' : ''}.`);
+
+            cleanup();
+            if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+        }, RELEASE_DELAY_MS);
+    };
+
+    const rvfc = useRVFC ? (ts, md) => {
+        // 世代が変わったら即終了（積み上がり防止）
+        if (!isCurrentToken()) {
+            cleanup();
+            if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+            return;
+        }
+
+        // 旧ソースのままRVFCが進むと、reset/src差し替え前に解除されてフラッシュすることがある。
+        // src が切り替わるまで解除カウントを進めない。
+        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+        if (!isReadyToRelease(nowSrc)) {
+            try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
+            return;
+        }
+
+        // isReadyToRelease を満たした直後でも、まだ実フレームが提示されておらず
+        // 背景色（FILL-KEYの指定色など）が見える瞬間がある。
+        // callback回数ではなく、presentedFrames（提示フレーム数）の増加を確認してから解除する。
+        const pf = (md && typeof md.presentedFrames === 'number') ? md.presentedFrames : null;
+
+        // 解除待ち開始（この瞬間のpfを基準にする）
+        if (!rvfcArmed) {
+            rvfcArmed = true;
+            rvfcArmedAt = performance.now();
+            rvfcCount = 0;
+            rvfcLastPresentedFrames = (pf !== null) ? pf : 0;
+
+            try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
+            return;
+        }
+
+        // 早すぎる解除を避ける（切替直後の背景露出を抑える）
+        if ((performance.now() - rvfcArmedAt) < 120) {
+            try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
+            return;
+        }
+
+        if (pf !== null) {
+            if (pf > rvfcLastPresentedFrames) {
+                rvfcCount += (pf - rvfcLastPresentedFrames);
+                rvfcLastPresentedFrames = pf;
+            }
+        } else {
+            // presentedFrames が取れない環境は従来通り（ただし最低待ちの後）
+            rvfcCount += 1;
+        }
+
+        if (rvfcCount >= 2) {
+            clearOverlay('rvfc');
+        } else {
+            try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
+        }
+
+    } : null;
+
+    // playing ハンドラ（非RVFC環境の解除契機）
+    function onPlaying() {
+        if (!isCurrentToken()) {
+            cleanup();
+            if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+            return;
+        }
+
+        // 非RVFC環境でも「旧ソースの playing」で解除しない
+        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+        if (!isReadyToRelease(nowSrc)) return;
+
+        if (!useRVFC) {
+            clearOverlay('playing');
+        }
+    }
 
     videoElement.addEventListener('playing', onPlaying);
     videoElement.addEventListener('loadeddata', onLoadedData);
     videoElement.addEventListener('canplay', onCanPlay);
     videoElement.addEventListener('seeked', onSeeked);
+    videoElement.addEventListener('timeupdate', onTimeUpdate);
 
     if (useRVFC) {
-        try { videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
-    } else {
-        // 非RVFC環境では playing を待って解除（即時解除しない）
-        // onPlaying で clearOverlay('playing') が走る
+        try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
     }
 
-    // セーフティ：
+    // セーフティ（世代が変わったら止まるようにする）
     const SAFETY_TIMEOUT_MS = 5000;
     const SAFETY_POLL_MS = 100;
     const safetyStart = performance.now();
+    let safetyLogged = false;
 
     const safetyPoll = () => {
+        if (!isCurrentToken()) {
+            cleanup();
+            if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+            return;
+        }
         if (!seamlessGuardActive) return;
 
         const elapsed = performance.now() - safetyStart;
         if (elapsed >= SAFETY_TIMEOUT_MS) {
-            logInfo('[fullscreen.js] Overlay still active after safety timeout; keeping it until first frame to avoid flash.');
-            setTimeout(safetyPoll, 250);
+            const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+
+            // 解除条件が満たせるなら解除（同一srcケースの残留対策）
+            if (isReadyToRelease(nowSrc)) {
+                clearOverlay('safety');
+                return;
+            }
+
+            // ログ連打を避ける（1回だけ）
+            if (!safetyLogged) {
+                safetyLogged = true;
+                logInfo('[fullscreen.js] Overlay still active after safety timeout; keeping it until release condition is met.');
+            }
+
+            safetyTimerId = setTimeout(safetyPoll, 250);
             return;
         }
 
-        setTimeout(safetyPoll, SAFETY_POLL_MS);
+        safetyTimerId = setTimeout(safetyPoll, SAFETY_POLL_MS);
     };
 
-
-    setTimeout(safetyPoll, SAFETY_POLL_MS);
+    safetyTimerId = setTimeout(safetyPoll, SAFETY_POLL_MS);
 }
 
 // ---------------------------------------
