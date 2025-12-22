@@ -136,8 +136,17 @@ function initializeOverlayCanvasOnAir() {
     // サイズ同期
     try {
         adjustFadeCanvasSize(videoEl, canvas);
-        canvas.width  = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
+
+        // clientWidth/Height は整数で丸められるため、CSS実表示（小数）とズレて数px拡大/縮小に見えることがある。
+        // 実表示サイズ + devicePixelRatio で backing store を作る。
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+
+        const w = Math.max(1, Math.round(rect.width * dpr));
+        const h = Math.max(1, Math.round(rect.height * dpr));
+
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
     } catch (_) {}
 
     return canvas;
@@ -168,17 +177,80 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
     overlayCanvas.style.visibility = 'visible';
     overlayCanvas.style.opacity = 1;
 
+    // FillKey ON のときは指定色、OFF のときは黒を余白（背景）に使う
+    // ただし FillKey の状態変数が取りこぼすケースがあるため、実際に適用されている背景色（computed style）も拾う
+    const fillKeyColorPicker = document.getElementById('fillkey-color-picker');
+    const fillKeySelectedColor = fillKeyColorPicker ? fillKeyColorPicker.value : "#00FF00";
+
+    // 重要：アイテム側(fillKeyMode)が false でも、手動FillKey(isFillKeyMode)が ON なら有効にする
+    const fillKeyEnabled = !!isFillKeyMode || !!(onairCurrentState && onairCurrentState.fillKeyMode === true);
+
+    // 実画面の背景色を拾う（保険）
+    const getEffectiveBgColor = () => {
+        try {
+            // videoElement 自体の背景
+            const bg1 = window.getComputedStyle(videoElement).backgroundColor;
+            if (bg1 && bg1 !== 'rgba(0, 0, 0, 0)' && bg1 !== 'transparent') return bg1;
+
+            // 親要素側で背景が付いているケースもあるので最大5階層まで拾う
+            let p = videoElement.parentElement;
+            for (let i = 0; i < 5 && p; i++) {
+                const bgp = window.getComputedStyle(p).backgroundColor;
+                if (bgp && bgp !== 'rgba(0, 0, 0, 0)' && bgp !== 'transparent') return bgp;
+                p = p.parentElement;
+            }
+        } catch (_) {}
+        return null;
+    };
+
+    const effectiveBg = getEffectiveBgColor();
+
+    // FillKey が有効なら「ピッカーの色」を最優先（これがユーザーの指定色）
+    // ピッカーが取れない等の保険として effectiveBg を使う。無効なら黒固定。
+    const overlayBgColor = fillKeyEnabled ? (fillKeySelectedColor || effectiveBg || "#00FF00") : 'black';
+
     if (onairOverlayForceBlack) {
         ctx.save();
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = overlayBgColor;
         ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
         ctx.restore();
     } else {
         try {
-            ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            const vw = videoElement.videoWidth;
+            const vh = videoElement.videoHeight;
+
+            // アスペクト比を維持して overlayCanvas 内に収める（pillar/letter box）
+            ctx.save();
+            ctx.fillStyle = overlayBgColor;
+            ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            if (vw && vh && vw > 0 && vh > 0) {
+                const srcAR = vw / vh;
+                const dstAR = overlayCanvas.width / overlayCanvas.height;
+
+                let dw, dh, dx, dy;
+                if (srcAR > dstAR) {
+                    dw = overlayCanvas.width;
+                    dh = Math.round(dw / srcAR);
+                    dx = 0;
+                    dy = Math.round((overlayCanvas.height - dh) / 2);
+                } else {
+                    dh = overlayCanvas.height;
+                    dw = Math.round(dh * srcAR);
+                    dx = Math.round((overlayCanvas.width - dw) / 2);
+                    dy = 0;
+                }
+
+                ctx.drawImage(videoElement, dx, dy, dw, dh);
+            } else {
+                // videoWidth/Height が取れない場合は従来通り
+                ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            }
+
+            ctx.restore();
         } catch (e) {
             ctx.save();
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = overlayBgColor;
             ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             ctx.restore();
         }
@@ -192,6 +264,8 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
     let frameCount = 0;
     const useRVC = typeof videoElement.requestVideoFrameCallback === 'function';
 
+    let safetyTimer = null;
+
     const clearOverlay = () => {
         try {
             overlayCanvas.style.opacity = 0;
@@ -199,7 +273,19 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
             ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
         } catch (_) {}
         onairSeamlessGuardActive = false;
+
+        if (safetyTimer) {
+            try { clearTimeout(safetyTimer); } catch (_) {}
+            safetyTimer = null;
+        }
     };
+
+    // 解除できずに張り付きっぱなしになるケースの保険
+    safetyTimer = setTimeout(() => {
+        if (onairSeamlessGuardActive) {
+            clearOverlay();
+        }
+    }, 5000);
 
     if (useRVC) {
         const tick = () => {
@@ -214,15 +300,13 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
         };
         // src切替を跨ぐため少し遅延して観測を開始
         setTimeout(tick, 0);
+        return;
     }
 
-    // b) フォールバック: playing / canplay / seeked / timeupdate のどれかで解除
+    // b) フォールバック（RVFCが使えない環境のみ）: playing / canplay / seeked / timeupdate のどれかで解除
     const once = (type) => {
         const handler = () => {
             ['playing', 'canplay', 'seeked', 'timeupdate'].forEach(ev => videoElement.removeEventListener(ev, handler));
-            if (useRVC && rvcHandle && videoElement.cancelVideoFrameCallback) {
-                try { videoElement.cancelVideoFrameCallback(rvcHandle); } catch (_) {}
-            }
             clearOverlay();
         };
         videoElement.addEventListener(type, handler, { once: true });
@@ -521,6 +605,21 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
     }
 
     if (onairNowOnAir) {
+        // 前フレーム固定（srcを消す前にキャプチャして、次の実描画まで保持）
+        try {
+            const isCurrentUvc =
+                !!onairCurrentState &&
+                typeof onairCurrentState.path === 'string' &&
+                onairCurrentState.path.startsWith('UVC_DEVICE');
+
+            if (!isCurrentUvc) {
+                captureLastFrameAndHoldUntilNextReadyOnAir(true);
+                logInfo('[onair.js] (onReceiveOnAirData) overlay prepared before reset/source swap.');
+            } else {
+                logInfo('[onair.js] (onReceiveOnAirData) overlay skipped (current source is UVC).');
+            }
+        } catch (_) {}
+
         logDebug('[onair.js] An item is currently on-air. Resetting before loading the new one.');
         onairReset();
     }
@@ -1223,25 +1322,6 @@ function onairStartPlayback(itemData) {
             canvas.style.visibility = 'hidden';
         }
     } catch (_) {}
-
-    // 前フレーム固定
-    try {
-        const startModeUpper2 = String(itemData?.startMode || 'PAUSE').toUpperCase();
-        const isPrevUvc =
-            !!onairCurrentState &&
-            typeof onairCurrentState.path === 'string' &&
-            onairCurrentState.path.startsWith('UVC_DEVICE');
-        const isNextUvc = !!itemData?.deviceId; // UVCはdeviceIdで判定
-
-        if (startModeUpper2 !== 'PAUSE' && !isPrevUvc && !isNextUvc) {
-            captureLastFrameAndHoldUntilNextReadyOnAir(true);
-            logInfo('[onair.js] (onairStartPlayback) overlay prepared before source swap.');
-        } else {
-            logInfo('[onair.js] (onairStartPlayback) overlay skipped (PAUSE or UVC(prev/next)).');
-        }
-    } catch (e) {
-        logInfo('[onair.js] (onairStartPlayback) overlay prepare failed:', e);
-    }
 
     // 既存監視停止
     if (typeof onairPlaybackMonitor !== 'undefined') {
@@ -1999,20 +2079,6 @@ function onairHandleEndModeNext() {
 
     // 残存オーバーレイクリア
     onairCancelSeamlessOverlay('before-NEXT');
-
-    // 前フレーム固定→次の実描画で解除
-    try {
-        const isCurrentUvc =
-            !!onairCurrentState &&
-            typeof onairCurrentState.path === 'string' &&
-            onairCurrentState.path.startsWith('UVC_DEVICE');
-
-        if (!isCurrentUvc) {
-            captureLastFrameAndHoldUntilNextReadyOnAir(true);
-        } else {
-            logInfo('[onair.js] Overlay capture skipped (current source is UVC).');
-        }
-    } catch (_) {}
 
     const currentItemId = onairCurrentState?.itemId;
     if (!currentItemId) {
