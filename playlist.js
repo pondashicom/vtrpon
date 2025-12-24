@@ -2822,11 +2822,6 @@ function validatePlaylistData(data) {
 async function doImportPlaylists() {
     logOpe('[playlist.js] Import playlist triggered');
     try {
-        // 後方互換不要：既に playlist_store_0 があればエラー
-        if (localStorage.getItem('vtrpon_playlist_store_0') !== null) {
-            throw new Error('[playlist.js] Legacy playlist0 detected (vtrpon_playlist_store_0).');
-        }
-
         const result = await window.electronAPI.importPlaylist();
         if (!result.success) {
             if (result.error && result.error.includes('User canceled')) {
@@ -2840,24 +2835,33 @@ async function doImportPlaylists() {
 
         const { playlists, activePlaylistIndex: importedActivePlaylistIndex } = result.data;
 
-        // 後方互換不要：activePlaylistIndex は 1-9 以外はエラー
+        // 救済：activePlaylistIndex は 0 を許容（= アクティブ無しとして破棄）。1-9 は通常復元。その他はエラー。
         const activeIndex = Number(importedActivePlaylistIndex);
-        if (!Number.isFinite(activeIndex) || activeIndex < 1 || activeIndex > 9) {
-            throw new Error(`[playlist.js] Invalid activePlaylistIndex (must be 1-9): ${importedActivePlaylistIndex}`);
+        if (!Number.isFinite(activeIndex) || activeIndex < 0 || activeIndex > 9) {
+            throw new Error(`[playlist.js] Invalid activePlaylistIndex (must be 0-9): ${importedActivePlaylistIndex}`);
         }
 
-        // 後方互換不要：index=0 や 1-9 以外が含まれていたらエラー
+        // 救済：index=0 は破棄（無視）して継続。0以外で 1-9 以外はエラー。
+        const filteredPlaylists = [];
         for (const p of playlists) {
             const idx = Number(p.index);
-            if (!Number.isFinite(idx) || idx < 1 || idx > 9) {
+            if (!Number.isFinite(idx)) {
+                throw new Error(`[playlist.js] Invalid playlist index in import (must be 1-9, or legacy 0): ${p.index}`);
+            }
+            if (idx === 0) {
+                // legacy playlist0 は完全に破棄
+                continue;
+            }
+            if (idx < 1 || idx > 9) {
                 throw new Error(`[playlist.js] Invalid playlist index in import (must be 1-9): ${p.index}`);
             }
+            filteredPlaylists.push(p);
         }
 
         const missingFiles = [];
         const newPlaylists = [];
 
-        for (const playlist of playlists) {
+        for (const playlist of filteredPlaylists) {
             const { index, name, data, endMode } = playlist;
 
             const validData = [];
@@ -2946,35 +2950,39 @@ async function doImportPlaylists() {
             localStorage.setItem(storeKey, JSON.stringify(storePayload));
         }
 
-        // アクティブを stateControl に復元
-        for (const pl of newPlaylists) {
-            const { playlistData, active } = pl;
-            if (active) {
-                const playlistItemsContainer = document.querySelector('.playlist-items');
-                if (playlistItemsContainer) {
-                    playlistItemsContainer.innerHTML = '';
-                }
-                try {
-                    const normalizedForState = playlistData.data.map((f, idx) => ({
-                        ...f,
-                        order: (f.order !== undefined && f.order !== null) ? f.order : idx,
-                    }));
+        // アクティブを stateControl に復元（activeIndex=0 の場合は復元しない＝完全破棄）
+        if (activeIndex >= 1 && activeIndex <= 9) {
+            for (const pl of newPlaylists) {
+                const { playlistData, active } = pl;
+                if (active) {
+                    const playlistItemsContainer = document.querySelector('.playlist-items');
+                    if (playlistItemsContainer) {
+                        playlistItemsContainer.innerHTML = '';
+                    }
+                    try {
+                        const normalizedForState = playlistData.data.map((f, idx) => ({
+                            ...f,
+                            order: (f.order !== undefined && f.order !== null) ? f.order : idx,
+                        }));
 
-                    await stateControl.setPlaylistState(normalizedForState);
-                    await updatePlaylistUI();
-                    logOpe('[playlist.js] Playlist restored to stateControl and UI after import.');
-                } catch (e) {
-                    logInfo('[playlist.js] Failed to restore playlist into stateControl:', e);
+                        await stateControl.setPlaylistState(normalizedForState);
+                        await updatePlaylistUI();
+                        logOpe('[playlist.js] Playlist restored to stateControl and UI after import.');
+                    } catch (e) {
+                        logInfo('[playlist.js] Failed to restore playlist into stateControl:', e);
+                    }
+                    await window.electronAPI.ipcRenderer.send('setMode', playlistData.endMode);
                 }
-                await window.electronAPI.ipcRenderer.send('setMode', playlistData.endMode);
             }
         }
 
         // アクティブスロット反映（ボタン色・表示名）
-        setActiveStoreButton(activeIndex);
-        try {
-            activePlaylistIndex = activeIndex;
-        } catch (e) {
+        if (activeIndex >= 1 && activeIndex <= 9) {
+            setActiveStoreButton(activeIndex);
+            try {
+                activePlaylistIndex = activeIndex;
+            } catch (e) {
+            }
         }
 
         logDebug('[playlist.js] All playlists imported successfully');
