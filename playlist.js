@@ -291,15 +291,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-    // プレイリスト1-7 初期化（空スロット作成） + 起動時スロット=1
+    // プレイリスト1-9 初期化（空スロット作成） + 起動時スロット=1
     try {
         // 後方互換不要：プレイリスト0が存在したらエラー
         if (localStorage.getItem('vtrpon_playlist_store_0') !== null) {
             throw new Error('[playlist.js] Legacy playlist0 detected (vtrpon_playlist_store_0).');
         }
 
-        // スロット1-7を必ず用意（既にあれば上書きしない）
-        for (let i = 1; i <= 7; i++) {
+        // スロット1-9を必ず用意（既にあれば上書きしない）
+        for (let i = 1; i <= 9; i++) {
             const key = `vtrpon_playlist_store_${i}`;
             if (localStorage.getItem(key) === null) {
                 localStorage.setItem(key, JSON.stringify({
@@ -1343,7 +1343,7 @@ function createFileInfo(file, index) {
 // ステータスエリア生成
 function resolveGotoDisplayForStatus(endGotoPlaylist, endGotoItemId) {
     const storeNumber = Number(endGotoPlaylist);
-    if (!Number.isFinite(storeNumber) || storeNumber < 1 || storeNumber > 7) {
+    if (!Number.isFinite(storeNumber) || storeNumber < 1 || storeNumber > 9) {
         return null;
     }
 
@@ -2112,7 +2112,7 @@ async function selectNextPlaylistItem(currentItemId) {
 // 指定スロットへ、現在のプレイリスト状態を保存する
 async function savePlaylistToStore(storeNumber, playlistName) {
     const n = Number(storeNumber);
-    if (!Number.isFinite(n) || n < 1 || n > 7) {
+    if (!Number.isFinite(n) || n < 1 || n > 9) {
         throw new Error(`[playlist.js] Invalid storeNumber: ${storeNumber}`);
     }
 
@@ -2154,7 +2154,7 @@ async function savePlaylistToStore(storeNumber, playlistName) {
             const orderNum = Number(rest.order);
             const order = Number.isFinite(orderNum) ? orderNum : idx;
 
-            const endGotoPlaylist = (Number.isFinite(Number(rest.endGotoPlaylist)) && Number(rest.endGotoPlaylist) >= 1 && Number(rest.endGotoPlaylist) <= 7)
+            const endGotoPlaylist = (Number.isFinite(Number(rest.endGotoPlaylist)) && Number(rest.endGotoPlaylist) >= 1 && Number(rest.endGotoPlaylist) <= 9)
                 ? Number(rest.endGotoPlaylist)
                 : undefined;
 
@@ -2216,7 +2216,7 @@ async function savePlaylistToStore(storeNumber, playlistName) {
         updateStoreButtons();
     }
     if (typeof setActiveButton === 'function') {
-        const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 7)
+        const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
             ? activePlaylistIndex
             : null;
         if (active !== null) setActiveButton(active);
@@ -2225,7 +2225,7 @@ async function savePlaylistToStore(storeNumber, playlistName) {
 
 // 現在アクティブなスロットへ保存する（他のUI更新から呼び出す用）
 async function saveActivePlaylistToStore(playlistName) {
-    const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 7)
+    const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
         ? activePlaylistIndex
         : 1;
     return await savePlaylistToStore(active, playlistName);
@@ -2233,7 +2233,7 @@ async function saveActivePlaylistToStore(playlistName) {
 
 // 初期化用関数（ボタン表示は保存内容を反映）
 function initializePlaylistUI() {
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 9; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         button.dataset.storeNumber = i;
 
@@ -2267,7 +2267,7 @@ function initializePlaylistUI() {
 // --------------------------------
 
 // プレイリスト番号ボタン処理
-for (let i = 1; i <= 7; i++) {
+for (let i = 1; i <= 9; i++) {
     const button = document.getElementById(`playlise${i}-button`);
     if (!button) {
         logInfo(`[playlist.js] Playlist button not found: playlise${i}-button`);
@@ -2316,7 +2316,7 @@ async function loadPlaylist(storeNumber) {
     const token = ++__loadState.token;
 
     const n = Number(storeNumber);
-    if (!Number.isFinite(n) || n < 1 || n > 7) {
+    if (!Number.isFinite(n) || n < 1 || n > 9) {
         throw new Error(`[playlist.js] Invalid storeNumber for loadPlaylist: ${storeNumber}`);
     }
 
@@ -2392,7 +2392,7 @@ async function loadPlaylist(storeNumber) {
         const reorderedData = playlistData.data
             .map((item) => ({
                 ...item,
-                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 7)
+                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 9)
                     ? Number(item.endGotoPlaylist)
                     : undefined,
                 endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
@@ -2463,7 +2463,7 @@ function updateStoreButtons() {
     const delButton = document.getElementById('playlisedel-button');
     const isDeleteMode = !!(delButton && delButton.classList.contains('button-blink-orange'));
 
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 9; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         if (!button) {
             logInfo(`[playlist.js] Playlist button not found: playlise${i}-button`);
@@ -2492,7 +2492,7 @@ function updateStoreButtons() {
 
 // ボタンアクティブ
 function setActiveButton(activeIndex) {
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 9; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         if (!button) continue;
         if (i === activeIndex) {
@@ -2508,7 +2508,7 @@ function setActiveButton(activeIndex) {
 // アクティブボタン設定
 function setActiveStoreButton(storeNumber) {
     const sn = Number(storeNumber);
-    if (!Number.isFinite(sn) || sn < 1 || sn > 7) return;
+    if (!Number.isFinite(sn) || sn < 1 || sn > 9) return;
 
     // 重要：表示だけでなく「保存先スロット」も同期する
     activePlaylistIndex = sn;
@@ -2542,7 +2542,7 @@ function setActiveStoreButton(storeNumber) {
 // CLEARボタンクリックイベント登録
 document.getElementById('playliseclear-button').addEventListener('mousedown', async () => {
     // どのスロットがアクティブか（無ければ1扱い）
-    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 7)
+    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
         ? activePlaylistIndex
         : 1;
 
@@ -2638,7 +2638,7 @@ document.getElementById('playliseclear-button').addEventListener('mousedown', as
 
 // UI更新
 function updateButtonColors() {
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 9; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         if (!button) continue;
         const stored = localStorage.getItem(`vtrpon_playlist_store_${i}`);
@@ -2671,7 +2671,7 @@ function updateButtonColors() {
 async function doExportPlaylist() {
     logOpe('[playlist.js] Export playlist triggered');
     try {
-        const MAX_PLAYLISTS = 7;
+        const MAX_PLAYLISTS = 9;
         const allPlaylists = [];
 
         // 後方互換不要：playlist_store_0 が存在したらエラー
@@ -2679,8 +2679,8 @@ async function doExportPlaylist() {
             throw new Error('[playlist.js] Legacy playlist0 detected (vtrpon_playlist_store_0).');
         }
 
-        // 現在アクティブなスロット（1-7）
-        const currentActive = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 7)
+        // 現在アクティブなスロット（1-9）
+        const currentActive = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
             ? activePlaylistIndex
             : 1;
 
@@ -2703,13 +2703,13 @@ async function doExportPlaylist() {
             startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
             repeatCount: item.repeatCount,
             repeatEndMode: item.repeatEndMode,
-            endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 7)
+            endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 9)
                 ? Number(item.endGotoPlaylist)
                 : undefined,
             endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
         }));
 
-        // ローカルストレージから 1-7 のプレイリスト収集（無い場合は空で入れる）
+        // ローカルストレージから 1-9 のプレイリスト収集（無い場合は空で入れる）
         for (let i = 1; i <= MAX_PLAYLISTS; i++) {
             const storedData = localStorage.getItem(`vtrpon_playlist_store_${i}`);
 
@@ -2745,7 +2745,7 @@ async function doExportPlaylist() {
                         startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
                         repeatCount: item.repeatCount,
                         repeatEndMode: item.repeatEndMode,
-                        endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 7)
+                        endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 9)
                             ? Number(item.endGotoPlaylist)
                             : undefined,
                         endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
@@ -2765,7 +2765,7 @@ async function doExportPlaylist() {
             }
         }
 
-        // エクスポートデータ構築（active は 1-7）
+        // エクスポートデータ構築（active は 1-9）
         const exportData = {
             playlists: allPlaylists,
             activePlaylistIndex: currentActive,
@@ -2840,17 +2840,17 @@ async function doImportPlaylists() {
 
         const { playlists, activePlaylistIndex: importedActivePlaylistIndex } = result.data;
 
-        // 後方互換不要：activePlaylistIndex は 1-7 以外はエラー
+        // 後方互換不要：activePlaylistIndex は 1-9 以外はエラー
         const activeIndex = Number(importedActivePlaylistIndex);
-        if (!Number.isFinite(activeIndex) || activeIndex < 1 || activeIndex > 7) {
-            throw new Error(`[playlist.js] Invalid activePlaylistIndex (must be 1-7): ${importedActivePlaylistIndex}`);
+        if (!Number.isFinite(activeIndex) || activeIndex < 1 || activeIndex > 9) {
+            throw new Error(`[playlist.js] Invalid activePlaylistIndex (must be 1-9): ${importedActivePlaylistIndex}`);
         }
 
-        // 後方互換不要：index=0 や 1-7 以外が含まれていたらエラー
+        // 後方互換不要：index=0 や 1-9 以外が含まれていたらエラー
         for (const p of playlists) {
             const idx = Number(p.index);
-            if (!Number.isFinite(idx) || idx < 1 || idx > 7) {
-                throw new Error(`[playlist.js] Invalid playlist index in import (must be 1-7): ${p.index}`);
+            if (!Number.isFinite(idx) || idx < 1 || idx > 9) {
+                throw new Error(`[playlist.js] Invalid playlist index in import (must be 1-9): ${p.index}`);
             }
         }
 
@@ -2886,7 +2886,7 @@ async function doImportPlaylists() {
                     defaultVolume: (file.defaultVolume !== undefined && file.defaultVolume !== null) ? file.defaultVolume : 100,
                     repeatCount: (Number.isFinite(Number(file.repeatCount)) && Number(file.repeatCount) >= 1) ? Math.floor(Number(file.repeatCount)) : undefined,
                     repeatEndMode: (file.repeatEndMode === "PAUSE" || file.repeatEndMode === "OFF" || file.repeatEndMode === "NEXT") ? file.repeatEndMode : undefined,
-                    endGotoPlaylist: (Number.isFinite(Number(file.endGotoPlaylist)) && Number(file.endGotoPlaylist) >= 1 && Number(file.endGotoPlaylist) <= 7)
+                    endGotoPlaylist: (Number.isFinite(Number(file.endGotoPlaylist)) && Number(file.endGotoPlaylist) >= 1 && Number(file.endGotoPlaylist) <= 9)
                         ? Number(file.endGotoPlaylist)
                         : undefined,
                     endGotoItemId: (typeof file.endGotoItemId === 'string' && file.endGotoItemId) ? file.endGotoItemId : undefined,
@@ -2925,8 +2925,8 @@ async function doImportPlaylists() {
             });
         }
 
-        // まず 1-7 を空で初期化（無いスロットも必ず作る）
-        for (let i = 1; i <= 7; i++) {
+        // まず 1-9 を空で初期化（無いスロットも必ず作る）
+        for (let i = 1; i <= 9; i++) {
             const storeKey = `vtrpon_playlist_store_${i}`;
             localStorage.setItem(storeKey, JSON.stringify({
                 name: `Playlist ${i}`,
@@ -3368,7 +3368,7 @@ function findNextAvailableIndex(sortedPlaylist, startIndex) {
 
 // localStorage 上のプレイリストから currentItemId を含むものを探すヘルパー
 function findStoredPlaylistByItemId(targetItemId) {
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 9; i++) {
         const key = `vtrpon_playlist_store_${i}`;
         const stored = localStorage.getItem(key);
         if (!stored) continue;
@@ -3434,7 +3434,7 @@ async function syncActiveSlotToCurrentPlaylistStateIfNeeded() {
 function getStoredPlaylistByNumber(storeNumber) {
 
     const num = Number(storeNumber);
-    if (!Number.isFinite(num) || num < 1 || num > 7) return null;
+    if (!Number.isFinite(num) || num < 1 || num > 9) return null;
 
     const key = `vtrpon_playlist_store_${num}`;
     const stored = localStorage.getItem(key);
@@ -3545,7 +3545,7 @@ async function handleNextModePlaylist(currentItemId) {
         const gotoStoreNumber = (currentItem.endGotoPlaylist !== undefined && currentItem.endGotoPlaylist !== null) ? Number(currentItem.endGotoPlaylist) : NaN;
         const gotoItemId = currentItem.endGotoItemId;
 
-        if (!Number.isFinite(gotoStoreNumber) || gotoStoreNumber < 1 || gotoStoreNumber > 7 || !gotoItemId) {
+        if (!Number.isFinite(gotoStoreNumber) || gotoStoreNumber < 1 || gotoStoreNumber > 9 || !gotoItemId) {
             logInfo('[playlist.js] GOTO mode: Destination not configured. Sending Off-Air.');
             window.electronAPI.sendOffAirEvent();
             logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: destination not configured）');
@@ -4535,6 +4535,8 @@ function handlePlaylistShortcut(action) {
         case '5':
         case '6':
         case '7':
+        case '8':
+        case '9':
             triggerButtonMouseDown(
                 `playlise${action}-button`,
                 `[playlist.js] Playlist button ${action} triggered via synthetic mousedown.`
@@ -4718,6 +4720,10 @@ document.addEventListener('keydown', (event) => {
             handlePlaylistShortcut('6');
         } else if (isMod && keyLower === '7') {
             handlePlaylistShortcut('7');
+        } else if (isMod && keyLower === '8') {
+            handlePlaylistShortcut('8');
+        } else if (isMod && keyLower === '9') {
+            handlePlaylistShortcut('9');
         } else if (isMod && keyLower === 's') {
             handlePlaylistShortcut('save');
         } else if (isMod && keyLower === 'd') {
@@ -4760,7 +4766,7 @@ window.electronAPI.onShortcutTrigger((event, shortcut) => {
     else if (shortcut === 'add-file') {
         handlePlaylistShortcut('add-file');
     }
-    else if (['1', '2', '3', '4', '5', '6', '7'].includes(shortcut)) {
+    else if (['1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(shortcut)) {
         handlePlaylistShortcut(shortcut);
     }
     else if (shortcut === 'save') {

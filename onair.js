@@ -3410,7 +3410,7 @@ function updateEndModeDisplayLabel() {
         const targetId = onairCurrentState?.endGotoItemId;
         let itemNo = '?';
 
-        if (typeof pl === 'number' && pl >= 1 && pl <= 5 && typeof targetId === 'string' && targetId) {
+        if (typeof pl === 'number' && pl >= 1 && pl <= 9 && typeof targetId === 'string' && targetId) {
             try {
                 const raw = localStorage.getItem(`vtrpon_playlist_store_${pl}`);
                 if (raw) {
@@ -3431,7 +3431,7 @@ function updateEndModeDisplayLabel() {
             } catch (_) {}
         }
 
-        if (typeof pl === 'number' && pl >= 1 && pl <= 5) {
+        if (typeof pl === 'number' && pl >= 1 && pl <= 9) {
             label = `GOTO→${pl}-${itemNo}`;
         } else {
             label = 'GOTO';

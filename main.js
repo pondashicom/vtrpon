@@ -555,6 +555,20 @@ function buildMenuTemplate(labels) {
             mainWindow.webContents.send('shortcut-trigger', '7');
           }
         },
+        {
+          label: labels["menu-playlist8"],
+          accelerator: `${cmd}+8`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', '8');
+          }
+        },
+        {
+          label: labels["menu-playlist9"],
+          accelerator: `${cmd}+9`,
+          click: () => {
+            mainWindow.webContents.send('shortcut-trigger', '9');
+          }
+        },
         { type: 'separator' },
         {
           label: labels["menu-save-mode"],
@@ -2581,7 +2595,7 @@ app.on('will-quit', () => {
 function clearPlaylistStorage(window) {
     if (window) {
         window.webContents.executeJavaScript(`
-            for (let i = 1; i <= 7; i++) {
+            for (let i = 1; i <= 9; i++) {
                 localStorage.removeItem('vtrpon_playlist_store_' + i);
             }
             console.log('[main.js] vtrpon Playlist stores have been cleared.');

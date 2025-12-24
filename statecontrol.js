@@ -34,7 +34,7 @@ function normalizeEndGotoPlaylist(value) {
         return undefined;
     }
     const n = Number(value);
-    if (!Number.isFinite(n) || n < 1 || n > 7) {
+    if (!Number.isFinite(n) || n < 1 || n > 9) {
         return undefined;
     }
     return Math.floor(n);

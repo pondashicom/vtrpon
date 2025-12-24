@@ -2190,7 +2190,7 @@ let isGotoConfigUIUpdating = false;
 
 function readSavedPlaylistsForGoto() {
     const saved = [];
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 9; i++) {
         try {
             const raw = localStorage.getItem(`vtrpon_playlist_store_${i}`);
             if (!raw) {
@@ -2246,7 +2246,7 @@ function setupGotoConfigControls(endGotoPlaylistSelect, endGotoItemSelect) {
             updateGotoConfigUI();
             return;
         }
-        if (tries >= 7) {
+        if (tries >= 9) {
             return;
         }
         setTimeout(() => refreshLater(tries + 1), 0);
