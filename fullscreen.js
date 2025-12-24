@@ -507,26 +507,25 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
     const onLoadedData = () => {
         if (!isCurrentToken()) return;
-        // RVFC 環境では 2フレーム待ち（rvfc）で解除する。イベントで即解除するとフラッシュしやすい。
-        if (useRVFC) return;
+        if (useRVFC && !videoElement.paused) return;
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (isReadyToRelease(nowSrc)) clearOverlay('loadeddata');
     };
     const onCanPlay = () => {
         if (!isCurrentToken()) return;
-        if (useRVFC) return;
+        if (useRVFC && !videoElement.paused) return;
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (isReadyToRelease(nowSrc)) clearOverlay('canplay');
     };
     const onSeeked = () => {
         if (!isCurrentToken()) return;
-        if (useRVFC) return;
+        if (useRVFC && !videoElement.paused) return;
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (isReadyToRelease(nowSrc)) clearOverlay('seeked');
     };
     const onTimeUpdate = () => {
         if (!isCurrentToken()) return;
-        if (useRVFC) return;
+        if (useRVFC && !videoElement.paused) return;
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (isReadyToRelease(nowSrc)) clearOverlay('timeupdate');
     };
@@ -631,7 +630,10 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             rvfcCount += 1;
         }
 
-        if (rvfcCount >= 2) {
+        // PAUSE スタート等で再生が進まない場合、2フレーム待ちだと解除が完了せず残留しうるため緩和する
+        const requiredFrames = videoElement.paused ? 1 : 2;
+
+        if (rvfcCount >= requiredFrames) {
             clearOverlay('rvfc');
         } else {
             try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
