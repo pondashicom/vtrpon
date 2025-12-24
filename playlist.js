@@ -33,7 +33,9 @@ let isImporting = false;
 let totalCount = 0;
 let finishedCount = 0;
 
-// 進捗表示用関数
+// -------------------
+// 読込進捗表示用関数
+// -------------------
 function updateLoadingProgress(current, total) {
     const progressElem = document.getElementById('loading-progress');
     if (progressElem) {
@@ -72,6 +74,15 @@ async function processNextFile() {
             const finalPlaylist = [...updatedPlaylist, ...newItems];
             await stateControl.setPlaylistState(finalPlaylist);
             await updatePlaylistUI();
+
+            // 読み込み完了後にオートセーブ
+            try {
+                if (typeof saveActivePlaylistToStore === 'function') {
+                    await saveActivePlaylistToStore();
+                }
+            } catch (e) {
+                logInfo('[playlist.js] Auto-save after import setPlaylistState failed (ignored):', e);
+            }
         }
     } catch (error) {
         logInfo('[playlist.js] Error processing file:', error);
@@ -98,7 +109,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Listedit更新通知イベントリスナ
     window.electronAPI.onListeditUpdated(async () => {
         logDebug('[playlist.js] Received listedit-updated notification, refreshing UI...');
+
+        // stateControl側の実体プレイリストが別スロット由来に切り替わっている場合に備え、
+        // 保存先スロット（activePlaylistIndex）を同期してからUI更新・オートセーブする
+        await syncActiveSlotToCurrentPlaylistStateIfNeeded();
+
         await updatePlaylistUI();
+        try {
+            await saveActivePlaylistToStore();
+        } catch (e) {
+            // ignore (autosave failure should not break UI)
+        }
     });
 
     // SOUND PADモードボタンイベントリスナー初期化
@@ -162,6 +183,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         logOpe(`[playlist.js] SOUND PAD mode toggled: ${soundPadActive}`);
         soundPadButton.blur();
+        // オートセーブ
+        try {
+            await saveActivePlaylistToStore();
+        } catch (e) {
+            logInfo('[playlist.js] Auto-save after SOUND PAD mode toggle failed (ignored):', e);
+        }
     }
 
     const soundPadButton = document.getElementById('soundpad-mode-button');
@@ -234,6 +261,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             logOpe(`[playlist.js] DIRECT ONAIR mode toggled: ${directOnAirActive}`);
             directOnAirButton.blur();
+
+            // オートセーブ
+            try {
+                await saveActivePlaylistToStore();
+            } catch (e) {
+                logInfo('[playlist.js] Auto-save after DIRECT ONAIR mode toggle failed (ignored):', e);
+            }
         });
     } else {
         logInfo('[playlist.js] DIRECT ONAIR mode button not found.');
@@ -256,6 +290,47 @@ document.addEventListener('DOMContentLoaded', async () => {
                 logInfo('[playlist.js] Error adding files:', error);
             }
         });
+
+    // プレイリスト1-7 初期化（空スロット作成） + 起動時スロット=1
+    try {
+        // 後方互換不要：プレイリスト0が存在したらエラー
+        if (localStorage.getItem('vtrpon_playlist_store_0') !== null) {
+            throw new Error('[playlist.js] Legacy playlist0 detected (vtrpon_playlist_store_0).');
+        }
+
+        // スロット1-7を必ず用意（既にあれば上書きしない）
+        for (let i = 1; i <= 7; i++) {
+            const key = `vtrpon_playlist_store_${i}`;
+            if (localStorage.getItem(key) === null) {
+                localStorage.setItem(key, JSON.stringify({
+                    name: `Playlist ${i}`,
+                    data: []
+                }));
+            }
+        }
+
+        // 起動時は必ずスロット1を初期状態にする（復元はしない）
+        activePlaylistIndex = 1;
+
+        // 可能ならUI側の「1をアクティブ」にする
+        if (typeof setActiveStoreButton === 'function') {
+            setActiveStoreButton(1);
+        }
+
+        // 可能ならスロット1をロード（無ければ空のまま）
+        if (typeof loadPlaylist === 'function') {
+            await loadPlaylist(1);
+        } else {
+            // loadPlaylistが無い/未定義の場合は、現行プレイリストを空にする
+            await stateControl.setPlaylistState([]);
+        }
+    } catch (e) {
+        logInfo('[playlist.js] Playlist store init failed:', e);
+        if (e && e.message && e.message.includes('Legacy playlist0 detected')) {
+            showMessage('Legacy playlist0 detected (vtrpon_playlist_store_0)', 20000, 'alert');
+        }
+        return;
+    }
 
     // 初回UI更新
     try {
@@ -364,6 +439,15 @@ async function getValidUpdates(files, currentPlaylist) {
             try {
                 // エントリ追加
                 const tempPlaylistItem = await addLoadingEntry(file.path, "mp4");
+
+                // 仮エントリ追加（プレイリスト変更）をスロットへ反映（ベストエフォート）
+                try {
+                    if (typeof saveActivePlaylistToStore === 'function') {
+                        await saveActivePlaylistToStore();
+                    }
+                } catch (e) {
+                    logInfo('[playlist.js] Auto-save after PPTX addLoadingEntry failed (ignored):', e);
+                }
                 
                 // 変換開始
                 convertPptxToMp4(file.path, tempPlaylistItem)
@@ -376,7 +460,16 @@ async function getValidUpdates(files, currentPlaylist) {
                         // 失敗時は仮エントリをリストから削除
                         stateControl.getPlaylistState()
                             .then(list => list.filter(item => item.playlistItem_id !== tempPlaylistItem.playlistItem_id))
-                            .then(filtered => stateControl.setPlaylistState(filtered));
+                            .then(filtered => stateControl.setPlaylistState(filtered))
+                            .then(async () => {
+                                try {
+                                    if (typeof saveActivePlaylistToStore === 'function') {
+                                        await saveActivePlaylistToStore();
+                                    }
+                                } catch (e) {
+                                    logInfo('[playlist.js] Auto-save after PPTX failure cleanup failed (ignored):', e);
+                                }
+                            });
                     });
             } catch (error) {
                 logInfo(`[playlist.js] Error adding loading entry for PPTX (${file.path}): ${error.message}`);
@@ -400,6 +493,15 @@ async function getValidUpdates(files, currentPlaylist) {
                 
                 // 1) 変換中の仮エントリを追加
                 const tempPlaylistItem = await addLoadingEntry(file.path, "webm");
+
+                // 仮エントリ追加（プレイリスト変更）をスロットへ反映（ベストエフォート）
+                try {
+                    if (typeof saveActivePlaylistToStore === 'function') {
+                        await saveActivePlaylistToStore();
+                    }
+                } catch (e) {
+                    logInfo('[playlist.js] Auto-save after MOV addLoadingEntry failed (ignored):', e);
+                }
 
                 // 2) 非同期でMOV → WebM変換を開始
                 convertMovToWebm(file.path, tempPlaylistItem);
@@ -841,7 +943,6 @@ function getSafeFileURL(filePath) {
     return encoded;
 }
 
-
 // -----------------------
 // メタデータ取得
 // -----------------------
@@ -1242,7 +1343,7 @@ function createFileInfo(file, index) {
 // ステータスエリア生成
 function resolveGotoDisplayForStatus(endGotoPlaylist, endGotoItemId) {
     const storeNumber = Number(endGotoPlaylist);
-    if (!Number.isFinite(storeNumber) || storeNumber < 1 || storeNumber > 5) {
+    if (!Number.isFinite(storeNumber) || storeNumber < 1 || storeNumber > 7) {
         return null;
     }
 
@@ -1625,6 +1726,14 @@ async function deletePlaylistItem(itemId) {
     const success = await window.electronAPI.stateControl.deleteItemFromPlaylist(itemId);
     if (success) {
         await updatePlaylistUI();
+        try {
+            if (typeof saveActivePlaylistToStore === 'function') {
+                await saveActivePlaylistToStore();
+            }
+        } catch (e) {
+            logInfo('[playlist.js] Auto-save after deletePlaylistItem failed (ignored):', e);
+        }
+
     } else {
         logInfo('[playlist.js] Failed to delete playlist item. Not found.');
     }
@@ -1655,6 +1764,15 @@ async function renamePlaylistItemName(itemId, newName) {
 
         await stateControl.setPlaylistState(updatedPlaylist);
         await updatePlaylistUI();
+
+        try {
+            if (typeof saveActivePlaylistToStore === 'function') {
+                await saveActivePlaylistToStore();
+            }
+        } catch (e) {
+            logInfo('[playlist.js] Auto-save after renamePlaylistItemName failed (ignored):', e);
+        }
+
         logOpe(`[playlist.js] Playlist item renamed. ID: ${itemId}, new name: ${newName}`);
     } catch (error) {
         logInfo(`[playlist.js] Failed to rename playlist item. Error: ${error.message}`);
@@ -1717,6 +1835,15 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
         await stateControl.setPlaylistState(playlist);
         await updatePlaylistUI();
 
+        // 並び替え確定（プレイリスト変更）をアクティブスロットへ保存（ベストエフォート）
+        try {
+            if (typeof saveActivePlaylistToStore === 'function') {
+                await saveActivePlaylistToStore();
+            }
+        } catch (e) {
+            logInfo('[playlist.js] Auto-save after reorderPlaylistByDrag failed (ignored):', e);
+        }
+
         logOpe(
             `[playlist.js] reorderPlaylistByDrag: id=${movingItem.playlistItem_id} -> index=${insertIndex}, dropPosition=${dropPosition}`
         );
@@ -1756,6 +1883,16 @@ async function movePlaylistItem(item, direction) {
     // 更新
     await window.electronAPI.stateControl.setPlaylistState(playlist);
     await updatePlaylistUI();
+
+    // 移動確定（プレイリスト変更）をアクティブスロットへ保存（ベストエフォート）
+    try {
+        if (typeof saveActivePlaylistToStore === 'function') {
+            await saveActivePlaylistToStore();
+        }
+    } catch (e) {
+        logInfo('[playlist.js] Auto-save after movePlaylistItem failed (ignored):', e);
+    }
+
     logOpe(`[playlist.js] Moved item id=${item.playlistItem_id} to index=${newIndex}`);
     return true;
 }
@@ -1972,234 +2109,157 @@ async function selectNextPlaylistItem(currentItemId) {
 // プレイリスト保存
 // --------------------------------
 
-// enterSaveMode関数参照保持
-let boundEnterSaveModeHandler = null;
+// 指定スロットへ、現在のプレイリスト状態を保存する
+async function savePlaylistToStore(storeNumber, playlistName) {
+    const n = Number(storeNumber);
+    if (!Number.isFinite(n) || n < 1 || n > 7) {
+        throw new Error(`[playlist.js] Invalid storeNumber: ${storeNumber}`);
+    }
 
-// 初期化用関数
+    const key = `vtrpon_playlist_store_${n}`;
+
+    // 現在のプレイリスト状態を取得
+    const playlist = await stateControl.getPlaylistState();
+    const rawData = Array.isArray(playlist) ? playlist : [];
+
+    // 名前は、引数 > 既存保存名 > デフォルト
+    let name = (typeof playlistName === 'string' && playlistName.trim()) ? playlistName.trim() : '';
+    if (!name) {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (parsed && typeof parsed.name === 'string' && parsed.name.trim()) {
+                    name = parsed.name.trim();
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+    }
+    if (!name) name = `Playlist ${n}`;
+
+    // 保存用に正規化（実行時の一時状態は保存しない）
+    const data = rawData
+        .map((item, idx) => {
+            const src = item || {};
+            const {
+                selectionState,
+                editingState,
+                onAirState,
+                converting,
+                ...rest
+            } = src;
+
+            const orderNum = Number(rest.order);
+            const order = Number.isFinite(orderNum) ? orderNum : idx;
+
+            const endGotoPlaylist = (Number.isFinite(Number(rest.endGotoPlaylist)) && Number(rest.endGotoPlaylist) >= 1 && Number(rest.endGotoPlaylist) <= 7)
+                ? Number(rest.endGotoPlaylist)
+                : undefined;
+
+            const endGotoItemId = (typeof rest.endGotoItemId === 'string' && rest.endGotoItemId) ? rest.endGotoItemId : undefined;
+
+            const playlistItemId = (typeof rest.playlistItem_id === 'string' && rest.playlistItem_id)
+                ? rest.playlistItem_id
+                : `${Date.now()}-${Math.random()}`;
+
+            return {
+                ...rest,
+                order,
+                playlistItem_id: playlistItemId,
+                endGotoPlaylist,
+                endGotoItemId,
+                selectionState: "unselected",
+                editingState: null,
+                onAirState: null,
+            };
+        })
+        .sort((a, b) => Number(a.order) - Number(b.order));
+
+    // DSK選択中アイテムID取得（取れなければ null）
+    let dskCurrentItemId = null;
+    try {
+        const dskItem = window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function'
+            ? window.dskModule.getCurrentDSKItem()
+            : null;
+        dskCurrentItemId = dskItem ? dskItem.playlistItem_id : null;
+    } catch (e) {
+        dskCurrentItemId = null;
+    }
+
+    // 保存（空なら空で保存する：スロットは常に存在）
+    localStorage.setItem(key, JSON.stringify({
+        name,
+        endMode: null,
+        soundPadMode: !!soundPadActive,
+        directOnAirMode: !!directOnAirActive,
+        fillKeyMode: !!isFillKeyMode,
+        dskCurrentItemId: dskCurrentItemId,
+        data
+    }));
+
+// ボタンラベル/状態更新（アイテム有無だけ反映）
+    const button = document.getElementById(`playlise${n}-button`);
+    if (button) {
+        button.dataset.storeNumber = n;
+        button.textContent = `${n}`;
+        if (data.length > 0) {
+            button.classList.add('playlist-saved');
+        } else {
+            button.classList.remove('playlist-saved');
+        }
+    }
+
+    // ボタン色更新（新方針：非アクティブ=グレー、アクティブ=緑）
+    if (typeof updateStoreButtons === 'function') {
+        updateStoreButtons();
+    }
+    if (typeof setActiveButton === 'function') {
+        const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 7)
+            ? activePlaylistIndex
+            : null;
+        if (active !== null) setActiveButton(active);
+    }
+}
+
+// 現在アクティブなスロットへ保存する（他のUI更新から呼び出す用）
+async function saveActivePlaylistToStore(playlistName) {
+    const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 7)
+        ? activePlaylistIndex
+        : 1;
+    return await savePlaylistToStore(active, playlistName);
+}
+
+// 初期化用関数（ボタン表示は保存内容を反映）
 function initializePlaylistUI() {
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 7; i++) {
         const button = document.getElementById(`playlise${i}-button`);
         button.dataset.storeNumber = i;
+
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
-    
         if (storedPlaylist) {
-            const parsedData = JSON.parse(storedPlaylist);
-            button.textContent = parsedData.name || `Playlist ${i}`;
-            button.classList.add('playlist-saved');
+            try {
+                const parsedData = JSON.parse(storedPlaylist);
+                // ボタンは常にスロット番号のみ表示（名前は表示しない）
+                button.textContent = `${i}`;
+                if (parsedData && Array.isArray(parsedData.data) && parsedData.data.length > 0) {
+                    button.classList.add('playlist-saved');
+                } else {
+                    button.classList.remove('playlist-saved');
+                }
+            } catch (e) {
+                // ボタンは常にスロット番号のみ表示（名前は表示しない）
+                button.textContent = `${i}`;
+                button.classList.remove('playlist-saved');
+            }
         } else {
             button.textContent = `${i}`;
             button.classList.remove('playlist-saved');
         }
-    }
+	
     // ボタン色初期化
     updateButtonColors();
-}
-
-// SAVEボタンリスナー
-document.getElementById('playlise-save-button').addEventListener('mousedown', () => {
-    const saveButton = document.getElementById('playlise-save-button');
-    logOpe('[playlist.js] Save button clicked');
-
-    if (document.querySelectorAll('.playlist-item').length === 0) {
-        logInfo('[playlist.js] No playlist items to save. Exiting save mode.');
-        return;
-    }
-
-    if (saveButton.classList.contains('button-blink-orange')) {
-        exitSaveMode();
-        return;
-    }
-
-    // SAVEモード開始
-    saveButton.classList.add('button-blink-orange');
-
-    // 全スロットSAVE受付
-    for (let i = 1; i <= 5; i++) {
-        const button = document.getElementById(`playlise${i}-button`);
-        button.classList.add('button-lightblue');
-        if (!boundEnterSaveModeHandler) boundEnterSaveModeHandler = (ev) => enterSaveMode(ev);
-        button.addEventListener('click', boundEnterSaveModeHandler, { once: true });
-    }
-
-    logOpe('[playlist.js] playlise-save-button clicked.');
-});
-
-// SAVEモード処理
-function enterSaveMode(event) {
-    let button = event.currentTarget;
-    if (!button || !button.dataset || !button.dataset.storeNumber) {
-        button = event.target;
-        while (button && (!button.dataset || !button.dataset.storeNumber)) {
-            button = button.parentElement;
-        }
-    }
-    if (!button || !button.dataset || !button.dataset.storeNumber) {
-        logInfo('[playlist.js] enterSaveMode triggered without proper event context.');
-        return;
-    }
-    const storeNumber = button.dataset.storeNumber;
-    const _storeNumber = storeNumber;
-    logOpe(`[playlist.js] SAVE target resolved: slot=${_storeNumber} key=vtrpon_playlist_store_${_storeNumber}`);
-
-    const modal = document.getElementById('playlist-name-modal');
-    const nameInput = document.getElementById('playlist-name-input');
-    const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${_storeNumber}`);
-    const defaultName = storedPlaylist ? JSON.parse(storedPlaylist).name : `Playlist ${_storeNumber}`;
-    // モーダルを表示
-    showModal();
-    nameInput.value = defaultName;
-    setTimeout(() => {
-        if (nameInput) {
-            nameInput.focus();
-            const length = nameInput.value.length;
-            nameInput.setSelectionRange(length, length);
-        }
-    }, 100);
-
-    // 保存ボタン処理
-    const saveButton = document.getElementById('playlist-name-save');
-    const cancelButton = document.getElementById('playlist-name-cancel');
-
-    // 既存のEnterリスナー解除
-    if (nameInputKeydownHandler) {
-        nameInput.removeEventListener('keydown', nameInputKeydownHandler);
-        nameInputKeydownHandler = null;
-    }
-
-    // 多重実行ガード
-    let handled = false;
-    const fireSave = () => {
-        if (handled) return;
-        handled = true;
-        logOpe('[playlist.js] Save playlist button clicked');
-        savePlaylist(_storeNumber);
-        exitSaveMode();
-        hideModal();
-    };
-
-    saveButton.onclick = fireSave;
-
-    cancelButton.onclick = () => {
-        handled = true;
-        exitSaveMode();
-        hideModal();
-    };
-
-    nameInputKeydownHandler = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            fireSave();
-        }
-    };
-    nameInput.addEventListener('keydown', nameInputKeydownHandler);
-}
-
-// SAVEモード終了
-function exitSaveMode() {
-    const saveButton = document.getElementById('playlise-save-button');
-    if (saveButton) {
-        saveButton.classList.remove('button-blink-orange');
-    }
-    // 空いている番号ボタンリスナー解除
-    for (let i = 1; i <= 5; i++) {
-        const button = document.getElementById(`playlise${i}-button`);
-        if (!button) continue;
-        button.classList.remove('button-lightblue');
-        if (boundEnterSaveModeHandler) {
-            button.removeEventListener('click', boundEnterSaveModeHandler);
-        }
-    }
-    boundEnterSaveModeHandler = null;
-}
-
-// プレイリストIDとアイテムID生成
-function generateUniqueId(prefix = '') {
-    return `${prefix}${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-// プレイリスト保存
-async function savePlaylist(storeNumber) {
-    logOpe(`[playlist.js] savePlaylist called for storeNumber=${storeNumber}`);
-    const __slotIndex = Number(storeNumber) - 1;
-    const __slotKey = `vtrpon_playlist_store_${storeNumber}`;
-    logOpe(`[playlist.js] SAVE intent: slot=${storeNumber} index=${__slotIndex} key=${__slotKey}`);
-
-    const nameInput = document.getElementById('playlist-name-input');
-    const playlistName = nameInput.value.trim();
-    logOpe(`[playlist.js] Playlist name entered: ${playlistName}`);
-
-    if (!playlistName) {
-        showMessage(getMessage('enter-playlist-name'), 5000, 'alert');
-        return;
-    }
-
-    // プレイリストID取得、なければ生成
-    const stored = localStorage.getItem(`vtrpon_playlist_store_${storeNumber}`);
-    const playlist_id = stored
-        ? JSON.parse(stored).playlist_id
-        : generateUniqueId('playlist_');
-
-    try {
-        // 最新のプレイリスト状態取得
-        const playlist = await stateControl.getPlaylistState();
-
-        if (!playlist || !Array.isArray(playlist)) {
-            logInfo("[playlist.js] Invalid playlist state:", playlist);
-            showMessage(getMessage('failed-to-retrieve-playlist-state'), 5000, 'alert');
-            return;
-        }
-
-        // DSK選択中アイテムID取得
-        let dskCurrentItemId = null;
-        try {
-            const dskItem = window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function'
-                ? window.dskModule.getCurrentDSKItem()
-                : null;
-            dskCurrentItemId = dskItem ? dskItem.playlistItem_id : null;
-        } catch (e) {
-            dskCurrentItemId = null;
-        }
-
-        // プレイリストデータ構築
-        const playlistData = {
-            playlist_id,
-            name: playlistName,
-            soundPadMode: soundPadActive,
-            directOnAirMode: directOnAirActive,
-            fillKeyMode: isFillKeyMode,
-            dskCurrentItemId: dskCurrentItemId,
-            data: playlist.map((item) => ({
-                ...item,
-                order: item.order,
-                playlistItem_id: item.playlistItem_id || `${playlist_id}-${item.order}`,
-                repeatCount: item.repeatCount,
-                repeatEndMode: item.repeatEndMode,
-                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 5)
-                    ? Number(item.endGotoPlaylist)
-                    : undefined,
-                endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
-                selectionState: "unselected",
-                editingState: null,
-                onAirState: null,
-            })),
-        };
-
-        const orderLog = playlistData.data.map(item => item.order);
-
-        // 保存処理
-        logOpe(`[playlist.js] WRITE localStorage key=vtrpon_playlist_store_${storeNumber} id=${playlist_id} name="${playlistData.name}" items=${playlistData.data.length}`);
-        localStorage.setItem(`vtrpon_playlist_store_${storeNumber}`, JSON.stringify(playlistData));
-
-        // プレイリスト情報保存
-        await stateControl.setPlaylistStateWithId(playlist_id, playlistData);
-
-        hideModal(); // モーダル非表示
-        setActiveStoreButton(storeNumber);
-
-    } catch (error) {
-        logInfo('[playlist.js] Error saving playlist:', error);
-        showMessage(getMessage('failed-to-save-playlist'), 5000, 'alert');
-    }
 }
 
 // --------------------------------
@@ -2207,51 +2267,112 @@ async function savePlaylist(storeNumber) {
 // --------------------------------
 
 // プレイリスト番号ボタン処理
-for (let i = 1; i <= 5; i++) {
+for (let i = 1; i <= 7; i++) {
     const button = document.getElementById(`playlise${i}-button`);
+    if (!button) {
+        logInfo(`[playlist.js] Playlist button not found: playlise${i}-button`);
+        continue;
+    }
     button.addEventListener('mousedown', async (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
         logOpe(`[playlist.js] Playlist number ${i} button clicked`);
-        const isSaveMode = document
-            .getElementById('playlise-save-button')
-            ?.classList.contains('button-blink-orange');
-        if (isSaveMode) {
-            return;
-        }
-        if (button.classList.contains('button-gray')) {
-            return;
-        }
+
         logOpe(`[playlist.js] Button ${i} clicked`);
 
         const __loadKey = `vtrpon_playlist_store_${i}`;
         logOpe(`[playlist.js] LOAD intent: slot=${i} key=${__loadKey}`);
 
+        // スロット切替の直前に、現在アクティブの状態を保存（失敗しても切替は継続）
+        try {
+            await saveActivePlaylistToStore();
+        } catch (e) {
+        }
+
+        // 新しいアクティブスロット確定
+        activePlaylistIndex = i;
+
         await loadPlaylist(i);
 
         const playlistNameDisplay = document.getElementById('playlist-name-display');
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
-        if (storedPlaylist) {
-            const playlistData = JSON.parse(storedPlaylist);
-            playlistNameDisplay.textContent = playlistData.name || `Playlist ${i}`;
-        } else {
-            playlistNameDisplay.textContent = 'No Playlist Loaded';
+        if (playlistNameDisplay) {
+            if (storedPlaylist) {
+                const playlistData = JSON.parse(storedPlaylist);
+                playlistNameDisplay.textContent = playlistData.name || `Playlist ${i}`;
+            } else {
+                // 保存が無い場合でも空スロットとして扱う
+                playlistNameDisplay.textContent = `Playlist ${i}`;
+            }
         }
+
         updateStoreButtons();
         setActiveButton(i);
-    });
+    });}
 }
 
 // プレイリスト読込処理
 async function loadPlaylist(storeNumber) {
     const token = ++__loadState.token;
-    logOpe(`[playlist.js] loadPlaylist called with storeNumber=${storeNumber}`);
-    const __key = `vtrpon_playlist_store_${storeNumber}`;
+
+    const n = Number(storeNumber);
+    if (!Number.isFinite(n) || n < 1 || n > 7) {
+        throw new Error(`[playlist.js] Invalid storeNumber for loadPlaylist: ${storeNumber}`);
+    }
+
+    activePlaylistIndex = n;
+
+    logOpe(`[playlist.js] loadPlaylist called with storeNumber=${n}`);
+    const __key = `vtrpon_playlist_store_${n}`;
     logOpe(`[playlist.js] Resolving key for load: ${__key}`);
 
     const storedPlaylist = localStorage.getItem(__key);
+
+    // 保存が無い場合でも「空プレイリスト」としてロードする
     if (!storedPlaylist) {
-        logInfo(`[playlist.js] No playlist found for store number ${storeNumber}.`);
+        logInfo(`[playlist.js] No playlist found for store number ${storeNumber}. Load as empty.`);
+
+        try {
+            setCurrentPlaylistId(null);
+            await stateControl.clearState();
+            if (token !== __loadState.token) {
+                logInfo('[playlist.js] Load aborted: newer request detected (after clearState).');
+                return;
+            }
+
+            await stateControl.setPlaylistState([]);
+            if (token !== __loadState.token) {
+                logInfo('[playlist.js] Load aborted: newer request detected (after setPlaylistState empty).');
+                return;
+            }
+
+            await updatePlaylistUI();
+
+            // モード類は空スロットではリセット
+            soundPadActive = false;
+            directOnAirActive = false;
+            isFillKeyMode = false;
+
+            const soundPadButton = document.getElementById('soundpad-mode-button');
+            if (soundPadButton) soundPadButton.classList.remove('button-green');
+
+            const directOnAirButton = document.getElementById('directonair-mode-button');
+            if (directOnAirButton) directOnAirButton.classList.remove('button-green');
+
+            const fillKeyButton = document.getElementById('fillkey-mode-button');
+            if (fillKeyButton) fillKeyButton.classList.remove('button-green');
+
+            window.electronAPI.ipcRenderer.send('fillkey-mode-update', isFillKeyMode);
+
+            // DSK選択状態は解除（可能なら）
+            if (window.dskModule && typeof window.dskModule.setCurrentDSKItemById === 'function') {
+                window.dskModule.setCurrentDSKItemById(null);
+            }
+        } catch (error) {
+            logInfo('[playlist.js] Error loading empty playlist:', error);
+        }
+
+        logOpe("[playlist.js] edit clear.");
         return;
     }
 
@@ -2271,7 +2392,7 @@ async function loadPlaylist(storeNumber) {
         const reorderedData = playlistData.data
             .map((item) => ({
                 ...item,
-                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 5)
+                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 7)
                     ? Number(item.endGotoPlaylist)
                     : undefined,
                 endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
@@ -2339,35 +2460,46 @@ function getPlaylistOrder() {
 
 // ボタン状態更新
 function updateStoreButtons() {
-    for (let i = 1; i <= 5; i++) {
+    const delButton = document.getElementById('playlisedel-button');
+    const isDeleteMode = !!(delButton && delButton.classList.contains('button-blink-orange'));
+
+    for (let i = 1; i <= 7; i++) {
         const button = document.getElementById(`playlise${i}-button`);
-        const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
-        if (storedPlaylist) {
-            button.classList.add('button-blue');
-            button.classList.remove('button-gray');
-        } else {
-            button.classList.add('button-gray');
-            button.classList.remove('button-blue');
-            button.classList.remove('button-purple');
+        if (!button) {
+            logInfo(`[playlist.js] Playlist button not found: playlise${i}-button`);
+            continue;
         }
-        if (document.getElementById('playlisedel-button').classList.contains('button-blink-orange')) {
+        const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
+
+        // 変更後方針：空/保存あり問わず常にグレー
+        button.classList.add('button-gray');
+        button.classList.remove('button-blue');
+
+        // （DEL機能を完全廃止するなら、このdeleteMode一式も後で消せます）
+        if (isDeleteMode) {
             if (storedPlaylist) {
                 button.classList.add('button-purple');
             }
         } else {
             button.classList.remove('button-purple');
         }
+
+        // アクティブ色は setActiveButton 側で制御
         button.classList.remove('button-orange');
+        button.classList.remove('button-green');
     }
 }
 
 // ボタンアクティブ
 function setActiveButton(activeIndex) {
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 7; i++) {
         const button = document.getElementById(`playlise${i}-button`);
+        if (!button) continue;
         if (i === activeIndex) {
-            button.classList.add('button-orange');
+            button.classList.add('button-green');
+            button.classList.remove('button-orange');
         } else {
+            button.classList.remove('button-green');
             button.classList.remove('button-orange');
         }
     }
@@ -2375,103 +2507,31 @@ function setActiveButton(activeIndex) {
 
 // アクティブボタン設定
 function setActiveStoreButton(storeNumber) {
-    const activeButton = document.getElementById(`playlise${storeNumber}-button`);
+    const sn = Number(storeNumber);
+    if (!Number.isFinite(sn) || sn < 1 || sn > 7) return;
+
+    // 重要：表示だけでなく「保存先スロット」も同期する
+    activePlaylistIndex = sn;
+
+    const activeButton = document.getElementById(`playlise${sn}-button`);
     const playlistNameDisplay = document.getElementById('playlist-name-display');
     updateStoreButtons();
-    
-    if (activeButton) {
-        activeButton.classList.add('button-orange');
-        const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${storeNumber}`);
 
+    if (activeButton) {
+        activeButton.classList.add('button-green');
+        activeButton.classList.remove('button-orange');
+    }
+
+    const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${sn}`);
+
+    if (playlistNameDisplay) {
         if (storedPlaylist) {
             const playlistData = JSON.parse(storedPlaylist);
-            playlistNameDisplay.textContent = playlistData.name || `Playlist ${storeNumber}`;
+            playlistNameDisplay.textContent = playlistData.name || `Playlist ${sn}`;
         } else {
-            playlistNameDisplay.textContent = 'No Playlist Loaded';
+            // 保存が無い場合でも空スロットとして扱う
+            playlistNameDisplay.textContent = `Playlist ${sn}`;
         }
-    }
-}
-
-// --------------------------------
-// 保存されたプレイリスト削除
-// --------------------------------
-
-// DELボタンリスナー
-document.getElementById('playlisedel-button').addEventListener('mousedown', () => {
-    const delButton = document.getElementById('playlisedel-button');
-    let hasStoredButton = false;
-    for (let i = 1; i <= 5; i++) {
-        if (localStorage.getItem(`vtrpon_playlist_store_${i}`)) {
-            hasStoredButton = true;
-            break;
-        }
-    }
-
-    if (!hasStoredButton) {
-        logInfo('[playlist.js] No stored playlists to delete. Exiting delete mode.');
-        return;
-    }
-    if (delButton.classList.contains('button-blink-orange')) {
-        exitDeleteMode();
-        return;
-    }
-    delButton.classList.add('button-blink-orange');
-    for (let i = 1; i <= 5; i++) {
-        const button = document.getElementById(`playlise${i}-button`);
-        const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
-        if (storedPlaylist) {
-            button.classList.remove('button-blue');
-            button.classList.remove('button-orange');
-            button.classList.add('button-purple');
-            button.addEventListener('click', enterDeleteMode);
-        }
-    }
-    logOpe('[playlist.js] playlistdel-button clicked.');
-});
-
-// 削除モード処理
-function enterDeleteMode(event) {
-    const button = event.currentTarget;
-    const storeNumber = button.dataset.storeNumber;
-    deletePlaylist(storeNumber); 
-    exitDeleteMode();
-}
-
-// プレイリスト削除
-function deletePlaylist(storeNumber) {
-    try {
-        localStorage.removeItem(`vtrpon_playlist_store_${storeNumber}`);
-        stateControl.setPlaylistState([]);
-        updatePlaylistUI();
-        updateStoreButtons();
-
-    } catch (error) {
-        logInfo('[playlist.js] Error deleting playlist:', error);
-        showMessage(getMessage('failed-to-delete-playlist'), 5000, 'alert');
-    }
-}
-
-// 削除モード終了
-function exitDeleteMode() {
-    const delButton = document.getElementById('playlisedel-button');
-    delButton.classList.remove('button-blink-orange');
-    let activeButtonIndex = null;
-    for (let i = 1; i <= 5; i++) {
-        const button = document.getElementById(`playlise${i}-button`);
-        const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
-        button.classList.remove('button-purple');
-        if (storedPlaylist) {
-            button.classList.add('button-blue');
-        } else {
-            button.classList.add('button-gray');
-        }
-        button.removeEventListener('click', enterDeleteMode);
-        if (button.classList.contains('button-orange')) {
-            activeButtonIndex = i;
-        }
-    }
-    if (activeButtonIndex !== null) {
-        setActiveButton(activeButtonIndex);
     }
 }
 
@@ -2481,17 +2541,33 @@ function exitDeleteMode() {
 
 // CLEARボタンクリックイベント登録
 document.getElementById('playliseclear-button').addEventListener('mousedown', async () => {
+    // どのスロットがアクティブか（無ければ1扱い）
+    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 7)
+        ? activePlaylistIndex
+        : 1;
+
+    // まず「クリアの本体」だけを厳密に扱う（ここが失敗した時だけ失敗表示）
     try {
         await stateControl.setPlaylistState([]);
         await updatePlaylistUI();
+    } catch (error) {
+        logInfo(`[playlist.js] Error clearing playlist (core): ${error?.stack || error?.message || error}`);
+        showMessage(getMessage('failed-to-clear-playlist'), 5000, 'alert');
+        logOpe('[playlist.js] playliseclear-button clicked.');
+        return;
+    }
 
+    // ここから下は「ベストエフォート」：失敗してもクリア失敗扱いにしない
+    try {
         // モード状態をリセット
         soundPadActive = false;
         directOnAirActive = false;
+
         const soundPadButton = document.getElementById('soundpad-mode-button');
         if (soundPadButton) {
             soundPadButton.classList.remove('button-green');
         }
+
         const directOnAirButton = document.getElementById('directonair-mode-button');
         if (directOnAirButton) {
             directOnAirButton.classList.remove('button-green');
@@ -2503,34 +2579,86 @@ document.getElementById('playliseclear-button').addEventListener('mousedown', as
         if (fillKeyButton) {
             fillKeyButton.classList.remove('button-green');
         }
-        window.electronAPI.ipcRenderer.send('clear-modes', false);
-        const activeButton = document.querySelector('.button-orange');
-        if (activeButton) {
-            activeButton.classList.remove('button-orange');
-            activeButton.classList.add('button-blue');
+
+        try {
+            window.electronAPI?.ipcRenderer?.send('clear-modes', false);
+        } catch (e) {
+            logInfo(`[playlist.js] clear-modes send failed (ignored): ${e?.stack || e?.message || e}`);
         }
+
+        // 変更後方針：CLEAR後もスロットは維持（空として保存）
+        // ※保存処理が未完成でも、クリア自体は成功として扱う
+        try {
+            if (typeof saveActivePlaylistToStore === 'function') {
+                await saveActivePlaylistToStore();
+            } else if (typeof savePlaylistToStore === 'function') {
+                await savePlaylistToStore(slot);
+            }
+        } catch (e) {
+            logInfo(`[playlist.js] Save after clear failed (ignored): ${e?.stack || e?.message || e}`);
+        }
+
+        // ボタン色を再反映（非アクティブ=グレー、アクティブ=緑）
+        try {
+            updateStoreButtons();
+            setActiveButton(slot);
+        } catch (e) {
+            logInfo(`[playlist.js] Update store buttons after clear failed (ignored): ${e?.stack || e?.message || e}`);
+        }
+
+        // 表示名（無ければ Playlist N）
         const playlistNameDisplay = document.getElementById('playlist-name-display');
         if (playlistNameDisplay) {
-            playlistNameDisplay.textContent = 'PLAY LIST STORE';
+            const stored = localStorage.getItem(`vtrpon_playlist_store_${slot}`);
+            if (stored) {
+                try {
+                    const d = JSON.parse(stored);
+                    playlistNameDisplay.textContent = (d && d.name) ? d.name : `Playlist ${slot}`;
+                } catch (e) {
+                    playlistNameDisplay.textContent = `Playlist ${slot}`;
+                }
+            } else {
+                playlistNameDisplay.textContent = `Playlist ${slot}`;
+            }
         }
-    } catch (error) {
-        logInfo('[playlist.js] Error clearing playlist:', error);
-        showMessage(getMessage('failed-to-clear-playlist'), 5000, 'alert');
+    } catch (e) {
+        // ここに来ても「クリア」は成功しているので、失敗メッセージは出さない
+        logInfo(`[playlist.js] Post-clear best-effort step failed (ignored): ${e?.stack || e?.message || e}`);
     }
+
     logOpe('[playlist.js] playliseclear-button clicked.');
-    await simulateRightArrowKey();
-    logOpe("[playlist.js] edit clear.");
+
+    try {
+        await simulateRightArrowKey();
+        logOpe("[playlist.js] edit clear.");
+    } catch (e) {
+        logInfo(`[playlist.js] simulateRightArrowKey failed (ignored): ${e?.stack || e?.message || e}`);
+    }
 });
 
 // UI更新
 function updateButtonColors() {
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 7; i++) {
         const button = document.getElementById(`playlise${i}-button`);
-        if (localStorage.getItem(`vtrpon_playlist_store_${i}`)) {
+        if (!button) continue;
+        const stored = localStorage.getItem(`vtrpon_playlist_store_${i}`);
+
+        let hasItems = false;
+        if (stored) {
+            try {
+                const d = JSON.parse(stored);
+                hasItems = !!(d && Array.isArray(d.data) && d.data.length > 0);
+            } catch (e) {
+                hasItems = false;
+            }
+        }
+
+        if (hasItems) {
             button.classList.add('playlist-saved');
         } else {
             button.classList.remove('playlist-saved');
         }
+
         button.classList.remove('playlist-active');
     }
 }
@@ -2543,60 +2671,69 @@ function updateButtonColors() {
 async function doExportPlaylist() {
     logOpe('[playlist.js] Export playlist triggered');
     try {
-        const MAX_PLAYLISTS = 5;
+        const MAX_PLAYLISTS = 7;
         const allPlaylists = [];
 
-        // 0番プレイリスト
-        const liveState = stateControl.getPlaylistState();
+        // 後方互換不要：playlist_store_0 が存在したらエラー
+        if (localStorage.getItem('vtrpon_playlist_store_0') !== null) {
+            throw new Error('[playlist.js] Legacy playlist0 detected (vtrpon_playlist_store_0).');
+        }
+
+        // 現在アクティブなスロット（1-7）
+        const currentActive = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 7)
+            ? activePlaylistIndex
+            : 1;
+
+        // 現在編集状態（stateControl）を、アクティブスロットのデータとしてエクスポートに反映
+        const liveState = await stateControl.getPlaylistState();
         const nameLabel = document.getElementById('playlist-name-display');
         const liveName = (nameLabel && nameLabel.textContent && nameLabel.textContent.trim() !== "")
             ? nameLabel.textContent.trim()
-            : 'プレイリスト0';
+            : `Playlist ${currentActive}`;
 
-        // liveState 正規化（playlist0 はエクスポート時に新しい ID を振る）
-        const normalizedLiveData = liveState.map((item, index) => {
-            const normalized = {
-                ...item,
-                order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
-                startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
-                endMode: (item.endMode !== undefined && item.endMode !== null) ? item.endMode : "PAUSE",
-                bgColor: (item.bgColor !== undefined && item.bgColor !== null) ? item.bgColor : "default",
-                defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null) ? item.defaultVolume : 100,
-                ftbEnabled: item.ftbEnabled === true,
-                ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
-                startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
-                repeatCount: item.repeatCount,
-                repeatEndMode: item.repeatEndMode,
-                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 5)
-                    ? Number(item.endGotoPlaylist)
-                    : undefined,
-                endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
-            };
+        const normalizedLiveData = (Array.isArray(liveState) ? liveState : []).map((item) => ({
+            ...item,
+            order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
+            startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
+            endMode: (item.endMode !== undefined && item.endMode !== null) ? item.endMode : "PAUSE",
+            bgColor: (item.bgColor !== undefined && item.bgColor !== null) ? item.bgColor : "default",
+            defaultVolume: (item.defaultVolume !== undefined && item.defaultVolume !== null) ? item.defaultVolume : 100,
+            ftbEnabled: item.ftbEnabled === true,
+            ftbRate: (item.ftbRate !== undefined && item.ftbRate !== null) ? item.ftbRate : 1.0,
+            startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
+            repeatCount: item.repeatCount,
+            repeatEndMode: item.repeatEndMode,
+            endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 7)
+                ? Number(item.endGotoPlaylist)
+                : undefined,
+            endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
+        }));
 
-            // playlist0 用にエクスポート時点で一意な ID を再採番
-            // 形式も他プレイリストと合わせて Date.now() + Math.random() にする
-            normalized.playlistItem_id = `${Date.now()}-${Math.random()}`;
-
-            return normalized;
-        });
-
-        allPlaylists.push({
-            index: 0,
-            name: liveName,
-            endMode: undefined,
-            data: normalizedLiveData,
-        });
-
-        // ローカルストレージからプレイリスト収集
+        // ローカルストレージから 1-7 のプレイリスト収集（無い場合は空で入れる）
         for (let i = 1; i <= MAX_PLAYLISTS; i++) {
             const storedData = localStorage.getItem(`vtrpon_playlist_store_${i}`);
-            if (!storedData) continue;
+
+            // 無い場合でも空としてエクスポート（新仕様：スロットは常に存在）
+            if (!storedData) {
+                allPlaylists.push({
+                    index: i,
+                    name: `Playlist ${i}`,
+                    endMode: undefined,
+                    data: (i === currentActive) ? normalizedLiveData : [],
+                });
+                continue;
+            }
 
             try {
                 const parsedData = JSON.parse(storedData);
 
-                if (validatePlaylistData(parsedData)) {
-                    const normalizedData = parsedData.data.map(item => ({
+                // アクティブスロットは stateControl を優先（未保存の編集を含める）
+                const useData = (i === currentActive)
+                    ? { ...parsedData, name: liveName, data: normalizedLiveData }
+                    : parsedData;
+
+                if (validatePlaylistData(useData)) {
+                    const normalizedData = useData.data.map(item => ({
                         ...item,
                         order: (item.order !== undefined && item.order !== null) ? Number(item.order) : 0,
                         startMode: (item.startMode !== undefined && item.startMode !== null) ? item.startMode : "PAUSE",
@@ -2608,7 +2745,7 @@ async function doExportPlaylist() {
                         startFadeInSec: (item.startFadeInSec !== undefined && item.startFadeInSec !== null) ? item.startFadeInSec : 1.0,
                         repeatCount: item.repeatCount,
                         repeatEndMode: item.repeatEndMode,
-                        endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 5)
+                        endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 7)
                             ? Number(item.endGotoPlaylist)
                             : undefined,
                         endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
@@ -2616,8 +2753,8 @@ async function doExportPlaylist() {
 
                     allPlaylists.push({
                         index: i,
-                        name: parsedData.name,
-                        endMode: parsedData.endMode,
+                        name: useData.name,
+                        endMode: useData.endMode,
                         data: normalizedData,
                     });
                 } else {
@@ -2628,10 +2765,10 @@ async function doExportPlaylist() {
             }
         }
 
-        // エクスポートデータ構築
+        // エクスポートデータ構築（active は 1-7）
         const exportData = {
             playlists: allPlaylists,
-            activePlaylistIndex: 0,
+            activePlaylistIndex: currentActive,
         };
 
         // メインプロセスにデータ送信
@@ -2646,11 +2783,19 @@ async function doExportPlaylist() {
             showMessage(getMessage('failed-to-export-playlist'), 5000, 'alert');
         }
     } catch (error) {
-        if (error.message && error.message.includes('User canceled')) {
-            logInfo('[playlist.js] Export canceled by user.');
+        if (error && error.message && error.message.includes('User canceled')) {
+            logInfo('[playlist.js] Import canceled by user.');
         } else {
-            logInfo('[playlist.js] An error occurred during the export process:', error);
-            showMessage(getMessage('failed-to-export-playlist'), 5000, 'alert');
+            const msg = (error && error.message) ? error.message : String(error);
+            const stack = (error && error.stack) ? error.stack : '';
+            const errorDetails = `Reason: ${msg}`;
+
+            logInfo('[playlist.js] Error during import playlists (message):', msg);
+            if (stack) {
+                logInfo('[playlist.js] Error during import playlists (stack):', stack);
+            }
+
+            showMessage(`${getMessage('failed-to-import-playlist')}\n${errorDetails}`, 20000, 'alert');
         }
     }
 }
@@ -2662,18 +2807,26 @@ window.electronAPI.ipcRenderer.on('export-playlist', async () => {
 
 // プレイリストデータバリデーション関数
 function validatePlaylistData(data) {
-    return (
-        data &&
-        typeof data.name === 'string' &&
-        Array.isArray(data.data) &&
-        data.data.every(item => typeof item.order === 'number' && item.order >= 0)
-    );
+    if (!data) return false;
+    if (typeof data.name !== 'string') return false;
+    if (!Array.isArray(data.data)) return false;
+
+    return data.data.every(item => {
+        if (!item) return false;
+        const n = Number(item.order);
+        return Number.isFinite(n) && n >= 0;
+    });
 }
 
 // プレイリストインポート処理
 async function doImportPlaylists() {
     logOpe('[playlist.js] Import playlist triggered');
     try {
+        // 後方互換不要：既に playlist_store_0 があればエラー
+        if (localStorage.getItem('vtrpon_playlist_store_0') !== null) {
+            throw new Error('[playlist.js] Legacy playlist0 detected (vtrpon_playlist_store_0).');
+        }
+
         const result = await window.electronAPI.importPlaylist();
         if (!result.success) {
             if (result.error && result.error.includes('User canceled')) {
@@ -2685,9 +2838,23 @@ async function doImportPlaylists() {
             return;
         }
 
-        const { playlists, activePlaylistIndex } = result.data;
-        const missingFiles = [];
+        const { playlists, activePlaylistIndex: importedActivePlaylistIndex } = result.data;
 
+        // 後方互換不要：activePlaylistIndex は 1-7 以外はエラー
+        const activeIndex = Number(importedActivePlaylistIndex);
+        if (!Number.isFinite(activeIndex) || activeIndex < 1 || activeIndex > 7) {
+            throw new Error(`[playlist.js] Invalid activePlaylistIndex (must be 1-7): ${importedActivePlaylistIndex}`);
+        }
+
+        // 後方互換不要：index=0 や 1-7 以外が含まれていたらエラー
+        for (const p of playlists) {
+            const idx = Number(p.index);
+            if (!Number.isFinite(idx) || idx < 1 || idx > 7) {
+                throw new Error(`[playlist.js] Invalid playlist index in import (must be 1-7): ${p.index}`);
+            }
+        }
+
+        const missingFiles = [];
         const newPlaylists = [];
 
         for (const playlist of playlists) {
@@ -2719,7 +2886,7 @@ async function doImportPlaylists() {
                     defaultVolume: (file.defaultVolume !== undefined && file.defaultVolume !== null) ? file.defaultVolume : 100,
                     repeatCount: (Number.isFinite(Number(file.repeatCount)) && Number(file.repeatCount) >= 1) ? Math.floor(Number(file.repeatCount)) : undefined,
                     repeatEndMode: (file.repeatEndMode === "PAUSE" || file.repeatEndMode === "OFF" || file.repeatEndMode === "NEXT") ? file.repeatEndMode : undefined,
-                    endGotoPlaylist: (Number.isFinite(Number(file.endGotoPlaylist)) && Number(file.endGotoPlaylist) >= 1 && Number(file.endGotoPlaylist) <= 5)
+                    endGotoPlaylist: (Number.isFinite(Number(file.endGotoPlaylist)) && Number(file.endGotoPlaylist) >= 1 && Number(file.endGotoPlaylist) <= 7)
                         ? Number(file.endGotoPlaylist)
                         : undefined,
                     endGotoItemId: (typeof file.endGotoItemId === 'string' && file.endGotoItemId) ? file.endGotoItemId : undefined,
@@ -2754,51 +2921,62 @@ async function doImportPlaylists() {
             newPlaylists.push({
                 index,
                 playlistData,
-                active: index === activePlaylistIndex
+                active: Number(index) === activeIndex
             });
         }
 
+        // まず 1-7 を空で初期化（無いスロットも必ず作る）
+        for (let i = 1; i <= 7; i++) {
+            const storeKey = `vtrpon_playlist_store_${i}`;
+            localStorage.setItem(storeKey, JSON.stringify({
+                name: `Playlist ${i}`,
+                endMode: null,
+                data: [],
+            }));
+        }
+
+        // 取り込んだものだけ上書き
         for (const pl of newPlaylists) {
             const storeKey = `vtrpon_playlist_store_${pl.index}`;
             const storePayload = {
                 name: pl.playlistData.name,
-                endMode: pl.playlistData.endMode,
+                endMode: (pl.playlistData.endMode !== undefined) ? pl.playlistData.endMode : null,
                 data: pl.playlistData.data,
             };
             localStorage.setItem(storeKey, JSON.stringify(storePayload));
         }
+
+        // アクティブを stateControl に復元
         for (const pl of newPlaylists) {
-            const { index, playlistData, active } = pl;
-            const button = document.getElementById(`playlise${index}-button`);
-            if (button) {
-                if (active) {
-                    button.classList.add('playlist-active');
-                } else {
-                    button.classList.remove('playlist-active');
-                }
-            }
+            const { playlistData, active } = pl;
             if (active) {
                 const playlistItemsContainer = document.querySelector('.playlist-items');
-                playlistItemsContainer.innerHTML = '';
+                if (playlistItemsContainer) {
+                    playlistItemsContainer.innerHTML = '';
+                }
                 try {
                     const normalizedForState = playlistData.data.map((f, idx) => ({
                         ...f,
                         order: (f.order !== undefined && f.order !== null) ? f.order : idx,
                     }));
 
-                    stateControl.setPlaylistState(normalizedForState);
+                    await stateControl.setPlaylistState(normalizedForState);
                     await updatePlaylistUI();
                     logOpe('[playlist.js] Playlist restored to stateControl and UI after import.');
                 } catch (e) {
                     logInfo('[playlist.js] Failed to restore playlist into stateControl:', e);
                 }
-                for (const f of playlistData.data) {
-                    logInfo(`[playlist.js] File added to playlist: ${f.name}`);
-                }
                 await window.electronAPI.ipcRenderer.send('setMode', playlistData.endMode);
             }
         }
-        setActiveStoreButton(activePlaylistIndex);
+
+        // アクティブスロット反映（ボタン色・表示名）
+        setActiveStoreButton(activeIndex);
+        try {
+            activePlaylistIndex = activeIndex;
+        } catch (e) {
+        }
+
         logDebug('[playlist.js] All playlists imported successfully');
         setTimeout(() => {
             showMessage(getMessage('playlists-imported-successfully'), 5000, 'info');
@@ -2807,12 +2985,20 @@ async function doImportPlaylists() {
                 showMessage(`${getMessage('files-not-found')}\n${missingList}`, 20000, 'alert');
             }
         }, 200);
+
     } catch (error) {
-        if (error.message && error.message.includes('User canceled')) {
+        if (error && error.message && error.message.includes('User canceled')) {
             logInfo('[playlist.js] Import canceled by user.');
         } else {
-            const errorDetails = `Reason: ${error.message || 'Unknown error occurred.'}`;
-            logInfo('Error during import playlists:', error);
+            const msg = (error && error.message) ? error.message : String(error);
+            const stack = (error && error.stack) ? error.stack : '';
+            const errorDetails = `Reason: ${msg}`;
+
+            logInfo('[playlist.js] Error during import playlists (message):', msg);
+            if (stack) {
+                logInfo('[playlist.js] Error during import playlists (stack):', stack);
+            }
+
             showMessage(`${getMessage('failed-to-import-playlist')}\n${errorDetails}`, 20000, 'alert');
         }
     }
@@ -2881,6 +3067,12 @@ async function setRepeatMode() {
 
     updateListModeButtons("REPEAT");
     await updatePlaylistUI();
+    // オートセーブ
+    try {
+        await saveActivePlaylistToStore();
+    } catch (e) {
+        logInfo('[playlist.js] Auto-save after setRepeatMode failed (ignored):', e);
+    }
     logOpe("[playlist.js] Playlist set to REPEAT mode.");
     showMessage(getMessage('repeat-mode-activated'), 5000, "info");
 
@@ -2933,6 +3125,12 @@ async function setListMode() {
     await stateControl.setPlaylistState(normalizedPlaylist);
     updateListModeButtons("LIST");
     await updatePlaylistUI();
+    // オートセーブ
+    try {
+        await saveActivePlaylistToStore();
+    } catch (e) {
+        logInfo('[playlist.js] Auto-save after setListMode failed (ignored):', e);
+    }
     logOpe("[playlist.js] Playlist set to LIST mode.");
 
     // 設定完了ユーザ通知
@@ -3040,6 +3238,13 @@ async function handleSoundPadOnAir(item, index) {
     await stateControl.setPlaylistState(playlist);
     await updatePlaylistUI();
 
+    // オートセーブ
+    try {
+        await saveActivePlaylistToStore();
+    } catch (e) {
+        logInfo('[playlist.js] Auto-save after SOUND PAD On-Air update failed (ignored):', e);
+    }
+
     // 更新したアイテム送信
     const targetItem = playlist.find(file => file.playlistItem_id === targetId);
     if (targetItem) {
@@ -3088,6 +3293,13 @@ async function handleDirectOnAir(item, index) {
     });
     await stateControl.setPlaylistState(playlist);
     await updatePlaylistUI();
+
+    // オートセーブ
+    try {
+        await saveActivePlaylistToStore();
+    } catch (e) {
+        logInfo('[playlist.js] Auto-save after DIRECT ONAIR update failed (ignored):', e);
+    }
 
     // 更新アイテム送信
     const targetItem = playlist.find(file => file.playlistItem_id === targetId);
@@ -3156,7 +3368,7 @@ function findNextAvailableIndex(sortedPlaylist, startIndex) {
 
 // localStorage 上のプレイリストから currentItemId を含むものを探すヘルパー
 function findStoredPlaylistByItemId(targetItemId) {
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 7; i++) {
         const key = `vtrpon_playlist_store_${i}`;
         const stored = localStorage.getItem(key);
         if (!stored) continue;
@@ -3181,9 +3393,48 @@ function findStoredPlaylistByItemId(targetItemId) {
     return null;
 }
 
+// stateControl上の「現在のプレイリスト実体」が、どの保存スロット由来か推定し、必要なら activePlaylistIndex を同期する
+// 目的：GOTO/NEXT等で stateControl 側が別スロットの内容に切り替わった後、誤ったスロットへオートセーブされるのを防ぐ
+async function syncActiveSlotToCurrentPlaylistStateIfNeeded() {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        if (!Array.isArray(playlist) || playlist.length === 0) return;
+
+        const first = playlist.find(item => item && typeof item.playlistItem_id === 'string' && item.playlistItem_id);
+        if (!first) return;
+
+        const stored = findStoredPlaylistByItemId(first.playlistItem_id);
+        if (!stored || !stored.storeNumber) return;
+
+        const target = stored.storeNumber;
+
+        if (typeof activePlaylistIndex === 'number' && activePlaylistIndex === target) return;
+
+        activePlaylistIndex = target;
+
+        // UI反映（stateControlの内容は既に切り替わっている前提なのでロードし直さない）
+        try {
+            updateStoreButtons();
+        } catch (e) {
+        }
+        try {
+            setActiveButton(target);
+        } catch (e) {
+        }
+
+        const playlistNameDisplay = document.getElementById('playlist-name-display');
+        if (playlistNameDisplay) {
+            playlistNameDisplay.textContent = stored.name || `Playlist ${target}`;
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+
 function getStoredPlaylistByNumber(storeNumber) {
+
     const num = Number(storeNumber);
-    if (!Number.isFinite(num) || num < 1 || num > 5) return null;
+    if (!Number.isFinite(num) || num < 1 || num > 7) return null;
 
     const key = `vtrpon_playlist_store_${num}`;
     const stored = localStorage.getItem(key);
@@ -3294,7 +3545,7 @@ async function handleNextModePlaylist(currentItemId) {
         const gotoStoreNumber = (currentItem.endGotoPlaylist !== undefined && currentItem.endGotoPlaylist !== null) ? Number(currentItem.endGotoPlaylist) : NaN;
         const gotoItemId = currentItem.endGotoItemId;
 
-        if (!Number.isFinite(gotoStoreNumber) || gotoStoreNumber < 1 || gotoStoreNumber > 5 || !gotoItemId) {
+        if (!Number.isFinite(gotoStoreNumber) || gotoStoreNumber < 1 || gotoStoreNumber > 7 || !gotoItemId) {
             logInfo('[playlist.js] GOTO mode: Destination not configured. Sending Off-Air.');
             window.electronAPI.sendOffAirEvent();
             logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: destination not configured）');
@@ -3800,6 +4051,13 @@ async function applyPlaylistItemPatch(playlistItemId, patch, { syncEndMode = fal
         await stateControl.setPlaylistState(updatedPlaylist);
         await updatePlaylistUI();
 
+        // オートセーブ
+        try {
+            await saveActivePlaylistToStore();
+        } catch (e) {
+            logInfo('[playlist.js] Auto-save after applyPlaylistItemPatch failed (ignored):', e);
+        }
+
         // 編集中アイテムがあればエディットエリアへ再送信
         const latest = await stateControl.getPlaylistState();
         const editingItem = latest.find(it => it.editingState === 'editing');
@@ -4275,6 +4533,8 @@ function handlePlaylistShortcut(action) {
         case '3':
         case '4':
         case '5':
+        case '6':
+        case '7':
             triggerButtonMouseDown(
                 `playlise${action}-button`,
                 `[playlist.js] Playlist button ${action} triggered via synthetic mousedown.`
@@ -4454,6 +4714,10 @@ document.addEventListener('keydown', (event) => {
             handlePlaylistShortcut('4');
         } else if (isMod && keyLower === '5') {
             handlePlaylistShortcut('5');
+        } else if (isMod && keyLower === '6') {
+            handlePlaylistShortcut('6');
+        } else if (isMod && keyLower === '7') {
+            handlePlaylistShortcut('7');
         } else if (isMod && keyLower === 's') {
             handlePlaylistShortcut('save');
         } else if (isMod && keyLower === 'd') {
@@ -4496,7 +4760,7 @@ window.electronAPI.onShortcutTrigger((event, shortcut) => {
     else if (shortcut === 'add-file') {
         handlePlaylistShortcut('add-file');
     }
-    else if (['1', '2', '3', '4', '5'].includes(shortcut)) {
+    else if (['1', '2', '3', '4', '5', '6', '7'].includes(shortcut)) {
         handlePlaylistShortcut(shortcut);
     }
     else if (shortcut === 'save') {
@@ -4580,6 +4844,14 @@ async function pasteItemState() {
     }
     await stateControl.setPlaylistState(playlist);
     await updatePlaylistUI();
+
+    // オートセーブ
+    try {
+        await saveActivePlaylistToStore();
+    } catch (e) {
+        logInfo('[playlist.js] Auto-save after pasteItemState failed (ignored):', e);
+    }
+
     // Notify the edit area to update its UI
     window.electronAPI.updateEditState(item);
     logOpe(`[playlist.js] Pasted state to item ID ${item.playlistItem_id}.`);
@@ -4646,7 +4918,6 @@ document.addEventListener('keydown', (event) => {
         logOpe('[playlist.js] ArrowDown clicked.');
     }
 });
-
 
 // -----------------
 //     API
