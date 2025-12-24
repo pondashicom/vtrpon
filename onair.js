@@ -291,7 +291,11 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
         const tick = () => {
             rvcHandle = videoElement.requestVideoFrameCallback(() => {
                 frameCount += 1;
-                if (frameCount >= 2) {
+
+                // PAUSE開始（再生が進まない）ケースでは2フレーム待ちが成立しないため緩和する
+                const requiredFrames = videoElement.paused ? 1 : 2;
+
+                if (frameCount >= requiredFrames) {
                     clearOverlay();
                 } else {
                     tick();
