@@ -2200,7 +2200,16 @@ function readSavedPlaylistsForGoto() {
             if (!parsed || !Array.isArray(parsed.data)) {
                 continue;
             }
-            const items = parsed.data.slice();
+
+            // アイテムが1件以上あるプレイリストのみ候補にする
+            const items = parsed.data
+                .slice()
+                .filter(it => it && typeof it === 'object'); // 念のためnull等を除外
+
+            if (!items || items.length === 0) {
+                continue;
+            }
+
             items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             saved.push({ slot: i, name: parsed.name || `Playlist ${i}`, items });
         } catch (e) {
