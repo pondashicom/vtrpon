@@ -38,8 +38,11 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
             // 仮の「Loading...」サムネイルを作成
             const loadingThumbnail = createLoadingThumbnail();
 
+            // 現在のプレイリストを先に取得（order算出にも使う）
+            const currentPlaylist = await stateControl.getPlaylistState();
+
             const uvcItem = {
-                playlistItem_id: generateUniqueId(),
+                playlistItem_id: `${Date.now()}-${Math.random()}`,
                 path: `UVC_DEVICE:${selectedDevice.id}`, // deviceId を埋め込む
                 name: selectedDevice.deviceName,
                 resolution: resolution || "Unknown",
@@ -53,15 +56,23 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
                 uvcAudioDeviceId: boundUvcAudioDeviceId,
                 selectionState: "unselected",
                 editingState: null,
-                order: await getPlaylistOrder().length,
+                order: Array.isArray(currentPlaylist) ? currentPlaylist.length : 0,
                 thumbnail: loadingThumbnail, // 仮のサムネイルを設定
             };
 
             // プレイリストの状態を更新（仮のサムネイル）
-            const currentPlaylist = await stateControl.getPlaylistState();
             const updatedPlaylist = [...currentPlaylist, uvcItem];
             await stateControl.setPlaylistState(updatedPlaylist);
             await updatePlaylistUI();
+
+            // アクティブスロットへ自動保存（存在する場合のみ）
+            if (typeof saveActivePlaylistToStore === 'function') {
+                try {
+                    await saveActivePlaylistToStore();
+                } catch (e) {
+                    // ignore
+                }
+            }
 
             logDebug(`[uvc.js] UVC device ${selectedDevice.deviceName} (${resolution}) added to playlist with temporary thumbnail.`);
 
@@ -77,8 +88,19 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
                 newPlaylist[targetIndex].thumbnail = thumbnail;
                 await stateControl.setPlaylistState(newPlaylist);
                 await updatePlaylistUI();
+
+                // アクティブスロットへ自動保存（存在する場合のみ）
+                if (typeof saveActivePlaylistToStore === 'function') {
+                    try {
+                        await saveActivePlaylistToStore();
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+
                 logDebug(`[uvc.js] Thumbnail updated - deviceId: ${selectedDevice.id}`);
             }
+
         } catch (error) {
             logDebug('[uvc.js] Error adding UVC device to playlist:', error);
         }
