@@ -2260,8 +2260,25 @@ function initializePlaylistUI() {
 	
     // ボタン色初期化
     updateButtonColors();
-}
 
+    // プレイリスト名表示：ダブルクリック / 右クリックで名前変更モーダルを開く
+    const playlistNameDisplay = document.getElementById('playlist-name-display');
+    if (playlistNameDisplay && !playlistNameDisplay.dataset.playlistRenameBound) {
+        playlistNameDisplay.dataset.playlistRenameBound = '1';
+
+        playlistNameDisplay.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void openActivePlaylistNameRenameModal();
+        });
+
+        playlistNameDisplay.addEventListener('contextmenu', (e) => {
+            e.preventDefault(); // ブラウザ右クリックメニュー抑止
+            e.stopPropagation();
+            void openActivePlaylistNameRenameModal();
+        });
+    }
+}
 // --------------------------------
 // プレイリスト呼出
 // --------------------------------
@@ -4399,9 +4416,142 @@ function hidePlaylistContextMenu() {
 }
 
 // ---------------------------
+// プレイリスト名変更モーダル
+// ---------------------------
+async function openActivePlaylistNameRenameModal() {
+    const modal = document.getElementById('playlist-name-modal');
+    const nameInput = document.getElementById('playlist-name-input');
+    const saveButton = document.getElementById('playlist-name-save');
+    const cancelButton = document.getElementById('playlist-name-cancel');
+
+    // モーダル見出し取得
+    const titleElement = modal ? modal.querySelector('[data-label-id="playlist-name-title"]') : null;
+    const originalTitleText = titleElement ? titleElement.textContent : '';
+
+    if (!modal || !nameInput || !saveButton || !cancelButton) {
+        logInfo('[playlist.js] Failed to open playlist rename modal: required elements not found.');
+        return;
+    }
+
+    try {
+        const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
+            ? activePlaylistIndex
+            : 1;
+
+        const key = `vtrpon_playlist_store_${active}`;
+
+        // 現在名（引数なし自動保存方式に合わせて、保存済み名があればそれを優先）
+        let currentName = `Playlist ${active}`;
+        try {
+            const stored = localStorage.getItem(key);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed && typeof parsed.name === 'string' && parsed.name.trim()) {
+                    currentName = parsed.name.trim();
+                }
+            }
+        } catch (e) {
+        }
+
+        // タイトル差し替え
+        if (titleElement) {
+            titleElement.textContent = 'ENTER PLAYLIST NAME';
+        }
+        const restoreTitle = () => {
+            if (titleElement) {
+                titleElement.textContent = originalTitleText;
+            }
+        };
+
+        showModal();
+        nameInput.value = currentName;
+        nameInput.focus();
+        try {
+            nameInput.select();
+        } catch (e) {
+        }
+
+        let handled = false;
+
+        const applyName = async () => {
+            if (handled) return;
+            handled = true;
+
+            const raw = (typeof nameInput.value === 'string') ? nameInput.value : '';
+            const trimmed = raw.trim();
+            const finalName = trimmed ? trimmed : `Playlist ${active}`;
+
+            // “名前だけ”更新を優先（存在すればJSONのnameのみ差し替え）
+            let updated = false;
+            try {
+                const storedNow = localStorage.getItem(key);
+                if (storedNow) {
+                    const parsedNow = JSON.parse(storedNow);
+                    if (parsedNow && typeof parsedNow === 'object') {
+                        parsedNow.name = finalName;
+                        localStorage.setItem(key, JSON.stringify(parsedNow));
+                        updated = true;
+                    }
+                }
+            } catch (e) {
+            }
+
+            // 未保存スロット等：現在状態も含めて保存して名前を確定
+            if (!updated) {
+                await saveActivePlaylistToStore(finalName);
+            }
+
+            // UI反映
+            const playlistNameDisplay = document.getElementById('playlist-name-display');
+            if (playlistNameDisplay) {
+                playlistNameDisplay.textContent = finalName;
+            }
+
+            // ボタン色も更新
+            try {
+                updateButtonColors();
+            } catch (e) {
+            }
+
+            restoreTitle();
+            hideModal();
+        };
+
+        saveButton.onclick = () => {
+            void applyName();
+        };
+
+        cancelButton.onclick = () => {
+            if (handled) return;
+            handled = true;
+            restoreTitle();
+            hideModal();
+        };
+
+        // Enter / Escape
+        nameInputKeydownHandler = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                void applyName();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                if (handled) return;
+                handled = true;
+                restoreTitle();
+                hideModal();
+            }
+        };
+        nameInput.addEventListener('keydown', nameInputKeydownHandler);
+    } catch (error) {
+        logInfo(`[playlist.js] Failed to open playlist rename modal. Error: ${error?.stack || error?.message || error}`);
+    }
+}
+
+// ---------------------------
 // プレイリストアイテム名変更モーダル
 // ---------------------------
 async function openItemRenameModal(targetPlaylistItemId) {
+
     const modal = document.getElementById('playlist-name-modal');
     const nameInput = document.getElementById('playlist-name-input');
     const saveButton = document.getElementById('playlist-name-save');
