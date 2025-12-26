@@ -46,19 +46,41 @@ function enqueueImport(files) {
     pendingFiles.push(...files);
     totalCount += files.length;
     updateLoadingProgress(finishedCount, totalCount);
-    if (!isImporting) {
+
+    // 読み込み開始（キュー投入直後からUIロック）
+    if (!isImporting && pendingFiles.length > 0) {
+        isImporting = true;
         processNextFile();
+        return;
     }
 }
+
 async function processNextFile() {
     if (pendingFiles.length === 0) {
         isImporting = false;
+
+        // 読み込み状態の変化を通知（UI側でボタンをロック/解除する）
+        try {
+            window.dispatchEvent(new CustomEvent('vtrpon-importing-changed', { detail: { isImporting } }));
+        } catch (e) {
+            // ignore
+        }
+
         totalCount = 0;
         finishedCount = 0;
         updateLoadingProgress(0, 0);
         return;
     }
+
     isImporting = true;
+
+    // 読み込み状態の変化を通知（UI側でボタンをロック/解除する）
+    try {
+        window.dispatchEvent(new CustomEvent('vtrpon-importing-changed', { detail: { isImporting } }));
+    } catch (e) {
+        // ignore
+    }
+
     const file = pendingFiles.shift();
 
     try {
@@ -81,7 +103,7 @@ async function processNextFile() {
                     await saveActivePlaylistToStore();
                 }
             } catch (e) {
-                logInfo('[playlist.js] Auto-save after import setPlaylistState failed (ignored):', e);
+                // ignore
             }
         }
     } catch (error) {
@@ -2279,11 +2301,40 @@ function initializePlaylistUI() {
         });
     }
 }
+
 // --------------------------------
 // プレイリスト呼出
 // --------------------------------
 
 // プレイリスト番号ボタン処理
+function applyPlaylistNumberButtonsImportLock(importing) {
+    const disabled = !!importing;
+
+    for (let i = 1; i <= 9; i++) {
+        const btn = document.getElementById(`playlise${i}-button`);
+        if (!btn) continue;
+
+        // button要素なら disabled が効く。効かない要素でも pointer-events で確実に止める
+        try {
+            btn.disabled = disabled;
+        } catch (e) {
+            // ignore
+        }
+        if (btn && btn.style) {
+            btn.style.pointerEvents = disabled ? 'none' : '';
+        }
+    }
+}
+
+// 読み込み状態変化イベントを受けて、ボタンをロック/解除
+window.addEventListener('vtrpon-importing-changed', (e) => {
+    const importing = !!(e && e.detail && e.detail.isImporting);
+    applyPlaylistNumberButtonsImportLock(importing);
+});
+
+// 初期状態も反映（起動直後に読み込み中でない想定だが念のため）
+applyPlaylistNumberButtonsImportLock(!!isImporting);
+
 for (let i = 1; i <= 9; i++) {
     const button = document.getElementById(`playlise${i}-button`);
     if (!button) {
@@ -2293,6 +2344,12 @@ for (let i = 1; i <= 9; i++) {
     button.addEventListener('mousedown', async (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
+
+        // 読み込み中はスロット切替を禁止（誤登録防止）
+        if (isImporting) {
+            return;
+        }
+
         logOpe(`[playlist.js] Playlist number ${i} button clicked`);
 
         logOpe(`[playlist.js] Button ${i} clicked`);
