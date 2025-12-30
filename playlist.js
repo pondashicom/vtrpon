@@ -2915,6 +2915,10 @@ async function doImportPlaylists() {
             throw new Error(`[playlist.js] Invalid activePlaylistIndex (must be 0-9): ${importedActivePlaylistIndex}`);
         }
 
+        // 旧データでは activePlaylistIndex=0 があり得る。
+        // その場合でもインポート直後の表示復元先として 1 を採用する（スロット番号のシフトはしない）。
+        const restoreIndex = (activeIndex >= 1 && activeIndex <= 9) ? activeIndex : 1;
+
         // 救済：index=0 は破棄（無視）して継続。0以外で 1-9 以外はエラー。
         const filteredPlaylists = [];
         for (const p of playlists) {
@@ -2999,7 +3003,7 @@ async function doImportPlaylists() {
             newPlaylists.push({
                 index,
                 playlistData,
-                active: Number(index) === activeIndex
+                active: Number(index) === restoreIndex
             });
         }
 
@@ -3024,8 +3028,8 @@ async function doImportPlaylists() {
             localStorage.setItem(storeKey, JSON.stringify(storePayload));
         }
 
-        // アクティブを stateControl に復元（activeIndex=0 の場合は復元しない＝完全破棄）
-        if (activeIndex >= 1 && activeIndex <= 9) {
+        // stateControl/UI へ表示復元（activePlaylistIndex が 0 の旧データでも restoreIndex(=1) を表示復元する）
+        if (restoreIndex >= 1 && restoreIndex <= 9) {
             for (const pl of newPlaylists) {
                 const { playlistData, active } = pl;
                 if (active) {
@@ -3051,10 +3055,10 @@ async function doImportPlaylists() {
         }
 
         // アクティブスロット反映（ボタン色・表示名）
-        if (activeIndex >= 1 && activeIndex <= 9) {
-            setActiveStoreButton(activeIndex);
+        if (restoreIndex >= 1 && restoreIndex <= 9) {
+            setActiveStoreButton(restoreIndex);
             try {
-                activePlaylistIndex = activeIndex;
+                activePlaylistIndex = restoreIndex;
             } catch (e) {
             }
         }
