@@ -3539,14 +3539,46 @@ function getStoredPlaylistByNumber(storeNumber) {
 }
 
 async function handleNextModePlaylist(currentItemId) {
-    const playlist = await stateControl.getPlaylistState();
+    let playlist = await stateControl.getPlaylistState();
 
     // プレイリスト検証
+    // 表示中スロットが空でも、再生中アイテムが所属する保存済みスロットから復元してNEXTを解決する
     if (!Array.isArray(playlist) || playlist.length === 0) {
-        logDebug('[playlist.js] Playlist is empty or invalid.');
-        window.electronAPI.sendOffAirEvent();
-        logOpe('[playlist.js] Off-Air通知を送信しました。（プレイリスト空）');
-        return;
+        logDebug('[playlist.js] Playlist is empty or invalid. Trying to resolve NEXT from stored playlists (by currentItemId).');
+
+        const sourcePlaylist = findStoredPlaylistByItemId(currentItemId);
+
+        if (!sourcePlaylist || !Array.isArray(sourcePlaylist.data) || sourcePlaylist.data.length === 0) {
+            logDebug('[playlist.js] Playlist is empty or invalid.');
+            window.electronAPI.sendOffAirEvent();
+            logOpe('[playlist.js] Off-Air通知を送信しました。（プレイリスト空）');
+            return;
+        }
+
+        logInfo(`[playlist.js] NEXT mode fallback (empty current playlist): Resolved source playlist from store #${sourcePlaylist.storeNumber} (${sourcePlaylist.name}).`);
+
+        // 元プレイリストを「カレント」としてボタン表示も切り替える
+        setActiveStoreButton(sourcePlaylist.storeNumber);
+
+        // 元プレイリストを stateControl 側にロードし直す（選択状態も currentItemId に合わせて作り直す）
+        const normalizedSourceData = sourcePlaylist.data.map((item, index) => ({
+            ...item,
+            order: (item.order !== undefined && item.order !== null) ? Number(item.order) : index,
+            selectionState: item.playlistItem_id === currentItemId ? 'selected' : 'unselected',
+            editingState: item.playlistItem_id === currentItemId ? 'editing' : null,
+        }));
+
+        await stateControl.setPlaylistState(normalizedSourceData);
+        await updatePlaylistUI();
+
+        playlist = await stateControl.getPlaylistState();
+
+        if (!Array.isArray(playlist) || playlist.length === 0) {
+            logInfo('[playlist.js] NEXT mode fallback (empty current playlist): Restored playlist is still empty. Sending Off-Air.');
+            window.electronAPI.sendOffAirEvent();
+            logOpe('[playlist.js] Off-Air通知を送信しました。（NEXT: restored empty）');
+            return;
+        }
     }
 
     // 現在の選択アイテムIDを取得
