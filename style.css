@@ -985,6 +985,8 @@ html {
     display: flex;
     justify-content: center;
     gap: 0.4rem;                 /* ボタン間の余白を少しだけ詰める */
+    flex-wrap: wrap;             /* 横幅が足りない場合は2行に折り返す */
+    width: 100%;                 /* 親枠の幅に合わせる（折り返しを安定させる） */
 }
 
 /* END MODE 内のボタンだけ少し細くする */
