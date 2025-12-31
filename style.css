@@ -1,4 +1,4 @@
-﻿/* style.css 2.5.1 */
+﻿/* style.css 2.5.2 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -44,7 +44,7 @@ body {
 .still-capture-controls {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 0.9375rem; /* 既存の .controls と同じ間隔 */
+    gap: 0.9375rem;
     width: 100%;
 }
 
@@ -72,16 +72,16 @@ body {
 }
 
 /* ---------------------------- */
-/*   各セクションの幅と高さ   */
+/*   各セクションの幅と高さ     */
 /* ---------------------------- */
 
 #listedit-section { grid-area: listedit; }
 #playlist-section   { grid-area: playlist; }
 #on-air-section     { grid-area: onair; }
 
-/* ---------------------------- */
+/* ----------------------------- */
 /*  ヘッダー・中身・フッター分割 */
-/* ---------------------------- */
+/* ----------------------------- */
 
 .section > .section-header,
 .section > .section-footer {
@@ -118,7 +118,7 @@ h2 {
 }
 
 /* ---------------------------- */
-/*  高DPI(Retina／4K)対応設定 */
+/*  高DPI(Retina／4K)対応設定   */
 /* ---------------------------- */
 
 html {
@@ -151,25 +151,25 @@ html {
 .playlist-item {
     display: flex;
     align-items: center;
-    justify-content: space-between; /* 左右に要素を分割 */
+    justify-content: space-between;
     gap: clamp(0.4rem, 1vw, 0.625rem);
     padding: clamp(0.25rem, 0.5vw, 0.3125rem);
     background-color: #666666;
     border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
     cursor: pointer;
-    width: 100%; /* 横幅を親要素に収める */
+    width: 100%;
     box-sizing: border-box;
     overflow: hidden;
     min-height: 5.625rem;
     margin-bottom: clamp(0.2rem, 0.5vw, 0.3125rem);
 }
 
-/* サムネイルからStart/Endボタンまでの幅を最大化 */
+/* サムネイルからStart/Endボタンまでの幅 */
 .file-info {
     display: flex;
     flex-direction: column;
-    flex: 1 1 auto; /* 幅を最大限に伸ばす */
-    min-width: 0;   /* 子要素が縮むように */
+    flex: 1 1 auto;
+    min-width: 0;
     margin-right: clamp(0.2rem, 0.5vw, 0.625rem);
 }
 
@@ -185,9 +185,9 @@ html {
     margin: 0;
     margin-bottom: clamp(0.2rem, 0.5vw, 0.3125rem);
 
-    overflow: hidden;    /* はみ出しを隠す */
-    text-overflow: ellipsis; /* 省略記号 */
-    white-space: nowrap; /* 改行禁止 */
+    overflow: hidden; 
+    text-overflow: ellipsis;
+    white-space: nowrap;
 
     color: orange;
     background-color: rgba(50, 50, 50, 0.8);
@@ -196,14 +196,14 @@ html {
     line-height: clamp(0.8em, 1.5vw, 0.95em);
 }
 
-/* ファイル名の行（番号ラベル＋ファイル名を横並び） */
+/* ファイル名行 */
 .file-header-row {
     display: flex;
-    align-items: baseline; /* 番号とテキストのベースラインをそろえる */
+    align-items: baseline;
     gap: 0.2rem;
 }
 
-/* 番号ラベル（2桁ぶんの幅を常に確保） */
+/* 番号ラベル */
 .playlist-index-label {
     display: flex;
     align-items: center;
@@ -361,9 +361,9 @@ html {
     border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
 }
 
-/* ------------------ */
+/* -------------------- */
 /* インフォディスプレイ */
-/* ------------------ */
+/* -------------------- */
 
 .info-display {
     font-size: clamp(0.7em, 1vw, 0.9em);
@@ -389,9 +389,9 @@ html {
     color: red;
 }
 
-/* ------------------ */
-/* メディアオフライン    */
-/* ------------------ */
+/* ------------------- */
+/* メディアオフライン  */
+/* ------------------- */
 
 .media-offline {
     background-color: #333333;
@@ -405,10 +405,10 @@ html {
 
 @keyframes neonBlink {
     from {
-        box-shadow: 0 0 0.1875rem red; /* 3px */
+        box-shadow: 0 0 0.1875rem red;
     }
     to {
-        box-shadow: 0 0 0.625rem red; /* 10px */
+        box-shadow: 0 0 0.625rem red;
     }
 }
 
@@ -426,16 +426,14 @@ html {
 /*  プレイリストハイライト      */
 /* ---------------------------- */
 
-/* 優先順位: onair > editing > selected */
-
-/* オンエア中のプレイリスト */
+/* オンエア中プレイリスト */
 .playlist-item.onair {
-    border: 0.125rem solid rgba(255, 0, 0, 0.3); /* 赤の枠 */
+    border: 0.125rem solid rgba(255, 0, 0, 0.3);
     box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2);
-    animation: onair-blink 2s infinite; /* アニメーションの適用 */
+    animation: onair-blink 2s infinite;
 }
 
-/* アニメーションの定義 */
+/* アニメーション定義 */
 @keyframes onair-blink {
     0% {
         box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2);
@@ -448,46 +446,25 @@ html {
     }
 }
 
-/* 次に編集中（onairがない場合のみ適用） */
+/* 編集中 */
 .playlist-item.editing:not(.onair) {
-    border: 0.125rem solid rgba(0, 255, 0, 0.3); /* 緑の枠 */
+    border: 0.125rem solid rgba(0, 255, 0, 0.3);
     box-shadow: 0 0 0.3125rem rgba(0, 255, 0, 0.3), 0 0 0.625rem rgba(0, 255, 0, 0.2);
 }
 
-/* 最後に選択中（onairまたはeditingがない場合のみ適用） */
+/* 選択中 */
 .playlist-item.selected:not(.onair):not(.editing) {
-    border: 0.0625rem solid rgba(255, 255, 128, 0.3); /* グレーの枠 */
+    border: 0.0625rem solid rgba(255, 255, 128, 0.3);
     box-shadow: 0 0 0.3125rem rgba(255, 255, 128, 0.3), 0 0 0.625rem rgba(128, 128, 128, 0.2);
 }
 
-/* ----------------------- */
-/*   DSKオーバーレイ用スタイル */
-/* ----------------------- */
-#dsk-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    visibility: hidden;
-    /* オンエア動画より上、FTBより下のレイヤー（必要に応じて調整） */
-    z-index: 5;
-    transition: opacity 0.3s ease;  /* ※今回はdsk.js側でftbRateによりdurationを動的に設定 */
-    pointer-events: none;  /* DS領域はクリックを遮らない */
-}
-
-/* ----------------------- */
-/*   プレイリストアイテム：DSK送出中 (dsk-active) */
-/* ----------------------- */
+/*   DSK送出中 */
 .playlist-item.dsk-active {
-    /* 基本の枠線（例としてオレンジ） */
     border: 0.125rem solid orange;
-    /* 点滅アニメーション */
     animation: dskBlink 1s infinite alternate;
 }
 
-/* DSK送出中用の点滅アニメーション */
+/* DSK送出中点滅アニメーション */
 @keyframes dskBlink {
     0% {
         box-shadow: 0 0 0.3125rem rgba(255,165,0,0.7);
@@ -500,44 +477,60 @@ html {
     }
 }
 
-/* --------------------- */
-/*   ボタンの基本スタイル  */
-/* --------------------- */
+/* ------------------ */
+/*   DSKオーバーレイ  */
+/* ------------------ */
+#dsk-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    visibility: hidden;
+    z-index: 5;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+/* --------- */
+/*   ボタン  */
+/* --------- */
 
 /* 共通スタイル */
 .button, .control-button {
     display: flex;
-    justify-content: center; /* 水平方向中央揃え */
-    align-items: center; /* 垂直方向中央揃え */
+    justify-content: center;
+    align-items: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    width: 5.9375rem;       /* 95px */
-    height: 1.4375rem;      /* 23px */
-    padding: 0.625rem;      /* 10px */
-    border: none;           /* 枠線を削除 */
-    border-radius: 0.3125rem; /* 5px */
-    font-size: 0.65em;       /* フォントサイズ */
+    width: 5.9375rem;
+    height: 1.4375rem;
+    padding: 0.625rem;
+    border: none;
+    border-radius: 0.3125rem;
+    font-size: 0.65em;
     font-weight: 770;
-    color: #141414;         /* テキスト色（統一） */
-    background-color: #d9d9d9; /* デフォルト背景色（統一） */
-    cursor: pointer;        /* ポインタスタイル */
-    text-align: center;     /* 中央揃え */
-    box-sizing: border-box; /* パディングを含めた計算 */
-    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease; /* スムーズな変化 */
-    box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.2); /* 8px → 0.5rem */
+    color: #141414;
+    background-color: #d9d9d9;
+    cursor: pointer;
+    text-align: center;
+    box-sizing: border-box;
+    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.2);
 }
 
-/* ホバー時の共通効果 */
+/* ホバー状態 */
 .button:hover, .control-button:hover {
-    filter: brightness(0.9); /* 明るさを若干調整 */
-    box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.3); /* 8px → 0.5rem */
+    filter: brightness(0.9);
+    box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.3);
 }
 
-/* アクティブ時 */
+/* アクティブ状態 */
 .button:active, .control-button:active {
-    transform: scale(0.98);      /* 押した時に少し縮小 */
-    box-shadow: 0 0 0.3125rem rgba(0, 0, 0, 0.2); /* 5px → 0.3125rem */
+    transform: scale(0.98);
+    box-shadow: 0 0 0.3125rem rgba(0, 0, 0, 0.2);
 }
 
 /* 無効状態 */
@@ -547,18 +540,6 @@ html {
     cursor: not-allowed !important;
 }
 
-/* UVCデバイス追加ボタン */
-#addUVCToPlaylistButton {
-    width: 7.5rem;      /* 120px */
-    word-wrap: break-word; /* 長い単語を適切に折り返す */
-}
-
-/* エディットオーディオミュートボタン */
-#editaudioMuteButton {
-    width: 7.5rem;      /* 120px */
-    word-wrap: break-word; /* 長い単語を適切に折り返す */
-}
-
 /* --------------------- */
 /*   色別スタイル  */
 /* --------------------- */
@@ -566,102 +547,100 @@ html {
 /* 緑ボタン */
 .button-green {
     background-color: rgba(102, 205, 102, 0.9)!important;
-    border: 0.0625rem solid rgba(0, 128, 0, 0.3); /* 1px */
-    box-shadow: 0 0 0.625rem rgba(0, 128, 0, 0.6);  /* 10px */
-    backdrop-filter: blur(0.25rem);                 /* 4px */
+    border: 0.0625rem solid rgba(0, 128, 0, 0.3);
+    box-shadow: 0 0 0.625rem rgba(0, 128, 0, 0.6);
+    backdrop-filter: blur(0.25rem);
 }
 
 .button-green:hover {
     background-color: rgba(34, 139, 34, 1);
-    box-shadow: 0 0 1.125rem rgba(34, 139, 34, 0.8); /* 18px */
+    box-shadow: 0 0 1.125rem rgba(34, 139, 34, 0.8);
 }
 
 /* 水色ボタン */
 .button-blue {
     background-color: rgba(51, 125, 204, 0.9)!important;
-    border: 0.0625rem solid rgba(41, 100, 163, 0.3); /* 1px */
-    box-shadow: 0 0 0.5rem rgba(51, 125, 204, 0.6);  /* 8px */
-    backdrop-filter: blur(0.25rem);                 /* 4px */
+    border: 0.0625rem solid rgba(41, 100, 163, 0.3);
+    box-shadow: 0 0 0.5rem rgba(51, 125, 204, 0.6);
+    backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
 }
 
 .button-blue:hover {
     background-color: rgba(51, 125, 204, 1);
-    box-shadow: 0 0 0.8125rem rgba(51, 125, 204, 0.8); /* 13px */
+    box-shadow: 0 0 0.8125rem rgba(51, 125, 204, 0.8);
 }
 
 /* オレンジボタン */
 .button-orange {
     background-color: rgba(210, 114, 75, 0.9)!important;
-    border: 0.0625rem solid rgba(183, 85, 46, 0.3); /* 1px */
-    box-shadow: 0 0 0.5rem rgba(210, 114, 75, 0.6); /* 8px */
-    backdrop-filter: blur(0.25rem);               /* 4px */
+    border: 0.0625rem solid rgba(183, 85, 46, 0.3);
+    box-shadow: 0 0 0.5rem rgba(210, 114, 75, 0.6);
+    backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
 }
 
 .button-orange:hover {
     background-color: rgba(210, 114, 75, 1);
-    box-shadow: 0 0 0.8125rem rgba(210, 114, 75, 0.8); /* 13px */
+    box-shadow: 0 0 0.8125rem rgba(210, 114, 75, 0.8);
 }
 
 /* 赤ボタン */
 .button-red {
     background-color: rgba(215, 94, 94, 0.9)!important;
-    border: 0.0625rem solid rgba(204, 51, 51, 0.3); /* 1px */
-    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);  /* 8px */
-    backdrop-filter: blur(0.25rem);               /* 4px */
+    border: 0.0625rem solid rgba(204, 51, 51, 0.3);
+    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
+    backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
 }
 
 .button-red:hover {
     background-color: rgba(215, 94, 94, 1);
-    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8); /* 13px */
+    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8);
 }
 
 /* グレーボタン */
 .button-gray {
     background-color: #d9d9d9;
-    border: 0.0625rem solid rgba(105, 105, 105, 0.3); /* 1px */
-    box-shadow: 0 0 0.625rem rgba(105, 105, 105, 0.6); /* 10px */
+    border: 0.0625rem solid rgba(105, 105, 105, 0.3);
+    box-shadow: 0 0 0.625rem rgba(105, 105, 105, 0.6);
 }
 
 .button-gray:hover {
     background-color: #a6a6a6;
-    box-shadow: 0 0 1.125rem rgba(90, 98, 104, 0.8); /* 18px */
+    box-shadow: 0 0 1.125rem rgba(90, 98, 104, 0.8);
 }
 
-/* --------------------- */
-/*   下段ボタンのスタイル  */
-/* --------------------- */
+/* ------------ */
+/*   下段ボタン */
+/* ------------ */
 
-/* 下段ボタン */
+/* 下段ボタン共通 */
 .important-button {
     font-size: 0.7em;
     font-weight: 770;
     margin: auto;
-    height: 1.875rem;   /* 30px */
-    width: 6.25rem;     /* 100px */
+    height: 1.875rem;
+    width: 6.25rem;
     background-color: #d9d9d9;
-    border: 0.0625rem solid rgba(105, 105, 105, 0.3); /* 1px */
-    box-shadow: 0 0 0.5rem rgba(105, 105, 105, 0.6);  /* 8px */
-    backdrop-filter: blur(0.25rem);                 /* 4px */
+    border: 0.0625rem solid rgba(105, 105, 105, 0.3);
+    box-shadow: 0 0 0.5rem rgba(105, 105, 105, 0.6);
+    backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
 }
 
 .important-button:hover {
     background-color: #a6a6a6;
-    box-shadow: 0 0 0.8125rem rgba(90, 98, 104, 0.8); /* 13px */
+    box-shadow: 0 0 0.8125rem rgba(90, 98, 104, 0.8);
 }
 
-/* 赤ボタン */
-
-/* 光彩アニメーション */
+/* オンエアボタン（赤） */
 @keyframes glowAnimationRed {
     0%, 100% {
-        box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);  /* 8px */
+        box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
     }
     50% {
-        box-shadow: 0 0 0.9375rem rgba(215, 94, 94, 1); /* 15px */
+        box-shadow: 0 0 0.9375rem rgba(215, 94, 94, 1);
     }
 }
 
@@ -670,55 +649,53 @@ html {
     margin: auto;
     font-weight: bold;
     color: #fff;
-    height: 1.875rem;   /* 30px */
-    width: 6.25rem;     /* 100px */
+    height: 1.875rem;
+    width: 6.25rem;
     background-color: rgba(215, 94, 94, 0.9);
-    border: 0.0625rem solid rgba(204, 51, 51, 0.3); /* 1px */
-    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);  /* 8px */
-    backdrop-filter: blur(0.25rem);               /* 4px */
+    border: 0.0625rem solid rgba(204, 51, 51, 0.3);
+    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
+    backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
     animation: glowAnimationRed 1.5s infinite;
 }
 
 .important-button-red:hover {
     background-color: rgba(215, 94, 94, 1);
-    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8); /* 13px */
+    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8);
     animation: none;
 }
 
-/* RECボタン録画中用の点滅・光彩アニメーション */
+/* RECボタン（赤点滅） */
 @keyframes blinkGlowRed {
     0%, 100% {
         background-color: rgba(215, 94, 94, 0.9);
-        box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);  /* 8px */
+        box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
     }
     50% {
         background-color: rgba(215, 94, 94, 1);
-        box-shadow: 0 0 0.625rem rgba(215, 94, 94, 1);   /* 10px */
+        box-shadow: 0 0 0.625rem rgba(215, 94, 94, 1);
     }
 }
 
 .button-recording {
     animation: blinkGlowRed 2s ease infinite;
-    border: 0.0625rem solid rgba(204, 51, 51, 0.3); /* 1px */
-    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);  /* 8px */
+    border: 0.0625rem solid rgba(204, 51, 51, 0.3);
+    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
 }
 
 .button-recording:hover {
     background-color: rgba(215, 94, 94, 1);
-    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8); /* 13px */
+    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8);
     animation: none;
 }
 
-/* オレンジボタン */
-
-/* 光彩アニメーション */
+/* PLAYボタン（オレンジ） */
 @keyframes glowAnimationOrange {
     0%, 100% {
-        box-shadow: 0 0 0.5rem rgba(210, 114, 75, 0.6);  /* 8px */
+        box-shadow: 0 0 0.5rem rgba(210, 114, 75, 0.6);
     }
     50% {
-        box-shadow: 0 0 0.9375rem rgba(210, 114, 75, 1); /* 15px */
+        box-shadow: 0 0 0.9375rem rgba(210, 114, 75, 1);
     }
 }
 
@@ -727,31 +704,29 @@ html {
     margin: auto;
     font-weight: bold;
     color: #fff;
-    height: 1.875rem;   /* 30px */
-    width: 6.25rem;     /* 100px */
+    height: 1.875rem;
+    width: 6.25rem;
     background-color: rgba(210, 114, 75, 0.9);
-    border: 0.0625rem solid rgba(183, 85, 46, 0.3); /* 1px */
-    box-shadow: 0 0 0.5rem rgba(210, 114, 75, 0.6);  /* 8px */
-    backdrop-filter: blur(0.25rem);                /* 4px */
+    border: 0.0625rem solid rgba(183, 85, 46, 0.3);
+    box-shadow: 0 0 0.5rem rgba(210, 114, 75, 0.6);
+    backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
     animation: glowAnimationOrange 1.5s infinite;
 }
 
 .important-button-orange:hover {
     background-color: rgba(210, 114, 75, 1);
-    box-shadow: 0 0 0.8125rem rgba(210, 114, 75, 0.8); /* 13px */
+    box-shadow: 0 0 0.8125rem rgba(210, 114, 75, 0.8);
     animation: none;
 }
 
-/* 青ボタン */
-
-/* 光彩アニメーション */
+/* ポーズボタン（青） */
 @keyframes glowAnimationBlue {
     0%, 100% {
-        box-shadow: 0 0 0.5rem rgba(51, 125, 204, 0.6); /* 8px */
+        box-shadow: 0 0 0.5rem rgba(51, 125, 204, 0.6);
     }
     50% {
-        box-shadow: 0 0 0.9375rem rgba(51, 125, 204, 1); /* 15px */
+        box-shadow: 0 0 0.9375rem rgba(51, 125, 204, 1);
     }
 }
 
@@ -760,12 +735,12 @@ html {
     margin: auto;
     font-weight: bold;
     color: #fff;
-    height: 1.875rem;   /* 30px */
-    width: 6.25rem;     /* 100px */
+    height: 1.875rem;
+    width: 6.25rem;
     background-color: rgba(51, 125, 204, 0.9);
-    border: 0.0625rem solid rgba(41, 100, 163, 0.3); /* 1px */
-    box-shadow: 0 0 0.5rem rgba(51, 125, 204, 0.6);   /* 8px */
-    backdrop-filter: blur(0.25rem);                /* 4px */
+    border: 0.0625rem solid rgba(41, 100, 163, 0.3);
+    box-shadow: 0 0 0.5rem rgba(51, 125, 204, 0.6);
+    backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
     animation: glowAnimationBlue 1.5s infinite;
 }
@@ -777,25 +752,38 @@ html {
 }
 
 /* ------------------------- */
-/*   再生コントロールボタン  */
+/*   エディットエリアボタン  */
 /* ------------------------- */
 
-/* 再生コントロールボタン（幅だけ異なる） */
+/* 再生コントロールボタン */
 .control-button {
-    width: calc(100% / 4 - 0.9375rem); /* 元々の幅計算に基づく割合設定 (15px → 0.9375rem) */
+    width: calc(100% / 4 - 0.9375rem);
 }
 
-/* ----------------------------- */
-/* FIFOボタン、キャプチャボタン  */
-/* ----------------------------- */
+/* UVCデバイス追加ボタン */
+#addUVCToPlaylistButton {
+    width: 7.5rem;
+    word-wrap: break-word;
+}
 
-/* FIFOボタン */
+/* エディットオーディオミュートボタン */
+#editaudioMuteButton {
+    width: 7.5rem;
+    word-wrap: break-word;
+}
+
+
+/* --------------------- */
+/* オンエアエリアボタン  */
+/* --------------------- */
+
+/* F/I・F/Oボタン */
 #on-air-fo-button,
 #on-air-fi-button,
 #on-air-item-fo-button,
 #on-air-item-fi-button {
-    width: 5rem;      /* 80px → 5rem */
-    height: 1.4375rem; /* 23px → 1.4375rem */
+    width: 5rem;
+    height: 1.4375rem;
 }
 
 /* キャプチャボタン */
@@ -804,100 +792,31 @@ html {
     height: 1.4375rem; /* 23px → 1.4375rem */
 }
 
-/* 上段 FIFO 操作（ITEM行）*/
+/* ITEMボリューム数値表示 */
 #control-area-volume .fade-controls.item-fade {
     display: grid;
-    grid-template-columns: 5rem 12.5rem 5rem; /* 左80px→5rem、中央200px→12.5rem、右80px→5rem */
+    grid-template-columns: 5rem 12.5rem 5rem;
     justify-items: center;
     align-items: center;
-    width: 22.5rem;    /* 360px → 22.5rem */
+    width: 22.5rem;
     margin: 0 auto;
 }
 
-/* 下段 FIFO 操作（MAIN行） */
+/* MAINボリューム数値表示 */
 #control-area-volume .fade-controls:not(.item-fade) {
     display: grid;
-    grid-template-columns: 5rem 12.5rem 5rem; /* 左80px→5rem、中央200px→12.5rem、右80px→5rem */
+    grid-template-columns: 5rem 12.5rem 5rem;
     justify-items: center;
     align-items: center;
-    width: 22.5rem;    /* 360px → 22.5rem */
+    width: 22.5rem;
     margin: 0 auto;
 }
 
-/* 透明なダミー要素*/
+/* ダミー要素 */
 .fifo-dummy {
-    width: 12.5rem;    /* 200px → 12.5rem */
-    height: 1.4375rem; /* 23px → 1.4375rem */
+    width: 12.5rem;
+    height: 1.4375rem;
     visibility: hidden;
-}
-
-/* --------------------- */
-/* 保存モード関連スタイル */
-/* --------------------- */
-
-/* SAVEボタンの点滅（オレンジ） */
-.button-blink-orange {
-    animation: fade-orange 1.5s ease-in-out infinite;
-}
-
-/* フェードアニメーション（オレンジ） */
-@keyframes fade-orange {
-    0%, 100% {
-        background-color: initial;
-    }
-    50% {
-        background-color: orange;
-    }
-}
-
-/* 空いている番号ボタン（静的な水色） */
-.button-lightblue {
-    background-color: lightblue;
-}
-
-/* --------------------- */
-/* 削除モード関連スタイル */
-/* --------------------- */
-
-/* DELボタンの点滅（オレンジ） */
-.button-blink-orange {
-    animation: fade-orange 1.5s ease-in-out infinite;
-}
-
-/* フェードアニメーション（オレンジ） */
-@keyframes fade-orange {
-    0%, 100% {
-        background-color: initial;
-    }
-    50% {
-        background-color: orange;
-    }
-}
-
-/* DELボタンの点滅（紫） */
-.button-blink-purple !important {
-    animation: fade-purple 1.5s ease-in-out infinite;
-}
-
-/* フェードアニメーション（紫） */
-@keyframes fade-purple {
-    0%, 100% {
-        background-color: initial;
-    }
-    50% {
-        background-color: purple;
-    }
-}
-
-/* 保存されている番号ボタン（削除モード時の紫色） */
-.button-purple {
-    background-color: purple;
-    color: black; /* 文字色を黒に設定 */
-}
-
-/* 空いている番号ボタン（削除モードでは使用しない） */
-.button-lightblue {
-    background-color: lightblue;
 }
 
 /* ----------------------- */
@@ -913,9 +832,9 @@ html {
 .play-volume-area,
 .important-button-area {
     width: 100%;
-    padding: 0.3125rem;            /* 5px → 0.3125rem */
-    border: 0.0625rem solid #555;  /* 1px → 0.0625rem */
-    border-radius: 0.3125rem;      /* 5px → 0.3125rem */
+    padding: 0.3125rem;
+    border: 0.0625rem solid #555;
+    border-radius: 0.3125rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -927,20 +846,20 @@ html {
 .file-button-area {
     background: linear-gradient(180deg, #3f3f3f, #4f4f4f, #3f3f3f);
     width: 100%;
-    padding: 0.3125rem;             /* 5px → 0.3125rem */
-    border-radius: 0.3125rem;       /* 5px → 0.3125rem */
+    padding: 0.3125rem;
+    border-radius: 0.3125rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     margin-top: auto;
-    height: 5rem;                   /* 80px → 5rem */
+    height: 5rem;
     box-sizing: border-box;
-    border: 0.0625rem solid #555;   /* 1px → 0.0625rem */
+    border: 0.0625rem solid #555;
     box-shadow:
-        inset 0 0.125rem 0.3125rem rgba(255, 255, 255, 0.1), /* 2px,5px */
+        inset 0 0.125rem 0.3125rem rgba(255, 255, 255, 0.1),
         inset 0 -0.125rem 0.3125rem rgba(0, 0, 0, 0.2),
-        0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);                 /* 4px,8px */
+        0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
 }
 
 .file-button-area p,
@@ -954,14 +873,14 @@ html {
 .end-mode-area p {
     font-size: 0.8em;
     color: #bbb;
-    margin: 0 0 0.25rem;           /* 4px → 0.25rem */
+    margin: 0 0 0.25rem;
     text-align: center;
 }
 
 .controls,
 .mode-controls {
     display: flex;
-    gap: 0.9375rem;                /* 15px → 0.9375rem */
+    gap: 0.9375rem;
     justify-content: center;
     align-items: center;
     width: 100%;
@@ -970,31 +889,30 @@ html {
 .controls,
 .mode-controls {
     display: flex;
-    gap: 0.9375rem;                /* 15px → 0.9375rem */
+    gap: 0.9375rem;
     justify-content: center;
     align-items: center;
     width: 100%;
 }
 
-/* ----------------- */
-/* END MODE エリア   */
-/* ----------------- */
+/* -------------- */
+/* エンドモード   */
+/* -------------- */
 
-/* 上段ボタン */
+/* エンドモードボタン */
 .end-mode-area .end-mode-buttons {
     display: flex;
     justify-content: center;
-    gap: 0.4rem;                 /* ボタン間の余白を少しだけ詰める */
-    flex-wrap: wrap;             /* 横幅が足りない場合は2行に折り返す */
-    width: 100%;                 /* 親枠の幅に合わせる（折り返しを安定させる） */
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    width: 100%;
 }
 
-/* END MODE 内のボタンだけ少し細くする */
 .end-mode-area .end-mode-buttons .button {
-    width: 5rem;                 /* デフォルト(約5.94rem)より少し狭く */
+    width: 5rem;
 }
 
-/* Settings 全体 */
+/* エンドモードエリア */
 .end-mode-area .end-mode-settings {
     margin-top: 0.5rem;
 }
@@ -1006,13 +924,12 @@ html {
     opacity: 0.8;
 }
 
-/* 3行をまとめるコンテナ */
+/* エンドモードオプションエリア */
 .end-mode-area .end-mode-settings-rows {
     max-width: 450px;
     margin: 0 auto;
 }
 
-/* 各行：左ラベル＋右フィールド群 */
 .end-mode-area .end-mode-row {
     display: grid;
     grid-template-columns: 6rem 1fr;
@@ -1023,25 +940,21 @@ html {
     color: #bbb;
 }
 
-/* 左側ラベル列 */
 .end-mode-area .end-mode-row-label {
     text-align: right;
     opacity: 0.9;
 }
 
-/* 右側フィールド部分 */
 .end-mode-area .end-mode-row-fields {
     display: flex;
     align-items: center;
     gap: 0.4rem;
 }
 
-/* 小ラベル */
 .end-mode-area .field-label {
     opacity: 0.8;
 }
 
-/* 入力系 */
 .end-mode-area .end-mode-input {
     width: 4.5rem;
     min-width: 4.5rem;
@@ -1059,7 +972,6 @@ html {
     box-sizing: border-box;
 }
 
-/* FTB RATE / REPEAT COUNT の数値表示位置を揃える（基本） */
 .end-mode-area .end-mode-input[type="number"] {
     text-align: center;
 }
@@ -1075,7 +987,6 @@ html {
     -moz-appearance: none;
 }
 
-/* END MODE 内に限り、ftbRate / repeatCount をIDレベルで上書きして完全に揃える */
 .end-mode-area #ftbRate,
 .end-mode-area #repeatCount {
     width: 4.5rem;
@@ -1084,11 +995,11 @@ html {
     text-align: center;
 }
 
-/* --------------------- */
-/* ビデオ表示のスタイル  */
-/* --------------------- */
+/* --------------- */
+/* ビデオコンテナ  */
+/* --------------- */
 
-/* ビデオコンテナ */
+/* ビデオコンテナ共通 */
 .video-container {
     position: relative;
     width: 100%;
@@ -1098,10 +1009,10 @@ html {
     margin-bottom: 0.625rem;
 }
 
-/* エディットエリアビデオ枠 */
+/* エディットエリアビデオコンテナ */
 #listedit-video {
     width: 100%;
-    max-width: calc(100% - 2.5rem); /* 40px → 2.5rem */
+    max-width: calc(100% - 2.5rem);
     aspect-ratio: 16 / 9;
     background-color: black;
     display: flex;
@@ -1109,26 +1020,26 @@ html {
     justify-content: center;
     object-fit: contain;
     position: relative;
-    border: 0.0625rem solid rgba(0, 255, 0, 0.3); /* 1px → 0.0625rem */
-    box-shadow: 0 0 0.3125rem rgba(0, 255, 0, 0.3), 0 0 0.625rem rgba(0, 255, 0, 0.2); /* 5px,10px */
-    border-radius: 0.3125rem; /* 5px → 0.3125rem */
+    border: 0.0625rem solid rgba(0, 255, 0, 0.3);
+    box-shadow: 0 0 0.3125rem rgba(0, 255, 0, 0.3), 0 0 0.625rem rgba(0, 255, 0, 0.2);
+    border-radius: 0.3125rem;
 }
 
-/* オンエアビデオエリア枠 */
+/* オンエアビデオエリアコンテナ */
 #on-air-video {
     width: 100%;
     aspect-ratio: 16 / 9;
-    max-width: calc(100% - 2.5rem); /* 40px → 2.5rem */
+    max-width: calc(100% - 2.5rem);
     object-fit: contain;
     background-color: black;
     position: relative;
-    border: 0.0625rem solid rgba(255, 0, 0, 0.3); /* 1px → 0.0625rem */
-    box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2); /* 5px,10px */
-    border-radius: 0.3125rem; /* 5px → 0.3125rem */
+    border: 0.0625rem solid rgba(255, 0, 0, 0.3);
+    box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2);
+    border-radius: 0.3125rem;
     contain: size;
 }
 
-/* フェードキャンバス（ビデオ要素の上に重なる） */
+/* フェードキャンバス */
 #fade-canvas {
     position: absolute;
     pointer-events: none;
@@ -1136,14 +1047,14 @@ html {
     opacity: 0;
     visibility: hidden;
     z-index: 1;
-    border-radius: 0.3125rem; /* 5px → 0.3125rem */
+    border-radius: 0.3125rem;
 }
 
 /* ------------------------- */
-/* ボリュームメーター        */
+/* 音量レベルメーター        */
 /* ------------------------- */
 
-/* ボリュームバー本体 */
+/* 音量レベルメーター本体 */
 .volume-bar {
     display: flex;
     flex-direction: column;
@@ -1156,7 +1067,7 @@ html {
     z-index: 2;
 }
 
-/* ボリュームバーの目盛 */
+/* 音量レベルメーター目盛 */
 .volume-segment {
     width: 100%;
     box-sizing: border-box;
@@ -1170,7 +1081,7 @@ html {
 }
 
 
-/* 横2分割のレイアウト */
+/* 音量レベルメーターL/R表示 */
 .meter-row {
     display: flex;
     flex-direction: row;
@@ -1187,26 +1098,26 @@ html {
     margin-left: 0rem;
 }
 
-/* ------------------------------------------------------- */
-/* シークバーとスライダー、タイマー、ファイル名のスタイル  */
-/* ------------------------------------------------------- */
+/* ----------- */
+/* シークバー  */
+/* ----------- */
 
-/* シークバー、ボリュームスライダー本体 */
+/* シークバー本体 */
 .progress-bar {
     display: flex;
     align-items: center;
-    gap: 1.25rem;             /* 20px → 1.25rem */
+    gap: 1.25rem;
     font-size: 0.9em;
-    margin-top: 0.625rem;     /* 10px → 0.625rem */
+    margin-top: 0.625rem;
     margin-bottom: 0.625rem;
 }
 
-/* シークバー、ボリュームスライダーのトラック部分 */
+/* シークバートラック */
 input[type="range"] {
     -webkit-appearance: none;
     width: 100%;
-    height: 0.4375rem;        /* 7px → 0.4375rem */
-    border-radius: 0.125rem;  /* 2px → 0.125rem */
+    height: 0.4375rem;
+    border-radius: 0.125rem;
     background: linear-gradient(
         to right,
         rgba(102,205,102,0.2) var(--value, 0%),
@@ -1217,13 +1128,13 @@ input[type="range"] {
     outline: none;
 }
 
-/* 緑つまみ */
+/* 緑ノブ */
 input[type="range"].listedit-volume-slider::-webkit-slider-thumb,
 input[type="range"].on-air-item-volume-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 1.5625rem;         /* 25px → 1.5625rem */
-    height: 0.9375rem;        /* 15px → 0.9375rem */
-    border-radius: 0.1875rem; /* 3px → 0.1875rem */
+    width: 1.5625rem;
+    height: 0.9375rem;
+    border-radius: 0.1875rem;
     background: linear-gradient(
         to right,
         rgba(80,120,80,1) 0%,
@@ -1238,15 +1149,15 @@ input[type="range"].on-air-item-volume-slider::-webkit-slider-thumb {
         rgba(70,100,70,1) 100%
     );
     z-index: 10;
-    box-shadow: 0 0 0.1875rem 0 rgba(0,0,0,0.50); /* 3px → 0.1875rem */
+    box-shadow: 0 0 0.1875rem 0 rgba(0,0,0,0.50);
     cursor: pointer;
 }
 
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 0.625rem;          /* 10px → 0.625rem */
-    height: 0.9375rem;        /* 15px → 0.9375rem */
-    border-radius: 0.1875rem; /* 3px → 0.1875rem */
+    width: 0.625rem;
+    height: 0.9375rem;
+    border-radius: 0.1875rem;
     background: linear-gradient(
         to right,
         rgba(70,100,70,1) 0%,
@@ -1258,14 +1169,14 @@ input[type="range"]::-webkit-slider-thumb {
         rgba(70,100,70,1) 100%
     );
     z-index: 10;
-    box-shadow: 0 0 0.1875rem 0 rgba(0,0,0,0.50); /* 3px → 0.1875rem */
+    box-shadow: 0 0 0.1875rem 0 rgba(0,0,0,0.50);
     cursor: pointer;
 }
 
-/* シークバー上のIN/OUTマーカー用スタイル */
+/* IN/OUTマーカー */
 .seek-marker {
     position: absolute;
-    top: 0.9375rem;           /* 15px → 0.9375rem */
+    top: 0.9375rem;
     font-size: 0.8em;
     font-weight: bold;
     color: gray;
@@ -1287,36 +1198,35 @@ input[type="range"]::-webkit-slider-thumb {
   (以下一部のフェーダー部分のコードでMITライセンスの条件に従って利用させていただいています)
 */
 
-/* ボリュームスライダー欄 */
+/* ボリュームスライダー */
 #control-area-volume .controls {
-    display: flex; /* フレックスボックスで整列 */
-    align-items: center; /* 子要素を縦方向で中央揃え */
-    gap: 0.625rem; /* 10px → 0.625rem */
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
 }
 
-/* マスターボリュームスライダー専用の背景設定 */
+/* マスターボリュームスライダー背景 */
 input[type="range"].master-slider {
     -webkit-appearance: none;
     width: 100%;
-    height: 0.4375rem; /* 7px → 0.4375rem */
-    border-radius: 0.125rem; /* 2px → 0.125rem */
-    /* 左側はオレンジ（rgba(255,165,0,0.9)）に変更 */
+    height: 0.4375rem;
+    border-radius: 0.125rem; 
     background: linear-gradient(
         to right,
         rgba(255,165,0,0.2) var(--value, 0%),
         #4a4a4a var(--value, 0%),
         #4a4a4a 100%
     );
-    box-shadow: inset 0 0.0625rem 0.0625rem rgba(0, 0, 0, 0.6); /* 1px → 0.0625rem */
+    box-shadow: inset 0 0.0625rem 0.0625rem rgba(0, 0, 0, 0.6);
     outline: none;
 }
 
-/* マスターボリュームスライダーのつまみ（オレンジ系に変更） */
+/* マスターボリュームスライダーノブ */
 input[type="range"].master-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 1.5625rem; /* 25px → 1.5625rem */
-    height: 0.9375rem; /* 15px → 0.9375rem */
-    border-radius: 0.1875rem; /* 3px → 0.1875rem */
+    width: 1.5625rem;
+    height: 0.9375rem;
+    border-radius: 0.1875rem;
     background: linear-gradient(
         to right,
         rgba(150,110,80,1) 0%,
@@ -1331,52 +1241,52 @@ input[type="range"].master-slider::-webkit-slider-thumb {
         rgba(130,90,70,1) 100%
     );
     z-index: 10;
-    box-shadow: 0 0 0.1875rem 0 rgba(0,0,0,0.50); /* 3px → 0.1875rem */
+    box-shadow: 0 0 0.1875rem 0 rgba(0,0,0,0.50);
     cursor: pointer;
 }
 
 .listedit-volume-slider {
-    margin-bottom: 0; /* 不要なら下の余白を削除 */
+    margin-bottom: 0;
 }
 
 .on-air-volume-slider {
-    margin-bottom: 0; /* 不要なら下の余白を削除 */
+    margin-bottom: 0;
 }
 
 .playback-speed-slider {
-    margin-bottom: 0; /* 不要なら下の余白を削除 */
+    margin-bottom: 0;
 }
 
 /* ボリューム数値表示 */
 .volume-value,
 .on-air-volume-value {
-    width: 3.125rem;   /* 50px → 3.125rem */
-    height: 1.5625rem; /* 25px → 1.5625rem */
+    width: 3.125rem;
+    height: 1.5625rem;
     background-color: #2e2e2e;
     color: #ffffff;
     border: 1px solid #444444;
-    border-radius: 0.3125rem; /* 5px → 0.3125rem */
-    font-size: 0.75rem;        /* 12px → 0.75rem */
-    padding: 0.3125rem;        /* 5px → 0.3125rem */
-    padding-right: 0.1875rem;  /* 3px → 0.1875rem */
-    box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3); /* 2px,5px */
+    border-radius: 0.3125rem;
+    font-size: 0.75rem;
+    padding: 0.3125rem;
+    padding-right: 0.1875rem;
+    box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
     text-align: center;
-    margin-bottom: 0.25rem;    /* 4px → 0.25rem */
+    margin-bottom: 0.25rem;
     cursor: text;
     -moz-appearance: textfield;
     box-sizing: border-box;
     font-family: monospace;
 }
 
-/* 警告時のネオン風アニメーション */
+/* 音量0%警告 */
 @keyframes neonFadeWarning {
     0% {
-        border: 0.125rem solid rgba(255, 0, 0, 0.6); /* 2px → 0.125rem */
-        box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.6); /* 5px → 0.3125rem */
+        border: 0.125rem solid rgba(255, 0, 0, 0.6);
+        box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.6); 
     }
     50% {
         border: 0.125rem solid rgba(255, 0, 0, 1);
-        box-shadow: 0 0 0.9375rem rgba(255, 0, 0, 1);    /* 15px → 0.9375rem */
+        box-shadow: 0 0 0.9375rem rgba(255, 0, 0, 1);
     }
     100% {
         border: 0.125rem solid rgba(255, 0, 0, 0.6);
@@ -1388,11 +1298,9 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     animation: neonFadeWarning 1.5s ease-in-out infinite;
 }
 
-/* ----------------------------------------- */
-/* Infoバー、タイマー、ファイル名のスタイル  */
-/* ----------------------------------------- */
-
-/* Info Barのスタイル */
+/* --------------- */
+/* ファイル名表示  */
+/* --------------- */
 .info-bar {
     display: flex; 
     justify-content: space-between; 
@@ -1402,47 +1310,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     padding: 0 0.3125rem;      /* 5px */
 }
 
-/* リメインタイマーの表示 */
-#listedit-remain-time, #on-air-remain-time {
-    font-size: 1.5em;
-    color: orange;
-    font-weight: bold;
-    font-family: Arial, sans-serif;
-    text-shadow: 0.0625rem 0.0625rem 0.125rem rgba(0, 0, 0, 0.5); /* 1px 1px 2px */
-    background-color: rgba(0, 0, 0, 0.7);
-    padding: 0.4375rem 1.25rem;    /* 7px 20px */
-    border-radius: 0.625rem;       /* 10px */
-    text-align: center;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.5); /* 0px 4px 8px */
-    width: 13.125rem;              /* 210px */
-    letter-spacing: 0.125rem;      /* 2px */
-    margin: -0.4375rem auto;       /* -7px auto */
-    max-width: 80%;
-    position: relative;
-    margin-bottom: 0.625rem;
-    margin-top: 0;
-}
-
-/* オンエアのエンドモード表示 */
-#on-air-endmode {
-    font-size: 0.9em;
-    color: white;
-    max-width: 28.125rem;          /* 450px */
-    margin-top: 0;
-    text-align: center;
-    padding: 0.3125rem 0.625rem;   /* 5px 10px */
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 0.3125rem;      /* 5px */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    margin: -0.4375rem auto;       /* -7px auto */
-    position: relative;
-    line-height: 1em;
-    margin-bottom: 0.3125rem;      /* 5px */
-}
-
-/* ファイル名表示 */
 #listedit-filename, #on-air-filename {
     font-size: 0.8em;
     color: white;
@@ -1461,56 +1328,99 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     line-height: 1em;
 }
 
+/* ----------------- */
+/* リメインタイマー  */
+/* ----------------- */
+#listedit-remain-time, #on-air-remain-time {
+    font-size: 1.5em;
+    color: orange;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    text-shadow: 0.0625rem 0.0625rem 0.125rem rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 0.4375rem 1.25rem;
+    border-radius: 0.625rem;
+    text-align: center;
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.5);
+    width: 13.125rem;
+    letter-spacing: 0.125rem;
+    margin: -0.4375rem auto;
+    max-width: 80%;
+    position: relative;
+    margin-bottom: 0.625rem;
+    margin-top: 0;
+}
+
+/* ----------------------------- */
+/* オンエア中のエンドモード表示  */
+/* ----------------------------- */
+#on-air-endmode {
+    font-size: 0.9em;
+    color: white;
+    max-width: 28.125rem;
+    margin-top: 0;
+    text-align: center;
+    padding: 0.3125rem 0.625rem;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 0.3125rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: -0.4375rem auto;
+    position: relative;
+    line-height: 1em;
+    margin-bottom: 0.3125rem;
+}
+
 /* ------------------ */
 /*   スクロールバー   */
 /* ------------------ */
 
-/* スクロールバーのスタイル（Webkitブラウザ用：Chrome, Edge, Safari） */
+/* スクロールバー */
 .playlist-items::-webkit-scrollbar {
-    width: 0.5rem;                 /* 8px */
+    width: 0.5rem;
     background-color: #383838;
-    border-radius: 0.3125rem;      /* 5px */
+    border-radius: 0.3125rem;
 }
 
-/* スクロールバーのつまみ部分 */
+/* スクロールバーノブ */
 .playlist-items::-webkit-scrollbar-thumb {
     background-color: #6c757d;
-    border-radius: 0.3125rem;      /* 5px */
-    box-shadow: inset 0 0 0.375rem rgba(0, 0, 0, 0.5); /* 6px */
+    border-radius: 0.3125rem;
+    box-shadow: inset 0 0 0.375rem rgba(0, 0, 0, 0.5);
 }
 
-/* スクロールバーのつまみ部分（ホバー時） */
 .playlist-items::-webkit-scrollbar-thumb:hover {
     background-color: #5a6268;
 }
 
-/* スクロールバーの両端のボタン部分（非表示にする例） */
+/* スクロールバーの両端ボタン */
 .playlist-items::-webkit-scrollbar-button {
     display: none;
 }
 
-/* スクロールバーのトラック（背景） */
+/* スクロールバートラック */
 .playlist-items::-webkit-scrollbar-track {
     background-color: #2c2c2c;
-    border-radius: 0.3125rem;      /* 5px */
+    border-radius: 0.3125rem;
 }
 
 /* --------------------- */
 /*  スピードコントロール */
 /* --------------------- */
 
-/* スピードコントロール数値入力欄（FTB Rate 等と統一したスタイル） */
+/* スピードコントロール数値入力欄 */
 #playback-speed-input {
-    width: 3.125rem;               /* 50px */
-    height: 1.4375rem;             /* 23px */
+    width: 3.125rem;
+    height: 1.4375rem;
     background-color: #2e2e2e;
     color: #ffffff;
-    border: 0.0625rem solid #444444; /* 1px */
-    border-radius: 0.3125rem;      /* 5px */
-    font-size: 0.75rem;            /* 12px */
-    padding: 0.3125rem;            /* 5px */
-    padding-right: 0.1875rem;      /* 3px */
-    box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3); /* 2px 5px */
+    border: 0.0625rem solid #444444;
+    border-radius: 0.3125rem;
+    font-size: 0.75rem;
+    padding: 0.3125rem;
+    padding-right: 0.1875rem;
+    box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
     text-align: center;
     cursor: text;
     -moz-appearance: textfield;
@@ -1518,24 +1428,24 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     font-family: monospace;
 }
 
-/* 速度プリセットボタンエリア */
+/* スピードプリセットボタンエリア */
 #playback-speed-control #playback-speed-buttons {
     margin-top: 0.5rem;
     gap: 1rem;
 }
 
-/* 速度プリセットボタン */
+/* スピードプリセットボタン */
 #playback-speed-buttons .speed-btn {
-    font-size: 0.8em;           /* 少し小さめ */
-    width: calc(4ch + 0.8rem);   /* 4文字 + 左右パディング相当 */
-    min-width: unset;            /* 以前の最小幅指定を解除し固定幅に */
-    padding: 0.2rem 0.3rem;      /* コンパクト */
-    text-align: center;          /* 念のため中央寄せ */
+    font-size: 0.8em;
+    width: calc(4ch + 0.8rem);
+    min-width: unset;
+    padding: 0.2rem 0.3rem;
+    text-align: center;
 }
 
-/* ------------------ */
-/* モーダルスタイル   */
-/* ------------------ */
+/* -------------------- */
+/* モーダルウインドウ   */
+/* -------------------- */
 
 /* モーダルスタイル */
 .modal {
@@ -1559,18 +1469,18 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 
 .modal-content {
     background: #383838;
-    padding: 1.25rem;               /* 20px */
-    border-radius: 0.625rem;       /* 10px */
-    width: 18.75rem;               /* 300px */
+    padding: 1.25rem;
+    border-radius: 0.625rem;
+    width: 18.75rem;
     text-align: center;
 }
 
 .modal input {
     width: 100%;
-    padding: 0.625rem;              /* 10px */
-    margin: 0.625rem 0;             /* 10px 0 */
-    border: 0.0625rem solid #555;   /* 1px */
-    border-radius: 0.3125rem;       /* 5px */
+    padding: 0.625rem;
+    margin: 0.625rem 0;
+    border: 0.0625rem solid #555;
+    border-radius: 0.3125rem;
     font-size: 1rem;
     color: #fff;
     background: #292828;
@@ -1578,102 +1488,102 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 
 .modal-buttons {
     display: flex;
-    gap: 0.625rem;                  /* 10px */
+    gap: 0.625rem;
     justify-content: center;
 }
 
 .modal-checkbox-container {
     display: flex;
-    flex-direction: column;         /* 縦方向に配置 */
-    align-items: center;            /* 中央揃え */
-    margin: 0.625rem 0;             /* 10px 0 */
+    flex-direction: column;
+    align-items: center;
+    margin: 0.625rem 0;
 }
 
 #save-end-mode-label {
     color: #fff;
     font-size: 0.9em;
-    margin-bottom: 0.3125rem;       /* 5px */
+    margin-bottom: 0.3125rem;
 }
 
 .modal-checkbox-container input[type="checkbox"] {
-    margin: 0;                      /* 中央に整列するため余白をリセット */
+    margin: 0;
 }
 
 /* -------------------- */
-/* エディットオーディオ */
+/* デバイス設定モーダル */
 /* -------------------- */
 
-/* コンテナを横並びに配置 */
+/* コンテナ */
 #editaudio-device-selection-container {
     display: flex;
     align-items: center;
-    justify-content: space-between; /* スペースを均等に配置 */
-    gap: 0.3125rem;                 /* 5px */
-    margin-top: 0.3125rem;          /* 5px */
+    justify-content: space-between;
+    gap: 0.3125rem;
+    margin-top: 0.3125rem;
 }
 
-/* ラベルスタイル */
+/* ラベル */
 #editaudio-device-selection-container label {
     font-size: 0.9em;
     font-weight: bold;
-    color: #fff;                    /* テーマに合わせた色 */
-    margin-right: 0.3125rem;        /* 5px */
+    color: #fff;
+    margin-right: 0.3125rem;
 }
 
-/* ドロップダウンのスタイル */
+/* ドロップダウン */
 #editaudioDeviceDropdown {
-    width: 17.5rem;                 /* 280px */
-    height: 1.875rem;               /* 30px */
-    background-color: #2e2e2e;      /* 背景色をダークグレー */
-    color: #ffffff;                 /* テキスト色を白 */
-    border: 0.0625rem solid #444444; /* 枠線を暗い色に */
-    border-radius: 0.3125rem;       /* 5px */
-    font-size: 0.75rem;             /* 12px */
-    padding: 0.3125rem;             /* 5px */
-    box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3); /* 軽いシャドウ */
-    appearance: none;               /* ブラウザ標準の矢印を非表示 */
-    -webkit-appearance: none;       /* Safari対応 */
-    -moz-appearance: none;          /* Firefox対応 */
-    text-align: left;               /* テキストを左揃えに */
-    cursor: pointer;                /* ポインター表示 */
+    width: 17.5rem;
+    height: 1.875rem;
+    background-color: #2e2e2e;
+    color: #ffffff;
+    border: 0.0625rem solid #444444;
+    border-radius: 0.3125rem;
+    font-size: 0.75rem;
+    padding: 0.3125rem;
+    box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    text-align: left;
+    cursor: pointer;
 }
 
-/* ドロップダウンにフォーカスが当たった時のスタイル */
+/* ドロップダウンフォーカス */
 #editaudioDeviceDropdown:focus {
-    outline: none;                  /* フォーカス時の枠線を非表示 */
-    border: 0.0625rem solid #007BFF; /* フォーカス時の枠線をブルーに */
-    box-shadow: 0 0 0.5rem rgba(0, 123, 255, 0.5); /* 軽い発光 */
+    outline: none;
+    border: 0.0625rem solid #007BFF;
+    box-shadow: 0 0 0.5rem rgba(0, 123, 255, 0.5);
 }
 
-/* ドロップダウンのオプションのスタイル（カスタマイズは制限あり） */
+/* ドロップダウンオプション */
 #editaudioDeviceDropdown option {
-    background-color: #2e2e2e;      /* ドロップダウンの背景色 */
-    color: #ffffff;                 /* オプションの文字色 */
-    font-size: 0.75rem;             /* 12px */
+    background-color: #2e2e2e;
+    color: #ffffff;
+    font-size: 0.75rem;
 }
 
 /* ------------------ */
 /*      UVC選択       */
 /* ------------------ */
 
-/* コンテナを横並びに配置 */
+/* コンテナ */
 #device-selection-container {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.3125rem;           /* 5px */
-    margin-top: 0.3125rem;    /* 5px */
+    gap: 0.3125rem;
+    margin-top: 0.3125rem;
 }
 
-/* ラベルスタイル */
+/* ラベル */
 #device-selection-container label {
     font-size: 0.9em;
     font-weight: bold;
     color: #fff;
-    margin-right: 0.3125rem;  /* 5px */
+    margin-right: 0.3125rem;
 }
 
-/* ドロップダウンのスタイル */
+/* ドロップダウン */
 #uvcDeviceDropdown {
     width: 100%;
     max-width: 17.5rem;
@@ -1693,32 +1603,32 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     cursor: pointer;
 }
 
-/* フォーカス時のスタイル */
+/* フォーカス */
 #uvcDeviceDropdown:focus {
     outline: none;
-    border: 0.0625rem solid #007BFF; /* 1px */
+    border: 0.0625rem solid #007BFF;
     box-shadow: 0 0 0.5rem rgba(0, 123, 255, 0.5);
 }
 
-/* オプションスタイル */
+/* オプション */
 #uvcDeviceDropdown option {
     background-color: #2e2e2e;
     color: #ffffff;
-    font-size: 0.75rem;       /* 12px */
+    font-size: 0.75rem;
 }
 
 /* ------------------ */
 /*  FILL&KEY選択      */
 /* ------------------ */
 #fillkey-color-picker {
-    width: 1.875rem;           /* 30px */
-    height: 1.875rem;          /* 30px */
+    width: 1.875rem;
+    height: 1.875rem;
     background-color: #2e2e2e;
     color: #ffffff;
-    border: 0.0625rem solid #444444; /* 1px */
-    border-radius: 0.3125rem; /* 5px */
-    font-size: 0.75rem;       /* 12px */
-    padding: 0.3125rem;       /* 5px */
+    border: 0.0625rem solid #444444;
+    border-radius: 0.3125rem;
+    font-size: 0.75rem;
+    padding: 0.3125rem;
     box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
     appearance: none;
     -webkit-appearance: none;
@@ -1729,21 +1639,21 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 
 #fillkey-color-picker:focus {
     outline: none;
-    border: 0.0625rem solid #007BFF; /* 1px */
+    border: 0.0625rem solid #007BFF;
     box-shadow: 0 0 0.5rem rgba(0, 123, 255, 0.5);
 }
 
 #fillkey-color-picker option {
     background-color: #2e2e2e;
     color: #ffffff;
-    font-size: 0.75rem;       /* 12px */
+    font-size: 0.75rem;
 }
 
 /* ------------------ */
 /*  PNG2MP4 / FTB     */
 /* ------------------ */
 
-/* 入力フィールドのスタイル */
+/* 入力フィールド */
 #fadeInDuration, #startFadeInSec, #ftbRate, #fioRate, #itemFioRate, #mainFioRate, #repeatCount  {
     width: 4rem;
     height: 1.6rem;
@@ -1761,7 +1671,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 }
 
 
-/* PPTX ディゾルブチェックボックスとラベル */
+/* ディゾルブチェックボックス */
 #pptxDissolve {
     width: 1rem;
     height: 1rem;
@@ -1777,7 +1687,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     line-height: 1;
 }
 
-/* REPEAT 無限(∞)チェックボックスとラベル */
+/* REPEATチェックボックス */
 #repeatInfinity {
     width: 1rem;
     height: 1rem;
@@ -1793,7 +1703,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     line-height: 1;
 }
 
-/* placeholder */
+/* プレースホルダ */
 input#repeatCount::placeholder,
 input#repeatCount::-webkit-input-placeholder {
     color: #ffffff !important;
@@ -1803,7 +1713,7 @@ input#repeatCount::-webkit-input-placeholder {
     font-size: 1rem !important;
 }
 
-/* スピンボタン部分の余白調整 */
+/* スピンボタン */
 #fadeInDuration::-webkit-inner-spin-button,
 #startFadeInSec::-webkit-inner-spin_button,
 #ftbRate::-webkit-inner-spin-button,
@@ -1816,58 +1726,58 @@ input#repeatCount::-webkit-input-placeholder {
 #itemFioRate::-webkit-outer-spin-button,
 #repeatCount::-webkit-outer-spin-button,
 #mainFioRate::-webkit-outer-spin-button {
-    margin-left: 0.4375rem;    /* 7px */
+    margin-left: 0.4375rem;
 }
 
-/* フォーカス時のスタイル */
+/* フォーカス */
 #fadeInDuration:focus,
 #startFadeInSec:focus,
 #ftbRate:focus,
 #fioRate:focus {
     outline: none;
-    border: 0.0625rem solid #007BFF; /* 1px */
+    border: 0.0625rem solid #007BFF;
     box-shadow: 0 0 0.5rem rgba(0, 123, 255, 0.5);
 }
 
-/* オーディオフェードインアウトRATE */
+/* オーディオフェードインアウトレート */
 #fioDuration, #fioRate, #itemFioRate, #mainFioRate {
     width: 4rem; 
     height: 1.6rem;
     background-color: #2e2e2e;
     color: #ffffff;
-    border: 0.0625rem solid #444444; /* 1px */
-    border-radius: 0.3125rem; /* 5px */
-    font-size: 0.75rem;       /* 12px */
-    padding: 0.3125rem;       /* 5px */
-    padding-right: 0.1875rem; /* 3px */
+    border: 0.0625rem solid #444444;
+    border-radius: 0.3125rem;
+    font-size: 0.75rem;
+    padding: 0.3125rem;
+    padding-right: 0.1875rem;
     box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
     text-align: right;
     cursor: text;
     -moz-appearance: textfield;
 }
 
-/* ---------------------------- */
-/*  Media Offline 表示用スタイル  */
-/* ---------------------------- */
+/* -------------------- */
+/*  メディアオフライン  */
+/* -------------------- */
 
-/* オフライン状態のプレイリストアイテム */
+/* オフラインプレイリストアイテム */
 .playlist-item.media-offline {
-    border: 0.125rem solid red;              /* 2px */
-    box-shadow: 0 0 0.5rem red;               /* 8px */
-    background-color: #550000; /* ダークレッドの背景 */
+    border: 0.125rem solid red;
+    box-shadow: 0 0 0.5rem red;
+    background-color: #550000;
 }
 
-/* オフライン状態のアイテム内のファイル名を赤色に */
+/* オフライン時のファイル名（赤） */
 .playlist-item.media-offline .file-name {
     color: red;
 }
 
-/* オフライン状態のアイテム内のサムネイルにフィルターを適用 */
+/* オフライン時のサムネイルフィルター */
 .playlist-item.media-offline .thumbnail-image {
     filter: grayscale(100%) brightness(0.7) contrast(1.2) sepia(1) hue-rotate(-20deg);
 }
 
-/* Media Offline テキスト表示用 */
+/* オフライン時のテキスト */
 .media-offline-text {
     color: red;
     font-weight: bold;
@@ -1875,46 +1785,46 @@ input#repeatCount::-webkit-input-placeholder {
     margin-bottom: 0.3125rem; /* 5px */
 }
 
-/* --------------------- */
+/* -------------------- */
 /* レスポンシブフォント */
-/* --------------------- */
+/* -------------------- */
 
-/* 幅1200px以下で少し小さく */
+/* 幅1200px以下(0.6) */
 @media (max-width: 1200px) {
   .button, .control-button {
     font-size: 0.6em;
   }
 }
 
-/* 幅900px以下でさらに小さく */
+/* 幅900px以下(0.5) */
 @media (max-width: 900px) {
   .button, .control-button {
     font-size: 0.5em;
   }
 }
 
-/* 幅600px以下でかなり小さく */
+/* 幅600px以下(0.4) */
 @media (max-width: 600px) {
   .button, .control-button {
     font-size: 0.45em;
   }
 }
 
-/* ------------------ */
-/*         時計       */
-/* ------------------ */
+/* --------------- */
+/*  現在時刻表示   */
+/* --------------- */
 #footer-clock {
     font-size: 1.5em;
     color: lightblue;
     font-weight: bold;
     font-family: Arial, sans-serif;
-    text-shadow: 0.0625rem 0.0625rem 0.125rem rgba(0, 0, 0, 0.5); /* 1px,1px,2px */
-    background-color: rgba(0, 0, 0, 0.7); /* 半透明の黒地背景 */
-    padding: 0.4375rem 1.25rem;            /* 7px 20px */
-    border-radius: 0.625rem;              /* 10px */
+    text-shadow: 0.0625rem 0.0625rem 0.125rem rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 0.4375rem 1.25rem;
+    border-radius: 0.625rem;
     display: inline-block;
     text-align: center;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.5); /* 0px 4px 8px */
-    width: 13.125rem;                      /* 210px */
-    letter-spacing: 0.125rem;             /* 2px */
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.5);
+    width: 13.125rem;
+    letter-spacing: 0.125rem;
 }
