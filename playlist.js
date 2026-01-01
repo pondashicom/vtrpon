@@ -2261,7 +2261,9 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
 
             dragDropCompleted = true;
             clearDragIndicators();
+            setActiveStoreButton(activePlaylistIndex);
             return;
+
         }
 
         // (B) 同一プレイリスト内の並び替え
@@ -2283,21 +2285,16 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
             : playlist.findIndex(p => String(p.playlistItem_id) === tgtId);
 
         let insertIndex;
-        if (tgtId === null) {
+        if (tgtId === null || targetIndex === -1) {
             insertIndex = playlist.length;
         } else {
             insertIndex = (dropPosition === 'after') ? targetIndex + 1 : targetIndex;
         }
 
-        if (currentIndex < insertIndex) {
-            insertIndex -= 1;
-        }
-
         if (insertIndex < 0) {
             insertIndex = 0;
         }
-
-        if (targetIndex === playlist.length - 1 && dropPosition === 'before') {
+        if (insertIndex > playlist.length) {
             insertIndex = playlist.length;
         }
 
