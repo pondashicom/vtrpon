@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.5.1
+//     ver 2.5.2
 // -----------------------
 
 
@@ -4975,10 +4975,6 @@ document.addEventListener('keydown', (event) => {
             handlePlaylistShortcut('8');
         } else if (isMod && keyLower === '9') {
             handlePlaylistShortcut('9');
-        } else if (isMod && keyLower === 's') {
-            handlePlaylistShortcut('save');
-        } else if (isMod && keyLower === 'd') {
-            handlePlaylistShortcut('delete');
         } else if (isMod && keyLower === 'k') {
             handlePlaylistShortcut('clear');
         } else if (isMod && keyLower === 'r') {
@@ -5019,12 +5015,6 @@ window.electronAPI.onShortcutTrigger((event, shortcut) => {
     }
     else if (['1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(shortcut)) {
         handlePlaylistShortcut(shortcut);
-    }
-    else if (shortcut === 'save') {
-        handlePlaylistShortcut('save');
-    }
-    else if (shortcut === 'delete') {
-        handlePlaylistShortcut('delete');
     }
     else if (shortcut === 'clear') {
         handlePlaylistShortcut('clear');
