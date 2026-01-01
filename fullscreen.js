@@ -294,7 +294,9 @@ function initializeOverlayCanvas() {
                 if (overlayForceBlack && this && this.canvas && this.canvas.id === 'overlay-canvas') {
                     return;
                 }
-            } catch (_)
+            } catch (_) {
+                // ignore
+            }
             return __origDrawImage.apply(this, args);
         };
         logDebug('[fullscreen.js] drawImage patched for overlay-canvas safety.');
