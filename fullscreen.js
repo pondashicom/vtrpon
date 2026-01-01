@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.1
+//     ver 2.5.2
 // -----------------------
 
 // -----------------------
@@ -33,7 +33,7 @@ let fullscreenApplyRafId = null;
 
 
 // ----------------------------------------
-// フルスクリーンエリアの初期化
+// フルスクリーン初期化
 // ----------------------------------------
 function initializeFullscreenArea() {
     const videoElement = document.getElementById('fullscreen-video');
@@ -73,7 +73,7 @@ function initializeFullscreenArea() {
         logInfo('[fullscreen.js] Failed to mute fullscreen gain node during reset: ' + e);
     }
 
-    // グローバル状態をリセット
+    // グローバル状態リセット
     globalState = {
         playlistItemId: null,
         path: '',
@@ -88,10 +88,10 @@ function initializeFullscreenArea() {
         volume: 1
     };
 
-    // フェードキャンバスの初期化
+    // フェードキャンバス初期化
     initializeFadeCanvas();
 
-    // 音声チェーンを再初期化させるためのフラグリセット
+    // 音声チェーン再初期化
     setupFullscreenAudio.initialized = false;
 
     logInfo('[fullscreen.js] Fullscreen area has been reset.');
@@ -103,7 +103,6 @@ function initializeFullscreenArea() {
 function initializeFadeCanvas() {
     const existingCanvas = document.getElementById('fadeCanvas');
     if (existingCanvas) {
-        // 黒保持中は状態を崩さない
         if (!holdBlackUntilFadeIn) {
             existingCanvas.style.opacity = '0';
             existingCanvas.style.display = 'none';
@@ -111,7 +110,7 @@ function initializeFadeCanvas() {
         return existingCanvas;
     }
 
-    // 新しいキャンバスを作成
+    // キャンバス作成
     const fadeCanvas = document.createElement('div');
     fadeCanvas.id = 'fadeCanvas';
     fadeCanvas.style.position = 'absolute';
@@ -128,15 +127,15 @@ function initializeFadeCanvas() {
     return fadeCanvas;
 }
 
-// ---------------------------------------
-// オンエアデータを受け取るイベントリスナー
-// ---------------------------------------
+// -------------------
+// オンエアデータ受信
+// -------------------
 window.electronAPI.onReceiveFullscreenData((itemData) => {
     logInfo(`[fullscreen.js] Received On-Air data in fullscreen: ${JSON.stringify(itemData)}`);
 
     const nextIsUVC = isUVCItem(itemData);
 
-    // 切替直前のフェード系レイヤーを必ず解除する。
+    // 切替直前フェードレイヤー解除
     cancelPreFTB();
     cancelFadeOut();
     const ffCanvas = document.getElementById('fullscreen-fade-canvas');
@@ -145,20 +144,16 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
         ffCanvas.style.visibility = 'hidden';
     }
 
-    // スタートモードを大文字で統一
+    // スタートモードフォーマット
     const nextStartModeUpper = String(itemData.startMode || 'PAUSE').toUpperCase();
     const nextIsPause  = (nextStartModeUpper === 'PAUSE');
     const nextIsFadeIn = (nextStartModeUpper === 'FADEIN');
 
-    // 次ソースがUVCなら、映像黒フェードを一時抑止
+    // 次ソースがUVCの場合
     suppressFadeUntilPlaying = nextIsUVC;
-
-    // 次ソースがUVCかつスタートモードがFADEINなら、フェード秒を保持（0なら無効）
     pendingUvcFadeInSec = (nextIsUVC && nextIsFadeIn && Number(itemData.startFadeInSec) > 0)
         ? Number(itemData.startFadeInSec)
         : 0;
-
-    // 次ソースがUVCのときは前フレームを見せず、即黒を被せて保持
     if (nextIsUVC) {
         const fc = initializeFadeCanvas();
         if (fc) {
@@ -168,16 +163,10 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
         }
     }
 
-    // オーバーレイキャプチャ（前フレーム固定）は、
-    // 1) 現在ソースがUVC
-    // 2) 次ソースがUVC
-    // 3) 次ソースのスタートモードがPAUSE または FADEIN
-    // のいずれかに該当するときはスキップする
+    // 前ソースオーバーレイキャプチャをスキップ
     const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsPause || nextIsFadeIn;
-
     if (!skipOverlayCapture) {
         try {
-            // 黒フラ抑止：前フレームをオーバーレイに固定（FTB黒保持中は自動スキップ）
             captureLastFrameAndHoldUntilNextReady(true);
         } catch (e) {
             logDebug(`[fullscreen.js] overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
@@ -194,11 +183,10 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
         }
     }
 
-    // 次ソース種別に応じて fullscreen-video のミュート状態を更新（入口で毎回判定）
+    // ビデオ要素のミュート状態更新
     applyMuteStateForNextSource(itemData);
 
-    // いきなりresetせず、次の描画フレームで実施（オーバーレイ描画の確定を保証）
-    // ただし連打時に古いrAFが遅れて実行されるとフラッシュの原因になるため、世代ガードする
+    // オーバレイキャプチャリセット
     fullscreenApplySeq += 1;
     const applySeq = fullscreenApplySeq;
 
@@ -208,7 +196,6 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     }
 
     fullscreenApplyRafId = requestAnimationFrame(() => {
-        // このrAFが最新でなければ何もしない（古いreset/適用を無効化）
         if (applySeq !== fullscreenApplySeq) return;
 
         fullscreenApplyRafId = null;
@@ -217,16 +204,15 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     });
 });
 
-// UVCソース判定（itemData から判定）
+// UVCソース判定：itemData判定
 function isUVCItem(itemData) {
-    // パスで判定 or deviceId/flags 等で判定（既存ルールに合わせる）
     if (!itemData) return false;
     if (itemData.path && typeof itemData.path === 'string' && itemData.path.startsWith('UVC_DEVICE')) return true;
     if (itemData.deviceId && itemData.deviceId !== null) return true;
     return false;
 }
 
-// 現在のグローバルステートから「今見えているのがUVCか」判定
+// UVCソース判定：グローバルステート判定
 function isCurrentSourceUVC() {
     if (!globalState) return false;
     if (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE')) return true;
@@ -234,7 +220,7 @@ function isCurrentSourceUVC() {
     return false;
 }
 
-// 次ソース種別に応じて fullscreen-video のミュート状態を更新
+// ビデオ要素のミュート状態更新
 function applyMuteStateForNextSource(itemData) {
     const videoElement = document.getElementById('fullscreen-video');
     if (!videoElement) return;
@@ -246,9 +232,9 @@ function applyMuteStateForNextSource(itemData) {
     logDebug(`[fullscreen.js] applyMuteStateForNextSource: isUVC=${shouldMute}, muted=${videoElement.muted}`);
 }
 
-// --------------------------------------------
-// 受け取った時点のデータを初期値として設定
-// --------------------------------------------
+// -------------------------
+// グローバルステート初期化
+// -------------------------
 let globalState = {};
 
 function setInitialData(itemData) {
@@ -263,7 +249,6 @@ function setInitialData(itemData) {
         playlistItemId: itemData.playlistItem_id || null,
         path: itemData.path || '',
         deviceId: itemData.deviceId || null,
-        // UVC 用に音声デバイスIDも保持
         uvcAudioDeviceId: itemData.uvcAudioDeviceId || null,
         inPoint: parseFloat(itemData.inPoint || 0),
         outPoint: parseFloat(itemData.outPoint || 0),
@@ -279,7 +264,7 @@ function setInitialData(itemData) {
 }
 
 // ------------------------------------
-// オーバーレイキャンバスの初期化
+// オーバーレイキャンバス初期化
 // ------------------------------------
 function initializeOverlayCanvas() {
     const canvas = document.getElementById('overlay-canvas');
@@ -287,11 +272,8 @@ function initializeOverlayCanvas() {
         logInfo('[fullscreen.js] overlay-canvas element not found.');
         return null;
     }
-    // 画面全体にフィット（既存前提：fullscreen領域＝ウインドウ全体）
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
-
-    // fadeCanvas より必ず前面へ
     try {
         const fc = document.getElementById('fadeCanvas');
         const baseZ = fc && fc.style && fc.style.zIndex ? (parseInt(fc.style.zIndex, 10) || 1000) : 1000;
@@ -299,24 +281,20 @@ function initializeOverlayCanvas() {
     } catch (_) {
         canvas.style.zIndex = '1001';
     }
-
-    // マウスは透過・既定は非表示
     canvas.style.pointerEvents = 'none';
     if (!canvas.style.display) {
         canvas.style.display = 'none';
         canvas.style.opacity = '1';
     }
-
     if (!CanvasRenderingContext2D.prototype.__vtrpon_drawImagePatched) {
         CanvasRenderingContext2D.prototype.__vtrpon_drawImagePatched = true;
         const __origDrawImage = CanvasRenderingContext2D.prototype.drawImage;
         CanvasRenderingContext2D.prototype.drawImage = function(...args) {
             try {
-                // overlayForceBlack 中は overlay-canvas への drawImage を無効化
                 if (overlayForceBlack && this && this.canvas && this.canvas.id === 'overlay-canvas') {
-                    return; // 何も描かない
+                    return;
                 }
-            } catch (_) { /* no-op */ }
+            } catch (_)
             return __origDrawImage.apply(this, args);
         };
         logDebug('[fullscreen.js] drawImage patched for overlay-canvas safety.');
@@ -325,83 +303,45 @@ function initializeOverlayCanvas() {
 }
 
 // ------------------------------------
-// エンドモード NEXT
-// ------------------------------------
-function handleEndModeNEXT() {
-    logInfo('[fullscreen.js] Called endmode:NEXT - capturing last frame');
-
-    // FTB黒保持中は最終フレーム固定を行わない（黒一本化）
-    const fc = document.getElementById('fadeCanvas');
-    if (holdBlackUntilFadeIn || (fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9)) {
-        logInfo('[fullscreen.js] NEXT skipped overlay capture due to black hold.');
-        return;
-    }
-    try {
-        captureLastFrameAndHoldUntilNextReady(true);
-    } catch (e) {
-        logDebug(`[fullscreen.js] handleEndModeNEXT overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
-    }
-}
-
-// ------------------------------------
-// 前フレームをオーバーレイに固定し、次ソースの“実描画”確認まで保持
+// オーバレイキャプチャ固定
 // ------------------------------------
 function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
-    // FTB黒保持中は黒一本化のためスキップ
     if (respectBlackHold) {
         const fc = document.getElementById('fadeCanvas');
         const fcBlackHold = !!(fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9);
-
-        // holdBlackUntilFadeIn が残留しても、fadeCanvas が実際に黒保持していないならスキップしない
         if (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn && fcBlackHold) {
             logInfo('[fullscreen.js] Overlay capture skipped due to black hold.');
             return;
         }
     }
-
     const videoElement = document.getElementById('fullscreen-video');
     const overlayCanvas = initializeOverlayCanvas();
     if (!videoElement || !overlayCanvas) {
         logInfo('[fullscreen.js] Overlay capture skipped due to missing element.');
         return;
     }
-
-    // 連打対策：前回の「解除監視（RVFC/イベント/タイマー）」が残っていると、
-    // 新しい切替中に古い解除が走ってフラッシュ誘発＆連鎖しやすくなるため、ここで必ず終了する
     if (typeof fullscreenSeamlessCleanup === 'function') {
         try { fullscreenSeamlessCleanup(); } catch (_) {}
         fullscreenSeamlessCleanup = null;
     }
-
-    // 念のため：過去の状態が残っていると overlay-canvas への drawImage が抑止され続けるため解除
     overlayForceBlack = false;
 
-    // この capture 呼び出しの世代トークン
     const captureToken = `${Date.now()}-${Math.random()}`;
     try { overlayCanvas.dataset.seamlessToken = captureToken; } catch (_) {}
     const isCurrentToken = () => {
         try { return overlayCanvas.dataset.seamlessToken === captureToken; } catch (_) { return true; }
     };
 
-    // 「旧srcのフレーム」で解除が成立してしまうのを防ぐための基準
     const capturedSrc = String(videoElement.currentSrc || videoElement.src || '');
     const capturedTime = Number(videoElement.currentTime || 0);
     const capturedAt = performance.now();
 
-    // src が同じでも、reset/seek 等で再生位置が変わった場合は「切替済み」とみなして解除する
     const isReadyToRelease = (nowSrc) => {
         if (!nowSrc) return false;
-
-        // 通常：src が変わったら切替済み
         if (nowSrc !== capturedSrc) return true;
-
-        // 例外：同一srcでも「巻き戻り／先頭付近に戻った」なら切替済み
         const nowTime = Number(videoElement.currentTime || 0);
         if (nowTime <= 0.12 && capturedTime > 0.30) return true;
         if (nowTime + 0.25 < capturedTime) return true;
-
-        // 最終セーフティ：同一srcのまま解除契機が来ない場合でも、一定時間経過して再生が進んでいれば解除
-        // capturedTime が 0 付近で差分が出ないケースでも、再生が進んでいれば解除できるようにする
         const elapsed = performance.now() - capturedAt;
         if (
             elapsed >= 1500 &&
@@ -411,14 +351,12 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         ) {
             return true;
         }
-
         return false;
     };
 
     const ctx = overlayCanvas.getContext('2d');
 
     try {
-        // UVCのFADEIN待ち黒強制
         if (typeof pendingUvcFadeInSec !== 'undefined' && pendingUvcFadeInSec > 0) {
             overlayForceBlack = true;
             overlayCanvas.style.opacity = '1';
@@ -428,23 +366,16 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             ctx.restore();
         } else {
-            // 前フレーム固定（アスペクト保持・レターボックス）
             (function () {
                 const cw = overlayCanvas.width;
                 const ch = overlayCanvas.height;
-
-                // ソース動画の実ピクセルサイズ（0 回避）
                 const vw = Math.max(1, (videoElement.videoWidth | 0));
                 const vh = Math.max(1, (videoElement.videoHeight | 0));
-
-                // contain: キャンバス内に収まる最大スケールで描画
                 const scale = Math.min(cw / vw, ch / vh);
                 const dw = Math.round(vw * scale);
                 const dh = Math.round(vh * scale);
                 const dx = Math.floor((cw - dw) / 2);
                 const dy = Math.floor((ch - dh) / 2);
-
-                // 背景を塗ってから中央配置で描画（FILL-KEY時は指定色、それ以外は黒）
                 ctx.save();
                 ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
                 ctx.fillRect(0, 0, cw, ch);
@@ -456,8 +387,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             overlayCanvas.style.display = 'block';
             seamlessGuardActive = true;
 
-
-            // 音声アイテムから映像アイテムへの復帰
+            // 音声アイテムから映像アイテムへの復帰時
             if (videoElement.getAttribute('data-hide-due-to-audio') === '1' &&
                 (videoElement.videoWidth | 0) > 0 && (videoElement.videoHeight | 0) > 0) {
                 videoElement.style.display = '';
@@ -466,7 +396,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             }
         }
 
-        // 切替時の先出し黒フェード（必要時のみ）
+        // 先出し黒フェード
         if (overlayForceBlack && typeof preFtbActive !== 'undefined' && preFtbActive) {
             overlayCanvas.style.display = 'block';
             overlayCanvas.style.opacity = '1';
@@ -484,7 +414,6 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             }
         }
     } catch (e) {
-        // drawImage失敗などの場合は退避（FILL-KEY時は指定色、それ以外は黒）
         try {
             ctx.save();
             ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
@@ -496,12 +425,9 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
     const useRVFC = !!(videoElement && typeof videoElement.requestVideoFrameCallback === 'function');
     let rvfcCount = 0;
-
-    // RVFCのcallback回数ではなく「実際に提示されたフレームの進行」を見て解除する
     let rvfcArmed = false;
     let rvfcArmedAt = 0;
     let rvfcLastPresentedFrames = 0;
-
     let rvfcHandle = null;
     let safetyTimerId = null;
 
@@ -530,7 +456,6 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         if (isReadyToRelease(nowSrc)) clearOverlay('timeupdate');
     };
 
-    // detach は cleanup からも呼ぶ（世代が変わったら必ず掃除する）
     const detach = () => {
         videoElement.removeEventListener('playing', onPlaying);
         videoElement.removeEventListener('loadeddata', onLoadedData);
@@ -553,16 +478,13 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         }
     };
 
-    // 次回の capture 呼び出しで必ず殺せるよう、グローバルに登録
     fullscreenSeamlessCleanup = cleanup;
 
     const clearOverlay = (reason) => {
-        const RELEASE_DELAY_MS = 50; // ほんの少し遅らせて黒露出を抑える
+        const RELEASE_DELAY_MS = 50;
         setTimeout(() => {
-            // 古い世代の解除が新しいオーバーレイを消さないようにする
             if (!isCurrentToken()) {
                 cleanup();
-                // 自分が登録した cleanup なら解放（新しい世代のものは消さない）
                 if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
                 return;
             }
@@ -583,27 +505,17 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     };
 
     const rvfc = useRVFC ? (ts, md) => {
-        // 世代が変わったら即終了（積み上がり防止）
         if (!isCurrentToken()) {
             cleanup();
             if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
             return;
         }
-
-        // 旧ソースのままRVFCが進むと、reset/src差し替え前に解除されてフラッシュすることがある。
-        // src が切り替わるまで解除カウントを進めない。
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (!isReadyToRelease(nowSrc)) {
             try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
             return;
         }
-
-        // isReadyToRelease を満たした直後でも、まだ実フレームが提示されておらず
-        // 背景色（FILL-KEYの指定色など）が見える瞬間がある。
-        // callback回数ではなく、presentedFrames（提示フレーム数）の増加を確認してから解除する。
         const pf = (md && typeof md.presentedFrames === 'number') ? md.presentedFrames : null;
-
-        // 解除待ち開始（この瞬間のpfを基準にする）
         if (!rvfcArmed) {
             rvfcArmed = true;
             rvfcArmedAt = performance.now();
@@ -613,8 +525,6 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
             return;
         }
-
-        // 早すぎる解除を避ける（切替直後の背景露出を抑える）
         if ((performance.now() - rvfcArmedAt) < 120) {
             try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
             return;
@@ -626,11 +536,10 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
                 rvfcLastPresentedFrames = pf;
             }
         } else {
-            // presentedFrames が取れない環境は従来通り（ただし最低待ちの後）
             rvfcCount += 1;
         }
 
-        // PAUSE スタート等で再生が進まない場合、2フレーム待ちだと解除が完了せず残留しうるため緩和する
+        // スタートモードPAUSEの場合
         const requiredFrames = videoElement.paused ? 1 : 2;
 
         if (rvfcCount >= requiredFrames) {
@@ -641,15 +550,12 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
     } : null;
 
-    // playing ハンドラ（非RVFC環境の解除契機）
     function onPlaying() {
         if (!isCurrentToken()) {
             cleanup();
             if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
             return;
         }
-
-        // 非RVFC環境でも「旧ソースの playing」で解除しない
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (!isReadyToRelease(nowSrc)) return;
 
@@ -668,7 +574,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
     }
 
-    // セーフティ（世代が変わったら止まるようにする）
+    // セーフティ
     const SAFETY_TIMEOUT_MS = 5000;
     const SAFETY_POLL_MS = 100;
     const safetyStart = performance.now();
@@ -685,14 +591,10 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         const elapsed = performance.now() - safetyStart;
         if (elapsed >= SAFETY_TIMEOUT_MS) {
             const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-
-            // 解除条件が満たせるなら解除（同一srcケースの残留対策）
             if (isReadyToRelease(nowSrc)) {
                 clearOverlay('safety');
                 return;
             }
-
-            // ログ連打を避ける（1回だけ）
             if (!safetyLogged) {
                 safetyLogged = true;
                 logInfo('[fullscreen.js] Overlay still active after safety timeout; keeping it until release condition is met.');
@@ -701,18 +603,16 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             safetyTimerId = setTimeout(safetyPoll, 250);
             return;
         }
-
         safetyTimerId = setTimeout(safetyPoll, SAFETY_POLL_MS);
     };
-
     safetyTimerId = setTimeout(safetyPoll, SAFETY_POLL_MS);
 }
 
 // ---------------------------------------
-// オンエアデータを処理して再生する
+// オンエアデータ処理と再生
 // ---------------------------------------
 
-// フェード中の音声処理をキャンセルする補助関数
+// フェード中の音声処理キャンセル
 function cancelAudioFade() {
     if (fullscreenGainNode) {
         const audioContext = FullscreenAudioManager.getContext();
@@ -721,7 +621,7 @@ function cancelAudioFade() {
     }
 }
 
-// オンエアデータを処理して再生する
+// オンエアデータ処理
 function handleOnAirData(itemData) {
     if (!itemData) {
         logInfo('[fullscreen.js] No On-Air data received.');
@@ -733,7 +633,7 @@ function handleOnAirData(itemData) {
 
     const isUvc = !!(globalState.deviceId || (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE:')));
 
-    // 動画とUVCの振り分け（path からのUVC判定も許容し、deviceId を補完）
+    // 動画とUVCの振り分け
     if (isUvc) {
         if (!globalState.deviceId && typeof globalState.path === 'string') {
             const id = globalState.path.substring('UVC_DEVICE:'.length);
@@ -744,21 +644,19 @@ function handleOnAirData(itemData) {
         }
         logInfo('[fullscreen.js] Detected UVC device. Setting up UVC device stream.');
         setupUVCDevice();
-        return; // UVC は setupUVCDevice 側で play/pause を制御する
+        return;
     } else if (globalState.path) {
         logInfo('[fullscreen.js] Detected video file. Setting up video player.');
         setupVideoPlayer();
     } else {
         logInfo('[fullscreen.js] No valid video file or UVC device detected. Skipping setup.');
     }
-
-    // ファイル再生のみ、ここでスタートモードに沿って再生開始
     handleStartMode();
 }
 
-// ----------------------------------------
-// ビデオプレーヤーに動画をセットする関数
-// ----------------------------------------
+// --------------------------------------------
+// 動画・音声ファイルをビデオプレーヤーにセット
+// --------------------------------------------
 function setupVideoPlayer() {
     const videoElement = document.getElementById('fullscreen-video');
     if (!videoElement) {
@@ -771,25 +669,24 @@ function setupVideoPlayer() {
         return;
     }
 
-    // UVCパスが来ている場合は file URL を一切適用しない（UVCは別経路で初期化）
+    // UVCパス
     if (typeof globalState.path === 'string' && globalState.path.startsWith("UVC_DEVICE")) {
         logInfo('[fullscreen.js] UVC path detected in setupVideoPlayer; skipping file URL.');
         return;
     }
 
-    // 通常ファイルのみ、安全なURLに変換してセットする
+    // 動画・音声ファイルパス
     videoElement.src = getSafeFileURL(globalState.path);
 
-    // IN点から再生を開始する準備
+    // IN点読み込み
     videoElement.currentTime = globalState.inPoint;
 
-    // ビデオの音量を設定（オンエア側で計算された最終出力音量を適用）
+    // 音量設定
     const initialVolume = (globalState.volume !== undefined ? globalState.volume : (globalState.defaultVolume / 100));
     videoElement.volume = initialVolume;
 
-    // 動画メタデータがロードされた後に音声を初期化
+    // 音声初期化
     videoElement.addEventListener('loadedmetadata', async () => {
-        // 入力チャンネル数
         isMonoSource = false;
         try {
             const stream = videoElement.captureStream?.();
@@ -806,11 +703,11 @@ function setupVideoPlayer() {
             logInfo('[fullscreen.js] channelCount detection failed (fallback to stereo path): ' + e);
         }
 
-        // src / ソース切替のたびに必ず再バインド
+        // ソース切替時再バインド
         setupFullscreenAudio(videoElement);
         logDebug('[fullscreen.js] Audio (re)initialized during setupVideoPlayer.');
 
-        // メタデータ確定後に再確認して音量を適用
+        // 音量適用
         videoElement.volume = initialVolume;
         if (fullscreenGainNode) {
             const audioContext = FullscreenAudioManager.getContext();
@@ -838,9 +735,9 @@ function getSafeFileURL(filePath) {
     return encoded;
 }
 
-// ----------------------------------------
-// UVC デバイスストリームをビデオプレーヤーにセット
-// ----------------------------------------
+// --------------------------------------------
+// UVCストリームをビデオプレーヤーにセット
+// --------------------------------------------
 async function setupUVCDevice() {
     const videoElement = document.getElementById('fullscreen-video');
     const deviceId = globalState.deviceId; 
@@ -856,7 +753,7 @@ async function setupUVCDevice() {
     }
 
     try {
-        // Device Settings から UVC 用の音声デバイス紐付けを取得
+        // UVC 用音声デバイス取得
         let audioConstraints = false;
         try {
             const deviceSettings = await window.electronAPI.getDeviceSettings();
@@ -864,8 +761,6 @@ async function setupUVCDevice() {
             const boundAudioDeviceId = bindings[deviceId];
 
             if (boundAudioDeviceId) {
-                // NDI / ラインレベル入力などに対して WebRTC の音声処理がかかると
-                // 音が「ぐにゃぐにゃ」に崩れるため、明示的に無効化する
                 audioConstraints = {
                     deviceId: { exact: boundAudioDeviceId },
                     echoCancellation: false,
@@ -882,25 +777,25 @@ async function setupUVCDevice() {
             audioConstraints = false;
         }
 
-        // デバイスストリームを取得（映像 + 必要なら音声）
+        // デバイスストリーム取得
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { deviceId: { exact: deviceId } },
             audio: audioConstraints
         });
 
-        // 初期音量（ファイル再生と同等のロジック）＋UVC/NDI入力は 0dBFS を超えないようクランプ
+        // 初期音量設定
         let initialVolume = (globalState.volume !== undefined ? globalState.volume : (globalState.defaultVolume / 100));
         if (typeof initialVolume !== 'number' || isNaN(initialVolume)) {
             initialVolume = 1.0;
         }
-        const maxStreamGain = 1.0; // UVC/NDI ソースの安全上限（0dB）
+        const maxStreamGain = 1.0;
         initialVolume = Math.max(0.0, Math.min(maxStreamGain, initialVolume));
         videoElement.volume = initialVolume;
 
-        // ストリームをセット
+        // ストリームセット
         videoElement.srcObject = stream;
 
-        // 入力チャンネル数をチェック（mono の場合は dual-mono アップミックスフラグ）
+        // 音声入力チャンネル
         isMonoSource = false;
         try {
             const capture = videoElement.captureStream?.();
@@ -916,11 +811,11 @@ async function setupUVCDevice() {
             logInfo('[fullscreen.js] (UVC) channelCount detection failed (fallback to stereo path): ' + e);
         }
 
-        // srcObject が切り替わるたびに必ず再バインド
+        // ソース切替時再バインド
         setupFullscreenAudio(videoElement);
         logDebug('[fullscreen.js] Audio (re)initialized during setupUVCDevice.');
 
-        // ゲインノードにも初期音量を反映
+        // 初期音量
         if (fullscreenGainNode) {
             const audioContext = FullscreenAudioManager.getContext();
             fullscreenGainNode.gain.setValueAtTime(initialVolume, audioContext.currentTime);
@@ -928,7 +823,7 @@ async function setupUVCDevice() {
 
         const smUpper = String(globalState.startMode || 'PLAY').toUpperCase();
 
-        // startMode=PAUSE の場合はストリームだけセットして再生しない
+        // スタートモードPAUSEの場合
         if (smUpper === 'PAUSE') {
             globalState.stream = stream;
             stopVolumeMeasurement();
@@ -940,12 +835,10 @@ async function setupUVCDevice() {
             ? pendingUvcFadeInSec
             : 0.3;
 
-        // 「動き出し」を保証する playing でフェード開始（canplay だと静止フレームのままの可能性）
+        // ストリームスタート確認
         const handlePlaying = () => {
             fullscreenFadeFromBlack(fadeSec, isFillKeyMode);
             videoElement.removeEventListener('playing', handlePlaying);
-
-            // playing が立ち上がったタイミングでも、メーター計測を確実に開始
             try {
                 if (!isVolumeMeasurementActive) {
                     startVolumeMeasurement(60);
@@ -954,19 +847,14 @@ async function setupUVCDevice() {
             } catch (_e) {}
         };
         videoElement.addEventListener('playing', handlePlaying, { once: true });
-
         await videoElement.play();
         globalState.stream = stream;
-
-        // 念のため、play() 成功後にもメーター計測開始を試みる
         try {
             if (!isVolumeMeasurementActive) {
                 startVolumeMeasurement(60);
                 logDebug('[fullscreen.js] Volume measurement started from setupUVCDevice (post-play).');
             }
         } catch (_e) {}
-
-
         logInfo('[fullscreen.js] UVC device stream initialized successfully.');
         logDebug(`[fullscreen.js] Device ID: ${deviceId}`);
     } catch (error) {
@@ -975,9 +863,9 @@ async function setupUVCDevice() {
     }
 }
 
-// ---------------------------------------
-// スタートモードにそって再生を開始
-// ---------------------------------------
+// -------------------------
+// スタートモードPLAY/PAUSE
+// -------------------------
 function handleStartMode() {
     const videoElement = document.getElementById('fullscreen-video');
 
@@ -986,7 +874,7 @@ function handleStartMode() {
         return;
     }
 
-    // リピートフラグが立っている場合は、現在の startMode を尊重して分岐
+    // リピートの場合のスタートモード分岐処理
     if (globalState.repeatFlag) {
         const sm = (globalState.startMode || 'PAUSE').toUpperCase();
 
@@ -1012,7 +900,7 @@ function handleStartMode() {
             return;
         }
 
-        // PLAY/FADEIN のときのみループ再生
+        // PLAY/FADEIN のときのみリピート再生開始
         if (sm === 'PLAY') {
             logInfo('[fullscreen.js] Repeat with startMode=PLAY.');
             videoElement.currentTime = globalState.inPoint;
@@ -1029,13 +917,8 @@ function handleStartMode() {
 
         if (sm === 'FADEIN') {
             logInfo('[fullscreen.js] Repeat with startMode=FADEIN.');
-
-            // IN 点にシークし、初期音量を 0 に設定
             videoElement.currentTime = globalState.inPoint;
             videoElement.volume = 0;
-
-            // 直前の Pre-FTB の黒キャンバスが残っている場合に備えて、
-            // fadeCanvas(id="fadeCanvas") を強制的に「黒保持」扱いに戻す
             const preCanvas = document.getElementById('fadeCanvas');
             if (preCanvas) {
                 preCanvas.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
@@ -1045,7 +928,7 @@ function handleStartMode() {
                 holdBlackUntilFadeIn = true;
             }
 
-            // フェードイン（映像/音声）
+            // フェードイン
             const fadeDur = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec))
                 ? globalState.startFadeInSec
                 : 1.0;
@@ -1062,8 +945,6 @@ function handleStartMode() {
             globalState.repeatFlag = false;
             return;
         }
-
-        // 未知は何もしない
         logInfo(`[fullscreen.js] Repeat requested but unknown startMode=${sm}. No action taken.`);
         globalState.repeatFlag = false;
         return;
@@ -1099,7 +980,6 @@ function handleStartMode() {
             ? globalState.startFadeInSec
             : 1.0;
 
-        // 映像フェードイン（黒→映像）は fullscreen 側で完結させる
         fullscreenFadeFromBlack(fadeDur, isFillKeyMode);
 
         videoElement.play()
@@ -1117,11 +997,11 @@ function handleStartMode() {
     }
 }
 
-// ------------------------------------
-// スタートモードFADEINの処理
-// ------------------------------------
+// ------------------------------------------
+// フェードキャンバス制御（FADEIN / Pre-FTB）
+// ------------------------------------------
 
-// もし fadeCanvas (fullscreen-fade-canvas) が存在しない場合は動的に作成
+// フェードキャンバス作成
 let fadeCanvas = document.getElementById('fullscreen-fade-canvas');
 if (!fadeCanvas) {
     fadeCanvas = document.createElement('canvas');
@@ -1139,9 +1019,10 @@ if (!fadeCanvas) {
     document.body.appendChild(fadeCanvas);
 }
 
-// Fullscreen 側のフェードイン処理（映像）
+// 映像フェードイン処理
 function fullscreenFadeFromBlack(duration, fillKeyMode) {
-    // 黒保持中は fadeCanvas をそのまま1→0にフェードして解除
+
+    // 黒保持中だった場合
     if (holdBlackUntilFadeIn) {
         let fc = document.getElementById('fadeCanvas');
         if (!fc) fc = initializeFadeCanvas();
@@ -1160,21 +1041,18 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
             if (elapsed < duration * 1000) {
                 requestAnimationFrame(step);
             } else {
-                // フェード完了後もレイヤー自体は残し、opacity だけ 0 にする
-                // （display/visibility を切り替えるとコンポジットが切り替わり映像が揺れる原因になる）
                 fc.style.opacity = '0';
                 fc.style.display = 'block';
                 fc.style.visibility = 'visible';
-                holdBlackUntilFadeIn = false;  // 黒保持解除
+                holdBlackUntilFadeIn = false;
                 logInfo('[fullscreen.js] Fade in completed (held black released).');
-
             }
         }
         requestAnimationFrame(step);
         return;
     }
 
-    // 通常時は fullscreen-fade-canvas を使用
+    // 通常時
     fadeCanvas.style.visibility = 'visible';
     fadeCanvas.style.opacity = '1';
     fadeCanvas.style.backgroundColor = (fillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
@@ -1196,7 +1074,7 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
     requestAnimationFrame(fadeStep);
 }
 
-// OUT時に黒100%になる事前FTB（停止はしない）
+// 映像事前フェードアウト処理
 function startPreFTB(durationSec, fillKeyMode) {
     let fadeCanvas = document.getElementById('fadeCanvas');
     if (!fadeCanvas) fadeCanvas = initializeFadeCanvas();
@@ -1206,13 +1084,13 @@ function startPreFTB(durationSec, fillKeyMode) {
     preFtbDuration = Math.max(durationSec, 0.05);
     preFtbStartTime = null;
 
-    // 背景色（FILLKEY時は背景色、通常は黒）
+    // 背景色
     fadeCanvas.style.backgroundColor = (fillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
     fadeCanvas.style.opacity = '0';
     fadeCanvas.style.display = 'block';
     fadeCanvas.style.visibility = 'visible';
 
-    // 既存のアニメーション停止
+    // 既存アニメーション停止
     if (preFtbRaf) {
         cancelAnimationFrame(preFtbRaf);
         preFtbRaf = null;
@@ -1228,23 +1106,22 @@ function startPreFTB(durationSec, fillKeyMode) {
         if (progress < 1) {
             preFtbRaf = requestAnimationFrame(step);
         } else {
-            // OUT時点で黒=100%
             preFtbRaf = null;
-            holdBlackUntilFadeIn = true;  // 黒を保持
+            holdBlackUntilFadeIn = true; 
             logInfo('[fullscreen.js] Pre-FTB reached full black. Holding until fade-in.');
         }
     }
     preFtbRaf = requestAnimationFrame(step);
 }
 
-// 事前FTBのキャンセル（巻き戻しなど）
+// 事前FTBのキャンセル
 function cancelPreFTB() {
     preFtbActive = false;
     if (preFtbRaf) {
         cancelAnimationFrame(preFtbRaf);
         preFtbRaf = null;
     }
-    holdBlackUntilFadeIn = false;  // 黒保持解除
+    holdBlackUntilFadeIn = false;
     const fadeCanvas = document.getElementById('fadeCanvas');
     if (fadeCanvas) {
         fadeCanvas.style.opacity = '0';
@@ -1253,18 +1130,18 @@ function cancelPreFTB() {
     logInfo('[fullscreen.js] Pre-FTB canceled.');
 }
 
-// onair.js から送信された指令を受け取る
+// onair.jsからの指令受信
 window.electronAPI.ipcRenderer.on('control', (event, data) => {
     if (data.command === 'cancel-fadeout') {
         cancelFadeOut();
         return;
     }
     if (data.command === 'fadein') {
-        // シームレスガード（前フレーム掲出）中は映像フェードを禁止
+        // シームレスガード中は映像フェード禁止
         if (seamlessGuardActive) {
             return;
         }
-        // 次ソースがUVCで再生開始（playing）前は、フェードを抑止（初期遅延と競合させない）
+        // 次ソースがUVCで再生開始前は、フェードを抑止
         if (suppressFadeUntilPlaying) {
             return;
         }
@@ -1294,7 +1171,7 @@ function monitorVideoPlayback() {
         return;
     }
 
-    // 監視を開始
+    // 監視開始
     clearInterval(playbackMonitor);
     playbackMonitor = setInterval(() => {
         const duration = (typeof videoElement.duration === 'number' && !Number.isNaN(videoElement.duration) && videoElement.duration > 0)
@@ -1341,7 +1218,7 @@ function stopMonitoringPlayback() {
 }
 
 // ------------------------
-// 操作情報の受信
+// 操作情報受信
 // ------------------------
 window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
     const fullscreenVideoElement = document.getElementById('fullscreen-video');
@@ -1460,18 +1337,14 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 {
                     const dur = (value && typeof value.duration === 'number') ? value.duration : (globalState.ftbRate || 0.3);
                     const fk  = (value && !!value.fillKeyMode) ? true : false;
-
-                    // シームレスガード（前フレーム掲出）中は映像黒フェードを禁止（黒一本化）
                     if (seamlessGuardActive) {
                         logInfo('[fullscreen.js] fade-from-black skipped due to seamless guard.');
                         break;
                     }
-                    // 次ソースがUVCで再生開始（playing）前は、黒フェードを抑止（UVCの初期遅延と競合させない）
                     if (suppressFadeUntilPlaying) {
                         logInfo('[fullscreen.js] fade-from-black skipped due to incoming UVC.');
                         break;
                     }
-
                     logInfo(`[fullscreen.js] fade-from-black: duration=${dur}s, fillKeyMode=${fk}`);
                     cancelPreFTB();
                     fullscreenFadeFromBlack(dur, fk);
@@ -1479,7 +1352,6 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 break;
             case 'start-recording':
                 {
-
                     const videoElement = document.getElementById('fullscreen-video');
                     if (videoElement) {
                         window.recorder.startRecording(videoElement);
@@ -1516,7 +1388,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
 });
 
 // ------------------------------------
- // エンドモードの処理
+ // エンドモード振り分け
 // ------------------------------------
 function handleEndMode() {
     logInfo(`[fullscreen.js] endmode status: ${globalState.endMode} `);
@@ -1580,21 +1452,21 @@ function handleEndModeFTB() {
 
     logInfo(`[fullscreen.js] Starting FTB: Fade duration is ${fadeDuration} seconds.`);
 
-    // フェードキャンバスの初期化
+    // フェードキャンバス初期化
     let fadeCanvas = document.getElementById('fadeCanvas');
     if (!fadeCanvas) {
         logInfo('[fullscreen.js] Fade canvas not found. Reinitializing canvas.');
         fadeCanvas = initializeFadeCanvas();
     }
 
-    // 事前FTBが既に完了している場合は即時最終化（動画停止・キャンバス非表示）
+    // 事前FTBが既に完了している場合
     if (preFtbActive || (fadeCanvas && parseFloat(fadeCanvas.style.opacity) >= 0.99)) {
         preFtbActive = false;
         if (preFtbRaf) {
             cancelAnimationFrame(preFtbRaf);
             preFtbRaf = null;
         }
-        initializeFullscreenArea();       // 停止・リセット
+        initializeFullscreenArea();
         fadeCanvas.style.opacity = '0';
         fadeCanvas.style.display = 'none';
         fadeCanvas.style.visibility = 'hidden';
@@ -1603,28 +1475,28 @@ function handleEndModeFTB() {
         return;
     }
 
-    // FTB開始前に既存のフェードタイマーを完全に停止
+    // FTB開始前に既存のフェードタイマー停止
     if (ftbFadeInterval) {
         clearInterval(ftbFadeInterval);
         ftbFadeInterval = null;
     }
     fadeCancelled = false;
 
-    // フェードキャンバスの設定
+    // フェードキャンバス設定
     fadeCanvas.style.opacity = '0';
     fadeCanvas.style.display = 'block';
     fadeCanvas.style.visibility = 'visible';
 
-    // FILL-KEY モードの場合は、グローバル変数 fillKeyBgColor（ユーザー選択の色）を使用し、それ以外は黒に設定する
+    // FILL-KEY モードの場合
     fadeCanvas.style.backgroundColor = isFillKeyMode && fillKeyBgColor ? fillKeyBgColor : "black";
 
-    // FTB は他のオーバーレイ（ラストフレームなど）より前面に出す
+    // FTB は他のオーバーレイより前面
     fadeCanvas.style.zIndex = '9999';
 
-    // 時間ベースの setInterval でフェード（rAF は使わない）
+    // フェード
     const durationMs = Math.max(fadeDuration, 0.05) * 1000;
     const startTime = performance.now();
-    const frameInterval = 1000 / 60; // だいたい 60fps 目安
+    const frameInterval = 1000 / 60;
 
     ftbFadeInterval = setInterval(() => {
         if (fadeCancelled) {
@@ -1649,15 +1521,15 @@ function handleEndModeFTB() {
 
             logInfo('[fullscreen.js] FTB complete: Fade ended.');
 
-            // フルスクリーンエリアを初期化（黒画面または停止状態にリセット）
+            // フルスクリーンエリア初期化
             initializeFullscreenArea();
 
-            // FTB 完了後にフェードキャンバスを非表示
+            // FTB 完了後フェードキャンバス非表示
             fadeCanvas.style.opacity = '0';
             fadeCanvas.style.display = 'none';
             fadeCanvas.style.visibility = 'hidden';
 
-            // 音量測定も停止（必要に応じて調整）
+            // 音量測定停止
             stopVolumeMeasurement();
 
             logInfo('[fullscreen.js] FTB complete: Canvas hidden.');
@@ -1665,7 +1537,7 @@ function handleEndModeFTB() {
     }, frameInterval);
 }
 
-// フェードアウトアニメーションの中断処理
+// フェードアウトアニメーション中断処理
 function cancelFadeOut() {
     fadeCancelled = true;
     const fadeCanvas = document.getElementById('fadeCanvas');
@@ -1696,6 +1568,23 @@ function handleEndModeREPEAT() {
     logInfo('[fullscreen.js] End Mode: REPEAT - Setting repeat flag and restarting playback.');
     
     handleStartMode();
+}
+
+// ------------------------------------
+// エンドモード NEXT/GOTO
+// ------------------------------------
+function handleEndModeNEXT() {
+    logInfo('[fullscreen.js] Called endmode:NEXT - capturing last frame');
+    const fc = document.getElementById('fadeCanvas');
+    if (holdBlackUntilFadeIn || (fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9)) {
+        logInfo('[fullscreen.js] NEXT skipped overlay capture due to black hold.');
+        return;
+    }
+    try {
+        captureLastFrameAndHoldUntilNextReady(true);
+    } catch (e) {
+        logDebug(`[fullscreen.js] handleEndModeNEXT overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
+    }
 }
 
 // ------------------------------------
@@ -1730,18 +1619,18 @@ let fullscreenMerger   = null;
 let fullscreenGainNode = null;
 let fullscreenUpmixNode = null;
 let fullscreenSourceNode = null;
-let fullscreenElementSourceNode = null; // ファイル再生用（MediaElementSource）は一度だけ作って再利用
-let fullscreenStreamSourceNode = null; // UVC/NDI 用（MediaStreamSource）
-let fullscreenSourceKind = null; // 'element' | 'stream'
+let fullscreenElementSourceNode = null;
+let fullscreenStreamSourceNode = null; // UVC/ND
+let fullscreenSourceKind = null;
 let fullscreenMediaDest = null;
-let fullscreenLingerTimerId = null; // 音量測定停止の遅延用タイマー
+let fullscreenLingerTimerId = null;
 setupFullscreenAudio.initialized = false; // 音声初期化フラグ
 
 // 音声初期化：analyser は常に原音 L/R を計測。mono 時の出力のみ dual-mono。
 function setupFullscreenAudio(videoElement) {
     const audioContext = FullscreenAudioManager.getContext();
 
-    // 既に初期化済みでも、srcObject / ソース切替のたびに必ず再バインドする
+    // ソース切替のたびに必ず再バインド
     // （initialized で return すると旧ストリームを見続け、メーターが無音固定になる）
     if (setupFullscreenAudio.initialized) {
         try { if (fullscreenSourceNode) fullscreenSourceNode.disconnect(); } catch (_e) {}
@@ -1805,7 +1694,7 @@ function setupFullscreenAudio(videoElement) {
         // analyser 用経路
         fullscreenSourceNode.connect(fullscreenGainNode);
 
-        // 明示的に 2ch にアップミックスしてから Split（listedit.js と同等）
+        // 明示的に 2ch にアップミックスしてから Split
         if (!fullscreenUpmixNode) {
             fullscreenUpmixNode = audioContext.createGain();
             fullscreenUpmixNode.channelCountMode = 'explicit';
@@ -1835,11 +1724,11 @@ function setupFullscreenAudio(videoElement) {
             fullscreenGainNode.connect(fullscreenMerger, 0, 1);
         } catch (_e) {}
     } else {
-        // メーター経路と同様に、必ず 2ch 化したものを出力へ流す
+        // 必ず 2ch 化したものを出力へ流す
         if (fullscreenUpmixNode) {
             try { fullscreenUpmixNode.connect(mediaStreamDest); } catch (_e) {}
         } else {
-            // 念のためのフォールバック（通常ここには来ない）
+            // フォールバック
             try { fullscreenGainNode.connect(mediaStreamDest); } catch (_e) {}
         }
     }
@@ -1866,7 +1755,7 @@ function setupFullscreenAudio(videoElement) {
             }
         } catch (_e) {}
 
-        // まず出力先を確定させてから play（順序を固定）
+        // まず出力先を確定させてから play
         try {
             if (hiddenAudio.setSinkId) {
                 await hiddenAudio.setSinkId(outputDeviceId);
@@ -1941,8 +1830,8 @@ function setupFullscreenAudio(videoElement) {
                     const maxGain = (fullscreenSourceKind === 'stream') ? 0.5 : 4.0;
                     const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
 
-                    // いきなりステップさせると「プチッ」とノイズが出るため、
-                    // 一度ごく小さな値から 30ms かけて滑らかに目標ゲインまでフェードさせる
+                    // いきなりステップさせるとノイズが出る
+                    // ごく小さな値から 30ms かけて滑らかに目標ゲインまでフェードさせる
                     fullscreenGainNode.gain.cancelScheduledValues(t);
                     fullscreenGainNode.gain.setValueAtTime(0.0001, t);
                     fullscreenGainNode.gain.linearRampToValueAtTime(targetGain, t + 0.03);
@@ -1982,7 +1871,7 @@ window.electronAPI.ipcRenderer.on('device-settings-updated', (event, newSettings
     }
 });
 
-// 音声のリセット関数
+// 音声リセット関数
 function resetFullscreenAudio() {
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -2047,7 +1936,7 @@ function resetFullscreenAudio() {
     logDebug('[fullscreen.js] Fullscreen audio reset completed.');
 }
 
-// Fullscreen 用音声フェードイン処理の実装
+// 音声フェードイン処理
 function audioFadeIn(duration) {
     const videoElement = document.getElementById('fullscreen-video');
     if (!videoElement) return;
@@ -2195,7 +2084,7 @@ function startVolumeMeasurement(updateInterval = 60) {
     }, effectiveInterval);
 }
 
-// 音量測定を停止する関数
+// 音量測定停止
 function stopVolumeMeasurement(lingerMs = 200) {
     if (fullscreenLingerTimerId) {
         clearTimeout(fullscreenLingerTimerId);
@@ -2223,7 +2112,7 @@ function stopVolumeMeasurement(lingerMs = 200) {
 // スクリーンショット機能
 // ----------------------------------------
 
-// Shift+S キーでキャプチャを取得し、保存依頼する処理
+// Shift+S キーでキャプチャを取得し、保存依頼
 window.electronAPI.ipcRenderer.on('capture-screenshot', () => {
     captureScreenshot();
 });
@@ -2321,7 +2210,7 @@ let fsDSKOverlay = null;
 function initFsDSKOverlay() {
     const container = document.getElementById('fullscreen-video')?.parentElement;
     if (!container) {
-        logInfo('[fullscreen.js] フルスクリーン用DSKオーバーレイ コンテナが見つかりません。');
+        logInfo('[fullscreen.js] Full-screen DSK overlay container cannot be found.');
         return;
     }
     // 既存のオーバーレイがあれば再利用
@@ -2357,7 +2246,7 @@ function showFullscreenDSK(itemData) {
     }
     currentDSKItem = itemData;
 
-    // <video> 要素を生成
+    // video要素を生成
     const video = document.createElement('video');
     video.src = getSafeFileURL(itemData.path);
     video.style.width = '100%';
