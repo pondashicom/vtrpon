@@ -1986,7 +1986,46 @@ function bindPlaylistContainerDragDrop(container) {
     }
     container.dataset.playlistDragDropBound = '1';
 
-    // 空リスト／末尾ドロップ用（アイテム上のドロップは各アイテム側の drop で処理）
+    const getContainerDropTarget = (clientY) => {
+        const items = Array.from(container.querySelectorAll('.playlist-item'));
+        if (items.length === 0) {
+            return { mode: 'empty', targetItem: null, dropPosition: 'after' };
+        }
+
+        for (const it of items) {
+            const r = it.getBoundingClientRect();
+            const mid = r.top + (r.height / 2);
+
+            if (clientY < mid) {
+                return { mode: 'item', targetItem: it, dropPosition: 'before' };
+            }
+            if (clientY <= r.bottom) {
+                return { mode: 'item', targetItem: it, dropPosition: 'after' };
+            }
+        }
+
+        return { mode: 'item', targetItem: items[items.length - 1], dropPosition: 'after' };
+    };
+
+    const showItemDropIndicator = (targetItem, dropPosition) => {
+        if (!targetItem) {
+            return;
+        }
+
+        targetItem.classList.add('drag-over');
+
+        const rect = targetItem.getBoundingClientRect();
+        if (targetItem._dragIndicator) {
+            if (dropPosition === 'after') {
+                targetItem._dragIndicator.style.top = `${rect.height - 3}px`; // 6px の半分だけ外へ
+            } else {
+                targetItem._dragIndicator.style.top = `-3px`; // 6px の半分だけ外へ
+            }
+            targetItem._dragIndicator.style.display = 'flex';
+        }
+    };
+
+    // 空リスト／末尾・先頭・隙間ドロップ用（アイテム上のドロップは各アイテム側の drop で処理）
     container.addEventListener('dragover', (e) => {
         if (!draggedPlaylistItemId) {
             return;
@@ -1995,12 +2034,27 @@ function bindPlaylistContainerDragDrop(container) {
             return;
         }
         e.preventDefault();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
 
         clearDragIndicators();
+
         const indicator = container._dragContainerIndicator;
-        if (indicator) {
-            indicator.style.display = 'block';
+        const info = getContainerDropTarget(e.clientY);
+
+        // 空プレイリストの場合はマーカーを表示しない（位置が不自然になるため）
+        if (info.mode === 'empty') {
+            if (indicator) {
+                indicator.style.display = 'none';
+            }
+            return;
         }
+
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+        showItemDropIndicator(info.targetItem, info.dropPosition);
     });
 
     container.addEventListener('dragleave', (e) => {
@@ -2010,13 +2064,16 @@ function bindPlaylistContainerDragDrop(container) {
         if (e.relatedTarget && container.contains(e.relatedTarget)) {
             return;
         }
+
+        clearDragIndicators();
+
         const indicator = container._dragContainerIndicator;
         if (indicator) {
             indicator.style.display = 'none';
         }
     });
 
-    container.addEventListener('drop', (e) => {
+    container.addEventListener('drop', async (e) => {
         if (!draggedPlaylistItemId) {
             return;
         }
@@ -2030,8 +2087,26 @@ function bindPlaylistContainerDragDrop(container) {
             return;
         }
 
-        // コンテナへのドロップは「末尾へ移動」
-        void reorderPlaylistByDrag(sourceId, null, 'after');
+        const info = getContainerDropTarget(e.clientY);
+
+        if (info.mode === 'empty') {
+            await reorderPlaylistByDrag(sourceId, null, 'after');
+            // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
+            setActiveStoreButton(activePlaylistIndex);
+            return;
+        }
+
+        const targetId = info.targetItem ? info.targetItem.getAttribute('data-playlist-item-id') : null;
+        if (!targetId) {
+            await reorderPlaylistByDrag(sourceId, null, 'after');
+            // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
+            setActiveStoreButton(activePlaylistIndex);
+            return;
+        }
+
+        await reorderPlaylistByDrag(sourceId, targetId, info.dropPosition);
+        // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
+        setActiveStoreButton(activePlaylistIndex);
     });
 }
 

@@ -150,18 +150,18 @@ html {
 /* プレイリストの各アイテム */
 .playlist-item {
     display: flex;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    justify-content: space-between;
     align-items: center;
-    padding: 0.5rem;
-    margin: 0.25rem 0;
-    background-color: #555;
-    border: 1px solid #666;
-    border-radius: 0.5rem;
-    cursor: grab;
+    justify-content: space-between; /* 左右に要素を分割 */
+    gap: clamp(0.4rem, 1vw, 0.625rem);
+    padding: clamp(0.25rem, 0.5vw, 0.3125rem);
+    background-color: #666666;
+    border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
+    cursor: pointer;
+    width: 100%; /* 横幅を親要素に収める */
+    box-sizing: border-box;
     overflow: hidden;
+    min-height: 5.625rem;
+    margin-bottom: clamp(0.2rem, 0.5vw, 0.3125rem);
 }
 
 /* ドラッグ挿入位置の視覚インジケータ（●-----） */
