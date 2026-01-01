@@ -26,6 +26,13 @@ const convertingFiles = new Set();
 
 // ドラッグ中アイテムID保持
 let draggedPlaylistItemId = null;
+let draggedSourcePlaylistIndex = null;
+let dragOriginalActivePlaylistIndex = null;
+let dragDropCompleted = false;
+let dragHoverSwitchTimer = null;
+let dragHoverTargetPlaylistIndex = null;
+let dragHoverSwitchInProgress = false;
+let dragSourcePlaylistSnapshot = null;
 
 // インポートキュー管理
 const pendingFiles = [];
@@ -1058,28 +1065,12 @@ function renderPlaylistItem(file, index) {
     // ドラッグ挿入位置の視覚インジケータ（●-----）
     const dragIndicator = document.createElement('div');
     dragIndicator.classList.add('drag-indicator');
-    dragIndicator.style.position = 'absolute';
-    dragIndicator.style.left = '0';
-    dragIndicator.style.right = '0';
-    dragIndicator.style.height = '6px';               // 太さ
-    dragIndicator.style.display = 'none';
-    dragIndicator.style.pointerEvents = 'none';
-    dragIndicator.style.zIndex = '10';
-    dragIndicator.style.display = 'none';
-    dragIndicator.style.alignItems = 'center';
-    dragIndicator.style.gap = '0px';
 
     const dragIndicatorDot = document.createElement('div');
-    dragIndicatorDot.style.width = '30px';
-    dragIndicatorDot.style.height = '30px';
-    dragIndicatorDot.style.borderRadius = '50%';
-    dragIndicatorDot.style.background = 'rgba(0, 150, 255, 1)';
+    dragIndicatorDot.classList.add('drag-indicator-dot');
 
     const dragIndicatorBar = document.createElement('div');
-    dragIndicatorBar.style.flex = '1';
-    dragIndicatorBar.style.height = '6px';
-    dragIndicatorBar.style.background = 'rgba(0, 150, 255, 1)';
-    dragIndicatorBar.style.borderRadius = '3px';
+    dragIndicatorBar.classList.add('drag-indicator-bar');
 
     dragIndicator.appendChild(dragIndicatorDot);
     dragIndicator.appendChild(dragIndicatorBar);
@@ -1092,6 +1083,28 @@ function renderPlaylistItem(file, index) {
     // ドラッグ開始
     item.addEventListener('dragstart', (e) => {
         draggedPlaylistItemId = file.playlistItem_id;
+
+        // ドラッグ元スロット（プレイリスト番号ボタンへのホバー切替・ドロップ移動用）
+        draggedSourcePlaylistIndex = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
+            ? activePlaylistIndex
+            : 1;
+        dragOriginalActivePlaylistIndex = draggedSourcePlaylistIndex;
+        dragDropCompleted = false;
+        dragHoverTargetPlaylistIndex = draggedSourcePlaylistIndex;
+
+        // ドラッグ開始時点のソースプレイリストをスナップショット（プレイリスト切替後の移動に使う）
+        dragSourcePlaylistSnapshot = null;
+        void (async () => {
+            try {
+                const src = await stateControl.getPlaylistState();
+                if (Array.isArray(src)) {
+                    dragSourcePlaylistSnapshot = src.map(item => ({ ...item }));
+                }
+            } catch (e) {
+                // ignore
+            }
+        })();
+
         try {
             if (e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
@@ -1105,9 +1118,32 @@ function renderPlaylistItem(file, index) {
 
     // ドラッグ終了
     item.addEventListener('dragend', () => {
+        const restoreSlot = (!dragDropCompleted
+            && typeof dragOriginalActivePlaylistIndex === 'number'
+            && dragOriginalActivePlaylistIndex >= 1 && dragOriginalActivePlaylistIndex <= 9
+            && activePlaylistIndex !== dragOriginalActivePlaylistIndex)
+            ? dragOriginalActivePlaylistIndex
+            : null;
+
         draggedPlaylistItemId = null;
+        draggedSourcePlaylistIndex = null;
+        dragSourcePlaylistSnapshot = null;
+        dragHoverTargetPlaylistIndex = null;
+        if (dragHoverSwitchTimer) {
+            clearTimeout(dragHoverSwitchTimer);
+            dragHoverSwitchTimer = null;
+        }
+
         item.classList.remove('dragging');
         clearDragIndicators();
+
+        if (restoreSlot !== null) {
+            void restorePlaylistAfterCanceledDrag(restoreSlot);
+        }
+
+        dragOriginalActivePlaylistIndex = null;
+        dragDropCompleted = false;
+        dragHoverSwitchInProgress = false;
     });
 
     // 区切り線
@@ -1249,6 +1285,28 @@ function clearDragIndicators() {
 
         if (el._dragIndicator) {
             el._dragIndicator.style.display = 'none';
+        }
+    });
+
+    const containers = document.querySelectorAll('.playlist-items');
+    containers.forEach((container) => {
+        if (container && container._dragContainerIndicator) {
+            container._dragContainerIndicator.style.display = 'none';
+        }
+        const di = container ? container.querySelector('.drag-container-indicator') : null;
+        if (di) {
+            di.style.display = 'none';
+        }
+    });
+
+    const buttons = document.querySelectorAll('[id^="playlise"][id$="-button"]');
+    buttons.forEach((btn) => {
+        if (!btn) {
+            return;
+        }
+        btn.classList.remove('playlist-button-drag-hover');
+        if (btn.style) {
+            btn.style.outline = '';
         }
     });
 }
@@ -1574,6 +1632,9 @@ async function updatePlaylistUI() {
     // ソート
     const sortedPlaylist = playlist.sort((a, b) => a.order - b.order);
 
+    // DnD: 空リスト/末尾ドロップを受けるため、コンテナ側のリスナーを一度だけバインド
+    bindPlaylistContainerDragDrop(playlistItemsContainer);
+
     // プレイリストアイテム削除
     playlistItemsContainer.innerHTML = '';
 
@@ -1616,6 +1677,12 @@ async function updatePlaylistUI() {
             onair: item.classList.contains('onair'),
         });
     });
+
+    // DnD: コンテナ末尾用インジケータ（updatePlaylistUI の都度作り直す）
+    const containerIndicator = createPlaylistContainerDragIndicator();
+    playlistItemsContainer.appendChild(containerIndicator);
+    playlistItemsContainer._dragContainerIndicator = containerIndicator;
+
     // 高解像度対応
     adjustPlaylistHeight();
 }
@@ -1801,76 +1868,387 @@ async function renamePlaylistItemName(itemId, newName) {
     }
 }
 
-// -------------------------------------
+// ------------------------------------
 // ドラッグ＆ドロップによる並び替え処理
-// -------------------------------------
+// ------------------------------------
+
+function isValidPlaylistStoreNumber(n) {
+    return (typeof n === 'number' && n >= 1 && n <= 9);
+}
+
+function getPlaylistStoreKey(storeNumber) {
+    return `vtrpon_playlist_store_${storeNumber}`;
+}
+
+function readPlaylistStorePayload(storeNumber) {
+    if (!isValidPlaylistStoreNumber(storeNumber)) {
+        return null;
+    }
+    const key = getPlaylistStoreKey(storeNumber);
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+        return null;
+    }
+    try {
+        return JSON.parse(raw);
+    } catch (error) {
+        logInfo(`[playlist.js] Failed to parse localStorage(${key}): ${error?.stack || error?.message || error}`);
+        return null;
+    }
+}
+
+function normalizePlaylistDataForStore(data) {
+    const arr = Array.isArray(data) ? data.slice() : [];
+    return arr.map((item, index) => ({
+        ...item,
+        order: index,
+        isSelected: false,
+        isEditing: false,
+        isOnAir: false,
+        isDirectModeOnAir: false,
+        directModeOnAirStatus: '',
+        fillKeyModeOnAirStatus: '',
+        repeatCount: (typeof item.repeatCount === 'number') ? item.repeatCount : null,
+        repeatEndMode: item.repeatEndMode ?? null,
+        endGotoPlaylist: item.endGotoPlaylist ?? null,
+        endGotoItemId: item.endGotoItemId ?? null,
+        startMode: item.startMode ?? null,
+        endMode: item.endMode ?? null,
+        inPoint: typeof item.inPoint === 'number' ? item.inPoint : 0,
+        outPoint: typeof item.outPoint === 'number' ? item.outPoint : (typeof item.duration === 'number' ? item.duration : 0),
+        repeatStartIndex: 0
+    }));
+}
+
+function writePlaylistStoreData(storeNumber, data) {
+    if (!isValidPlaylistStoreNumber(storeNumber)) {
+        return;
+    }
+    const key = getPlaylistStoreKey(storeNumber);
+
+    const prev = readPlaylistStorePayload(storeNumber) || {};
+    const next = {
+        name: (typeof prev.name === 'string' && prev.name.trim() !== '') ? prev.name : `Playlist ${storeNumber}`,
+        endMode: prev.endMode ?? null,
+        soundPadMode: !!prev.soundPadMode,
+        directOnAirMode: !!prev.directOnAirMode,
+        fillKeyMode: !!prev.fillKeyMode,
+        dskCurrentItemId: prev.dskCurrentItemId ?? null,
+        data: normalizePlaylistDataForStore(data)
+    };
+
+    try {
+        localStorage.setItem(key, JSON.stringify(next));
+    } catch (error) {
+        logInfo(`[playlist.js] Failed to save localStorage(${key}): ${error?.stack || error?.message || error}`);
+    }
+
+    const button = document.getElementById(`playlise${storeNumber}-button`);
+    if (button) {
+        if (Array.isArray(next.data) && next.data.length > 0) {
+            button.classList.add('playlist-saved');
+        } else {
+            button.classList.remove('playlist-saved');
+        }
+    }
+
+    // ボタン色などの更新（存在する場合のみ）
+    try {
+        if (typeof updateStoreButtons === 'function') {
+            updateStoreButtons();
+        }
+    } catch (error) {
+        // ignore
+    }
+}
+
+function createPlaylistContainerDragIndicator() {
+    const indicator = document.createElement('div');
+    indicator.classList.add('drag-container-indicator');
+
+    const dot = document.createElement('div');
+    dot.classList.add('drag-container-indicator-dot');
+    indicator.appendChild(dot);
+
+    const bar = document.createElement('div');
+    bar.classList.add('drag-container-indicator-bar');
+    indicator.appendChild(bar);
+
+    return indicator;
+}
+
+function bindPlaylistContainerDragDrop(container) {
+    if (!container || !container.dataset) {
+        return;
+    }
+    if (container.dataset.playlistDragDropBound === '1') {
+        return;
+    }
+    container.dataset.playlistDragDropBound = '1';
+
+    // 空リスト／末尾ドロップ用（アイテム上のドロップは各アイテム側の drop で処理）
+    container.addEventListener('dragover', (e) => {
+        if (!draggedPlaylistItemId) {
+            return;
+        }
+        if (e.target && e.target.closest && e.target.closest('.playlist-item')) {
+            return;
+        }
+        e.preventDefault();
+
+        clearDragIndicators();
+        const indicator = container._dragContainerIndicator;
+        if (indicator) {
+            indicator.style.display = 'block';
+        }
+    });
+
+    container.addEventListener('dragleave', (e) => {
+        if (!draggedPlaylistItemId) {
+            return;
+        }
+        if (e.relatedTarget && container.contains(e.relatedTarget)) {
+            return;
+        }
+        const indicator = container._dragContainerIndicator;
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    });
+
+    container.addEventListener('drop', (e) => {
+        if (!draggedPlaylistItemId) {
+            return;
+        }
+        if (e.target && e.target.closest && e.target.closest('.playlist-item')) {
+            return;
+        }
+        e.preventDefault();
+
+        const sourceId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) ? e.dataTransfer.getData('text/plain') : draggedPlaylistItemId;
+        if (!sourceId) {
+            return;
+        }
+
+        // コンテナへのドロップは「末尾へ移動」
+        void reorderPlaylistByDrag(sourceId, null, 'after');
+    });
+}
+
+function scheduleSwitchPlaylistDuringDragHover(storeNumber) {
+    if (!draggedPlaylistItemId) {
+        return;
+    }
+    if (!isValidPlaylistStoreNumber(storeNumber)) {
+        return;
+    }
+    if (dragHoverTargetPlaylistIndex === storeNumber) {
+        return;
+    }
+
+    dragHoverTargetPlaylistIndex = storeNumber;
+
+    if (dragHoverSwitchTimer) {
+        clearTimeout(dragHoverSwitchTimer);
+        dragHoverSwitchTimer = null;
+    }
+    dragHoverSwitchTimer = setTimeout(() => {
+        void switchPlaylistForDragHover(storeNumber);
+    }, 120);
+}
+
+async function switchPlaylistForDragHover(storeNumber) {
+    if (!draggedPlaylistItemId) {
+        return;
+    }
+    if (!isValidPlaylistStoreNumber(storeNumber)) {
+        return;
+    }
+    if (activePlaylistIndex === storeNumber) {
+        return;
+    }
+    if (dragHoverSwitchInProgress) {
+        return;
+    }
+    dragHoverSwitchInProgress = true;
+
+    try {
+        activePlaylistIndex = storeNumber;
+        await loadPlaylist(storeNumber);
+    } catch (error) {
+        logInfo(`[playlist.js] Failed to switch playlist for drag hover: ${error?.stack || error?.message || error}`);
+    } finally {
+        dragHoverSwitchInProgress = false;
+    }
+}
+
+async function restorePlaylistAfterCanceledDrag(storeNumber) {
+    if (!isValidPlaylistStoreNumber(storeNumber)) {
+        return;
+    }
+    try {
+        activePlaylistIndex = storeNumber;
+        await loadPlaylist(storeNumber);
+        setActiveStoreButton(storeNumber);
+    } catch (error) {
+        logInfo(`[playlist.js] Failed to restore playlist after canceled drag: ${error?.stack || error?.message || error}`);
+    }
+}
+
 async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId, dropPosition) {
     try {
         const playlist = await stateControl.getPlaylistState();
-
-        const currentIndex = playlist.findIndex(
-            (p) => String(p.playlistItem_id) === String(sourcePlaylistItemId)
-        );
-        const targetIndexBefore = playlist.findIndex(
-            (p) => String(p.playlistItem_id) === String(targetPlaylistItemId)
-        );
-
-        if (currentIndex === -1 || targetIndexBefore === -1) {
-            logInfo(
-                '[playlist.js] reorderPlaylistByDrag: item not found.',
-                { sourcePlaylistItemId, targetPlaylistItemId, dropPosition }
-            );
+        if (!Array.isArray(playlist)) {
+            logInfo('[playlist.js] Playlist state is invalid.');
             return;
         }
 
-        if (currentIndex === targetIndexBefore && (dropPosition === 'before' || dropPosition === 'after')) {
+        const srcId = String(sourcePlaylistItemId);
+        const tgtId = (targetPlaylistItemId === null || targetPlaylistItemId === undefined || targetPlaylistItemId === '') ? null : String(targetPlaylistItemId);
+
+        // ターゲット位置（"null" の場合は末尾）
+        const targetIndexBefore = (tgtId === null)
+            ? playlist.length
+            : playlist.findIndex(p => String(p.playlistItem_id) === tgtId);
+
+        // 現在プレイリスト内にソースがあるか（同一プレイリスト内の並び替え判定）
+        const currentIndex = playlist.findIndex(p => String(p.playlistItem_id) === srcId);
+
+        // (A) 他プレイリストからの移動
+        if (currentIndex === -1) {
+            if (!isValidPlaylistStoreNumber(draggedSourcePlaylistIndex) || draggedSourcePlaylistIndex === activePlaylistIndex) {
+                logInfo('[playlist.js] Drag source playlist is not available.');
+                return;
+            }
+            if (tgtId !== null && targetIndexBefore === -1) {
+                logInfo(`[playlist.js] Target item not found: ${targetPlaylistItemId}`);
+                return;
+            }
+
+            const sourcePayload = readPlaylistStorePayload(draggedSourcePlaylistIndex);
+            const sourceData = Array.isArray(dragSourcePlaylistSnapshot) ? dragSourcePlaylistSnapshot.slice() : (Array.isArray(sourcePayload?.data) ? sourcePayload.data.slice() : []);
+
+            const sourceIndex = sourceData.findIndex(p => String(p.playlistItem_id) === srcId);
+            if (sourceIndex === -1) {
+                logInfo(`[playlist.js] Source item not found in source playlist: ${sourcePlaylistItemId}`);
+                return;
+            }
+
+            // ソースから削除
+            const [movingItemRaw] = sourceData.splice(sourceIndex, 1);
+
+            // 移動アイテム（状態フラグはリセット）
+            const movingItem = {
+                ...movingItemRaw,
+                isSelected: false,
+                isEditing: false,
+                isOnAir: false,
+                isDirectModeOnAir: false,
+                directModeOnAirStatus: '',
+                fillKeyModeOnAirStatus: ''
+            };
+
+            // ターゲットへ挿入
+            let insertIndex = (dropPosition === 'after') ? targetIndexBefore + 1 : targetIndexBefore;
+            if (insertIndex < 0) {
+                insertIndex = 0;
+            }
+            if (insertIndex > playlist.length) {
+                insertIndex = playlist.length;
+            }
+            if (tgtId === null) {
+                insertIndex = playlist.length;
+            }
+
+            playlist.splice(insertIndex, 0, movingItem);
+
+            // order等の整形
+            playlist.forEach((p, index) => {
+                p.order = index;
+                p.isSelected = false;
+                p.isEditing = false;
+                p.isOnAir = false;
+                p.isDirectModeOnAir = false;
+                p.directModeOnAirStatus = '';
+                p.fillKeyModeOnAirStatus = '';
+            });
+
+            // ターゲット（現在表示中）へ反映
+            await stateControl.setPlaylistState(playlist);
+            await updatePlaylistUI();
+
+            // ターゲットの自動保存
+            await saveActivePlaylistToStore();
+
+            // ソース側の保存（ローカルストレージを直接更新）
+            writePlaylistStoreData(draggedSourcePlaylistIndex, sourceData);
+            dragSourcePlaylistSnapshot = sourceData.slice();
+
+            dragDropCompleted = true;
+            clearDragIndicators();
             return;
         }
+
+        // (B) 同一プレイリスト内の並び替え
+        if (tgtId !== null && targetIndexBefore === -1) {
+            logInfo(`[playlist.js] Target item not found: ${targetPlaylistItemId}`);
+            return;
+        }
+
+        if (currentIndex === targetIndexBefore && tgtId !== null) {
+            return;
+        }
+
+        // 移動対象を取り出し
         const [movingItem] = playlist.splice(currentIndex, 1);
-        const targetIndex = playlist.findIndex(
-            (p) => String(p.playlistItem_id) === String(targetPlaylistItemId)
-        );
+
+        // 削除後に再度ターゲット位置を取得（同一プレイリスト内でインデックスが変わるため）
+        const targetIndex = (tgtId === null)
+            ? -1
+            : playlist.findIndex(p => String(p.playlistItem_id) === tgtId);
 
         let insertIndex;
-        if (targetIndex === -1) {
+        if (tgtId === null) {
             insertIndex = playlist.length;
-        } else if (dropPosition === 'after') {
-            insertIndex = targetIndex + 1;
         } else {
-            insertIndex = targetIndex;
+            insertIndex = (dropPosition === 'after') ? targetIndex + 1 : targetIndex;
+        }
+
+        if (currentIndex < insertIndex) {
+            insertIndex -= 1;
         }
 
         if (insertIndex < 0) {
             insertIndex = 0;
         }
-        if (insertIndex > playlist.length) {
+
+        if (targetIndex === playlist.length - 1 && dropPosition === 'before') {
             insertIndex = playlist.length;
         }
 
         playlist.splice(insertIndex, 0, movingItem);
 
-        // order を付け直す
-        playlist.forEach((item, index) => {
-            item.order = index;
+        // orderを更新し、選択状態などをリセット
+        playlist.forEach((p, index) => {
+            p.order = index;
+            p.isSelected = false;
+            p.isEditing = false;
+            p.isOnAir = false;
+            p.isDirectModeOnAir = false;
+            p.directModeOnAirStatus = '';
+            p.fillKeyModeOnAirStatus = '';
         });
 
         await stateControl.setPlaylistState(playlist);
         await updatePlaylistUI();
 
-        // 並び替え確定（プレイリスト変更）をアクティブスロットへ保存（ベストエフォート）
-        try {
-            if (typeof saveActivePlaylistToStore === 'function') {
-                await saveActivePlaylistToStore();
-            }
-        } catch (e) {
-            logInfo('[playlist.js] Auto-save after reorderPlaylistByDrag failed (ignored):', e);
-        }
+        // 自動保存
+        await saveActivePlaylistToStore();
 
-        logOpe(
-            `[playlist.js] reorderPlaylistByDrag: id=${movingItem.playlistItem_id} -> index=${insertIndex}, dropPosition=${dropPosition}`
-        );
+        dragDropCompleted = true;
+        clearDragIndicators();
     } catch (error) {
-        logInfo('[playlist.js] reorderPlaylistByDrag error:', error);
+        logInfo(`[playlist.js] Drag & drop reorder error: ${error?.stack || error?.message || error}`);
     }
 }
 
@@ -2341,6 +2719,85 @@ for (let i = 1; i <= 9; i++) {
         logInfo(`[playlist.js] Playlist button not found: playlise${i}-button`);
         continue;
     }
+
+    // ドラッグ＆ドロップ: ボタン上ホバーでプレイリストを切り替え、ドロップで移動
+    button.addEventListener('dragenter', (event) => {
+        if (!draggedPlaylistItemId || isImporting) {
+            return;
+        }
+        event.preventDefault();
+
+        const buttons = document.querySelectorAll('[id^="playlise"][id$="-button"]');
+        buttons.forEach((btn) => btn.classList.remove('playlist-button-drag-hover'));
+        button.classList.add('playlist-button-drag-hover');
+
+        scheduleSwitchPlaylistDuringDragHover(i);
+    });
+
+    button.addEventListener('dragover', (event) => {
+        if (!draggedPlaylistItemId || isImporting) {
+            return;
+        }
+        event.preventDefault();
+
+        const buttons = document.querySelectorAll('[id^="playlise"][id$="-button"]');
+        buttons.forEach((btn) => btn.classList.remove('playlist-button-drag-hover'));
+        button.classList.add('playlist-button-drag-hover');
+
+        scheduleSwitchPlaylistDuringDragHover(i);
+    });
+
+    button.addEventListener('dragleave', (event) => {
+        if (!draggedPlaylistItemId) {
+            return;
+        }
+        if (event.relatedTarget && button.contains(event.relatedTarget)) {
+            return;
+        }
+        button.classList.remove('playlist-button-drag-hover');
+        if (button.style) {
+            // 過去互換（旧コード残留対策）
+            button.style.outline = '';
+        }
+    });
+
+    button.addEventListener('drop', async (event) => {
+        if (!draggedPlaylistItemId || isImporting) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+
+        const buttons = document.querySelectorAll('[id^="playlise"][id$="-button"]');
+        buttons.forEach((btn) => btn.classList.remove('playlist-button-drag-hover'));
+        if (button.style) {
+            // 過去互換（旧コード残留対策）
+            button.style.outline = '';
+        }
+
+        // タイマー待ちをせずに、即時で表示切り替え（そのスロットへ）
+        if (dragHoverSwitchTimer) {
+            clearTimeout(dragHoverSwitchTimer);
+            dragHoverSwitchTimer = null;
+        }
+        if (activePlaylistIndex !== i) {
+            await switchPlaylistForDragHover(i);
+        }
+
+        // ボタンへのドロップは「末尾へ移動」
+        const sourceId = (event.dataTransfer && event.dataTransfer.getData('text/plain'))
+            ? event.dataTransfer.getData('text/plain')
+            : draggedPlaylistItemId;
+        if (!sourceId) {
+            return;
+        }
+
+        await reorderPlaylistByDrag(sourceId, null, 'after');
+
+        // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
+        setActiveStoreButton(i);
+    });
+
     button.addEventListener('mousedown', async (event) => {
         if (event.button !== 0) return;
         event.preventDefault();

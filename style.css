@@ -150,22 +150,79 @@ html {
 /* プレイリストの各アイテム */
 .playlist-item {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: clamp(0.4rem, 1vw, 0.625rem);
-    padding: clamp(0.25rem, 0.5vw, 0.3125rem);
-    background-color: #666666;
-    border-radius: clamp(0.25rem, 0.5vw, 0.3125rem);
-    cursor: pointer;
     width: 100%;
+    max-width: 100%;
     box-sizing: border-box;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    background-color: #555;
+    border: 1px solid #666;
+    border-radius: 0.5rem;
+    cursor: grab;
     overflow: hidden;
-    min-height: 5.625rem;
-    margin-bottom: clamp(0.2rem, 0.5vw, 0.3125rem);
+}
+
+/* ドラッグ挿入位置の視覚インジケータ（●-----） */
+.drag-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0.375rem;
+    display: none;
+    pointer-events: none;
+    z-index: 10;
+    align-items: center;
+}
+
+.drag-indicator-dot {
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 50%;
+    background: rgba(0, 150, 255, 1);
+    flex: 0 0 auto;
+}
+
+.drag-indicator-bar {
+    flex: 1 1 auto;
+    height: 0.375rem;
+    background: rgba(0, 150, 255, 1);
+    border-radius: 0.1875rem;
+}
+
+/* 空のプレイリスト（コンテナ）へのドロップ位置インジケータ（●-----） */
+.drag-container-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 0.375rem;
+    display: none;
+    pointer-events: none;
+    z-index: 9;
+    align-items: center;
+}
+
+.drag-container-indicator-dot {
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 50%;
+    background: rgba(0, 150, 255, 1);
+    flex: 0 0 auto;
+}
+
+.drag-container-indicator-bar {
+    flex: 1 1 auto;
+    height: 0.375rem;
+    background: rgba(0, 150, 255, 1);
+    border-radius: 0.1875rem;
 }
 
 /* サムネイルからStart/Endボタンまでの幅 */
 .file-info {
+
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
@@ -569,6 +626,12 @@ html {
 .button-blue:hover {
     background-color: rgba(51, 125, 204, 1);
     box-shadow: 0 0 0.8125rem rgba(51, 125, 204, 0.8);
+}
+
+/* ドラッグ中ホバー */
+.playlist-button-drag-hover {
+    outline: 0.25rem solid rgba(0, 150, 255, 1);
+    outline-offset: 0.125rem;
 }
 
 /* オレンジボタン */
