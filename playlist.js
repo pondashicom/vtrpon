@@ -1244,10 +1244,8 @@ function renderPlaylistItem(file, index) {
         showPlaylistItemContextMenu(event.clientX, event.clientY, file.playlistItem_id);
     });
 
-
     // ▲▼DELの生成
     const moveButtons = createMoveButtons(item);
-
 
     // ▲▼DEL用ラッパー
     const controlsWrapper = document.createElement('div');
@@ -1899,25 +1897,44 @@ function readPlaylistStorePayload(storeNumber) {
 
 function normalizePlaylistDataForStore(data) {
     const arr = Array.isArray(data) ? data.slice() : [];
-    return arr.map((item, index) => ({
-        ...item,
-        order: index,
-        isSelected: false,
-        isEditing: false,
-        isOnAir: false,
-        isDirectModeOnAir: false,
-        directModeOnAirStatus: '',
-        fillKeyModeOnAirStatus: '',
-        repeatCount: (typeof item.repeatCount === 'number') ? item.repeatCount : null,
-        repeatEndMode: item.repeatEndMode ?? null,
-        endGotoPlaylist: item.endGotoPlaylist ?? null,
-        endGotoItemId: item.endGotoItemId ?? null,
-        startMode: item.startMode ?? null,
-        endMode: item.endMode ?? null,
-        inPoint: typeof item.inPoint === 'number' ? item.inPoint : 0,
-        outPoint: typeof item.outPoint === 'number' ? item.outPoint : (typeof item.duration === 'number' ? item.duration : 0),
-        repeatStartIndex: 0
-    }));
+    return arr.map((item, index) => {
+        const src = item || {};
+
+        const path = (typeof src.path === 'string') ? src.path : '';
+        const uvcDeviceIdFromPath = (path.startsWith('UVC_DEVICE:')) ? path.replace('UVC_DEVICE:', '') : null;
+        const uvcDeviceId = (typeof src.uvcDeviceId === 'string' && src.uvcDeviceId) ? src.uvcDeviceId : uvcDeviceIdFromPath;
+        const isUVC = !!uvcDeviceId;
+
+        const normalized = {
+            ...src,
+            ...(uvcDeviceId ? { uvcDeviceId } : {}),
+            // UVCは path を必ず復元可能な形に揃える
+            ...(isUVC ? { path: `UVC_DEVICE:${uvcDeviceId}` } : {}),
+            order: index,
+            isSelected: false,
+            isEditing: false,
+            isOnAir: false,
+            isDirectModeOnAir: false,
+            directModeOnAirStatus: '',
+            fillKeyModeOnAirStatus: '',
+            repeatCount: (typeof src.repeatCount === 'number') ? src.repeatCount : null,
+            repeatEndMode: src.repeatEndMode ?? null,
+            endGotoPlaylist: src.endGotoPlaylist ?? null,
+            endGotoItemId: src.endGotoItemId ?? null,
+            startMode: src.startMode ?? null,
+            endMode: src.endMode ?? null,
+            inPoint: typeof src.inPoint === 'number' ? src.inPoint : 0,
+            outPoint: typeof src.outPoint === 'number' ? src.outPoint : (typeof src.duration === 'number' ? src.duration : 0),
+            repeatStartIndex: 0
+        };
+
+        // UVCのthumbnail(HTMLElement)はlocalStorageへ入れない（{}化して壊れる）
+        if (isUVC) {
+            normalized.thumbnail = null;
+        }
+
+        return normalized;
+    });
 }
 
 function writePlaylistStoreData(storeNumber, data) {
@@ -2172,6 +2189,8 @@ async function restorePlaylistAfterCanceledDrag(storeNumber) {
 
 async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId, dropPosition) {
     try {
+        const dropTargetStoreIndex = activePlaylistIndex;
+
         const playlist = await stateControl.getPlaylistState();
         if (!Array.isArray(playlist)) {
             logInfo('[playlist.js] Playlist state is invalid.');
@@ -2191,7 +2210,7 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
 
         // (A) 他プレイリストからの移動
         if (currentIndex === -1) {
-            if (!isValidPlaylistStoreNumber(draggedSourcePlaylistIndex) || draggedSourcePlaylistIndex === activePlaylistIndex) {
+            if (!isValidPlaylistStoreNumber(draggedSourcePlaylistIndex) || draggedSourcePlaylistIndex === dropTargetStoreIndex) {
                 logInfo('[playlist.js] Drag source playlist is not available.');
                 return;
             }
@@ -2261,7 +2280,15 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
 
             dragDropCompleted = true;
             clearDragIndicators();
-            setActiveStoreButton(activePlaylistIndex);
+
+            // ドロップ先スロットを必ず表示確定（ドラッグ元へ戻るのを防ぐ）
+            if (isValidPlaylistStoreNumber(dropTargetStoreIndex)) {
+                await loadPlaylist(dropTargetStoreIndex);
+                setActiveStoreButton(dropTargetStoreIndex);
+            } else {
+                setActiveStoreButton(activePlaylistIndex);
+            }
+
             return;
 
         }
@@ -2620,6 +2647,8 @@ async function savePlaylistToStore(storeNumber, playlistName) {
                 editingState,
                 onAirState,
                 converting,
+                thumbnail,
+                uvcDeviceId: uvcDeviceIdRaw,
                 ...rest
             } = src;
 
@@ -2636,8 +2665,15 @@ async function savePlaylistToStore(storeNumber, playlistName) {
                 ? rest.playlistItem_id
                 : `${Date.now()}-${Math.random()}`;
 
-            return {
+            const path = (typeof rest.path === 'string') ? rest.path : '';
+            const uvcDeviceIdFromPath = (path.startsWith('UVC_DEVICE:')) ? path.replace('UVC_DEVICE:', '') : null;
+            const uvcDeviceId = (typeof uvcDeviceIdRaw === 'string' && uvcDeviceIdRaw) ? uvcDeviceIdRaw : uvcDeviceIdFromPath;
+            const isUVC = !!uvcDeviceId;
+
+            const out = {
                 ...rest,
+                ...(uvcDeviceId ? { uvcDeviceId } : {}),
+                ...(isUVC ? { path: `UVC_DEVICE:${uvcDeviceId}` } : {}),
                 order,
                 playlistItem_id: playlistItemId,
                 endGotoPlaylist,
@@ -2646,6 +2682,18 @@ async function savePlaylistToStore(storeNumber, playlistName) {
                 editingState: null,
                 onAirState: null,
             };
+
+            // 非UVCのthumbnailは文字列（dataURL等）だけ保存
+            if (!isUVC && typeof thumbnail === 'string' && thumbnail) {
+                out.thumbnail = thumbnail;
+            }
+
+            // UVCは thumbnail を保存しない（復元は load 時に generateThumbnail で行う）
+            if (isUVC) {
+                out.thumbnail = null;
+            }
+
+            return out;
         })
         .sort((a, b) => Number(a.order) - Number(b.order));
 
@@ -2992,15 +3040,42 @@ async function loadPlaylist(storeNumber) {
             logInfo('[playlist.js] Load aborted: newer request detected (after clearState).');
             return;
         }
-        const reorderedData = playlistData.data
-            .map((item) => ({
-                ...item,
-                endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 9)
-                    ? Number(item.endGotoPlaylist)
-                    : undefined,
-                endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
-            }))
-            .sort((a, b) => a.order - b.order);
+        const reorderedData = await Promise.all((Array.isArray(playlistData.data) ? playlistData.data : [])
+            .map(async (item) => {
+                const base = {
+                    ...item,
+                    endGotoPlaylist: (Number.isFinite(Number(item.endGotoPlaylist)) && Number(item.endGotoPlaylist) >= 1 && Number(item.endGotoPlaylist) <= 9)
+                        ? Number(item.endGotoPlaylist)
+                        : undefined,
+                    endGotoItemId: (typeof item.endGotoItemId === 'string' && item.endGotoItemId) ? item.endGotoItemId : undefined,
+                };
+
+                const path = (typeof base.path === 'string') ? base.path : '';
+                const uvcDeviceIdFromPath = (path.startsWith('UVC_DEVICE:')) ? path.replace('UVC_DEVICE:', '') : null;
+                const uvcDeviceId = (typeof base.uvcDeviceId === 'string' && base.uvcDeviceId) ? base.uvcDeviceId : uvcDeviceIdFromPath;
+                const isUVC = !!uvcDeviceId;
+
+                if (isUVC) {
+                    const restoredPath = path.startsWith('UVC_DEVICE:')
+                        ? path
+                        : `UVC_DEVICE:${uvcDeviceId}`;
+
+                    base.path = restoredPath;
+                    base.uvcDeviceId = restoredPath.replace('UVC_DEVICE:', '');
+
+                    try {
+                        base.thumbnail = await generateThumbnail(restoredPath);
+                    } catch (e) {
+                        logInfo(`[playlist.js] Failed to regenerate UVC thumbnail on load: ${e?.stack || e?.message || e}`);
+                        base.thumbnail = null;
+                    }
+                }
+
+                return base;
+            })
+        );
+
+        reorderedData.sort((a, b) => a.order - b.order);
         await stateControl.setPlaylistState(reorderedData);
 
         if (token !== __loadState.token) {
