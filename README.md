@@ -14,13 +14,22 @@ VTR-PON 2 utilizes dual displays, allowing separate operational and fullscreen p
 
 ## Key Features
 
-- Instant playback of videos (MP4, MOV, WEBM), audio (WAV, MP3, FLAC, M4A, AAC), and images (PNG)
-- Playback and streaming of UVC device inputs
-- Convert and playback PowerPoint slides (.pptx) as videos(Windows only)
-- Customizable playback points (IN/OUT), fade effects
-- Playlist creation, management, and quick recall
+- Instant playback of videos (MP4, MOV, WEBM), audio (WAV, MP3, FLAC, M4A, AAC), and images (PNG, JPG)
+- Playback and streaming of UVC device inputs (live camera sources)
+- PowerPoint (PPTX) import and playback as video (Windows only)
+- Customizable playback points (IN/OUT) and fade effects
+- Playlist creation, management, and quick recall (up to 9 slots, depending on build)
+- Playback automation via Start/End Modes (Repeat with optional count, NEXT, GOTO)
+- Import-time conversions for operational workflow:
+  - Still images -> timed MP4 clip
+  - Alpha sources -> WebM with alpha
+  - Capture -> timed MP4 clip
+  - PPTX -> timed MP4 clip
 - Volume management and fullscreen output monitoring
-- Blackmagic ATEM integration: map ATEM inputs , auto-switch and auto-OnAir
+- Blackmagic ATEM integration: map ATEM inputs, auto-switch and auto-OnAir
+
+Keyboard shortcuts and detailed operational guides:
+- Official site: https://pondashi.com/vtrpon/
 
 [![Watch the video](https://img.youtube.com/vi/mEIB4ZRhXXw/0.jpg)](https://www.youtube.com/watch?v=mEIB4ZRhXXw)
 
@@ -28,10 +37,19 @@ VTR-PON 2 utilizes dual displays, allowing separate operational and fullscreen p
 
 ## System Requirements
 
-- Two or more displays required
+### Platform
+- Windows: supported (Windows 10/11 recommended)
+- macOS: Apple Silicon only (Intel Macs are not supported)
+  - Supported OS: macOS 12+
+
+### Hardware
+- Two or more displays recommended (operation screen + fullscreen output)
 - Dedicated graphics card recommended
 - 8GB RAM or higher recommended
-- Microsoft PowerPoint (Office 2016 or later) required only for pptx conversion feature (Windows only)
+
+### Optional (PPTX feature)
+- Microsoft PowerPoint (Office 2016 or later) is required for PPTX conversion (Windows only)
+- PPTX is not supported on macOS
 
 ---
 
