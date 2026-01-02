@@ -1,6 +1,6 @@
 // ------------------------------
 //  testpattern.js
-//  ver 2.5.0
+//  ver 2.5.2
 // ------------------------------
 
 // ログ機能の取得
@@ -124,7 +124,7 @@ function buildTestPatternInfo(type) {
             };
         case 'grid':
             return {
-                path: join(baseDir, 'grid_1080p30_1kHz_-18dBFS_20s.mp4')
+                path: join(baseDir, 'projector_grid_1920x1080_20s.mp4')
             };
         case 'gray':
             return {
