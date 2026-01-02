@@ -40,6 +40,64 @@ let isImporting = false;
 let totalCount = 0;
 let finishedCount = 0;
 
+
+// --------
+// 正規化
+// --------
+
+// プレイリストアイテム正規化
+function normalizePlaylistStoreItemForStore(item, index) {
+    const src = (item && typeof item === 'object') ? item : {};
+
+    const path = (typeof src.path === 'string') ? src.path : '';
+    const uvcDeviceIdFromPath = (path.startsWith('UVC_DEVICE:')) ? path.replace('UVC_DEVICE:', '') : null;
+    const uvcDeviceId = (typeof src.uvcDeviceId === 'string' && src.uvcDeviceId) ? src.uvcDeviceId : uvcDeviceIdFromPath;
+    const isUVC = !!uvcDeviceId;
+
+    const normalized = {
+        ...src,
+        ...(uvcDeviceId ? { uvcDeviceId } : {}),
+        // UVCは path を必ず復元可能な形に揃える
+        ...(isUVC ? { path: `UVC_DEVICE:${uvcDeviceId}` } : {}),
+        order: index,
+        repeatCount: (typeof src.repeatCount === 'number') ? src.repeatCount : null,
+        repeatEndMode: src.repeatEndMode ?? null,
+        endGotoPlaylist: src.endGotoPlaylist ?? null,
+        endGotoItemId: src.endGotoItemId ?? null,
+        startMode: src.startMode ?? null,
+        endMode: src.endMode ?? null,
+        inPoint: typeof src.inPoint === 'number' ? src.inPoint : 0,
+        outPoint: typeof src.outPoint === 'number'
+            ? src.outPoint
+            : (typeof src.duration === 'number' ? src.duration : 0),
+        repeatStartIndex: 0
+    };
+
+    resetPlaylistStoreItemRuntimeState(normalized);
+
+    // UVCのthumbnail(HTMLElement)はlocalStorageへ入れない（{}化して壊れる）
+    if (isUVC) {
+        normalized.thumbnail = null;
+    }
+
+    return normalized;
+}
+
+// アクティブスロット正規化（1-9）
+function getActivePlaylistSlotOrDefault(defaultSlot = 1) {
+    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
+        ? activePlaylistIndex
+        : defaultSlot;
+    return slot;
+}
+
+function getActivePlaylistSlotOrNull() {
+    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
+        ? activePlaylistIndex
+        : null;
+    return slot;
+}
+
 // -------------------
 // 読込進捗表示用関数
 // -------------------
@@ -432,23 +490,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }, 5000);
 });
-
-// -------------------------------
-// アクティブスロット正規化（1-9）
-// -------------------------------
-function getActivePlaylistSlotOrDefault(defaultSlot = 1) {
-    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
-        ? activePlaylistIndex
-        : defaultSlot;
-    return slot;
-}
-
-function getActivePlaylistSlotOrNull() {
-    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
-        ? activePlaylistIndex
-        : null;
-    return slot;
-}
 
 // -----------------------
 // データ取得関数
@@ -1910,46 +1951,24 @@ function readPlaylistStorePayload(storeNumber) {
     }
 }
 
+function resetPlaylistStoreItemRuntimeState(item) {
+    if (!item || typeof item !== 'object') {
+        return item;
+    }
+
+    item.isSelected = false;
+    item.isEditing = false;
+    item.isOnAir = false;
+    item.isDirectModeOnAir = false;
+    item.directModeOnAirStatus = '';
+    item.fillKeyModeOnAirStatus = '';
+
+    return item;
+}
+
 function normalizePlaylistDataForStore(data) {
     const arr = Array.isArray(data) ? data.slice() : [];
-    return arr.map((item, index) => {
-        const src = item || {};
-
-        const path = (typeof src.path === 'string') ? src.path : '';
-        const uvcDeviceIdFromPath = (path.startsWith('UVC_DEVICE:')) ? path.replace('UVC_DEVICE:', '') : null;
-        const uvcDeviceId = (typeof src.uvcDeviceId === 'string' && src.uvcDeviceId) ? src.uvcDeviceId : uvcDeviceIdFromPath;
-        const isUVC = !!uvcDeviceId;
-
-        const normalized = {
-            ...src,
-            ...(uvcDeviceId ? { uvcDeviceId } : {}),
-            // UVCは path を必ず復元可能な形に揃える
-            ...(isUVC ? { path: `UVC_DEVICE:${uvcDeviceId}` } : {}),
-            order: index,
-            isSelected: false,
-            isEditing: false,
-            isOnAir: false,
-            isDirectModeOnAir: false,
-            directModeOnAirStatus: '',
-            fillKeyModeOnAirStatus: '',
-            repeatCount: (typeof src.repeatCount === 'number') ? src.repeatCount : null,
-            repeatEndMode: src.repeatEndMode ?? null,
-            endGotoPlaylist: src.endGotoPlaylist ?? null,
-            endGotoItemId: src.endGotoItemId ?? null,
-            startMode: src.startMode ?? null,
-            endMode: src.endMode ?? null,
-            inPoint: typeof src.inPoint === 'number' ? src.inPoint : 0,
-            outPoint: typeof src.outPoint === 'number' ? src.outPoint : (typeof src.duration === 'number' ? src.duration : 0),
-            repeatStartIndex: 0
-        };
-
-        // UVCのthumbnail(HTMLElement)はlocalStorageへ入れない（{}化して壊れる）
-        if (isUVC) {
-            normalized.thumbnail = null;
-        }
-
-        return normalized;
-    });
+    return arr.map((item, index) => normalizePlaylistStoreItemForStore(item, index));
 }
 
 function writePlaylistStoreData(storeNumber, data) {
@@ -2247,15 +2266,8 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
             const [movingItemRaw] = sourceData.splice(sourceIndex, 1);
 
             // 移動アイテム（状態フラグはリセット）
-            const movingItem = {
-                ...movingItemRaw,
-                isSelected: false,
-                isEditing: false,
-                isOnAir: false,
-                isDirectModeOnAir: false,
-                directModeOnAirStatus: '',
-                fillKeyModeOnAirStatus: ''
-            };
+            const movingItem = { ...movingItemRaw };
+            resetPlaylistStoreItemRuntimeState(movingItem);
 
             // ターゲットへ挿入
             let insertIndex = (dropPosition === 'after') ? targetIndexBefore + 1 : targetIndexBefore;
@@ -2274,12 +2286,7 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
             // order等の整形
             playlist.forEach((p, index) => {
                 p.order = index;
-                p.isSelected = false;
-                p.isEditing = false;
-                p.isOnAir = false;
-                p.isDirectModeOnAir = false;
-                p.directModeOnAirStatus = '';
-                p.fillKeyModeOnAirStatus = '';
+                resetPlaylistStoreItemRuntimeState(p);
             });
 
             // ターゲット（現在表示中）へ反映
@@ -2345,12 +2352,7 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
         // orderを更新し、選択状態などをリセット
         playlist.forEach((p, index) => {
             p.order = index;
-            p.isSelected = false;
-            p.isEditing = false;
-            p.isOnAir = false;
-            p.isDirectModeOnAir = false;
-            p.directModeOnAirStatus = '';
-            p.fillKeyModeOnAirStatus = '';
+            resetPlaylistStoreItemRuntimeState(p);
         });
 
         await stateControl.setPlaylistState(playlist);
