@@ -4709,20 +4709,22 @@ function createContextMenuElement(id) {
     const menu = document.createElement('div');
     menu.id = id;
 
-    menu.style.position = 'fixed';
-    menu.style.zIndex = '10000';
-    menu.style.minWidth = '220px';
-    menu.style.background = 'rgba(30, 30, 30, 0.98)';
-    menu.style.color = '#fff';
-    menu.style.border = '1px solid rgba(255, 255, 255, 0.22)';
-    menu.style.borderRadius = '8px';
-    menu.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.55)';
-    menu.style.padding = '6px 0';
-    menu.style.fontSize = '14px';
-    menu.style.fontFamily = 'system-ui, "Segoe UI", sans-serif';
-    menu.style.display = 'none';
-    menu.style.userSelect = 'none';
-    menu.style.whiteSpace = 'nowrap';
+    Object.assign(menu.style, {
+        position: 'fixed',
+        zIndex: '10000',
+        minWidth: '220px',
+        background: 'rgba(30, 30, 30, 0.98)',
+        color: '#fff',
+        border: '1px solid rgba(255, 255, 255, 0.22)',
+        borderRadius: '8px',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.55)',
+        padding: '6px 0',
+        fontSize: '14px',
+        fontFamily: 'system-ui, "Segoe UI", sans-serif',
+        display: 'none',
+        userSelect: 'none',
+        whiteSpace: 'nowrap',
+    });
 
     document.body.appendChild(menu);
     return menu;
@@ -4780,7 +4782,17 @@ async function applyPlaylistItemPatch(playlistItemId, patch, { syncEndMode = fal
 
         const updatedPlaylist = playlist.map(item => {
             if (String(item.playlistItem_id) !== String(playlistItemId)) return item;
-            return { ...item, ...patch };
+
+            let resolvedPatch = patch;
+            if (typeof patch === 'function') {
+                resolvedPatch = patch(item);
+            }
+
+            if (!resolvedPatch || typeof resolvedPatch !== 'object') {
+                return item;
+            }
+
+            return { ...item, ...resolvedPatch };
         });
 
         await stateControl.setPlaylistState(updatedPlaylist);
@@ -4831,21 +4843,15 @@ function setPlaylistItemBgColor(playlistItemId, colorKey) {
 
 // FTBトグル
 async function togglePlaylistItemFtbEnabled(playlistItemId) {
-
-    try {
-        const playlist = await stateControl.getPlaylistState();
-        if (!Array.isArray(playlist)) return;
-
-        const item = playlist.find(it => String(it.playlistItem_id) === String(playlistItemId));
-        if (!item) return;
-
-        const nextVal = !(item.ftbEnabled === true);
-        logOpe(`[playlist.js] ftbEnabled toggled via context menu: ${nextVal}`);
-
-        applyPlaylistItemPatch(playlistItemId, { ftbEnabled: nextVal }, { syncEndMode: true });
-    } catch (e) {
-        logInfo('[playlist.js] togglePlaylistItemFtbEnabled error:', e);
-    }
+    applyPlaylistItemPatch(
+        playlistItemId,
+        (item) => {
+            const nextVal = !(item.ftbEnabled === true);
+            logOpe(`[playlist.js] ftbEnabled toggled via context menu: ${nextVal}`);
+            return { ftbEnabled: nextVal };
+        },
+        { syncEndMode: true }
+    );
 }
 
 // labels.js取得
@@ -4885,56 +4891,35 @@ function getContextLabel(labelId, fallback) {
 }
 
 function buildPlaylistContextMenuItems(playlistItemId) {
-    const START_MODES = [
-        { value: 'PAUSE',  label: getContextLabel('context-start-mode-pause',  'PAUSE') },
-        { value: 'PLAY',   label: getContextLabel('context-start-mode-play',   'PLAY') },
-        { value: 'FADEIN', label: getContextLabel('context-start-mode-fadein', 'FADEIN') },
-    ];
+    const L = (key, fallback) => getContextLabel(key, fallback);
+    const cap = (s) => (s && typeof s === 'string') ? (s.charAt(0).toUpperCase() + s.slice(1)) : s;
 
-    const END_MODES = [
-        { value: 'OFF',    label: getContextLabel('context-end-mode-off',    'OFF') },
-        { value: 'PAUSE',  label: getContextLabel('context-end-mode-pause',  'PAUSE') },
-        { value: 'REPEAT', label: getContextLabel('context-end-mode-repeat', 'REPEAT') },
-        { value: 'NEXT',   label: getContextLabel('context-end-mode-next',   'NEXT') },
-    ];
-
-    const BG_COLORS = [
-        { value: 'default', label: getContextLabel('context-bg-color-default', 'Default') },
-        { value: 'red',     label: getContextLabel('context-bg-color-red',     'Red') },
-        { value: 'yellow',  label: getContextLabel('context-bg-color-yellow',  'Yellow') },
-        { value: 'blue',    label: getContextLabel('context-bg-color-blue',    'Blue') },
-        { value: 'green',   label: getContextLabel('context-bg-color-green',   'Green') },
-    ];
+    const startModes = ['PAUSE', 'PLAY', 'FADEIN'];
+    const endModes = ['OFF', 'PAUSE', 'REPEAT', 'NEXT'];
+    const bgColors = ['default', 'red', 'yellow', 'blue', 'green'];
 
     const renameLabel =
-        getContextLabel('context-rename-item', null) ||
-        getContextLabel('rename-item', '名前の変更');
+        L('context-rename-item', null) ||
+        L('rename-item', '名前の変更');
 
-    const startModeLabel =
-        getContextLabel('context-start-mode', 'スタートモード');
-
-    const endModeLabel =
-        getContextLabel('context-end-mode', 'エンドモード');
-
-    const ftbToggleLabel =
-        getContextLabel('context-end-mode-ftb', 'FTB');
-
-    const bgColorLabel =
-        getContextLabel('context-bg-color', '背景色');
-
-    const copyStateLabel =
-        getContextLabel('context-copy-item-state', 'アイテムの状態をコピー');
-
-    const pasteStateLabel =
-        getContextLabel('context-paste-item-state', 'アイテムの状態をペースト');
+    const startModeLabel = L('context-start-mode', 'スタートモード');
+    const endModeLabel = L('context-end-mode', 'エンドモード');
+    const ftbToggleLabel = L('context-end-mode-ftb', 'FTB');
+    const bgColorLabel = L('context-bg-color', '背景色');
+    const copyStateLabel = L('context-copy-item-state', 'アイテムの状態をコピー');
+    const pasteStateLabel = L('context-paste-item-state', 'アイテムの状態をペースト');
 
     const hasCopiedState = (typeof copiedItemState !== 'undefined') && !!copiedItemState;
 
-    // OFF/PAUSE/REPEAT/NEXT → FTB トグル
+    const startModeChildren = startModes.map(v => ({
+        label: L(`context-start-mode-${v.toLowerCase()}`, v),
+        action: () => setPlaylistItemStartMode(playlistItemId, v)
+    }));
+
     const endModeChildren = [
-        ...END_MODES.map(m => ({
-            label: m.label,
-            action: () => setPlaylistItemEndMode(playlistItemId, m.value)
+        ...endModes.map(v => ({
+            label: L(`context-end-mode-${v.toLowerCase()}`, v),
+            action: () => setPlaylistItemEndMode(playlistItemId, v)
         })),
         {
             label: ftbToggleLabel,
@@ -4942,39 +4927,19 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         }
     ];
 
-    // START → END → BGCOLOR → COPY → PASTE(条件付き無効) → RENAME
+    const bgColorChildren = bgColors.map(v => ({
+        label: L(`context-bg-color-${v}`, cap(v)),
+        action: () => setPlaylistItemBgColor(playlistItemId, v)
+    }));
+
+    // START → END → COPY → PASTE(条件付き無効) → BGCOLOR → RENAME
     return [
-        {
-            label: startModeLabel,
-            children: START_MODES.map(m => ({
-                label: m.label,
-                action: () => setPlaylistItemStartMode(playlistItemId, m.value)
-            }))
-        },
-        {
-            label: endModeLabel,
-            children: endModeChildren
-        },
-        {
-            label: copyStateLabel,
-            action: () => copyItemState()
-        },
-        {
-            label: pasteStateLabel,
-            disabled: !hasCopiedState,
-            action: () => pasteItemState()
-        },
-        {
-            label: bgColorLabel,
-            children: BG_COLORS.map(c => ({
-                label: c.label,
-                action: () => setPlaylistItemBgColor(playlistItemId, c.value)
-            }))
-        },
-        {
-            label: renameLabel,
-            action: () => openItemRenameModal(playlistItemId)
-        }
+        { label: startModeLabel, children: startModeChildren },
+        { label: endModeLabel, children: endModeChildren },
+        { label: copyStateLabel, action: () => copyItemState() },
+        { label: pasteStateLabel, disabled: !hasCopiedState, action: () => pasteItemState() },
+        { label: bgColorLabel, children: bgColorChildren },
+        { label: renameLabel, action: () => openItemRenameModal(playlistItemId) }
     ];
 }
 
@@ -4983,13 +4948,15 @@ function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
 
     items.forEach((it) => {
         const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.alignItems = 'center';
-        row.style.justifyContent = 'space-between';
-        row.style.padding = '8px 14px';
-        row.style.minHeight = '30px';
-        row.style.cursor = 'default';
-        row.style.lineHeight = '1.4';
+        Object.assign(row.style, {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 14px',
+            minHeight: '30px',
+            cursor: 'default',
+            lineHeight: '1.4',
+        });
 
         const labelSpan = document.createElement('span');
         labelSpan.textContent = it.label;
