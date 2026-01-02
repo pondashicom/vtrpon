@@ -1163,7 +1163,7 @@ function renderPlaylistItem(file, index) {
 
         try {
             if (e.dataTransfer) {
-                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.effectAllowed = 'copyMove';
                 e.dataTransfer.setData('text/plain', String(file.playlistItem_id));
             }
         } catch (error) {
@@ -1206,7 +1206,8 @@ function renderPlaylistItem(file, index) {
     item.addEventListener('dragover', (e) => {
         e.preventDefault();
         if (e.dataTransfer) {
-            e.dataTransfer.dropEffect = 'move';
+            const isCopy = !!(e.ctrlKey || e.metaKey);
+            e.dataTransfer.dropEffect = isCopy ? 'copy' : 'move';
         }
 
         const rect = item.getBoundingClientRect();
@@ -1261,7 +1262,18 @@ function renderPlaylistItem(file, index) {
                 dropPosition = 'after';
             }
         }
-        await reorderPlaylistByDrag(sourceId, file.playlistItem_id, dropPosition);
+
+        const isCopy = !!(e.ctrlKey || e.metaKey);
+
+        if (isCopy) {
+            await copyPlaylistByDrag(sourceId, file.playlistItem_id, dropPosition);
+        } else {
+            await reorderPlaylistByDrag(sourceId, file.playlistItem_id, dropPosition);
+        }
+
+        // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
+        setActiveStoreButton(activePlaylistIndex);
+
         clearDragIndicators();
     });
 
@@ -1418,6 +1430,65 @@ function createButton(text, className, onClick) {
 function createThumbnail(file) {
     const thumbnailContainer = document.createElement('div');
     thumbnailContainer.classList.add('thumbnail-container');
+
+    const isUVC = (file && typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE:'));
+
+    // UVC: thumbnail(HTMLElement) が無い場合でも、描画時に再生成して貼り替える
+    if (isUVC) {
+        if (file.thumbnail instanceof HTMLElement) {
+            thumbnailContainer.appendChild(file.thumbnail);
+            return thumbnailContainer;
+        }
+
+        // プレースホルダ（コピー直後など）
+        const placeholder = document.createElement('div');
+        placeholder.style.width = '100%';
+        placeholder.style.height = '100%';
+        placeholder.style.display = 'flex';
+        placeholder.style.alignItems = 'center';
+        placeholder.style.justifyContent = 'center';
+        placeholder.style.backgroundColor = 'black';
+        placeholder.style.color = 'white';
+        placeholder.style.fontSize = '12px';
+        placeholder.textContent = 'Loading...';
+        thumbnailContainer.appendChild(placeholder);
+
+        // 非同期でUVCサムネイルを生成して差し替え
+        (async () => {
+            try {
+                const thumb = await generateThumbnail(file.path);
+
+                // 既に再描画されている等で、このコンテナがDOMから外れていたら何もしない
+                if (!thumbnailContainer.isConnected) return;
+
+                // 念のため「このアイテムの現在のサムネイル枠」と一致する場合のみ差し替え
+                const itemEl = document.querySelector(`.playlist-item[data-playlist-item-id="${file.playlistItem_id}"]`);
+                if (!itemEl) return;
+                const currentContainer = itemEl.querySelector('.thumbnail-container');
+                if (currentContainer !== thumbnailContainer) return;
+
+                while (thumbnailContainer.firstChild) {
+                    thumbnailContainer.removeChild(thumbnailContainer.firstChild);
+                }
+
+                if (thumb instanceof HTMLElement) {
+                    thumbnailContainer.appendChild(thumb);
+                } else if (typeof thumb === 'string' && thumb.length > 0) {
+                    const img = document.createElement('img');
+                    img.src = thumb;
+                    img.alt = `Thumbnail for ${file.name}`;
+                    img.classList.add('thumbnail-image');
+                    thumbnailContainer.appendChild(img);
+                }
+            } catch (e) {
+                // 失敗時はプレースホルダのまま（ログは増やさない）
+            }
+        })();
+
+        return thumbnailContainer;
+    }
+
+    // 通常ファイル: 既存挙動
     if (file.thumbnail instanceof HTMLElement) {
         thumbnailContainer.appendChild(file.thumbnail);
     } else {
@@ -2086,7 +2157,8 @@ function bindPlaylistContainerDragDrop(container) {
         }
         e.preventDefault();
         if (e.dataTransfer) {
-            e.dataTransfer.dropEffect = 'move';
+            const isCopy = !!(e.ctrlKey || e.metaKey);
+            e.dataTransfer.dropEffect = isCopy ? 'copy' : 'move';
         }
 
         clearDragIndicators();
@@ -2133,6 +2205,8 @@ function bindPlaylistContainerDragDrop(container) {
         }
         e.preventDefault();
 
+        const isCopy = !!(e.ctrlKey || e.metaKey);
+
         const sourceId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) ? e.dataTransfer.getData('text/plain') : draggedPlaylistItemId;
         if (!sourceId) {
             return;
@@ -2141,7 +2215,11 @@ function bindPlaylistContainerDragDrop(container) {
         const info = getContainerDropTarget(e.clientY);
 
         if (info.mode === 'empty') {
-            await reorderPlaylistByDrag(sourceId, null, 'after');
+            if (isCopy) {
+                await copyPlaylistByDrag(sourceId, null, 'after');
+            } else {
+                await reorderPlaylistByDrag(sourceId, null, 'after');
+            }
             // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
             setActiveStoreButton(activePlaylistIndex);
             return;
@@ -2149,13 +2227,21 @@ function bindPlaylistContainerDragDrop(container) {
 
         const targetId = info.targetItem ? info.targetItem.getAttribute('data-playlist-item-id') : null;
         if (!targetId) {
-            await reorderPlaylistByDrag(sourceId, null, 'after');
+            if (isCopy) {
+                await copyPlaylistByDrag(sourceId, null, 'after');
+            } else {
+                await reorderPlaylistByDrag(sourceId, null, 'after');
+            }
             // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
             setActiveStoreButton(activePlaylistIndex);
             return;
         }
 
-        await reorderPlaylistByDrag(sourceId, targetId, info.dropPosition);
+        if (isCopy) {
+            await copyPlaylistByDrag(sourceId, targetId, info.dropPosition);
+        } else {
+            await reorderPlaylistByDrag(sourceId, targetId, info.dropPosition);
+        }
         // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
         setActiveStoreButton(activePlaylistIndex);
     });
@@ -2365,6 +2451,95 @@ async function reorderPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId,
         clearDragIndicators();
     } catch (error) {
         logInfo(`[playlist.js] Drag & drop reorder error: ${error?.stack || error?.message || error}`);
+    }
+}
+
+async function copyPlaylistByDrag(sourcePlaylistItemId, targetPlaylistItemId, dropPosition) {
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        if (!Array.isArray(playlist)) {
+            logInfo('[playlist.js] Playlist state is invalid.');
+            return;
+        }
+
+        const srcId = String(sourcePlaylistItemId);
+        const tgtId = (targetPlaylistItemId === null || targetPlaylistItemId === undefined || targetPlaylistItemId === '') ? null : String(targetPlaylistItemId);
+
+        // ターゲット位置（"null" の場合は末尾）
+        const targetIndexBefore = (tgtId === null)
+            ? playlist.length
+            : playlist.findIndex(p => String(p.playlistItem_id) === tgtId);
+
+        if (tgtId !== null && targetIndexBefore === -1) {
+            logInfo(`[playlist.js] Target item not found: ${targetPlaylistItemId}`);
+            return;
+        }
+
+        // コピー元のアイテムを取得（同一プレイリスト内 or 他プレイリスト）
+        let sourceItemRaw = null;
+
+        const currentIndex = playlist.findIndex(p => String(p.playlistItem_id) === srcId);
+        if (currentIndex !== -1) {
+            sourceItemRaw = playlist[currentIndex];
+        } else {
+            if (!isValidPlaylistStoreNumber(draggedSourcePlaylistIndex)) {
+                logInfo('[playlist.js] Drag source playlist is not available.');
+                return;
+            }
+
+            const sourcePayload = readPlaylistStorePayload(draggedSourcePlaylistIndex);
+            const sourceData = Array.isArray(dragSourcePlaylistSnapshot)
+                ? dragSourcePlaylistSnapshot.slice()
+                : (Array.isArray(sourcePayload?.data) ? sourcePayload.data.slice() : []);
+
+            const sourceIndex = sourceData.findIndex(p => String(p.playlistItem_id) === srcId);
+            if (sourceIndex === -1) {
+                logInfo(`[playlist.js] Source item not found in source playlist: ${sourcePlaylistItemId}`);
+                return;
+            }
+            sourceItemRaw = sourceData[sourceIndex];
+        }
+
+        // 複製（IDは必ず新規発行）
+        const copiedItem = { ...sourceItemRaw };
+        copiedItem.playlistItem_id = `${Date.now()}-${Math.random()}`;
+        resetPlaylistStoreItemRuntimeState(copiedItem);
+
+        // thumbnail(HTMLElement) をコピーすると DOM が移動して元が消えるため、コピー側は必ず切り離す
+        if (copiedItem.thumbnail instanceof HTMLElement) {
+            copiedItem.thumbnail = null;
+        }
+
+        // ターゲットへ挿入
+        let insertIndex = (dropPosition === 'after') ? targetIndexBefore + 1 : targetIndexBefore;
+        if (insertIndex < 0) {
+            insertIndex = 0;
+        }
+        if (insertIndex > playlist.length) {
+            insertIndex = playlist.length;
+        }
+        if (tgtId === null) {
+            insertIndex = playlist.length;
+        }
+
+        playlist.splice(insertIndex, 0, copiedItem);
+
+        // orderを更新し、選択状態などをリセット
+        playlist.forEach((p, index) => {
+            p.order = index;
+            resetPlaylistStoreItemRuntimeState(p);
+        });
+
+        await stateControl.setPlaylistState(playlist);
+        await updatePlaylistUI();
+
+        // 自動保存（コピー先のみ）
+        await saveActivePlaylistToStore();
+
+        dragDropCompleted = true;
+        clearDragIndicators();
+    } catch (error) {
+        logInfo(`[playlist.js] Drag & drop copy error: ${error?.stack || error?.message || error}`);
     }
 }
 
@@ -2873,6 +3048,11 @@ for (let i = 1; i <= 9; i++) {
         }
         event.preventDefault();
 
+        if (event.dataTransfer) {
+            const isCopy = !!(event.ctrlKey || event.metaKey);
+            event.dataTransfer.dropEffect = isCopy ? 'copy' : 'move';
+        }
+
         const buttons = document.querySelectorAll('[id^="playlise"][id$="-button"]');
         buttons.forEach((btn) => btn.classList.remove('playlist-button-drag-hover'));
         button.classList.add('playlist-button-drag-hover');
@@ -2901,6 +3081,8 @@ for (let i = 1; i <= 9; i++) {
         event.preventDefault();
         event.stopPropagation();
 
+        const isCopy = !!(event.ctrlKey || event.metaKey);
+
         const buttons = document.querySelectorAll('[id^="playlise"][id$="-button"]');
         buttons.forEach((btn) => btn.classList.remove('playlist-button-drag-hover'));
         if (button.style) {
@@ -2925,7 +3107,11 @@ for (let i = 1; i <= 9; i++) {
             return;
         }
 
-        await reorderPlaylistByDrag(sourceId, null, 'after');
+        if (isCopy) {
+            await copyPlaylistByDrag(sourceId, null, 'after');
+        } else {
+            await reorderPlaylistByDrag(sourceId, null, 'after');
+        }
 
         // ドロップ完了後に、そのスロットをアクティブ（緑）に確定
         setActiveStoreButton(i);
