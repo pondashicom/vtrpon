@@ -1514,7 +1514,7 @@ function createStatusContainer(file) {
     const startVal = file.startMode;
 
     const baseEnd = file.endMode || 'OFF';
-    let endVal = file.ftbEnabled ? `FTB_${baseEnd}` : baseEnd;
+    let endVal = file.ftbEnabled ? `FADEOUT_${baseEnd}` : baseEnd;
 
     // REPEAT の場合は回数/終了後エンドモードを表示に含める
     if (baseEnd === 'REPEAT') {
@@ -1533,17 +1533,17 @@ function createStatusContainer(file) {
         if (parsedCount !== undefined && afterVal) {
             repeatText += `→${afterVal}`;
         }
-        endVal = file.ftbEnabled ? `FTB_${repeatText}` : repeatText;
+        endVal = file.ftbEnabled ? `FADEOUT_${repeatText}` : repeatText;
     }
 
     // GOTO の場合はとび先プレイリスト/アイテム番号を表示に含める
     if (baseEnd === 'GOTO') {
         const gotoDisplay = resolveGotoDisplayForStatus(file.endGotoPlaylist, file.endGotoItemId);
         if (gotoDisplay) {
-            const prefix = file.ftbEnabled ? 'FTB_' : '';
+            const prefix = file.ftbEnabled ? 'FADEOUT_' : '';
             endVal = `${prefix}GOTO→${gotoDisplay}`;
         } else {
-            endVal = file.ftbEnabled ? 'FTB_GOTO' : 'GOTO';
+            endVal = file.ftbEnabled ? 'FADEOUT_GOTO' : 'GOTO';
         }
     }
 

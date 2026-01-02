@@ -3438,9 +3438,9 @@ function updateEndModeDisplayLabel() {
         }
     }
 
-    // FTB付加は先頭に付ける（例: FTB_REPEAT(8/1)→OFF）
+    // FTB付加は先頭に付ける（例: FADEOUT_REPEAT(8/1)→OFF）
     if (onairCurrentState?.ftbEnabled) {
-        label = `FTB_${label}`;
+        label = `FADEOUT_${label}`;
     }
 
     onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
