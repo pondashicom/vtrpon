@@ -433,6 +433,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 5000);
 });
 
+// -------------------------------
+// アクティブスロット正規化（1-9）
+// -------------------------------
+function getActivePlaylistSlotOrDefault(defaultSlot = 1) {
+    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
+        ? activePlaylistIndex
+        : defaultSlot;
+    return slot;
+}
+
+function getActivePlaylistSlotOrNull() {
+    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
+        ? activePlaylistIndex
+        : null;
+    return slot;
+}
+
 // -----------------------
 // データ取得関数
 // -----------------------
@@ -1085,9 +1102,7 @@ function renderPlaylistItem(file, index) {
         draggedPlaylistItemId = file.playlistItem_id;
 
         // ドラッグ元スロット（プレイリスト番号ボタンへのホバー切替・ドロップ移動用）
-        draggedSourcePlaylistIndex = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
-            ? activePlaylistIndex
-            : 1;
+        draggedSourcePlaylistIndex = getActivePlaylistSlotOrDefault(1);
         dragOriginalActivePlaylistIndex = draggedSourcePlaylistIndex;
         dragDropCompleted = false;
         dragHoverTargetPlaylistIndex = draggedSourcePlaylistIndex;
@@ -2736,18 +2751,14 @@ async function savePlaylistToStore(storeNumber, playlistName) {
         updateStoreButtons();
     }
     if (typeof setActiveButton === 'function') {
-        const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
-            ? activePlaylistIndex
-            : null;
+        const active = getActivePlaylistSlotOrNull();
         if (active !== null) setActiveButton(active);
     }
 }
 
 // 現在アクティブなスロットへ保存する（他のUI更新から呼び出す用）
 async function saveActivePlaylistToStore(playlistName) {
-    const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
-        ? activePlaylistIndex
-        : 1;
+    const active = getActivePlaylistSlotOrDefault(1);
     return await savePlaylistToStore(active, playlistName);
 }
 
@@ -3220,9 +3231,7 @@ function setActiveStoreButton(storeNumber) {
 // CLEARボタンクリックイベント登録
 document.getElementById('playliseclear-button').addEventListener('mousedown', async () => {
     // どのスロットがアクティブか（無ければ1扱い）
-    const slot = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
-        ? activePlaylistIndex
-        : 1;
+    const slot = getActivePlaylistSlotOrDefault(1);
 
     // まず「クリアの本体」だけを厳密に扱う（ここが失敗した時だけ失敗表示）
     try {
@@ -3230,8 +3239,13 @@ document.getElementById('playliseclear-button').addEventListener('mousedown', as
         await updatePlaylistUI();
     } catch (error) {
         logInfo(`[playlist.js] Error clearing playlist (core): ${error?.stack || error?.message || error}`);
-        showMessage(getMessage('failed-to-clear-playlist'), 5000, 'alert');
-        logOpe('[playlist.js] playliseclear-button clicked.');
+        try {
+            if (typeof showMessage === 'function' && typeof getMessage === 'function') {
+                showMessage(getMessage('failed-to-clear-playlist'), 'error');
+            }
+        } catch (e) {
+            // ignore
+        }
         return;
     }
 
@@ -3300,7 +3314,6 @@ document.getElementById('playliseclear-button').addEventListener('mousedown', as
             }
         }
     } catch (e) {
-        // ここに来ても「クリア」は成功しているので、失敗メッセージは出さない
         logInfo(`[playlist.js] Post-clear best-effort step failed (ignored): ${e?.stack || e?.message || e}`);
     }
 
@@ -3358,9 +3371,7 @@ async function doExportPlaylist() {
         }
 
         // 現在アクティブなスロット（1-9）
-        const currentActive = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
-            ? activePlaylistIndex
-            : 1;
+        const currentActive = getActivePlaylistSlotOrDefault(1);
 
         // 現在編集状態（stateControl）を、アクティブスロットのデータとしてエクスポートに反映
         const liveState = await stateControl.getPlaylistState();
@@ -5131,9 +5142,7 @@ async function openActivePlaylistNameRenameModal() {
     }
 
     try {
-        const active = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
-            ? activePlaylistIndex
-            : 1;
+        const active = getActivePlaylistSlotOrDefault(1);
 
         const key = `vtrpon_playlist_store_${active}`;
 
