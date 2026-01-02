@@ -177,7 +177,7 @@ const labels = {
     "context-end-mode-off": "オフ",
     "context-end-mode-pause": "一時停止",
     "context-end-mode-repeat": "繰返し",
-    "context-end-mode-ftb": "FTB",
+    "context-end-mode-ftb": "フェードアウト",
     "context-copy-item-state": "アイテムの状態をコピー",
     "context-paste-item-state": "アイテムの状態をペースト",
 
@@ -378,7 +378,7 @@ const labels = {
     "context-end-mode-off": "OFF",
     "context-end-mode-pause": "PAUSE",
     "context-end-mode-repeat": "REPEAT",
-    "context-end-mode-ftb": "FTB",
+    "context-end-mode-ftb": "FADEOUT",
 
     "context-copy-item-state": "Copy Item State",
     "context-paste-item-state": "Paste Item State",
