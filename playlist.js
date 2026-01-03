@@ -298,7 +298,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }, true);
 
-
     // DIRECT ONAIRモードボタンイベントリスナー初期化
     const directOnAirButton = document.getElementById('directonair-mode-button');
     if (directOnAirButton) {
@@ -638,25 +637,35 @@ async function generateThumbnail(filePath) {
             const deviceId = filePath.replace("UVC_DEVICE:", "");
             logInfo("Generating thumbnail - deviceId:", deviceId);
 
-            // `deviceId` でカメラ起動
-            navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } }).then(async (stream) => {
+            // `deviceId` でカメラ起動（FHD 16:9 を優先）
+            navigator.mediaDevices.getUserMedia({
+                video: {
+                    deviceId: { exact: deviceId },
+                    width:  { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    aspectRatio: 16/9,
+                    resizeMode: "none"
+                }
+            }).then(async (stream) => {
                 try {
                     const track = stream.getVideoTracks()[0];
                     if (track && typeof track.getCapabilities === 'function' && typeof track.applyConstraints === 'function') {
                         const caps = track.getCapabilities();
-                        const maxW = (caps && caps.width && typeof caps.width.max === 'number') ? caps.width.max : undefined;
-                        const maxH = (caps && caps.height && typeof caps.height.max === 'number') ? caps.height.max : undefined;
-                        if (maxW && maxH) {
-                            await track.applyConstraints({
-                                width:  maxW,
-                                height: maxH,
-                            });
-                            const s = track.getSettings();
-                            logInfo("Applied UVC constraints to device max - Width:", s.width, "Height:", s.height);
-                        }
+                        const targetW = (caps && caps.width && typeof caps.width.max === 'number') ? Math.min(1920, caps.width.max) : 1920;
+                        const targetH = (caps && caps.height && typeof caps.height.max === 'number') ? Math.min(1080, caps.height.max) : 1080;
+
+                        await track.applyConstraints({
+                            width:  targetW,
+                            height: targetH,
+                            aspectRatio: 16/9,
+                            resizeMode: "none"
+                        });
+
+                        const s = track.getSettings();
+                        logInfo("Applied UVC constraints (clamped to FHD 16:9) - Width:", s.width, "Height:", s.height);
                     }
                 } catch (e) {
-                    logInfo("applyConstraints to device max skipped or failed:", e && e.message ? e.message : e);
+                    logInfo("applyConstraints to FHD 16:9 skipped or failed:", e && e.message ? e.message : e);
                 }
 
                 const video = document.createElement('video');
@@ -670,7 +679,7 @@ async function generateThumbnail(filePath) {
                 };
 
                 // サムネイルサイズ
-                const targetWidth = 135;
+                const targetWidth = 120;
                 const targetHeight = Math.round(targetWidth * 9 / 16);
 
                 // 黒背景コンテナ作成
@@ -693,7 +702,7 @@ async function generateThumbnail(filePath) {
             }).catch((error) => {
                 logInfo("Failed to get camera:", error);
                 const canvas = document.createElement('canvas');
-                const targetWidth = 135;
+                const targetWidth = 120;
                 const targetHeight = Math.round(targetWidth * 9 / 16);
                 canvas.width = targetWidth;
                 canvas.height = targetHeight;
@@ -707,7 +716,6 @@ async function generateThumbnail(filePath) {
                 ctx.fillText('Loading failed', canvas.width / 2, canvas.height / 2);
                 resolve(canvas.toDataURL('image/png'));
             });
-
             return;
         }
 
@@ -728,7 +736,7 @@ async function generateThumbnail(filePath) {
             if (!playable) {
                 // 再生できない場合
                 const canvas = document.createElement('canvas');
-                canvas.width = 112; canvas.height = 63;
+                canvas.width = 120; canvas.height = 68;
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = 'red';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -746,8 +754,8 @@ async function generateThumbnail(filePath) {
             // 2時間以上なら波形スキップ
             if (durationSec > 7200) {
                 const canvas = document.createElement('canvas');
-                canvas.width = 112;
-                canvas.height = 63;
+                canvas.width = 120;
+                canvas.height = 68;
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = 'black';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -767,8 +775,8 @@ async function generateThumbnail(filePath) {
                 const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
                 const canvas = document.createElement('canvas');
-                canvas.width = 112;
-                canvas.height = 63;
+                canvas.width = 120;
+                canvas.height = 68;
                 const ctx = canvas.getContext('2d');
 
                 ctx.fillStyle = 'black';
@@ -794,8 +802,8 @@ async function generateThumbnail(filePath) {
                 resolve(canvas.toDataURL('image/png'));
             } catch {
                 const canvas = document.createElement('canvas');
-                canvas.width = 112;
-                canvas.height = 63;
+                canvas.width = 120;
+                canvas.height = 68;
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = 'black';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -918,8 +926,8 @@ async function generateThumbnail(filePath) {
             if (settled) return;
             settled = true;
             const canvas = document.createElement('canvas');
-            canvas.width = 112;
-            canvas.height = 63;
+            canvas.width = 120;
+            canvas.height = 68;
             const ctx = canvas.getContext('2d');
             ctx.fillStyle = 'red';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1441,6 +1449,13 @@ function createThumbnail(file) {
         }
 
         // プレースホルダ（コピー直後など）
+        const targetWidth = 120;
+        const targetHeight = Math.round(targetWidth * 9 / 16);
+
+        // CSS未反映タイミングでも黒背景が必ず見えるように枠サイズを固定
+        thumbnailContainer.style.width = targetWidth + 'px';
+        thumbnailContainer.style.height = targetHeight + 'px';
+
         const placeholder = document.createElement('div');
         placeholder.style.width = '100%';
         placeholder.style.height = '100%';

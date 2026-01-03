@@ -112,8 +112,8 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
 // 「Loading…」サムネイルを作成
 function createLoadingThumbnail() {
     const canvas = document.createElement('canvas');
-    canvas.width = 112;
-    canvas.height = 63;
+    canvas.width = 120;
+    canvas.height = 68;
     const ctx = canvas.getContext('2d');
 
     ctx.fillStyle = 'black';
@@ -177,25 +177,31 @@ async function getUVCDevices() {
 // 解像度を取得
 async function getUVCResolution(deviceId) {
     try {
-        // まずはデバイスを厳密指定で取得（解像度は未指定）
+        // まず ideal で FHD 16:9 を要求（交渉を強める）
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: deviceId } }
+            video: {
+                deviceId: { exact: deviceId },
+                width:  { ideal: 1920 },
+                height: { ideal: 1080 },
+                aspectRatio: 16/9,
+                resizeMode: "none"
+            }
         });
         const track = stream.getVideoTracks()[0];
 
-        // capabilities を参照し、デバイスの上限へ引き上げる（可能な場合）
+        // capabilities を参照し、可能ならさらに詰める（ただし FHD 16:9 上限にクランプ）
         try {
             if (track && typeof track.getCapabilities === 'function' && typeof track.applyConstraints === 'function') {
                 const caps = track.getCapabilities();
-                const maxW = (caps && caps.width && typeof caps.width.max === 'number') ? caps.width.max : undefined;
-                const maxH = (caps && caps.height && typeof caps.height.max === 'number') ? caps.height.max : undefined;
-                if (maxW && maxH) {
-                    await track.applyConstraints({
-                        width:  maxW,
-                        height: maxH
-                        // aspectRatio/resizeMode は指定しない（ネイティブ比率を尊重）
-                    });
-                }
+                const targetW = (caps && caps.width && typeof caps.width.max === 'number') ? Math.min(1920, caps.width.max) : 1920;
+                const targetH = (caps && caps.height && typeof caps.height.max === 'number') ? Math.min(1080, caps.height.max) : 1080;
+
+                await track.applyConstraints({
+                    width:  targetW,
+                    height: targetH,
+                    aspectRatio: 16/9,
+                    resizeMode: "none"
+                });
             }
         } catch (_) {}
 
