@@ -16,36 +16,98 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
     const selectedDeviceId = dropdown.value;
     const selectedDevice = availableUVCDevices.find(device => device.id === selectedDeviceId);
 
+    // クリック時点のアクティブスロットを固定（途中でプレイリスト切替されても上書き事故を起こさない）
+    const expectedSlot = (typeof getActivePlaylistSlotOrNull === 'function')
+        ? getActivePlaylistSlotOrNull()
+        : ((typeof activePlaylistIndex === 'number') ? activePlaylistIndex : null);
+
+    const expectedStoreNumber = (typeof expectedSlot === 'number' && expectedSlot >= 1 && expectedSlot <= 9) ? expectedSlot : 1;
+
+    const isExpectedSlotActive = () => {
+        if (typeof getActivePlaylistSlotOrNull === 'function') {
+            return getActivePlaylistSlotOrNull() === expectedStoreNumber;
+        }
+        if (typeof activePlaylistIndex === 'number') {
+            return activePlaylistIndex === expectedStoreNumber;
+        }
+        // 判定できない場合は「非アクティブ」として扱い、UI/stateの上書きをしない
+        return false;
+    };
+
+    const createTextThumbnail = (text, bgColor) => {
+        const canvas = document.createElement('canvas');
+        const targetWidth = 120;
+        const targetHeight = Math.round(targetWidth * 9 / 16);
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = bgColor || 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = 'white';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        return canvas.toDataURL('image/png');
+    };
+
+    // 存在しないUVC（NDI Webcam未起動など）は getUserMedia を呼ばずに即オフライン扱い
+    const isDevicePresent = async (deviceId) => {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            return Array.isArray(devices) && devices.some(d => d && d.kind === 'videoinput' && String(d.deviceId) === String(deviceId));
+        } catch (e) {
+            return true; // enumerateDevices が失敗した場合は存在するとみなす（後段で失敗判定）
+        }
+    };
+
+    // “起動していないのに列挙だけされる”系はプレビュー取得（getUserMedia）をしない
+    const isPreviewDisabledUvcName = (name) => {
+        const s = String(name || '');
+        return /NDI|OBS|Virtual/i.test(s);
+    };
+
     if (selectedDevice) {
         try {
-            // まずは解像度を取得
-            const resolution = await getUVCResolution(selectedDevice.id);
-            logDebug(`[playlist.js] Actual camera resolution: ${resolution}`);
-
             // UVCごとの音声デバイス設定を取得
             let boundUvcAudioDeviceId = "";
             try {
-                const deviceSettings = await window.electronAPI.getDeviceSettings();
-                if (deviceSettings &&
-                    deviceSettings.uvcAudioBindings &&
-                    deviceSettings.uvcAudioBindings[selectedDevice.id]) {
-                    boundUvcAudioDeviceId = deviceSettings.uvcAudioBindings[selectedDevice.id];
+                if (window.electronAPI && typeof window.electronAPI.getDeviceSettings === 'function') {
+                    const settings = await window.electronAPI.getDeviceSettings();
+                    if (settings && settings.uvcAudioBindings && settings.uvcAudioBindings[selectedDevice.id]) {
+                        boundUvcAudioDeviceId = settings.uvcAudioBindings[selectedDevice.id] || "";
+                    }
                 }
             } catch (error) {
                 logDebug('[uvc.js] Failed to load UVC audio binding from device settings:', error);
             }
 
-            // 仮の「Loading...」サムネイルを作成
-            const loadingThumbnail = createLoadingThumbnail();
+            const devicePresent = await isDevicePresent(selectedDevice.id);
+            const previewDisabled = (typeof isPreviewDisabledUvcName === 'function') ? isPreviewDisabledUvcName(selectedDevice.deviceName) : false;
 
-            // 現在のプレイリストを先に取得（order算出にも使う）
-            const currentPlaylist = await stateControl.getPlaylistState();
+            // 仮のサムネイル（存在しないデバイスは最初から Media Offline / プレビュー無効は No Preview）
+            const loadingThumbnail = (!devicePresent)
+                ? createTextThumbnail('Media Offline')
+                : (previewDisabled ? createTextThumbnail('No Preview') : createLoadingThumbnail());
+
+            // 追加対象のプレイリスト（スロット固定）
+            let basePlaylist = [];
+            if (typeof readPlaylistStorePayload === 'function') {
+                const payload = readPlaylistStorePayload(expectedStoreNumber);
+                basePlaylist = (payload && Array.isArray(payload.data)) ? payload.data : [];
+            } else {
+                basePlaylist = await stateControl.getPlaylistState();
+            }
+
+            if (!Array.isArray(basePlaylist)) basePlaylist = [];
 
             const uvcItem = {
                 playlistItem_id: `${Date.now()}-${Math.random()}`,
                 path: `UVC_DEVICE:${selectedDevice.id}`, // deviceId を埋め込む
                 name: selectedDevice.deviceName,
-                resolution: resolution || "Unknown",
+                resolution: "Unknown",
                 deviceId: selectedDevice.id,
                 duration: "UVC",
                 startMode: "PLAY",
@@ -56,51 +118,43 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
                 uvcAudioDeviceId: boundUvcAudioDeviceId,
                 selectionState: "unselected",
                 editingState: null,
-                order: Array.isArray(currentPlaylist) ? currentPlaylist.length : 0,
-                thumbnail: loadingThumbnail, // 仮のサムネイルを設定
+                order: basePlaylist.length,
+                thumbnail: loadingThumbnail,
+                mediaOffline: !devicePresent,
+                uvcPreviewDisabled: !!previewDisabled
             };
 
-            // プレイリストの状態を更新（仮のサムネイル）
-            const updatedPlaylist = [...currentPlaylist, uvcItem];
-            await stateControl.setPlaylistState(updatedPlaylist);
-            await updatePlaylistUI();
+            const updatedPlaylist = [...basePlaylist, uvcItem];
 
-            // アクティブスロットへ自動保存（存在する場合のみ）
-            if (typeof saveActivePlaylistToStore === 'function') {
+            // 仮想カメラ等で getUserMedia がハングしやすいものは、このセッションではプレビューを無効化して巻き込みを防ぐ
+            try {
+                if (!window.__vtrponUvcPreviewDisabledIds) {
+                    window.__vtrponUvcPreviewDisabledIds = new Set();
+                }
+                if (selectedDevice && typeof selectedDevice.deviceName === 'string' &&
+                    /NDI\s*Webcam|NDI|OBS|vMix|XSplit|Virtual/i.test(selectedDevice.deviceName)) {
+                    window.__vtrponUvcPreviewDisabledIds.add(String(selectedDevice.id));
+                }
+            } catch (e) {
+                // ignore
+            }
+
+            // 固定スロットに保存（アクティブスロットに対する saveActivePlaylistToStore は使わない）
+            if (typeof writePlaylistStoreData === 'function') {
                 try {
-                    await saveActivePlaylistToStore();
+                    writePlaylistStoreData(expectedStoreNumber, updatedPlaylist);
                 } catch (e) {
                     // ignore
                 }
             }
 
-            logDebug(`[uvc.js] UVC device ${selectedDevice.deviceName} (${resolution}) added to playlist with temporary thumbnail.`);
-
-            // 非同期でサムネイルを生成し、後から更新
-            const thumbnail = await generateThumbnail(`UVC_DEVICE:${selectedDevice.id}`);
-            logDebug(`[uvc.js] Thumbnail generation complete - deviceId: ${selectedDevice.id}`);
-
-            // サムネイルを更新
-            const newPlaylist = await stateControl.getPlaylistState();
-            const targetIndex = newPlaylist.findIndex(item => item.playlistItem_id === uvcItem.playlistItem_id);
-
-            if (targetIndex !== -1) {
-                newPlaylist[targetIndex].thumbnail = thumbnail;
-                await stateControl.setPlaylistState(newPlaylist);
-                await updatePlaylistUI();
-
-                // アクティブスロットへ自動保存（存在する場合のみ）
-                if (typeof saveActivePlaylistToStore === 'function') {
-                    try {
-                        await saveActivePlaylistToStore();
-                    } catch (e) {
-                        // ignore
-                    }
-                }
-
-                logDebug(`[uvc.js] Thumbnail updated - deviceId: ${selectedDevice.id}`);
+            // 表示中のスロットであれば、安全な経路（loadPlaylist の token ガード）で反映する
+            if (isExpectedSlotActive() && (typeof loadPlaylist === 'function')) {
+                await loadPlaylist(expectedStoreNumber);
             }
 
+            // 追加処理はここで終了（解像度取得・サムネ生成で getUserMedia を直接呼ばない）
+            return;
         } catch (error) {
             logDebug('[uvc.js] Error adding UVC device to playlist:', error);
         }
@@ -175,39 +229,58 @@ async function getUVCDevices() {
 }
 
 // 解像度を取得
-async function getUVCResolution(deviceId) {
+async function getUVCResolution(deviceId, timeoutMs = 4000) {
     try {
-        // まず ideal で FHD 16:9 を要求（交渉を強める）
-        const stream = await navigator.mediaDevices.getUserMedia({
+        // enumerateDevices で存在チェック（存在しないデバイスは getUserMedia しない）
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const exists = Array.isArray(devices) && devices.some(d => d && d.kind === 'videoinput' && String(d.deviceId) === String(deviceId));
+            if (!exists) {
+                return 'Unknown';
+            }
+        } catch (e) {
+            // enumerateDevices が失敗しても getUserMedia は試す
+        }
+
+        // まず ideal で FHD を要求（交渉を強める）
+        const gumPromise = navigator.mediaDevices.getUserMedia({
             video: {
                 deviceId: { exact: deviceId },
-                width:  { ideal: 1920 },
+                width: { ideal: 1920 },
                 height: { ideal: 1080 },
-                aspectRatio: 16/9,
-                resizeMode: "none"
+                aspectRatio: 16 / 9,
+                resizeMode: 'none'
             }
         });
-        const track = stream.getVideoTracks()[0];
 
-        // capabilities を参照し、可能ならさらに詰める（ただし FHD 16:9 上限にクランプ）
+        const timeoutPromise = new Promise((resolve) => {
+            setTimeout(() => resolve(null), timeoutMs);
+        });
+
+        const stream = await Promise.race([gumPromise, timeoutPromise]);
+
+        if (!stream) {
+            // 後から解決した場合に備えて停止
+            gumPromise.then((s) => {
+                try { s.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
+            }).catch(() => { /* ignore */ });
+            return 'Unknown';
+        }
+
         try {
-            if (track && typeof track.getCapabilities === 'function' && typeof track.applyConstraints === 'function') {
-                const caps = track.getCapabilities();
-                const targetW = (caps && caps.width && typeof caps.width.max === 'number') ? Math.min(1920, caps.width.max) : 1920;
-                const targetH = (caps && caps.height && typeof caps.height.max === 'number') ? Math.min(1080, caps.height.max) : 1080;
+            const track = stream.getVideoTracks()[0];
+            const settings = (track && typeof track.getSettings === 'function') ? track.getSettings() : null;
+            const width = settings && settings.width ? settings.width : null;
+            const height = settings && settings.height ? settings.height : null;
 
-                await track.applyConstraints({
-                    width:  targetW,
-                    height: targetH,
-                    aspectRatio: 16/9,
-                    resizeMode: "none"
-                });
-            }
-        } catch (_) {}
+            stream.getTracks().forEach(track => track.stop());
 
-        const { width, height } = track.getSettings();
-        track.stop();
-        return `${width}x${height}`;
+            if (width && height) return `${width}x${height}`;
+            return 'Unknown';
+        } catch (e) {
+            try { stream.getTracks().forEach(t => t.stop()); } catch (err) { /* ignore */ }
+            return 'Unknown';
+        }
     } catch (error) {
         logDebug(`[uvc.js] deviceId=${deviceId}`, error);
         return 'Unknown';
