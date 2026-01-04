@@ -40,7 +40,6 @@ let isImporting = false;
 let totalCount = 0;
 let finishedCount = 0;
 
-
 // --------
 // 正規化
 // --------
@@ -1441,69 +1440,49 @@ function createThumbnail(file) {
 
     const isUVC = (file && typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE:'));
 
-    // UVC: thumbnail(HTMLElement) が無い場合でも、描画時に再生成して貼り替える
+    // UVC
     if (isUVC) {
         if (file.thumbnail instanceof HTMLElement) {
             thumbnailContainer.appendChild(file.thumbnail);
             return thumbnailContainer;
         }
 
-        // プレースホルダ（コピー直後など）
+        // uvc.js生成済みサムネイルが優先
+        if (typeof file.thumbnail === 'string' && file.thumbnail.length > 0) {
+            const img = document.createElement('img');
+            img.src = file.thumbnail;
+            img.alt = `Thumbnail for ${file.name}`;
+            img.classList.add('thumbnail-image');
+            thumbnailContainer.appendChild(img);
+            return thumbnailContainer;
+        }
+
+        // フォールバック
+        const canvas = document.createElement('canvas');
         const targetWidth = 120;
         const targetHeight = Math.round(targetWidth * 9 / 16);
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
 
-        // CSS未反映タイミングでも黒背景が必ず見えるように枠サイズを固定
-        thumbnailContainer.style.width = targetWidth + 'px';
-        thumbnailContainer.style.height = targetHeight + 'px';
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Loading...', canvas.width / 2, canvas.height / 2);
 
-        const placeholder = document.createElement('div');
-        placeholder.style.width = '100%';
-        placeholder.style.height = '100%';
-        placeholder.style.display = 'flex';
-        placeholder.style.alignItems = 'center';
-        placeholder.style.justifyContent = 'center';
-        placeholder.style.backgroundColor = 'black';
-        placeholder.style.color = 'white';
-        placeholder.style.fontSize = '12px';
-        placeholder.textContent = 'Loading...';
-        thumbnailContainer.appendChild(placeholder);
-
-        // 非同期でUVCサムネイルを生成して差し替え
-        (async () => {
-            try {
-                const thumb = await generateThumbnail(file.path);
-
-                // 既に再描画されている等で、このコンテナがDOMから外れていたら何もしない
-                if (!thumbnailContainer.isConnected) return;
-
-                // 念のため「このアイテムの現在のサムネイル枠」と一致する場合のみ差し替え
-                const itemEl = document.querySelector(`.playlist-item[data-playlist-item-id="${file.playlistItem_id}"]`);
-                if (!itemEl) return;
-                const currentContainer = itemEl.querySelector('.thumbnail-container');
-                if (currentContainer !== thumbnailContainer) return;
-
-                while (thumbnailContainer.firstChild) {
-                    thumbnailContainer.removeChild(thumbnailContainer.firstChild);
-                }
-
-                if (thumb instanceof HTMLElement) {
-                    thumbnailContainer.appendChild(thumb);
-                } else if (typeof thumb === 'string' && thumb.length > 0) {
-                    const img = document.createElement('img');
-                    img.src = thumb;
-                    img.alt = `Thumbnail for ${file.name}`;
-                    img.classList.add('thumbnail-image');
-                    thumbnailContainer.appendChild(img);
-                }
-            } catch (e) {
-                // 失敗時はプレースホルダのまま（ログは増やさない）
-            }
-        })();
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL('image/png');
+        img.alt = `Thumbnail for ${file.name}`;
+        img.classList.add('thumbnail-image');
+        thumbnailContainer.appendChild(img);
 
         return thumbnailContainer;
     }
 
-    // 通常ファイル: 既存挙動
+    // 通常ファイル
     if (file.thumbnail instanceof HTMLElement) {
         thumbnailContainer.appendChild(file.thumbnail);
     } else {
