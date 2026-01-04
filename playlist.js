@@ -3276,6 +3276,13 @@ async function loadPlaylist(storeNumber) {
 
     activePlaylistIndex = n;
 
+    // loadPlaylist がプログラムから呼ばれた場合でも、必ずアクティブボタン（緑）を反映する
+    if (typeof setActiveStoreButton === 'function') {
+        setActiveStoreButton(n);
+    } else if (typeof setActiveButton === 'function') {
+        setActiveButton(n);
+    }
+
     logOpe(`[playlist.js] loadPlaylist called with storeNumber=${n}`);
     const __key = `vtrpon_playlist_store_${n}`;
     logOpe(`[playlist.js] Resolving key for load: ${__key}`);
