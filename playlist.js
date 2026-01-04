@@ -1460,9 +1460,19 @@ function vtrponCreateUvcTextThumbnailDataUrl(text, bg = 'black') {
 function vtrponStopMediaStream(stream) {
     try {
         if (stream && typeof stream.getTracks === 'function') {
-            stream.getTracks().forEach(t => {
-                try { t.stop(); } catch (e) { /* ignore */ }
+            const tracks = stream.getTracks();
+
+            // まず無効化（仮想カメラ系が stop() 直撃で落ちるのを避ける）
+            tracks.forEach(t => {
+                try { t.enabled = false; } catch (e) { /* ignore */ }
             });
+
+            // stop() は少し遅らせて実行（DOM切断後の安定化待ち）
+            setTimeout(() => {
+                tracks.forEach(t => {
+                    try { t.stop(); } catch (e) { /* ignore */ }
+                });
+            }, 150);
         }
     } catch (e) {
         // ignore
@@ -1506,7 +1516,6 @@ async function vtrponWaitUvcFirstFrame(video, timeoutMs) {
     });
 }
 
-// 修正後（playlist.js）
 async function startUvcLivePreviewIfNeeded(deviceId, {
     gumTimeoutMs = 4000,
     frameTimeoutMs = 3000
@@ -1580,10 +1589,39 @@ async function startUvcLivePreviewIfNeeded(deviceId, {
     }
 
     // 「ストリームが流れている」判定（短い待ち）
+    // 特定の仮想カメラで初回フレームが遅いことがあるため、1回だけリトライして誤OFFLINEを減らす
+    let firstFrameOk = false;
     try {
         await vtrponWaitUvcFirstFrame(video, frameTimeoutMs);
+        firstFrameOk = true;
     } catch (e) {
-        try { video.srcObject = null; } catch (e2) { /* ignore */ }
+        // 途中で削除/停止された場合は即停止して終了
+        if (vtrponGetUvcToken(id) !== token) {
+            try { video.srcObject = null; } catch (e2) { /* ignore */ }
+            vtrponStopMediaStream(stream);
+
+            st.starting.delete(id);
+            return;
+        }
+
+        // リトライ：video要素を作り直さず、短い追加猶予だけ与える
+        try {
+            await vtrponWaitUvcFirstFrame(video, Math.max(1200, Math.floor(frameTimeoutMs * 0.6)));
+            firstFrameOk = true;
+        } catch (e2) {
+            // それでもダメなら OFFLINE 確定（掴みっぱなし禁止）
+            try { video.srcObject = null; } catch (e3) { /* ignore */ }
+            vtrponStopMediaStream(stream);
+
+            st.starting.delete(id);
+            st.offline.add(id);
+            vtrponSchedulePlaylistUiRefresh();
+            return;
+        }
+    }
+
+    if (!firstFrameOk) {
+        try { video.srcObject = null; } catch (e) { /* ignore */ }
         vtrponStopMediaStream(stream);
 
         st.starting.delete(id);
@@ -1646,13 +1684,56 @@ function createThumbnail(file) {
         // ライブプレビューが動作中ならそれを最優先で表示
         try {
             const entry = st.active.get(String(deviceId));
-            if (entry && entry.element instanceof HTMLElement) {
-                thumbnailContainer.appendChild(entry.element);
+            if (entry && entry.element instanceof HTMLVideoElement) {
+                // 同一 deviceId を複数アイテムで使う場合、video要素をDOMに移動すると
+                // 先に表示していたサムネイルが消えるため、各アイテムは canvas にミラー描画する。
+                const canvas = document.createElement('canvas');
+                canvas.width = VTRPON_UVC_THUMB_WIDTH;
+                canvas.height = VTRPON_UVC_THUMB_HEIGHT;
+                canvas.classList.add('thumbnail-image');
+                thumbnailContainer.appendChild(canvas);
+
+                const video = entry.element;
+                const ctx = canvas.getContext('2d');
+
+                const draw = () => {
+                    // サムネイルが破棄されたら停止
+                    if (!canvas.isConnected) return;
+
+                    // 途中で stop/再起動されて active が入れ替わったら停止
+                    const current = st.active.get(String(deviceId));
+                    if (!current || current.element !== video) return;
+
+                    try {
+                        const vw = video.videoWidth || 0;
+                        const vh = video.videoHeight || 0;
+
+                        if (ctx && vw > 0 && vh > 0) {
+                            // cover 相当（中央トリミング）
+                            const cw = canvas.width;
+                            const ch = canvas.height;
+                            const scale = Math.max(cw / vw, ch / vh);
+                            const sw = cw / scale;
+                            const sh = ch / scale;
+                            const sx = (vw - sw) / 2;
+                            const sy = (vh - sh) / 2;
+
+                            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    requestAnimationFrame(draw);
+                };
+
+                requestAnimationFrame(draw);
                 return thumbnailContainer;
             }
         } catch (e) {
             // ignore
         }
+
 
         // このセッションでオフライン判定済みなら Media Offline（自動復帰しない）
         try {
