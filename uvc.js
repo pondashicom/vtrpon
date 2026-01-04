@@ -134,7 +134,7 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
                 // ignore
             }
 
-            // 固定スロットに保存（アクティブスロットに対する saveActivePlaylistToStore は使わない）
+// 固定スロットに保存（アクティブスロットに対する saveActivePlaylistToStore は使わない）
             if (typeof writePlaylistStoreData === 'function') {
                 try {
                     writePlaylistStoreData(expectedStoreNumber, updatedPlaylist);
@@ -148,8 +148,51 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
                 await loadPlaylist(expectedStoreNumber);
             }
 
-            // 追加処理はここで終了（解像度取得・サムネ生成で getUserMedia を直接呼ばない）
+            // 非同期で解像度を取得して、保存データ／表示を更新する（失敗しても無視・巻き込み防止）
+            (async () => {
+                try {
+                    if (!devicePresent) return;
+                    if (typeof getUVCResolution !== 'function') return;
+
+                    const res = await getUVCResolution(selectedDevice.id, 2500);
+                    if (!res || res === 'Unknown') return;
+
+                    let latestItems = null;
+                    try {
+                        if (typeof readPlaylistStorePayload === 'function') {
+                            const payload = readPlaylistStorePayload(expectedStoreNumber);
+                            if (payload && Array.isArray(payload.items)) {
+                                latestItems = payload.items;
+                            }
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    const base = Array.isArray(latestItems) ? latestItems : updatedPlaylist;
+                    const next = base.map((it) => {
+                        if (!it || String(it.playlistItem_id) !== String(uvcItem.playlistItem_id)) return it;
+                        return { ...it, resolution: res };
+                    });
+
+                    if (typeof writePlaylistStoreData === 'function') {
+                        try {
+                            writePlaylistStoreData(expectedStoreNumber, next);
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+
+                    if (isExpectedSlotActive() && (typeof loadPlaylist === 'function')) {
+                        await loadPlaylist(expectedStoreNumber);
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            })();
+
             return;
+
         } catch (error) {
             logDebug('[uvc.js] Error adding UVC device to playlist:', error);
         }
