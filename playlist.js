@@ -636,195 +636,44 @@ async function generateThumbnail(filePath) {
 
         // UVCデバイスのサムネイル生成
         if (filePath.startsWith("UVC_DEVICE:")) {
-            const deviceId = filePath.replace("UVC_DEVICE:", "");
-            logInfo("Generating thumbnail - deviceId:", deviceId);
+            const deviceId = String(filePath).replace("UVC_DEVICE:", "");
 
-            // セッション内でプレビュー無効にしたデバイスは getUserMedia しない（巻き込み防止）
-            if (!window.__vtrponUvcPreviewDisabledIds) {
-                window.__vtrponUvcPreviewDisabledIds = new Set();
-            }
-            const __disabledSet = window.__vtrponUvcPreviewDisabledIds;
-
-            const __resolveUvcPlaceholder = (text, bg = 'black') => {
-                const canvas = document.createElement('canvas');
-                const targetWidth = 120;
-                const targetHeight = Math.round(targetWidth * 9 / 16);
-                canvas.width = targetWidth;
-                canvas.height = targetHeight;
-
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = bg;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'white';
-                ctx.font = '14px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
-                resolve(canvas.toDataURL('image/png'));
-            };
-
-            if (__disabledSet.has(String(deviceId))) {
-                __resolveUvcPlaceholder('Media Offline');
-                return;
-            }
-
-            // まず enumerateDevices で存在チェック（存在しない/仮想カメラでハングしやすいものは getUserMedia しない）
+            // まずは即時に Loading を返し、裏で短いタイムアウト付きでライブプレビューを試す
             try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const dev = Array.isArray(devices)
-                    ? devices.find(d => d && d.kind === 'videoinput' && String(d.deviceId) === String(deviceId))
-                    : null;
-
-                const exists = !!dev;
-                if (!exists) {
-                    __disabledSet.add(String(deviceId));
-                    __resolveUvcPlaceholder('Media Offline');
-                    return;
-                }
-
-                const label = (dev && typeof dev.label === 'string') ? dev.label : '';
-                if (label && /NDI\s*Webcam|NDI|OBS|vMix|XSplit|Virtual/i.test(label)) {
-                    __disabledSet.add(String(deviceId));
-                    __resolveUvcPlaceholder('Media Offline');
-                    return;
+                if (typeof startUvcLivePreviewIfNeeded === 'function') {
+                    startUvcLivePreviewIfNeeded(String(deviceId));
                 }
             } catch (e) {
                 // ignore
             }
 
-            const timeoutMs = 4000;
-            let resolved = false;
-
-            // `deviceId` でカメラ起動（FHD 16:9 を優先）
-            const gumPromise = navigator.mediaDevices.getUserMedia({
-                video: {
-                    deviceId: { exact: deviceId },
-                    width:  { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    aspectRatio: 16/9,
-                    resizeMode: "none"
+            // 既にこのセッションでオフライン判定済みなら Media Offline を返す（自動復帰はしない）
+            let isOffline = false;
+            try {
+                if (typeof vtrponGetUvcPreviewState === 'function') {
+                    const st = vtrponGetUvcPreviewState();
+                    isOffline = !!(st && st.offline && typeof st.offline.has === 'function' && st.offline.has(String(deviceId)));
                 }
-            });
+            } catch (e) {
+                // ignore
+            }
 
-            const timeoutId = setTimeout(() => {
-                if (resolved) return;
-                resolved = true;
+            const canvas = document.createElement('canvas');
+            const targetWidth = 120;
+            const targetHeight = Math.round(targetWidth * 9 / 16);
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
 
-                // 後から解決した場合に備えて停止
-                gumPromise.then((s) => {
-                    try { s.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
-                }).catch(() => { /* ignore */ });
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(isOffline ? 'Media Offline' : 'Loading...', canvas.width / 2, canvas.height / 2);
 
-                const canvas = document.createElement('canvas');
-                const targetWidth = 120;
-                const targetHeight = Math.round(targetWidth * 9 / 16);
-                canvas.width = targetWidth;
-                canvas.height = targetHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = 'red';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'white';
-                ctx.font = '12px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('Loading failed', canvas.width / 2, canvas.height / 2);
-                resolve(canvas.toDataURL('image/png'));
-            }, timeoutMs);
-
-            gumPromise.then(async (stream) => {
-                if (resolved) {
-                    try { stream.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
-                    return;
-                }
-                resolved = true;
-                clearTimeout(timeoutId);
-
-                try {
-                    const track = stream.getVideoTracks()[0];
-                    try {
-                        const caps = (typeof track.getCapabilities === 'function') ? track.getCapabilities() : null;
-                        const targetW = caps && caps.width && typeof caps.width.max === 'number' ? Math.min(1920, caps.width.max) : 1920;
-                        const targetH = caps && caps.height && typeof caps.height.max === 'number' ? Math.min(1080, caps.height.max) : 1080;
-                        if (typeof track.applyConstraints === 'function') {
-                            await track.applyConstraints({ width: targetW, height: targetH, aspectRatio: 16/9 });
-                        }
-                    } catch (e) {
-                        // ignore
-                    }
-
-                    const container = document.createElement('div');
-                    container.style.width = '120px';
-                    container.style.height = `${Math.round(120 * 9 / 16)}px`;
-                    container.style.overflow = 'hidden';
-                    container.style.display = 'flex';
-                    container.style.alignItems = 'center';
-                    container.style.justifyContent = 'center';
-                    container.style.background = '#222';
-
-                    const video = document.createElement('video');
-                    video.style.width = '100%';
-                    video.style.height = '100%';
-                    video.style.objectFit = 'cover';
-                    video.muted = true;
-                    video.playsInline = true;
-                    video.srcObject = stream;
-
-                    video.onloadeddata = () => {
-                        video.play();
-                    };
-
-                    container.appendChild(video);
-                    resolve(container);
-                } catch (error) {
-                    try { stream.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
-
-                    // 一度失敗したデバイスは、このセッションではプレビューを無効化（繰り返し getUserMedia して巻き込まない）
-                    try {
-                        if (window.__vtrponUvcPreviewDisabledIds) {
-                            window.__vtrponUvcPreviewDisabledIds.add(String(deviceId));
-                        }
-                    } catch (e) { /* ignore */ }
-
-                    logInfo("Failed to get camera:", error);
-
-                    const canvas = document.createElement('canvas');
-                    const targetWidth = 120;
-                    const targetHeight = Math.round(targetWidth * 9 / 16);
-                    canvas.width = targetWidth;
-                    canvas.height = targetHeight;
-
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = 'red';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = '#FFF';
-                    ctx.font = 'bold 16px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('Loading failed', canvas.width / 2, canvas.height / 2);
-                    resolve(canvas.toDataURL('image/png'));
-                }
-            }).catch((error) => {
-                if (resolved) return;
-                resolved = true;
-                clearTimeout(timeoutId);
-
-                logInfo("Failed to get camera:", error);
-                const canvas = document.createElement('canvas');
-                const targetWidth = 120;
-                const targetHeight = Math.round(targetWidth * 9 / 16);
-                canvas.width = targetWidth;
-                canvas.height = targetHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = 'red';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'white';
-                ctx.font = '12px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('Loading failed', canvas.width / 2, canvas.height / 2);
-                resolve(canvas.toDataURL('image/png'));
-            });
+            resolve(canvas.toDataURL('image/png'));
             return;
         }
 
@@ -1543,6 +1392,245 @@ function createButton(text, className, onClick) {
     return button;
 }
 
+// -----------------------
+// UVC ライブプレビュー（サムネイル）
+// -----------------------
+
+const VTRPON_UVC_THUMB_WIDTH = 120;
+const VTRPON_UVC_THUMB_HEIGHT = Math.round(VTRPON_UVC_THUMB_WIDTH * 9 / 16);
+
+function vtrponGetUvcPreviewState() {
+    if (!window.__vtrponUvcPreviewState) {
+        window.__vtrponUvcPreviewState = {
+            active: new Map(),      // deviceId -> { stream, element }
+            starting: new Set(),    // deviceId
+            offline: new Set(),     // deviceId（このセッションでは再試行しない）
+            token: new Map(),       // deviceId -> number（停止/削除の競合対策）
+            uiRefreshScheduled: false
+        };
+    }
+    return window.__vtrponUvcPreviewState;
+}
+
+function vtrponGetUvcToken(deviceId) {
+    const st = vtrponGetUvcPreviewState();
+    return st.token.get(String(deviceId)) || 0;
+}
+
+function vtrponBumpUvcToken(deviceId) {
+    const st = vtrponGetUvcPreviewState();
+    const id = String(deviceId);
+    const next = (st.token.get(id) || 0) + 1;
+    st.token.set(id, next);
+    return next;
+}
+
+function vtrponSchedulePlaylistUiRefresh() {
+    const st = vtrponGetUvcPreviewState();
+    if (st.uiRefreshScheduled) return;
+    st.uiRefreshScheduled = true;
+
+    setTimeout(async () => {
+        st.uiRefreshScheduled = false;
+        try {
+            await updatePlaylistUI();
+        } catch (e) {
+            // ignore
+        }
+    }, 0);
+}
+
+function vtrponCreateUvcTextThumbnailDataUrl(text, bg = 'black') {
+    const canvas = document.createElement('canvas');
+    canvas.width = VTRPON_UVC_THUMB_WIDTH;
+    canvas.height = VTRPON_UVC_THUMB_HEIGHT;
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'white';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(text || ''), canvas.width / 2, canvas.height / 2);
+
+    return canvas.toDataURL('image/png');
+}
+
+function vtrponStopMediaStream(stream) {
+    try {
+        if (stream && typeof stream.getTracks === 'function') {
+            stream.getTracks().forEach(t => {
+                try { t.stop(); } catch (e) { /* ignore */ }
+            });
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+
+async function vtrponWaitUvcFirstFrame(video, timeoutMs) {
+    return new Promise((resolve, reject) => {
+        let done = false;
+
+        const cleanup = () => {
+            try { video.removeEventListener('loadeddata', onOk); } catch (e) { /* ignore */ }
+            try { video.removeEventListener('canplay', onOk); } catch (e) { /* ignore */ }
+            try { video.removeEventListener('playing', onOk); } catch (e) { /* ignore */ }
+            try { clearTimeout(timer); } catch (e) { /* ignore */ }
+        };
+
+        const finish = (ok) => {
+            if (done) return;
+            done = true;
+            cleanup();
+            if (ok) resolve();
+            else reject(new Error('UVC_NO_FRAME'));
+        };
+
+        const onOk = () => finish(true);
+
+        const timer = setTimeout(() => finish(false), Math.max(200, Number(timeoutMs) || 0));
+
+        try { video.addEventListener('loadeddata', onOk); } catch (e) { /* ignore */ }
+        try { video.addEventListener('canplay', onOk); } catch (e) { /* ignore */ }
+        try { video.addEventListener('playing', onOk); } catch (e) { /* ignore */ }
+
+        try {
+            if (typeof video.requestVideoFrameCallback === 'function') {
+                video.requestVideoFrameCallback(() => finish(true));
+            }
+        } catch (e) {
+            // ignore
+        }
+    });
+}
+
+// 修正後（playlist.js）
+async function startUvcLivePreviewIfNeeded(deviceId, {
+    gumTimeoutMs = 4000,
+    frameTimeoutMs = 3000
+} = {}) {
+    const id = String(deviceId);
+    const st = vtrponGetUvcPreviewState();
+
+    if (st.offline.has(id)) return;
+    if (st.active.has(id)) return;
+    if (st.starting.has(id)) return;
+
+    st.starting.add(id);
+    const token = vtrponGetUvcToken(id);
+
+    // 仮想カメラ系（NDI/OBS等）は厳しい制約だと getUserMedia が失敗しやすいので、
+    // aspectRatio/resizeMode の「強制」を避けて交渉を緩める（ただしタイムアウトは短く維持）
+    const gumPromise = navigator.mediaDevices.getUserMedia({
+        video: {
+            deviceId: { exact: id },
+            width:  { ideal: 1920 },
+            height: { ideal: 1080 },
+            aspectRatio: { ideal: 16 / 9 }
+        }
+    });
+
+    let stream = null;
+
+    try {
+        stream = await Promise.race([
+            gumPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('getUserMedia timeout')), gumTimeoutMs))
+        ]);
+    } catch (e) {
+        st.starting.delete(id);
+        st.offline.add(id);
+        vtrponSchedulePlaylistUiRefresh();
+        return;
+    }
+
+    // 途中で削除/停止された場合は即停止して終了
+    if (vtrponGetUvcToken(id) !== token) {
+        vtrponStopMediaStream(stream);
+
+        st.starting.delete(id);
+        return;
+    }
+
+    // video 要素を生成（DOMには追加しない）
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.autoplay = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.style.width = `${VTRPON_UVC_THUMB_WIDTH}px`;
+    video.style.height = `${VTRPON_UVC_THUMB_HEIGHT}px`;
+    video.style.objectFit = 'cover';
+    video.classList.add('thumbnail-image');
+
+    try {
+        video.srcObject = stream;
+    } catch (e) {
+        // srcObject 非対応環境は対象外（Electron前提）
+    }
+
+    try {
+        const p = video.play();
+        if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
+    } catch (e) {
+        // ignore
+    }
+
+    // 「ストリームが流れている」判定（短い待ち）
+    try {
+        await vtrponWaitUvcFirstFrame(video, frameTimeoutMs);
+    } catch (e) {
+        try { video.srcObject = null; } catch (e2) { /* ignore */ }
+        vtrponStopMediaStream(stream);
+
+        st.starting.delete(id);
+        st.offline.add(id);
+        vtrponSchedulePlaylistUiRefresh();
+        return;
+    }
+
+    // 途中で削除/停止された場合は即停止して終了
+    if (vtrponGetUvcToken(id) !== token) {
+        try { video.srcObject = null; } catch (e) { /* ignore */ }
+        vtrponStopMediaStream(stream);
+
+        st.starting.delete(id);
+        return;
+    }
+
+    st.starting.delete(id);
+    st.active.set(id, { stream, element: video });
+
+    vtrponSchedulePlaylistUiRefresh();
+}
+
+function stopUvcLivePreview(deviceId, { clearOffline = false } = {}) {
+    const id = String(deviceId);
+    const st = vtrponGetUvcPreviewState();
+
+    // 競合対策（起動中/待機中の getUserMedia を無効化）
+    vtrponBumpUvcToken(id);
+
+    const entry = st.active.get(id);
+    if (entry && entry.element) {
+        try { entry.element.srcObject = null; } catch (e) { /* ignore */ }
+        try { entry.element.remove(); } catch (e) { /* ignore */ }
+    }
+    if (entry && entry.stream) {
+        vtrponStopMediaStream(entry.stream);
+    }
+
+    st.active.delete(id);
+    st.starting.delete(id);
+
+    if (clearOffline) {
+        st.offline.delete(id);
+    }
+}
+
 // サムネイル生成
 function createThumbnail(file) {
     const thumbnailContainer = document.createElement('div');
@@ -1552,12 +1640,47 @@ function createThumbnail(file) {
 
     // UVC
     if (isUVC) {
+        const deviceId = String(file.path).replace('UVC_DEVICE:', '');
+        const st = vtrponGetUvcPreviewState();
+
+        // ライブプレビューが動作中ならそれを最優先で表示
+        try {
+            const entry = st.active.get(String(deviceId));
+            if (entry && entry.element instanceof HTMLElement) {
+                thumbnailContainer.appendChild(entry.element);
+                return thumbnailContainer;
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        // このセッションでオフライン判定済みなら Media Offline（自動復帰しない）
+        try {
+            if (st.offline.has(String(deviceId))) {
+                const img = document.createElement('img');
+                img.src = vtrponCreateUvcTextThumbnailDataUrl('Media Offline');
+                img.alt = `Thumbnail for ${file.name}`;
+                img.classList.add('thumbnail-image');
+                thumbnailContainer.appendChild(img);
+                return thumbnailContainer;
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        // ここで非同期に起動判定＆ライブプレビュー開始（短タイムアウト）
+        try {
+            startUvcLivePreviewIfNeeded(String(deviceId));
+        } catch (e) {
+            // ignore
+        }
+
+        // uvc.js生成済みサムネイルが優先（Loading 等）
         if (file.thumbnail instanceof HTMLElement) {
             thumbnailContainer.appendChild(file.thumbnail);
             return thumbnailContainer;
         }
 
-        // uvc.js生成済みサムネイルが優先
         if (typeof file.thumbnail === 'string' && file.thumbnail.length > 0) {
             const img = document.createElement('img');
             img.src = file.thumbnail;
@@ -1567,24 +1690,9 @@ function createThumbnail(file) {
             return thumbnailContainer;
         }
 
-        // フォールバック
-        const canvas = document.createElement('canvas');
-        const targetWidth = 120;
-        const targetHeight = Math.round(targetWidth * 9 / 16);
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('Loading...', canvas.width / 2, canvas.height / 2);
-
+        // フォールバック（Loading）
         const img = document.createElement('img');
-        img.src = canvas.toDataURL('image/png');
+        img.src = vtrponCreateUvcTextThumbnailDataUrl('Loading...');
         img.alt = `Thumbnail for ${file.name}`;
         img.classList.add('thumbnail-image');
         thumbnailContainer.appendChild(img);
@@ -1597,7 +1705,7 @@ function createThumbnail(file) {
         thumbnailContainer.appendChild(file.thumbnail);
     } else {
         const thumbnailImg = document.createElement('img');
-        thumbnailImg.src = file.thumbnail || 'path/to/default-thumbnail.png';
+        thumbnailImg.src = file.thumbnail;
         thumbnailImg.alt = `Thumbnail for ${file.name}`;
         thumbnailImg.classList.add('thumbnail-image');
         thumbnailContainer.appendChild(thumbnailImg);
@@ -2041,6 +2149,25 @@ function setEditingState(itemId) {
 // プレイリストアイテムの削除
 // ---------------------------
 async function deletePlaylistItem(itemId) {
+    // UVCアイテムを削除する場合は、必ずカメラ（getUserMedia）を停止する
+    try {
+        const playlist = await stateControl.getPlaylistState();
+        if (Array.isArray(playlist)) {
+            const target = playlist.find(p => p && String(p.playlistItem_id) === String(itemId));
+            if (target && typeof target.path === 'string' && target.path.startsWith('UVC_DEVICE:')) {
+                const deviceId = String(target.path).replace('UVC_DEVICE:', '');
+                try {
+                    // 再追加時に再評価できるよう offline フラグもクリア
+                    stopUvcLivePreview(deviceId, { clearOffline: true });
+                } catch (e) {
+                    // ignore
+                }
+            }
+        }
+    } catch (e) {
+        // ignore
+    }
+
     const success = await window.electronAPI.stateControl.deleteItemFromPlaylist(itemId);
     if (success) {
         await updatePlaylistUI();
@@ -2058,6 +2185,7 @@ async function deletePlaylistItem(itemId) {
     await simulateRightArrowKey();
     logOpe("[playlist.js] edit clear.");
 }
+
 
 // ---------------------------
 // プレイリストアイテム名の変更

@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     uvc.js 
-//     ver 2.5.1
+//     ver 2.5.2
 // -----------------------
 
 // -----------------------
@@ -126,14 +126,9 @@ document.getElementById('addUVCToPlaylistButton').addEventListener('mousedown', 
 
             const updatedPlaylist = [...basePlaylist, uvcItem];
 
-            // 仮想カメラ等で getUserMedia がハングしやすいものは、このセッションではプレビューを無効化して巻き込みを防ぐ
             try {
                 if (!window.__vtrponUvcPreviewDisabledIds) {
                     window.__vtrponUvcPreviewDisabledIds = new Set();
-                }
-                if (selectedDevice && typeof selectedDevice.deviceName === 'string' &&
-                    /NDI\s*Webcam|NDI|OBS|vMix|XSplit|Virtual/i.test(selectedDevice.deviceName)) {
-                    window.__vtrponUvcPreviewDisabledIds.add(String(selectedDevice.id));
                 }
             } catch (e) {
                 // ignore
