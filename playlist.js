@@ -647,7 +647,7 @@ async function generateThumbnail(filePath) {
                 // ignore
             }
 
-            // 既にこのセッションでオフライン判定済みなら Media Offline を返す（自動復帰はしない）
+            // 既にこのセッションでオフライン判定済みなら Loading Failed を返す（自動復帰はしない）
             let isOffline = false;
             try {
                 if (typeof vtrponGetUvcPreviewState === 'function') {
@@ -665,13 +665,13 @@ async function generateThumbnail(filePath) {
             canvas.height = targetHeight;
 
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = isOffline ? 'red' : 'black';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = 'white';
             ctx.font = '14px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(isOffline ? 'Media Offline' : 'Loading...', canvas.width / 2, canvas.height / 2);
+            ctx.fillText(isOffline ? 'Loading Failed' : 'Loading...', canvas.width / 2, canvas.height / 2);
 
             resolve(canvas.toDataURL('image/png'));
             return;
@@ -1523,12 +1523,66 @@ async function startUvcLivePreviewIfNeeded(deviceId, {
     const id = String(deviceId);
     const st = vtrponGetUvcPreviewState();
 
-    if (st.offline.has(id)) return;
-    if (st.active.has(id)) return;
-    if (st.starting.has(id)) return;
+    // 診断ログ（必要なときだけ有効化する）
+    // DevTools Console で window.__VTRPON_UVC_DIAG = true; を設定すると詳細ログが出ます
+    const uvcDiag = !!window.__VTRPON_UVC_DIAG;
+    const uvcTag = `[UVC-PREVIEW ${id}]`;
+    const uvcNow = (typeof performance !== 'undefined' && performance && typeof performance.now === 'function')
+        ? () => performance.now()
+        : () => Date.now();
+    const uvcT0 = uvcNow();
+    const uvcDlog = (msg) => {
+        if (!uvcDiag) return;
+        try { logDebug(`${uvcTag} ${msg}`); } catch (e) { /* ignore */ }
+    };
+    const uvcIlog = (msg) => {
+        try { logInfo(`${uvcTag} ${msg}`); } catch (e) { /* ignore */ }
+    };
+
+    if (st.offline.has(id)) {
+        uvcDlog(`SKIP: already offline. state(active=${st.active.size} starting=${st.starting.size} offline=${st.offline.size})`);
+        return;
+    }
+    if (st.active.has(id)) {
+        uvcDlog(`SKIP: already active. state(active=${st.active.size} starting=${st.starting.size} offline=${st.offline.size})`);
+        return;
+    }
+    if (st.starting.has(id)) {
+        uvcDlog(`SKIP: already starting. state(active=${st.active.size} starting=${st.starting.size} offline=${st.offline.size})`);
+        return;
+    }
 
     st.starting.add(id);
     const token = vtrponGetUvcToken(id);
+
+    uvcDlog(`START: token=${token} gumTimeoutMs=${gumTimeoutMs} frameTimeoutMs=${frameTimeoutMs} state(active=${st.active.size} starting=${st.starting.size} offline=${st.offline.size})`);
+
+    // 重要: getUserMedia の「開始処理」は同時に走ると、OS/ドライバ側で直列化されて後続が巻き込まれることがある。
+    // そのため、前の getUserMedia が完全に settle（成功/失敗）するまで待ってから開始する。
+    let waitedForInFlight = false;
+    if (st.gumInFlight) {
+        waitedForInFlight = true;
+        uvcDlog('WAIT: getUserMedia in-flight detected. waiting for settle...');
+        try {
+            await st.gumInFlight;
+        } catch (e) {
+            // ignore
+        }
+        uvcDlog('WAIT: in-flight settled. continue.');
+
+        // 待機中に停止/削除された場合はここで終了
+        if (vtrponGetUvcToken(id) !== token) {
+            uvcDlog(`CANCEL: token mismatch while waiting. token(now)=${vtrponGetUvcToken(id)} token(start)=${token}`);
+            st.starting.delete(id);
+            return;
+        }
+    }
+
+    // in-flight を待った直後は、Windows側の復帰に時間がかかることがあるためタイムアウトを延長する
+    const effectiveGumTimeoutMs = waitedForInFlight ? Math.max(gumTimeoutMs, 15000) : gumTimeoutMs;
+    if (waitedForInFlight) {
+        uvcDlog(`INFO: waitedForInFlight=true -> gumTimeoutMs ${gumTimeoutMs} => ${effectiveGumTimeoutMs}`);
+    }
 
     // 仮想カメラ系（NDI/OBS等）は厳しい制約だと getUserMedia が失敗しやすいので、
     // aspectRatio/resizeMode の「強制」を避けて交渉を緩める（ただしタイムアウトは短く維持）
@@ -1541,25 +1595,47 @@ async function startUvcLivePreviewIfNeeded(deviceId, {
         }
     });
 
+    // getUserMedia の完了（成功/失敗）まで「in-flight」を保持して、後続の getUserMedia を待たせる
+    const gumLock = gumPromise.finally(() => {
+        if (st.gumInFlight === gumLock) st.gumInFlight = null;
+    });
+    st.gumInFlight = gumLock;
+
+    // Promise.race でタイムアウトしても gumPromise 自体は裏で解決/失敗する可能性があるため、結果を観測する
+    let gumSettled = false;
+    gumPromise.then((s) => {
+        gumSettled = true;
+        const dt = Math.round(uvcNow() - uvcT0);
+        const tracks = (s && typeof s.getTracks === 'function') ? s.getTracks().length : 'n/a';
+        uvcDlog(`getUserMedia RESOLVED after ${dt}ms (tracks=${tracks})`);
+        return s;
+    }).catch((e) => {
+        gumSettled = true;
+        const dt = Math.round(uvcNow() - uvcT0);
+        uvcDlog(`getUserMedia REJECTED after ${dt}ms (${(e && e.name) ? e.name : 'Error'}: ${(e && e.message) ? e.message : e})`);
+    });
+
     let stream = null;
 
     try {
         stream = await Promise.race([
             gumPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('getUserMedia timeout')), gumTimeoutMs))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('getUserMedia timeout')), effectiveGumTimeoutMs))
         ]);
     } catch (e) {
+        const dt = Math.round(uvcNow() - uvcT0);
+        uvcIlog(`FAIL: getUserMedia (${dt}ms) gumSettled=${gumSettled} (${(e && e.name) ? e.name : 'Error'}: ${(e && e.message) ? e.message : e})`);
+
+        // タイムアウトした場合、gumPromise が後から解決していないかを観測（診断用）
+        if (uvcDiag && !gumSettled) {
+            setTimeout(() => {
+                uvcDlog(`POST-CHECK: after timeout. gumSettled=${gumSettled} token(now)=${vtrponGetUvcToken(id)} token(start)=${token}`);
+            }, Math.max(1500, effectiveGumTimeoutMs + 1500));
+        }
+
         st.starting.delete(id);
         st.offline.add(id);
         vtrponSchedulePlaylistUiRefresh();
-        return;
-    }
-
-    // 途中で削除/停止された場合は即停止して終了
-    if (vtrponGetUvcToken(id) !== token) {
-        vtrponStopMediaStream(stream);
-
-        st.starting.delete(id);
         return;
     }
 
@@ -1594,9 +1670,14 @@ async function startUvcLivePreviewIfNeeded(deviceId, {
     try {
         await vtrponWaitUvcFirstFrame(video, frameTimeoutMs);
         firstFrameOk = true;
+        uvcDlog(`FIRST-FRAME: ok (timeout=${frameTimeoutMs}ms)`);
     } catch (e) {
+        uvcDlog(`FIRST-FRAME: first try failed (${(e && e.name) ? e.name : 'Error'}: ${(e && e.message) ? e.message : e})`);
+
         // 途中で削除/停止された場合は即停止して終了
         if (vtrponGetUvcToken(id) !== token) {
+            uvcDlog(`CANCEL: token mismatch during first-frame wait. token(now)=${vtrponGetUvcToken(id)} token(start)=${token}`);
+
             try { video.srcObject = null; } catch (e2) { /* ignore */ }
             vtrponStopMediaStream(stream);
 
@@ -1606,9 +1687,14 @@ async function startUvcLivePreviewIfNeeded(deviceId, {
 
         // リトライ：video要素を作り直さず、短い追加猶予だけ与える
         try {
-            await vtrponWaitUvcFirstFrame(video, Math.max(1200, Math.floor(frameTimeoutMs * 0.6)));
+            const retryMs = Math.max(1200, Math.floor(frameTimeoutMs * 0.6));
+            await vtrponWaitUvcFirstFrame(video, retryMs);
             firstFrameOk = true;
+            uvcDlog(`FIRST-FRAME: ok on retry (timeout=${retryMs}ms)`);
         } catch (e2) {
+            const dt = Math.round(uvcNow() - uvcT0);
+            uvcIlog(`FAIL: first-frame (${dt}ms) (${(e2 && e2.name) ? e2.name : 'Error'}: ${(e2 && e2.message) ? e2.message : e2}) -> OFFLINE`);
+
             // それでもダメなら OFFLINE 確定（掴みっぱなし禁止）
             try { video.srcObject = null; } catch (e3) { /* ignore */ }
             vtrponStopMediaStream(stream);
@@ -1621,6 +1707,9 @@ async function startUvcLivePreviewIfNeeded(deviceId, {
     }
 
     if (!firstFrameOk) {
+        const dt = Math.round(uvcNow() - uvcT0);
+        uvcIlog(`FAIL: firstFrameOk=false (${dt}ms) -> OFFLINE`);
+
         try { video.srcObject = null; } catch (e) { /* ignore */ }
         vtrponStopMediaStream(stream);
 
@@ -1632,6 +1721,8 @@ async function startUvcLivePreviewIfNeeded(deviceId, {
 
     // 途中で削除/停止された場合は即停止して終了
     if (vtrponGetUvcToken(id) !== token) {
+        uvcDlog(`CANCEL: token mismatch before activate. token(now)=${vtrponGetUvcToken(id)} token(start)=${token}`);
+
         try { video.srcObject = null; } catch (e) { /* ignore */ }
         vtrponStopMediaStream(stream);
 
@@ -1641,6 +1732,9 @@ async function startUvcLivePreviewIfNeeded(deviceId, {
 
     st.starting.delete(id);
     st.active.set(id, { stream, element: video });
+
+    const dt = Math.round(uvcNow() - uvcT0);
+    uvcDlog(`SUCCESS: activated (${dt}ms). state(active=${st.active.size} starting=${st.starting.size} offline=${st.offline.size})`);
 
     vtrponSchedulePlaylistUiRefresh();
 }
@@ -1734,12 +1828,11 @@ function createThumbnail(file) {
             // ignore
         }
 
-
-        // このセッションでオフライン判定済みなら Media Offline（自動復帰しない）
+        // このセッションでオフライン判定済みなら Loading Failed（自動復帰しない）
         try {
             if (st.offline.has(String(deviceId))) {
                 const img = document.createElement('img');
-                img.src = vtrponCreateUvcTextThumbnailDataUrl('Media Offline');
+                img.src = vtrponCreateUvcTextThumbnailDataUrl('Loading Failed', 'red');
                 img.alt = `Thumbnail for ${file.name}`;
                 img.classList.add('thumbnail-image');
                 thumbnailContainer.appendChild(img);
