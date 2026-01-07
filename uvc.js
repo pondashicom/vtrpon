@@ -269,6 +269,38 @@ async function getUVCDevices() {
 // 解像度を取得
 async function getUVCResolution(deviceId, timeoutMs = 4000) {
     try {
+        // getUserMedia を直列化する（仮想カメラ未起動のタイムアウト後に後続が Unknown になりやすい対策）
+        // playlist.js 側にプレビュー状態管理がある場合はそれを優先し、なければ uvc.js 単独ロックを使う
+        let lock = null;
+        try {
+            if (typeof vtrponGetUvcPreviewState === 'function') {
+                lock = vtrponGetUvcPreviewState();
+            }
+        } catch (e) {
+            lock = null;
+        }
+
+        if (!lock) {
+            if (!window.__vtrponUvcResolutionLock) {
+                window.__vtrponUvcResolutionLock = { gumInFlight: null };
+            }
+            lock = window.__vtrponUvcResolutionLock;
+        }
+
+        if (!lock.gumInFlight) {
+            lock.gumInFlight = null;
+        }
+
+        let waitedForLock = false;
+        if (lock.gumInFlight) {
+            waitedForLock = true;
+            try {
+                await Promise.resolve(lock.gumInFlight);
+            } catch (e) {
+                // ignore
+            }
+        }
+
         // enumerateDevices で存在チェック（存在しないデバイスは getUserMedia しない）
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
@@ -279,6 +311,9 @@ async function getUVCResolution(deviceId, timeoutMs = 4000) {
         } catch (e) {
             // enumerateDevices が失敗しても getUserMedia は試す
         }
+
+        // ロック待ちが発生した場合だけタイムアウトを延長（Unknown 固定化を避ける）
+        const effectiveTimeoutMs = waitedForLock ? Math.max(timeoutMs, 15000) : timeoutMs;
 
         // まず ideal で FHD を要求（交渉を強める）
         const gumPromise = navigator.mediaDevices.getUserMedia({
@@ -291,14 +326,28 @@ async function getUVCResolution(deviceId, timeoutMs = 4000) {
             }
         });
 
+        // lock.gumInFlight は「必ず解決する Promise」にして unhandled rejection を防ぐ
+        const gumSettler = gumPromise.then(() => {}).catch(() => {});
+        let gumLock = null;
+        gumLock = gumSettler.finally(() => {
+            try {
+                if (lock.gumInFlight === gumLock) {
+                    lock.gumInFlight = null;
+                }
+            } catch (e) {
+                // ignore
+            }
+        });
+        lock.gumInFlight = gumLock;
+
         const timeoutPromise = new Promise((resolve) => {
-            setTimeout(() => resolve(null), timeoutMs);
+            setTimeout(() => resolve(null), effectiveTimeoutMs);
         });
 
         const stream = await Promise.race([gumPromise, timeoutPromise]);
 
         if (!stream) {
-            // 後から解決した場合に備えて停止
+            // 後から解決した場合に備えて停止（reject は無視）
             gumPromise.then((s) => {
                 try { s.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
             }).catch(() => { /* ignore */ });
