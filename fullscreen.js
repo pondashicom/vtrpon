@@ -322,6 +322,15 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         logInfo('[fullscreen.js] Overlay capture skipped due to missing element.');
         return;
     }
+
+    // 前ソースが「何も出ていない（src空 & srcObjectなし）」場合は、
+    // オーバレイ保持が黒のまま残り「遅れて出たように見える」原因になるためキャプチャをスキップする
+    const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+    const hasSrcObject = !!videoElement.srcObject;
+    if (!hasSrcObject && !nowSrc) {
+        return;
+    }
+
     if (typeof fullscreenSeamlessCleanup === 'function') {
         try { fullscreenSeamlessCleanup(); } catch (_) {}
         fullscreenSeamlessCleanup = null;
@@ -2426,10 +2435,9 @@ function resetFullscreenState() {
     const videoElement = document.getElementById('fullscreen-video');
 
     if (videoElement) {
-        // 動画の停止とクリア
+        // 動画の停止（src は次の setupVideoPlayer() で上書きされるので、ここでは空にしない）
+        // src を空にするとデコード/レンダリングが毎回リセットされ、StartMode=PLAY の立ち上がりが遅く見えることがある
         videoElement.pause();
-        videoElement.src = '';
-        videoElement.currentTime = 0;
 
         // UVC デバイスのストリームを解除
         if (videoElement.srcObject) {
