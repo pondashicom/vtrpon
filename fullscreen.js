@@ -1410,6 +1410,15 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     fillKeyBgColor = "";
                     fullscreenVideoElement.style.removeProperty("background-color");
                 }
+                try {
+                    const fadeCanvas = document.getElementById('fadeCanvas');
+                    if (fadeCanvas) {
+                        fadeCanvas.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+                    }
+                } catch (_) {
+                    // ignore
+                }
+
                 logDebug(`[fullscreen.js] Fullscreen fillkey background set to: ${value}`);
                 break;
             case 'trigger-endMode':
