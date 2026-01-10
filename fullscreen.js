@@ -213,7 +213,7 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     }
 
     // 前ソースオーバーレイキャプチャをスキップ
-    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsPause || nextIsFadeIn
+    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsFadeIn
         || (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn);
 
     if (!skipOverlayCapture) {
