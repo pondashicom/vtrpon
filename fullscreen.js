@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.3
+//     ver 2.5.4
 // -----------------------
 
 // -----------------------
@@ -36,12 +36,61 @@ let fullscreenApplyRafId = null;
 // フルスクリーン初期化
 // ----------------------------------------
 function initializeFullscreenArea() {
+    // シームレス切替オーバレイが残っている場合は確実に掃除（offAir→次オンエアで前フレーム混入を防ぐ）
+    try {
+        if (typeof fullscreenSeamlessCleanup === 'function') {
+            fullscreenSeamlessCleanup();
+        }
+    } catch (_) {
+        // ignore
+    }
+    fullscreenSeamlessCleanup = null;
+    seamlessGuardActive = false;
+    overlayForceBlack = false;
+
+    // offAir 直後に残っている「前フレームオーバレイ（残像）」を確実に消す
+    try {
+        const oc = document.getElementById('overlay-canvas');
+        if (oc) {
+            const ctx = oc.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, oc.width, oc.height);
+            oc.style.opacity = '0';
+            oc.style.visibility = 'hidden';
+            oc.style.display = 'none';
+        }
+    } catch (_) {
+        // ignore
+    }
+
+    // オフエア中に保留中の onReceive 適用が走ってオーバレイが復活しないよう無効化
+    try {
+        fullscreenApplySeq += 1;
+        if (fullscreenApplyRafId !== null) {
+            cancelAnimationFrame(fullscreenApplyRafId);
+            fullscreenApplyRafId = null;
+        }
+    } catch (_) {
+        // ignore
+    }
+
+    // offAir / OFF は「黒（またはFILLKEY背景）」を保持して、次映像が出るまで前フレームを見せない
+
+    holdBlackUntilFadeIn = true;
+    const fc = initializeFadeCanvas();
+    if (fc) {
+        fc.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+        fc.style.display = 'block';
+        fc.style.visibility = 'visible';
+        fc.style.opacity = '1';
+    }
+
     const videoElement = document.getElementById('fullscreen-video');
 
     if (videoElement) {
         videoElement.pause();
-        videoElement.src = '';
-        videoElement.currentTime = 0;
+        // src を空にすると currentSrc の残留やデコードリセットで副作用が出やすいので、ここでは空にしない
+        // videoElement.src = '';
+        // videoElement.currentTime = 0;
 
         // UVC デバイスのストリームをリセット
         if (videoElement.srcObject) {
@@ -164,7 +213,9 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     }
 
     // 前ソースオーバーレイキャプチャをスキップ
-    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsPause || nextIsFadeIn;
+    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsPause || nextIsFadeIn
+        || (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn);
+
     if (!skipOverlayCapture) {
         try {
             captureLastFrameAndHoldUntilNextReady(true);
@@ -966,6 +1017,58 @@ function handleStartMode() {
         logInfo('[fullscreen.js] Start mode is PLAY. Starting playback.');
 
         videoElement.currentTime = globalState.inPoint;
+
+        // offAir/OFF で黒保持している場合：
+        // 「新しいソースの最初の映像フレームがデコードされた瞬間」に黒を外す（動画1最終フレーム混入を確実に防ぐ）
+        if (holdBlackUntilFadeIn) {
+            const expectedSrc = String(videoElement.src || '');
+            let releaseStarted = false;
+
+            const releaseHeldBlackOnce = () => {
+                if (releaseStarted) return;
+                releaseStarted = true;
+                try {
+                    fullscreenFadeFromBlack(0.06, isFillKeyMode);
+                } catch (_) {
+                    const fc = document.getElementById('fadeCanvas');
+                    if (fc) {
+                        fc.style.opacity = '0';
+                        fc.style.display = 'none';
+                        fc.style.visibility = 'hidden';
+                    }
+                    holdBlackUntilFadeIn = false;
+                }
+            };
+
+            const tryRelease = () => {
+                if (releaseStarted) return;
+
+                // 旧フレーム（動画1）で黒解除されないよう、src が新ソースであることを確認
+                const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+                if (expectedSrc && nowSrc && nowSrc !== expectedSrc) return;
+
+                // 「映像フレームが利用可能」になってから解除する
+                if ((videoElement.readyState | 0) < 2) return;
+                if ((videoElement.videoWidth | 0) <= 0 || (videoElement.videoHeight | 0) <= 0) return;
+
+                releaseHeldBlackOnce();
+            };
+
+            // loadeddata は「最初の映像フレームがデコード済み」なので、ここで解除するのが最も安全
+            videoElement.addEventListener('loadeddata', tryRelease, { once: true });
+
+            // 念のため保険（loadeddata 前後で条件が揃った瞬間に解除）
+            let tries = 0;
+            const rafTry = () => {
+                if (releaseStarted) return;
+                tries++;
+                if (tries > 180) return; // 約3秒で打ち切り（黒のまま維持）
+                tryRelease();
+                if (!releaseStarted) requestAnimationFrame(rafTry);
+            };
+            requestAnimationFrame(rafTry);
+        }
+
         videoElement.play()
             .then(() => {
                 logInfo('[fullscreen.js] Playback started successfully.');
@@ -1558,8 +1661,18 @@ function cancelFadeOut() {
         logInfo('[fullscreen.js] FTB fadeout canceled.');
     }
     if (fadeCanvas) {
-        fadeCanvas.style.opacity = '0';
-        fadeCanvas.style.display = 'none';
+        // offAir/OFF の「黒保持」中は fadeCanvas を消さない（次オンエア時の前フレーム混入を防ぐ）
+        const keepBlackHold = !!(
+            typeof holdBlackUntilFadeIn !== 'undefined' &&
+            holdBlackUntilFadeIn &&
+            fadeCanvas.style.display !== 'none' &&
+            parseFloat(fadeCanvas.style.opacity || '0') > 0.9
+        );
+
+        if (!keepBlackHold) {
+            fadeCanvas.style.opacity = '0';
+            fadeCanvas.style.display = 'none';
+        }
     }
 }
 
