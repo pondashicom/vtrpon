@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.5.1
+//     ver 2.5.5
 // -----------------------
 
 // -----------------------
@@ -635,6 +635,14 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
         return;
     }
 
+    // 次ソースが音声ファイルの場合は、前フレームオーバーレイを即時クリア（数秒残る問題の対策）
+    const nextPath = (itemData && typeof itemData.path === 'string') ? itemData.path : '';
+    const nextIsAudio = !!nextPath && !nextPath.startsWith('UVC_DEVICE') &&
+        /\.(mp3|wav|m4a|aac|flac|ogg|opus|wma|aif|aiff)(\?.*)?$/i.test(nextPath);
+    if (nextIsAudio) {
+        onairCancelSeamlessOverlay('next-is-audio');
+    }
+
     // nowonairフラグ管理
     onairNowOnAir = true;
 
@@ -643,15 +651,6 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
 
     // UI更新
     onairUpdateUI(itemData);
-
-    // ビデオプレーヤーセット
-    onairSetupPlayer(itemData);
-
-    // UVCデバイスの場合はスキップ
-    if (itemData.endMode === "UVC") {
-        logDebug('[onair.js] UVC device detected. Skipping standard playback process.');
-        return;
-    }
 
     // 再生プロセス呼び出し
     onairStartPlayback(itemData);

@@ -88,9 +88,6 @@ function initializeFullscreenArea() {
 
     if (videoElement) {
         videoElement.pause();
-        // src を空にすると currentSrc の残留やデコードリセットで副作用が出やすいので、ここでは空にしない
-        // videoElement.src = '';
-        // videoElement.currentTime = 0;
 
         // UVC デバイスのストリームをリセット
         if (videoElement.srcObject) {
@@ -198,6 +195,37 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     const nextIsPause  = (nextStartModeUpper === 'PAUSE');
     const nextIsFadeIn = (nextStartModeUpper === 'FADEIN');
 
+    // 次ソースが音声ファイルの場合は、前フレームオーバーレイを即時クリア（数秒残る問題の対策）
+    const nextPath = (itemData && typeof itemData.path === 'string') ? itemData.path : '';
+    const nextIsAudio = !!nextPath && !nextPath.startsWith('UVC_DEVICE') && (
+        /\.(mp3|wav|m4a|aac|flac|ogg|opus|wma|aif|aiff)(\?.*)?$/i.test(nextPath) ||
+        /\.(mp3|wav|m4a|aac|flac|ogg|opus|wma|aif|aiff)(#.*)?$/i.test(nextPath)
+    );
+    if (nextIsAudio) {
+        try {
+            if (typeof fullscreenSeamlessCleanup === 'function') {
+                fullscreenSeamlessCleanup();
+            }
+        } catch (_) {
+            // ignore
+        }
+        fullscreenSeamlessCleanup = null;
+        seamlessGuardActive = false;
+        overlayForceBlack = false;
+        try {
+            const oc = document.getElementById('overlay-canvas');
+            if (oc) {
+                const ctx = oc.getContext('2d');
+                if (ctx) ctx.clearRect(0, 0, oc.width, oc.height);
+                oc.style.opacity = '0';
+                oc.style.visibility = 'hidden';
+                oc.style.display = 'none';
+            }
+        } catch (_) {
+            // ignore
+        }
+    }
+
     // 次ソースがUVCの場合
     suppressFadeUntilPlaying = nextIsUVC;
     pendingUvcFadeInSec = (nextIsUVC && nextIsFadeIn && Number(itemData.startFadeInSec) > 0)
@@ -213,7 +241,7 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     }
 
     // 前ソースオーバーレイキャプチャをスキップ
-    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsFadeIn
+    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsFadeIn || nextIsAudio
         || (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn);
 
     if (!skipOverlayCapture) {
@@ -223,10 +251,12 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
             logDebug(`[fullscreen.js] overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
         }
     } else {
-        if (nextIsUVC) {
-            logInfo('[fullscreen.js] Overlay capture skipped because next source is UVC.');
+        if (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn) {
+            logInfo('[fullscreen.js] Overlay capture skipped because holdBlackUntilFadeIn is active.');
         } else if (isCurrentSourceUVC()) {
             logInfo('[fullscreen.js] Overlay capture skipped because current source is UVC.');
+        } else if (nextIsUVC) {
+            logInfo('[fullscreen.js] Overlay capture skipped because next source is UVC.');
         } else if (nextIsPause) {
             logInfo('[fullscreen.js] Overlay capture skipped because next startMode is PAUSE.');
         } else if (nextIsFadeIn) {
