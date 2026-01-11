@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.4
+//     ver 2.5.5
 // -----------------------
 
 // -----------------------
@@ -1648,14 +1648,18 @@ function handleEndModeFTB() {
             initializeFullscreenArea();
 
             // FTB 完了後フェードキャンバス非表示
-            fadeCanvas.style.opacity = '0';
-            fadeCanvas.style.display = 'none';
-            fadeCanvas.style.visibility = 'hidden';
+            // ※ initializeFullscreenArea() が holdBlackUntilFadeIn=true の間は fadeCanvas を黒表示のまま保持する
+            if (!holdBlackUntilFadeIn) {
+                fadeCanvas.style.opacity = '0';
+                fadeCanvas.style.display = 'none';
+                fadeCanvas.style.visibility = 'hidden';
+                logInfo('[fullscreen.js] FTB complete: Canvas hidden.');
+            } else {
+                logInfo('[fullscreen.js] FTB complete: Holding black until next playback.');
+            }
 
             // 音量測定停止
             stopVolumeMeasurement();
-
-            logInfo('[fullscreen.js] FTB complete: Canvas hidden.');
         }
     }, frameInterval);
 }
