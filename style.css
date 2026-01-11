@@ -1,4 +1,4 @@
-﻿/* style.css 2.5.2 */
+﻿/* style.css 2.5.5 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -672,6 +672,17 @@ html {
 .button-gray:hover {
     background-color: #a6a6a6;
     box-shadow: 0 0 1.125rem rgba(90, 98, 104, 0.8);
+}
+
+/* 非アクティブだがアイテムあり */
+.button-gray.playlist-saved:not(.button-green) {
+    box-shadow:
+        0 0 0 0.06rem rgba(0, 200, 0, 0.55),
+        0 0 0.30rem rgba(0, 200, 0, 0.65),
+        0 0 0.60rem rgba(0, 200, 0, 0.25),
+        0 0 0.625rem rgba(105, 105, 105, 0.6);
+    backdrop-filter: blur(0.25rem);
+    transition: all 0.3s ease;
 }
 
 /* ------------ */

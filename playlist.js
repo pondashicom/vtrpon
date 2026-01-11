@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.5.2
+//     ver 2.5.5
 // -----------------------
 
 
@@ -3760,6 +3760,28 @@ function updateStoreButtons() {
             continue;
         }
         const storedPlaylist = localStorage.getItem(`vtrpon_playlist_store_${i}`);
+
+        // 中身ありフラグ（起動直後でも反映できるよう localStorage から判定）
+        let hasItems = false;
+        if (storedPlaylist) {
+            try {
+                const d = JSON.parse(storedPlaylist);
+                if (d && Array.isArray(d.data) && d.data.length > 0) {
+                    hasItems = true;
+                } else if (Array.isArray(d) && d.length > 0) {
+                    // 旧形式互換
+                    hasItems = true;
+                }
+            } catch (e) {
+                hasItems = false;
+            }
+        }
+
+        if (hasItems) {
+            button.classList.add('playlist-saved');
+        } else {
+            button.classList.remove('playlist-saved');
+        }
 
         // 変更後方針：空/保存あり問わず常にグレー
         button.classList.add('button-gray');
