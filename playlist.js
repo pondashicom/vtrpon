@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 // (3) UVC以外のファイル存在チェック
-                const exists = await checkFileExists(item.path);
+                const exists = await window.electronAPI.checkFileExists(item.path);
                 if (!exists && !item.mediaOffline) {
                     item.mediaOffline = true;
                     updated = true;
