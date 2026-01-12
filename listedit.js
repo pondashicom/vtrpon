@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.5.1
+//     ver 2.5.5
 // -----------------------
 
 // -----------------------
@@ -2434,7 +2434,7 @@ function updateGotoConfigUI() {
                 const opt = document.createElement('option');
                 const itemId = item.playlistItem_id;
                 opt.value = itemId ? String(itemId) : '';
-                const orderNumber = (typeof item.order === 'number') ? (item.order + 1) : (idx + 1);
+                const orderNumber = idx + 1;
                 const itemName = item.name || item.path || 'Untitled';
                 opt.textContent = `${orderNumber}: ${itemName}`;
                 endGotoItemSelect.appendChild(opt);
@@ -2451,12 +2451,33 @@ function updateGotoConfigUI() {
         endGotoPlaylistSelect.disabled = false;
         endGotoItemSelect.disabled = (items.length === 0);
 
-        // 旧データ（GOTO設定なし）でもクラッシュしないよう、未設定の場合のみデフォルトを確定させる
+        // GOTO設定が未設定／不正な場合は、現在の保存プレイリスト内容に合わせて補正する（削除・移動に追従）
+        const curGotoPlaylistRaw = currentItem.endGotoPlaylist;
+        const curGotoItemIdRaw = currentItem.endGotoItemId;
+
+        const curGotoPlaylist = (curGotoPlaylistRaw !== undefined && curGotoPlaylistRaw !== null)
+            ? Number(curGotoPlaylistRaw)
+            : NaN;
+
+        const curGotoItemId = (typeof curGotoItemIdRaw === 'string' && curGotoItemIdRaw)
+            ? String(curGotoItemIdRaw)
+            : '';
+
         const isUnset = (
-            typeof currentItem.endGotoPlaylist === 'undefined' ||
-            typeof currentItem.endGotoItemId === 'undefined'
+            typeof curGotoPlaylistRaw === 'undefined' ||
+            typeof curGotoItemIdRaw === 'undefined'
         );
-        if (isUnset) {
+
+        const isValidPlaylist = Number.isFinite(curGotoPlaylist) && saved.some(pl => pl && pl.slot === curGotoPlaylist);
+        let isValidItem = false;
+        if (isValidPlaylist && curGotoItemId) {
+            const target = saved.find(pl => pl && pl.slot === curGotoPlaylist);
+            const targetItems = (target && Array.isArray(target.items)) ? target.items : [];
+            isValidItem = targetItems.some(it => it && String(it.playlistItem_id) === curGotoItemId);
+        }
+
+        const needsFix = isUnset || !isValidPlaylist || (isValidPlaylist && !isValidItem);
+        if (needsFix) {
             if (typeof stateControl.setGotoConfigForItem === 'function') {
                 stateControl.setGotoConfigForItem(currentEditingItemId, defaults.endGotoPlaylist, defaults.endGotoItemId);
             } else if (typeof stateControl.setPlaylistState === 'function' && typeof stateControl.getPlaylistState === 'function') {
@@ -2474,7 +2495,6 @@ function updateGotoConfigUI() {
                 stateControl.setPlaylistState(updated);
             }
         }
-
     } finally {
         isGotoConfigUIUpdating = false;
     }

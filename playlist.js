@@ -4496,6 +4496,13 @@ async function simulateRightArrowKey() {
         }));
         await stateControl.setPlaylistState(updatedPlaylist);
         await updatePlaylistUI();
+        try {
+            if (window.electronAPI && typeof window.electronAPI.updateEditState === 'function') {
+                window.electronAPI.updateEditState(null);
+            }
+        } catch (_) {
+            // ignore
+        }
         currentSelectedIndex = -1;
         logOpe('[playlist.js] Playlist selection cleared after right arrow simulation.');
     } catch (error) {
