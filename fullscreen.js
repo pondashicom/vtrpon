@@ -477,6 +477,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
             overlayCanvas.style.opacity = '1';
             overlayCanvas.style.display = 'block';
+            overlayCanvas.style.visibility = 'visible';
             seamlessGuardActive = true;
 
             // 音声アイテムから映像アイテムへの復帰時
