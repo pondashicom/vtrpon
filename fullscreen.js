@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.5
+//     ver 2.5.6
 // -----------------------
 
 // -----------------------
@@ -94,6 +94,15 @@ function initializeFullscreenArea() {
             const tracks = videoElement.srcObject.getTracks();
             tracks.forEach(track => track.stop());
             videoElement.srcObject = null;
+        }
+
+        // offAir 時にブラウザ側の最終フレーム保持を断つ（src クリア + 空ロード）
+        try {
+            videoElement.removeAttribute('src');
+            videoElement.src = '';
+            videoElement.load();
+        } catch (_) {
+            // ignore
         }
     }
 
