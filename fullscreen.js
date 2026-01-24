@@ -1316,8 +1316,70 @@ window.electronAPI.ipcRenderer.on('control', (event, data) => {
 // IN点からOUT点までの動画監視
 // ------------------------------------
 let playbackMonitor = null;
+let fullscreenPendingEndMode = null;
+let fullscreenPendingEndModeRafId = null;
+
+function fullscreenStopPendingEndModeWatcher() {
+    if (fullscreenPendingEndModeRafId !== null) {
+        cancelAnimationFrame(fullscreenPendingEndModeRafId);
+        fullscreenPendingEndModeRafId = null;
+    }
+}
+
+function fullscreenStartPendingEndModeWatcher() {
+    fullscreenStopPendingEndModeWatcher();
+
+    const videoElement = document.getElementById('fullscreen-video');
+    if (!videoElement) return;
+
+    const tick = () => {
+        if (!fullscreenPendingEndMode) {
+            fullscreenPendingEndModeRafId = null;
+            return;
+        }
+
+        const duration = (typeof videoElement.duration === 'number' && !Number.isNaN(videoElement.duration) && videoElement.duration > 0)
+            ? videoElement.duration
+            : null;
+
+        let effectiveOutPoint = globalState.outPoint;
+
+        if (duration !== null && (!effectiveOutPoint || effectiveOutPoint <= 0 || effectiveOutPoint > duration)) {
+            effectiveOutPoint = duration;
+        }
+
+        if (effectiveOutPoint && effectiveOutPoint > 0) {
+            const currentTime = videoElement.currentTime;
+
+            // フレーム精度で OUT 到達を検知（intervalだと周回ごとに遅延が乗って累積しやすい）
+            if (videoElement.ended || currentTime >= effectiveOutPoint) {
+                const mode = fullscreenPendingEndMode;
+                fullscreenPendingEndMode = null;
+                fullscreenStopPendingEndModeWatcher();
+
+                try { stopVolumeMeasurement(); } catch (_) {}
+
+                if (mode === 'REPEAT') {
+                    if ((globalState.startMode || '').toUpperCase() === 'OFF') {
+                        handleEndModeOFF();
+                    } else {
+                        handleEndMode();
+                    }
+                } else {
+                    handleEndMode();
+                }
+                return;
+            }
+        }
+
+        fullscreenPendingEndModeRafId = requestAnimationFrame(tick);
+    };
+
+    fullscreenPendingEndModeRafId = requestAnimationFrame(tick);
+}
 
 function monitorVideoPlayback() {
+
     const videoElement = document.getElementById('fullscreen-video');
 
     if (!videoElement) {
@@ -1464,6 +1526,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
             case 'trigger-endMode':
                 const receivedEndMode = value || 'PAUSE';
                 logInfo(`[fullscreen.js]  Triggering end mode: ${receivedEndMode}`);
+
                 if (typeof commandData.startMode === 'string' && commandData.startMode.trim() !== '') {
                     const newStart = commandData.startMode.toUpperCase();
                     if ((globalState.startMode || '').toUpperCase() !== newStart) {
@@ -1475,15 +1538,8 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     logDebug(`[fullscreen.js] Updating globalState.endMode from ${globalState.endMode} to ${receivedEndMode}`);
                     globalState.endMode = receivedEndMode;
                 }
-                if (receivedEndMode === 'REPEAT') {
-                    if ((globalState.startMode || '').toUpperCase() === 'OFF') {
-                        handleEndModeOFF();
-                    } else {
-                        handleEndMode('REPEAT');
-                    }
-                } else {
-                    handleEndMode(receivedEndMode);
-                }
+                fullscreenPendingEndMode = receivedEndMode;
+                fullscreenStartPendingEndModeWatcher();
                 break;
             case 'start-pre-ftb':
                 {
