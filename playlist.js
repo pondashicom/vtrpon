@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.5.5
+//     ver 2.5.7
 // -----------------------
 
 
@@ -1920,6 +1920,9 @@ function createFileInfo(file, index) {
                     <span class="label">OUT</span><span class="value">${outPoint}</span>
                 </div>
                 <div class="file-details-row">
+                    <span class="label">TOTAL</span><span class="value">${file.totalRemainDisplay ? file.totalRemainDisplay : ""}</span>
+                </div>
+                <div class="file-details-row">
                     <span class="label">TYPE</span><span class="value">${fileType}</span>
                 </div>
                 <div class="file-details-row">
@@ -2141,7 +2144,66 @@ async function updatePlaylistUI() {
         logInfo('[playlist.js] DSK reconcile failed:', e);
     }
     // ソート
-    const sortedPlaylist = playlist.sort((a, b) => a.order - b.order);
+    const sortedPlaylistBase = getSortedPlaylist(playlist);
+
+    // TOTAL（予測）を全アイテムに付与（UI表示用。stateには保存しない）
+    const storeNumberRaw =
+        (activePlaylistIndex !== undefined && activePlaylistIndex !== null)
+            ? activePlaylistIndex
+            : (typeof getActivePlaylistSlotOrDefault === 'function' ? getActivePlaylistSlotOrDefault(1) : 1);
+
+    const storeNumberNum = Number(storeNumberRaw);
+    const storeNumber = (Number.isFinite(storeNumberNum) && storeNumberNum >= 1 && storeNumberNum <= 9) ? storeNumberNum : 1;
+
+    // 表示側が totalRemainDisplay を見ていない可能性があるので、互換用に totalRemain も持たせる
+    const sortedPlaylist = sortedPlaylistBase.map(it => ({
+        ...it,
+        totalRemainDisplay: null,
+        totalRemain: null
+    }));
+
+    try {
+        for (let i = 0; i < sortedPlaylist.length; i += 1) {
+            const it = sortedPlaylist[i];
+            if (!it) continue;
+
+            const startPlayable = isPlayableStartMode(it.startMode);
+            const startPause = isPauseStartMode(it.startMode);
+
+            // PLAY/FADEIN と PAUSE 以外は表示しない（従来どおり）
+            if (!startPlayable && !startPause) continue;
+
+            let totalStr = null;
+
+            // 自分だけで終わる（END=OFF/PAUSE）のときは「自分の尺」だけ表示
+            if (isOffOrPauseEndMode(it.endMode)) {
+                const durSecSelf = parseDurationToSeconds(it.duration, 30);
+                if (durSecSelf === Infinity) {
+                    totalStr = '∞';
+                } else if (Number.isFinite(durSecSelf)) {
+                    totalStr = formatSecondsToTC(durSecSelf, 30);
+                } else {
+                    totalStr = null;
+                }
+            } else {
+                // それ以外は通常どおり、停止点までの累積
+                if (startPlayable) {
+                    totalStr = computeTotalRemainDisplay(storeNumber, sortedPlaylist, it.playlistItem_id) || null;
+                } else {
+                    // StartMode=PAUSE でも計算したいので、計算時だけ開始アイテムを PLAY 扱いにする（UI表示用・state保存なし）
+                    const patchedPlaylist = sortedPlaylist.slice();
+                    patchedPlaylist[i] = { ...patchedPlaylist[i], startMode: 'PLAY' };
+                    totalStr = computeTotalRemainDisplay(storeNumber, patchedPlaylist, it.playlistItem_id) || null;
+                }
+            }
+
+            // 互換: 両方に入れる（表示側がどっちを参照していても表示される）
+            it.totalRemainDisplay = totalStr;
+            it.totalRemain = it.totalRemainDisplay;
+        }
+    } catch (_) {
+        // ignore（TOTAL計算が失敗しても描画は継続）
+    }
 
     // DnD: 空リスト/末尾ドロップを受けるため、コンテナ側のリスナーを一度だけバインド
     bindPlaylistContainerDragDrop(playlistItemsContainer);
@@ -2199,6 +2261,306 @@ async function updatePlaylistUI() {
 }
 
 // ----------------------
+// 総尺（予測）計算ヘルパー（タイマー無し）
+// ----------------------
+
+function parseDurationToSeconds(duration, fps = 30) {
+    if (duration === Infinity) return Infinity;
+    if (duration === null || duration === undefined) return NaN;
+
+    if (typeof duration === 'number') {
+        return Number.isFinite(duration) ? duration : NaN;
+    }
+
+    const s = String(duration).trim();
+    if (!s) return NaN;
+
+    // UVC / Live 扱い（現行の getMetadata は duration: "UVC" を返す）
+    if (s.toUpperCase() === 'UVC') return Infinity;
+
+    // "Unknown" 等
+    if (s.toLowerCase() === 'unknown') return NaN;
+
+    // "HH:MM:SS:FF" / "HH:MM:SS" / "MM:SS" / "SS"
+    if (s.includes(':')) {
+        const parts = s.split(':').map(p => p.trim());
+        if (parts.some(p => p === '' || Number.isNaN(Number(p)))) return NaN;
+
+        let sec = 0;
+
+        // HH:MM:SS:FF
+        if (parts.length === 4) {
+            const hh = Number(parts[0]);
+            const mm = Number(parts[1]);
+            const ss = Number(parts[2]);
+            const ff = Number(parts[3]);
+
+            if (!Number.isFinite(hh) || !Number.isFinite(mm) || !Number.isFinite(ss) || !Number.isFinite(ff)) return NaN;
+            if (!Number.isFinite(Number(fps)) || Number(fps) <= 0) return NaN;
+
+            sec = (hh * 3600) + (mm * 60) + ss + (ff / Number(fps));
+            return Number.isFinite(sec) ? sec : NaN;
+        }
+
+        // HH:MM:SS
+        if (parts.length === 3) {
+            sec = Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
+            return Number.isFinite(sec) ? sec : NaN;
+        }
+
+        // MM:SS
+        if (parts.length === 2) {
+            sec = Number(parts[0]) * 60 + Number(parts[1]);
+            return Number.isFinite(sec) ? sec : NaN;
+        }
+
+        // SS
+        if (parts.length === 1) {
+            sec = Number(parts[0]);
+            return Number.isFinite(sec) ? sec : NaN;
+        }
+
+        return NaN;
+    }
+
+    // 数字文字列（秒）
+    const n = Number(s);
+    return Number.isFinite(n) ? n : NaN;
+}
+
+function isPlayableStartMode(startMode) {
+    const m = String(startMode || '').toUpperCase();
+    return (m === 'PLAY' || m === 'FADEIN' || m === 'FADE_IN' || m === 'FADE-IN');
+}
+
+function isPauseStartMode(startMode) {
+    const m = String(startMode || '').toUpperCase();
+    return (m === 'PAUSE');
+}
+
+function normalizeEndMode(endMode) {
+    return String(endMode || 'OFF').toUpperCase();
+}
+
+function isOffOrPauseEndMode(endMode) {
+    const m = normalizeEndMode(endMode);
+    return (m === 'OFF' || m === 'OFFAIR' || m === 'OFF_AIR' || m === 'OFF-AIR' || m === 'PAUSE');
+}
+
+function getSortedPlaylist(list) {
+    if (!Array.isArray(list)) return [];
+    return list.slice().sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+}
+
+function formatSecondsToTC(seconds, fps = 30) {
+    if (!Number.isFinite(seconds) || seconds < 0) return '';
+
+    const fpsNum = Number(fps);
+    if (!Number.isFinite(fpsNum) || fpsNum <= 0) return '';
+
+    // 四捨五入でフレームへ（0.5frame 相当のズレを吸収）
+    const totalFrames = Math.max(0, Math.round(seconds * fpsNum));
+
+    const framesPerHour = Math.round(3600 * fpsNum);
+    const framesPerMin = Math.round(60 * fpsNum);
+
+    const hh = Math.floor(totalFrames / framesPerHour);
+    const remH = totalFrames % framesPerHour;
+
+    const mm = Math.floor(remH / framesPerMin);
+    const remM = remH % framesPerMin;
+
+    const ss = Math.floor(remM / Math.round(fpsNum));
+    const ff = remM % Math.round(fpsNum);
+
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}:${String(ff).padStart(2, '0')}`;
+}
+
+function loadPlaylistStoreFromLocalStorage(storeNumber) {
+    const n = Number(storeNumber);
+    if (!Number.isFinite(n) || n < 1 || n > 9) return null;
+
+    const key = `vtrpon_playlist_store_${n}`;
+    const stored = localStorage.getItem(key);
+    if (!stored) return null;
+
+    try {
+        const parsed = JSON.parse(stored);
+        const data = Array.isArray(parsed.data) ? parsed.data : [];
+        return getSortedPlaylist(data);
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * 総尺（予測）を計算する
+ * - 開始: 現在選択アイテム（storeNumber + itemId）
+ * - 停止: END が OFF/PAUSE、または NEXT/GOTO 先の START が PAUSE のとき
+ * - REPEAT: count が ∞ なら ∞、有限なら加算して repeatEndMode（PAUSE/OFF/NEXT）に従う
+ * - GOTO: endGotoPlaylist / endGotoItemId を辿る（他ストアも可）
+ * - ループ検出: ∞
+ */
+function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, startItemId) {
+    const FPS = 30;
+
+    const store0 = Number(currentStoreNumber);
+    if (!Number.isFinite(store0) || store0 < 1 || store0 > 9) {
+        return '';
+    }
+
+    const storeCache = new Map();
+    storeCache.set(store0, getSortedPlaylist(currentStorePlaylist));
+
+    const getStore = (storeNum) => {
+        const n = Number(storeNum);
+        if (!Number.isFinite(n) || n < 1 || n > 9) return null;
+        if (storeCache.has(n)) return storeCache.get(n);
+        const loaded = loadPlaylistStoreFromLocalStorage(n);
+        if (loaded) storeCache.set(n, loaded);
+        return loaded;
+    };
+
+    const findIndexById = (playlist, itemId) => {
+        if (!Array.isArray(playlist)) return -1;
+        return playlist.findIndex(it => it && it.playlistItem_id === itemId);
+    };
+
+    const visited = new Set();
+
+    let total = 0;
+
+    let storeNum = store0;
+    let playlist = getStore(storeNum);
+    if (!playlist) return '';
+
+    let idx = findIndexById(playlist, startItemId);
+    if (idx < 0) return '';
+
+    // start mode gate（選択時の仕様）
+    const startItem = playlist[idx];
+    if (!isPlayableStartMode(startItem.startMode)) {
+        return '';
+    }
+
+    // 安全上限（無限ループ防止）
+    const MAX_STEPS = 5000;
+
+    for (let step = 0; step < MAX_STEPS; step += 1) {
+        const it = playlist[idx];
+        if (!it) break;
+
+        const key = `${storeNum}:${it.playlistItem_id}`;
+        if (visited.has(key)) {
+            return '∞';
+        }
+        visited.add(key);
+
+        const durSec = parseDurationToSeconds(it.duration, FPS);
+        if (durSec === Infinity) return '∞';
+        if (!Number.isFinite(durSec)) {
+            // duration が不明なら「嘘の総尺」を出さない（ここで打ち切り）
+            break;
+        }
+        total += durSec;
+
+        const endMode = normalizeEndMode(it.endMode);
+
+        // OFF / PAUSE で停止
+        if (isOffOrPauseEndMode(endMode)) {
+            return formatSecondsToTC(total, FPS);
+        }
+
+        // REPEAT
+        if (endMode === 'REPEAT') {
+            const rawCount = it.repeatCount;
+            const parsedCount = (Number.isFinite(Number(rawCount)) && Number(rawCount) >= 1)
+                ? Math.floor(Number(rawCount))
+                : null;
+
+            if (parsedCount === null) {
+                // ∞ 扱い
+                return '∞';
+            }
+
+            // 指定回数分を追加で加算
+            total += durSec * parsedCount;
+
+            const after = normalizeEndMode(it.repeatEndMode);
+            if (after === 'OFF' || after === 'PAUSE') {
+                return formatSecondsToTC(total, FPS);
+            }
+            // after が NEXT のときだけ続行（それ以外は安全に停止）
+            if (after !== 'NEXT') {
+                return formatSecondsToTC(total, FPS);
+            }
+            // 続行は NEXT と同じ扱いで下へ落とす
+        }
+
+        // NEXT（末尾の場合は先頭へラップ）
+        if (endMode === 'NEXT' || (endMode === 'REPEAT' && normalizeEndMode(it.repeatEndMode) === 'NEXT')) {
+            const nextIdx = (idx + 1 >= playlist.length) ? 0 : (idx + 1);
+
+            // 念のため null ガード
+            const nextItem = playlist[nextIdx];
+            if (!nextItem) return formatSecondsToTC(total, FPS);
+
+            // start mode gate
+            if (isPauseStartMode(nextItem.startMode)) {
+                return formatSecondsToTC(total, FPS);
+            }
+            if (!isPlayableStartMode(nextItem.startMode)) {
+                return formatSecondsToTC(total, FPS);
+            }
+
+            idx = nextIdx;
+            continue;
+        }
+
+        // GOTO
+        if (endMode === 'GOTO') {
+            const targetStore = Number(it.endGotoPlaylist);
+            const targetId = (typeof it.endGotoItemId === 'string' && it.endGotoItemId) ? it.endGotoItemId : null;
+
+            if (!Number.isFinite(targetStore) || !targetId) {
+                return formatSecondsToTC(total, FPS);
+            }
+
+            const tgtPlaylist = getStore(targetStore);
+            if (!tgtPlaylist) {
+                return formatSecondsToTC(total, FPS);
+            }
+
+            const tgtIdx = findIndexById(tgtPlaylist, targetId);
+            if (tgtIdx < 0) {
+                return formatSecondsToTC(total, FPS);
+            }
+
+            const tgtItem = tgtPlaylist[tgtIdx];
+            if (!tgtItem) return formatSecondsToTC(total, FPS);
+
+            if (isPauseStartMode(tgtItem.startMode)) {
+                return formatSecondsToTC(total, FPS);
+            }
+            if (!isPlayableStartMode(tgtItem.startMode)) {
+                return formatSecondsToTC(total, FPS);
+            }
+
+            storeNum = targetStore;
+            playlist = tgtPlaylist;
+            idx = tgtIdx;
+            continue;
+        }
+
+        // 未知/未対応 endMode は安全に停止
+        return formatSecondsToTC(total, FPS);
+    }
+
+    // 上限到達は∞扱い
+    return '∞';
+}
+
+// ----------------------
 // エディットに動画を送る
 // ----------------------
 
@@ -2241,11 +2603,36 @@ async function handlePlaylistItemClick(item, index) {
         currentSelectedIndex = playlistItems.findIndex(el => el.dataset.playlistItemId === targetPlaylistItemId);
 
         // プレイリストの選択状態と編集状態更新
-        const updatedPlaylist = playlist.map(file => ({
+        // ついでに「総尺（予測）」を選択アイテムにだけ付与（タイマー無し）
+        const activeStoreNumber = (typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9)
+            ? activePlaylistIndex
+            : (typeof getActivePlaylistSlotOrDefault === 'function' ? getActivePlaylistSlotOrDefault(1) : 1);
+
+        // まず selection/editing を確定
+        let updatedPlaylist = playlist.map(file => ({
             ...file,
             selectionState: file.playlistItem_id === targetPlaylistItemId ? "selected" : "unselected",
-            editingState: file.playlistItem_id === targetPlaylistItemId ? "editing" : null
+            editingState: file.playlistItem_id === targetPlaylistItemId ? "editing" : null,
+            totalRemainDisplay: null
         }));
+
+        // 総尺計算（StartMode が PLAY/FADEIN のときだけ）
+        try {
+            const sorted = getSortedPlaylist(updatedPlaylist);
+            const selected = sorted.find(it => it && it.playlistItem_id === targetPlaylistItemId);
+            if (selected && isPlayableStartMode(selected.startMode)) {
+                const totalStr = computeTotalRemainDisplay(activeStoreNumber, sorted, targetPlaylistItemId);
+                if (totalStr) {
+                    updatedPlaylist = updatedPlaylist.map(it => ({
+                        ...it,
+                        totalRemainDisplay: (it.playlistItem_id === targetPlaylistItemId) ? totalStr : null
+                    }));
+                }
+            }
+        } catch (e) {
+            // 総尺計算で失敗しても選択自体は成立させる（ログは最小限）
+        }
+
 
         // プレイリスト保存
         await stateControl.setPlaylistState(
