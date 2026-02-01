@@ -2401,12 +2401,12 @@ function loadPlaylistStoreFromLocalStorage(storeNumber) {
  * - GOTO: endGotoPlaylist / endGotoItemId を辿る（他ストアも可）
  * - ループ検出: ∞
  */
-function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, startItemId) {
+function computePlaySequenceAnalysis(currentStoreNumber, currentStorePlaylist, startItemId, { buildRows = false } = {}) {
     const FPS = 30;
 
     const store0 = Number(currentStoreNumber);
     if (!Number.isFinite(store0) || store0 < 1 || store0 > 9) {
-        return '';
+        return { totalStr: '', rows: [], note: '' };
     }
 
     const storeCache = new Map();
@@ -2427,20 +2427,98 @@ function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, sta
     };
 
     const visited = new Set();
+    const rows = [];
+
+    const pushRow = (storeNum, idx, it, durText, endModeTextOverride = null) => {
+        if (!buildRows) return;
+
+        const endModeText = endModeTextOverride || normalizeEndMode(it.endMode);
+
+        rows.push({
+            seq: rows.length + 1,
+            playlistNo: String(storeNum),
+            itemNo: String(idx + 1),
+            itemName: (it && typeof it.name === 'string') ? it.name : '',
+            dur: String(durText || ''),
+            startMode: String(it.startMode || ''),
+            endMode: String(endModeText || '')
+        });
+    };
 
     let total = 0;
 
     let storeNum = store0;
     let playlist = getStore(storeNum);
-    if (!playlist) return '';
+    if (!playlist) return { totalStr: '', rows: [], note: '' };
 
     let idx = findIndexById(playlist, startItemId);
-    if (idx < 0) return '';
+    if (idx < 0) return { totalStr: '', rows: [], note: '' };
 
     // start mode gate（選択時の仕様）
     const startItem = playlist[idx];
     if (!isPlayableStartMode(startItem.startMode)) {
-        return '';
+        if (buildRows) {
+            const endMode = normalizeEndMode(startItem.endMode);
+
+            let endModeTextForRow = endMode;
+            if (endMode === 'REPEAT') {
+                const rawCount = startItem.repeatCount;
+                const parsedCount = (Number.isFinite(Number(rawCount)) && Number(rawCount) >= 1)
+                    ? Math.floor(Number(rawCount))
+                    : null;
+                const after = normalizeEndMode(startItem.repeatEndMode);
+
+                if (parsedCount === null) {
+                    endModeTextForRow = `REPEAT (∞) -> ${after || ''}`.trim();
+                } else {
+                    const totalRepeatPlays = parsedCount + 1;
+                    endModeTextForRow = `REPEAT x${totalRepeatPlays} -> ${after || ''}`.trim();
+                }
+            } else if (endMode === 'GOTO') {
+                const p = Number(startItem.endGotoPlaylist);
+                const id = (typeof startItem.endGotoItemId === 'string' && startItem.endGotoItemId) ? startItem.endGotoItemId : '';
+                if (Number.isFinite(p) && id) {
+                    endModeTextForRow = `GOTO ${p}:${id}`;
+                }
+            }
+
+            const durSec = parseDurationToSeconds(startItem.duration, FPS);
+
+            let totalStrSingle = '';
+            if (durSec === Infinity) {
+                totalStrSingle = '∞';
+            } else if (Number.isFinite(durSec)) {
+                let effSec = durSec;
+
+                if (endMode === 'REPEAT') {
+                    const rawCount = startItem.repeatCount;
+                    const parsedCount = (Number.isFinite(Number(rawCount)) && Number(rawCount) >= 1)
+                        ? Math.floor(Number(rawCount))
+                        : null;
+
+                    if (parsedCount === null) {
+                        totalStrSingle = '∞';
+                        effSec = null;
+                    } else {
+                        effSec = durSec * (parsedCount + 1);
+                    }
+                }
+
+                if (effSec !== null && totalStrSingle !== '∞') {
+                    totalStrSingle = formatSecondsToTC(effSec, FPS);
+                }
+            }
+
+            pushRow(store0, idx, startItem, totalStrSingle, endModeTextForRow);
+
+            return {
+                totalStr: totalStrSingle,
+                rows,
+                note: 'Start Mode is not playable. Mapping was stopped here.'
+            };
+        }
+
+        return { totalStr: '', rows: [], note: '' };
     }
 
     // 安全上限（無限ループ防止）
@@ -2451,24 +2529,83 @@ function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, sta
         if (!it) break;
 
         const key = `${storeNum}:${it.playlistItem_id}`;
-        if (visited.has(key)) {
-            return '∞';
+    if (visited.has(key)) {
+            if (buildRows) {
+                rows.push({
+                    seq: rows.length + 1,
+                    playlistNo: '',
+                    itemNo: '',
+                    itemName: 'Loop continues',
+                    dur: '',
+                    startMode: '',
+                    endMode: ''
+                });
+            }
+            return { totalStr: '∞', rows, note: 'Loop detected. Mapping was stopped to avoid an infinite cycle.' };
         }
+
         visited.add(key);
 
+        const endMode = normalizeEndMode(it.endMode);
+
+        // 先に行を確定（ここで止まっても「そのアイテムが原因」と分かる）
+        // ※REPEAT は表示用に少しだけ整形（ロジック自体は同一）
+        let endModeTextForRow = endMode;
+        if (endMode === 'REPEAT') {
+            const rawCount = it.repeatCount;
+            const parsedCount = (Number.isFinite(Number(rawCount)) && Number(rawCount) >= 1)
+                ? Math.floor(Number(rawCount))
+                : null;
+
+            if (parsedCount === null) {
+                endModeTextForRow = 'REPEAT (∞)';
+            } else {
+                const after = normalizeEndMode(it.repeatEndMode);
+                endModeTextForRow = `REPEAT x${parsedCount + 1} -> ${after}`;
+            }
+        } else if (endMode === 'GOTO') {
+            const p = Number(it.endGotoPlaylist);
+            const id = (typeof it.endGotoItemId === 'string' && it.endGotoItemId) ? it.endGotoItemId : '';
+            if (Number.isFinite(p) && id) {
+                endModeTextForRow = `GOTO ${p}:${id}`;
+            }
+        }
+
         const durSec = parseDurationToSeconds(it.duration, FPS);
-        if (durSec === Infinity) return '∞';
+
+        let durText = '';
+        if (durSec === Infinity) {
+            durText = '∞';
+        } else if (Number.isFinite(durSec)) {
+            durText = formatSecondsToTC(durSec, FPS);
+        }
+
+        if (endMode === 'REPEAT' && durText !== '∞') {
+            const rawCount = it.repeatCount;
+            const parsedCount = (Number.isFinite(Number(rawCount)) && Number(rawCount) >= 1)
+                ? Math.floor(Number(rawCount))
+                : null;
+
+            if (parsedCount === null) {
+                durText = '∞';
+            } else if (Number.isFinite(durSec)) {
+                durText = formatSecondsToTC(durSec * (parsedCount + 1), FPS);
+            }
+        }
+
+        pushRow(storeNum, idx, it, durText, endModeTextForRow);
+
+        if (durSec === Infinity) return { totalStr: '∞', rows, note: 'LIVE device detected (UVC, etc.). Mapping was stopped here.' };
         if (!Number.isFinite(durSec)) {
             // duration が不明なら「嘘の総尺」を出さない（ここで打ち切り）
             break;
         }
         total += durSec;
 
-        const endMode = normalizeEndMode(it.endMode);
 
         // OFF / PAUSE で停止
         if (isOffOrPauseEndMode(endMode)) {
-            return formatSecondsToTC(total, FPS);
+            return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
         }
 
         // REPEAT
@@ -2480,7 +2617,7 @@ function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, sta
 
             if (parsedCount === null) {
                 // ∞ 扱い
-                return '∞';
+                return { totalStr: '∞', rows, note: 'Infinite repeat detected. Mapping was stopped here.' };
             }
 
             // 指定回数分を追加で加算
@@ -2488,11 +2625,11 @@ function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, sta
 
             const after = normalizeEndMode(it.repeatEndMode);
             if (after === 'OFF' || after === 'PAUSE') {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
             // after が NEXT のときだけ続行（それ以外は安全に停止）
             if (after !== 'NEXT') {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
             // 続行は NEXT と同じ扱いで下へ落とす
         }
@@ -2503,14 +2640,14 @@ function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, sta
 
             // 念のため null ガード
             const nextItem = playlist[nextIdx];
-            if (!nextItem) return formatSecondsToTC(total, FPS);
+            if (!nextItem) return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
 
             // start mode gate
             if (isPauseStartMode(nextItem.startMode)) {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
             if (!isPlayableStartMode(nextItem.startMode)) {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
 
             idx = nextIdx;
@@ -2523,27 +2660,27 @@ function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, sta
             const targetId = (typeof it.endGotoItemId === 'string' && it.endGotoItemId) ? it.endGotoItemId : null;
 
             if (!Number.isFinite(targetStore) || !targetId) {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
 
             const tgtPlaylist = getStore(targetStore);
             if (!tgtPlaylist) {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
 
             const tgtIdx = findIndexById(tgtPlaylist, targetId);
             if (tgtIdx < 0) {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
 
             const tgtItem = tgtPlaylist[tgtIdx];
-            if (!tgtItem) return formatSecondsToTC(total, FPS);
+            if (!tgtItem) return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
 
             if (isPauseStartMode(tgtItem.startMode)) {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
             if (!isPlayableStartMode(tgtItem.startMode)) {
-                return formatSecondsToTC(total, FPS);
+                return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
             }
 
             storeNum = targetStore;
@@ -2553,11 +2690,16 @@ function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, sta
         }
 
         // 未知/未対応 endMode は安全に停止
-        return formatSecondsToTC(total, FPS);
+        return { totalStr: formatSecondsToTC(total, FPS), rows, note: '' };
     }
 
-    // 上限到達は∞扱い
-    return '∞';
+    // 上限到達は∞扱い（現行挙動を維持）
+    return { totalStr: '∞', rows, note: 'Duration is unknown. Mapping was stopped.' };
+}
+
+function computeTotalRemainDisplay(currentStoreNumber, currentStorePlaylist, startItemId) {
+    const r = computePlaySequenceAnalysis(currentStoreNumber, currentStorePlaylist, startItemId, { buildRows: false });
+    return r.totalStr;
 }
 
 // ----------------------
@@ -5924,6 +6066,8 @@ function buildPlaylistContextMenuItems(playlistItemId) {
     const copyStateLabel = L('context-copy-item-state', 'アイテムの状態をコピー');
     const pasteStateLabel = L('context-paste-item-state', 'アイテムの状態をペースト');
 
+    const mapLabel = L('context-map', 'Map');
+
     const hasCopiedState = (typeof copiedItemState !== 'undefined') && !!copiedItemState;
 
     const startModeChildren = startModes.map(v => ({
@@ -5947,16 +6091,18 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         action: () => setPlaylistItemBgColor(playlistItemId, v)
     }));
 
-    // START → END → COPY → PASTE(条件付き無効) → BGCOLOR → RENAME
+    // START → END → MAP → COPY → PASTE(条件付き無効) → BGCOLOR → RENAME
     return [
         { label: startModeLabel, children: startModeChildren },
         { label: endModeLabel, children: endModeChildren },
         { label: copyStateLabel, action: () => copyItemState() },
         { label: pasteStateLabel, disabled: !hasCopiedState, action: () => pasteItemState() },
         { label: bgColorLabel, children: bgColorChildren },
-        { label: renameLabel, action: () => openItemRenameModal(playlistItemId) }
+        { label: renameLabel, action: () => openItemRenameModal(playlistItemId) },
+        { label: mapLabel, action: () => openPlaylistItemMapModal(playlistItemId) }
     ];
 }
+
 
 function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
     menuEl.innerHTML = '';
@@ -6105,6 +6251,264 @@ function hidePlaylistContextMenu() {
         playlistContextSubMenuElement.innerHTML = '';
     }
     playlistContextMenuTargetId = null;
+}
+
+// ---------------------------
+// Playlist Item Map（新規モーダル）
+// ---------------------------
+let playlistMapModalOverlayElement = null;
+let playlistMapModalPanelElement = null;
+let playlistMapModalBodyElement = null;
+let playlistMapModalCloseButtonElement = null;
+
+function ensurePlaylistMapModal() {
+    if (playlistMapModalOverlayElement) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'playlist-map-modal-overlay';
+    Object.assign(overlay.style, {
+        position: 'fixed',
+        left: '0',
+        top: '0',
+        width: '100%',
+        height: '100%',
+        zIndex: '20000',
+        background: 'rgba(0, 0, 0, 0.65)',
+        display: 'none',
+        alignItems: 'center',
+        justifyContent: 'center'
+    });
+
+    const panel = document.createElement('div');
+    panel.id = 'playlist-map-modal';
+    Object.assign(panel.style, {
+        width: '78%',
+        maxWidth: '960px',
+        maxHeight: '72%',
+        overflow: 'auto',
+        background: 'rgba(20, 20, 20, 0.98)',
+        color: '#fff',
+        border: '1px solid rgba(255, 255, 255, 0.22)',
+        borderRadius: '10px',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.55)',
+        padding: '10px 10px 8px 10px',
+        fontFamily: 'system-ui, "Segoe UI", sans-serif'
+    });
+
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '10px',
+        marginBottom: '10px'
+    });
+
+    const title = document.createElement('div');
+    title.textContent = 'Map';
+    Object.assign(title.style, {
+        fontSize: '15px',
+        fontWeight: '700',
+        letterSpacing: '0.03em',
+        opacity: '0.95'
+    });
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '×';
+    Object.assign(closeBtn.style, {
+        width: '36px',
+        height: '36px',
+        borderRadius: '8px',
+        border: '1px solid rgba(255, 255, 255, 0.25)',
+        background: 'rgba(255, 255, 255, 0.06)',
+        color: '#fff',
+        fontSize: '20px',
+        cursor: 'pointer'
+    });
+
+    const body = document.createElement('div');
+    body.id = 'playlist-map-modal-body';
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+    panel.appendChild(body);
+    overlay.appendChild(panel);
+
+    const close = () => {
+        overlay.style.display = 'none';
+        try {
+            window.electronAPI.updateModalState(false);
+        } catch (e) {
+        }
+    };
+
+    overlay.addEventListener('mousedown', (e) => {
+        if (e.target === overlay) {
+            e.preventDefault();
+            e.stopPropagation();
+            close();
+        }
+    });
+
+    closeBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+    });
+
+    document.body.appendChild(overlay);
+
+    playlistMapModalOverlayElement = overlay;
+    playlistMapModalPanelElement = panel;
+    playlistMapModalBodyElement = body;
+    playlistMapModalCloseButtonElement = closeBtn;
+}
+
+async function openPlaylistItemMapModal(playlistItemId) {
+    try {
+        hidePlaylistContextMenu();
+        ensurePlaylistMapModal();
+
+        const activeStoreNumber = (typeof getActivePlaylistSlotOrNull === 'function')
+            ? getActivePlaylistSlotOrNull()
+            : ((typeof activePlaylistIndex === 'number' && activePlaylistIndex >= 1 && activePlaylistIndex <= 9) ? activePlaylistIndex : null);
+
+        if (!activeStoreNumber) {
+            logInfo('[playlist.js] Map modal: active playlist slot is invalid.');
+            return;
+        }
+
+        const playlist = await stateControl.getPlaylistState();
+        if (!Array.isArray(playlist)) {
+            logInfo('[playlist.js] Map modal: playlist state is not an array.');
+            return;
+        }
+
+        const sorted = getSortedPlaylist(playlist);
+
+        const result = computePlaySequenceAnalysis(activeStoreNumber, sorted, playlistItemId, { buildRows: true });
+
+        renderPlaylistMapModalBody(result);
+
+        playlistMapModalOverlayElement.style.display = 'flex';
+        try {
+            window.electronAPI.updateModalState(true);
+        } catch (e) {
+        }
+    } catch (e) {
+        logInfo('[playlist.js] Map modal open failed:', e);
+        try {
+            window.electronAPI.updateModalState(false);
+        } catch (ex) {
+        }
+    }
+}
+
+function renderPlaylistMapModalBody(result) {
+    if (!playlistMapModalBodyElement) return;
+
+    const rows = (result && Array.isArray(result.rows)) ? result.rows : [];
+    const note = (result && typeof result.note === 'string') ? result.note : '';
+    const totalStr = (result && typeof result.totalStr === 'string') ? result.totalStr : '';
+
+    const wrap = document.createElement('div');
+
+    const table = document.createElement('table');
+    Object.assign(table.style, {
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '12px'
+    });
+
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+
+    const headers = [
+        'Play Sequence No.',
+        'Playlist No.',
+        'Item No.',
+        'Item name',
+        'Start Mode',
+        'End Mode',
+        'DUR'
+    ];
+
+    headers.forEach((h) => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        Object.assign(th.style, {
+            textAlign: 'left',
+            padding: '8px 8px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.18)',
+            position: 'sticky',
+            top: '0',
+            background: 'rgba(20, 20, 20, 0.98)'
+        });
+        trh.appendChild(th);
+    });
+
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+
+    rows.forEach((r) => {
+        const tr = document.createElement('tr');
+
+        const cells = [
+            r.seq,
+            r.playlistNo,
+            r.itemNo,
+            r.itemName,
+            r.startMode,
+            r.endMode,
+            r.dur
+        ];
+
+        cells.forEach((c) => {
+            const td = document.createElement('td');
+            td.textContent = (c === null || c === undefined) ? '' : String(c);
+            Object.assign(td.style, {
+                padding: '7px 8px',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                verticalAlign: 'top'
+            });
+            tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+
+    if (note) {
+        const noteEl = document.createElement('div');
+        noteEl.textContent = note;
+        Object.assign(noteEl.style, {
+            marginTop: '10px',
+            fontSize: '12px',
+            opacity: '0.75'
+        });
+        wrap.appendChild(noteEl);
+    }
+
+    const totalEl = document.createElement('div');
+    totalEl.textContent = `Total: ${totalStr || ''}`;
+    Object.assign(totalEl.style, {
+        marginTop: '8px',
+        fontSize: '13px',
+        fontWeight: '700',
+        opacity: '0.95',
+        textAlign: 'right'
+    });
+
+    wrap.appendChild(totalEl);
+
+    playlistMapModalBodyElement.innerHTML = '';
+    playlistMapModalBodyElement.appendChild(wrap);
 }
 
 // ---------------------------
