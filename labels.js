@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.5.2
+//     ver 2.5.7
 // -----------------------
 
 const labels = {
@@ -123,7 +123,7 @@ const labels = {
     "directonair-mode-button": "ダイレクト",
     "soundpad-mode-button": "パッド",
     "fillkey-mode-button": "フィルキー",
-    "playlist-name-display": "プレイリストストア",
+    "playlist-name-display": "Playlist 1",
     "playlise-save-button": "保存",
     "playlise1-button": "1",
     "playlise2-button": "2",
@@ -326,7 +326,7 @@ const labels = {
     "directonair-mode-button": "DIRECT",
     "soundpad-mode-button": "SOUND-PAD",
     "fillkey-mode-button": "FILL-KEY",
-    "playlist-name-display": "PLAY LIST STORE",
+    "playlist-name-display": "Playlist 1",
     "playlise-save-button": "SAVE",
     "playlise1-button": "1",
     "playlise2-button": "2",
