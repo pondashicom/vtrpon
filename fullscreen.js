@@ -784,6 +784,12 @@ function setupVideoPlayer() {
     try {
         videoElement.style.visibility = 'visible';
         videoElement.style.opacity = '1';
+
+        // 音声アイテムで display:none 等にしていた場合に備えて必ず復帰
+        videoElement.style.display = '';
+        if (videoElement.getAttribute('data-hide-due-to-audio') === '1') {
+            videoElement.removeAttribute('data-hide-due-to-audio');
+        }
     } catch (_) {
         // ignore
     }
@@ -825,6 +831,47 @@ function setupVideoPlayer() {
             }
         } catch (e) {
             logInfo('[fullscreen.js] channelCount detection failed (fallback to stereo path): ' + e);
+        }
+
+        // 音声のみ（video trackなし）の場合は、最終フレーム保持オーバレイを即時クリアして確実に黒にする
+        try {
+            const vw = (videoElement.videoWidth | 0);
+            const vh = (videoElement.videoHeight | 0);
+            if (vw === 0 || vh === 0) {
+                // 画面は黒のままにして、音だけ再生
+                try {
+                    videoElement.style.display = 'none';
+                    videoElement.setAttribute('data-hide-due-to-audio', '1');
+                } catch (_) {
+                    // ignore
+                }
+
+                try {
+                    if (typeof fullscreenSeamlessCleanup === 'function') {
+                        fullscreenSeamlessCleanup();
+                    }
+                } catch (_) {
+                    // ignore
+                }
+                fullscreenSeamlessCleanup = null;
+                seamlessGuardActive = false;
+                overlayForceBlack = false;
+
+                try {
+                    const oc = document.getElementById('overlay-canvas');
+                    if (oc) {
+                        const ctx = oc.getContext('2d');
+                        if (ctx) ctx.clearRect(0, 0, oc.width, oc.height);
+                        oc.style.opacity = '0';
+                        oc.style.visibility = 'hidden';
+                        oc.style.display = 'none';
+                    }
+                } catch (_) {
+                    // ignore
+                }
+            }
+        } catch (_) {
+            // ignore
         }
 
         // ソース切替時再バインド
@@ -875,6 +922,12 @@ async function setupUVCDevice() {
     try {
         videoElement.style.visibility = 'visible';
         videoElement.style.opacity = '1';
+
+        // 音声アイテムで display:none 等にしていた場合に備えて必ず復帰
+        videoElement.style.display = '';
+        if (videoElement.getAttribute('data-hide-due-to-audio') === '1') {
+            videoElement.removeAttribute('data-hide-due-to-audio');
+        }
     } catch (_) {
         // ignore
     }
