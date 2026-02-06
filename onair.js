@@ -534,9 +534,9 @@ function onairInitialize() {
     const elements = onairGetElements();
     onairReset(elements);
 
-    // FTB/オフエア黒は最前面（DSKも含めて黒にする）
+    // フェードキャンバスは映像より前、ただし DSK より下（FTB/OffAirでDSKを消すのは強制OFF処理で担保）
     if (elements && elements.onairFadeCanvas) {
-        elements.onairFadeCanvas.style.zIndex = '9999';
+        elements.onairFadeCanvas.style.zIndex = '8000';
         elements.onairFadeCanvas.style.pointerEvents = 'none';
     }
 
