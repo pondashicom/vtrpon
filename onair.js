@@ -670,6 +670,16 @@ window.electronAPI.onReceiveOffAirNotify(() => {
 function onairReset() {
     const elements = onairGetElements();
 
+    // FTB/DSK即カットで visibility/opacity が残ることがあるため、リセット時点で表示を復帰
+    try {
+        if (elements.onairVideoElement) {
+            elements.onairVideoElement.style.visibility = 'visible';
+            elements.onairVideoElement.style.opacity = '1';
+        }
+    } catch (_) {
+        // ignore
+    }
+
     // 前アイテム状態クリア
     onairCurrentState = null;
 
@@ -2278,6 +2288,13 @@ function onairHandleOffAirButton() {
         }
         // UI（playlist.js）のDSKボタンを即時OFFにする
         window.dispatchEvent(new CustomEvent('dsk-active-clear'));
+    } catch (_) {
+        // ignore
+    }
+
+    // Fullscreen側で進行中のFTBフェードを中断（OffAir直後の次オンエア遅延対策）
+    try {
+        window.electronAPI.sendControlToFullscreen({ command: 'cancel-fadeout' });
     } catch (_) {
         // ignore
     }
