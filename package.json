@@ -35,6 +35,9 @@
         "electron-builder": "^24.3.0",
         "electron-rebuild": "^3.2.9"
     },
+    "overrides": {
+        "tar": "^7.5.7"
+    },
     "build": {
         "appId": "pondashi.com-vtrpon",
         "win": {
