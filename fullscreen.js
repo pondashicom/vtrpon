@@ -26,7 +26,8 @@ let holdBlackUntilFadeIn = false;
 let seamlessGuardActive = false;
 let suppressFadeUntilPlaying = false;
 let pendingUvcFadeInSec = 0;
-let overlayForceBlack = false;
+let overlayForceBlack = false;;
+let overlaySuppressedByPreFTB = false;
 let fullscreenSeamlessCleanup = null;
 let fullscreenApplySeq = 0;
 let fullscreenApplyRafId = null;
@@ -74,7 +75,6 @@ function initializeFullscreenArea() {
     }
 
     // offAir / OFF は「黒（またはFILLKEY背景）」を保持して、次映像が出るまで前フレームを見せない
-
     holdBlackUntilFadeIn = true;
     const fc = initializeFadeCanvas();
     if (fc) {
@@ -407,6 +407,11 @@ function initializeOverlayCanvas() {
 // オーバレイキャプチャ固定
 // ------------------------------------
 function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
+    // pre-FTB（フェードアウト）中は、最終フレーム保持オーバレイを絶対に出さない
+    if (overlaySuppressedByPreFTB) {
+        return;
+    }
+
     if (respectBlackHold) {
         const fc = document.getElementById('fadeCanvas');
         const fcBlackHold = !!(fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9);
@@ -1225,6 +1230,10 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
                 fc.style.display = 'block';
                 fc.style.visibility = 'visible';
                 holdBlackUntilFadeIn = false;
+
+                // フェードイン完了で抑止解除
+                overlaySuppressedByPreFTB = false;
+
                 logInfo('[fullscreen.js] Fade in completed (held black released).');
             }
         }
@@ -1248,6 +1257,10 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
         } else {
             fadeCanvas.style.opacity = '0';
             fadeCanvas.style.visibility = 'hidden';
+
+            // フェードイン完了で抑止解除
+            overlaySuppressedByPreFTB = false;
+
             logInfo('[fullscreen.js] Fade in completed.');
         }
     }
@@ -1258,6 +1271,22 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
 function startPreFTB(durationSec, fillKeyMode) {
     let fadeCanvas = document.getElementById('fadeCanvas');
     if (!fadeCanvas) fadeCanvas = initializeFadeCanvas();
+
+    // pre-FTB（フェードアウト）中は、最終フレーム保持オーバレイを出す意味がない。
+    // ここで抑止フラグを立て、既存オーバレイも即時に消してフラッシュの競合を根絶する。
+    overlaySuppressedByPreFTB = true;
+    try {
+        const oc = document.getElementById('overlay-canvas');
+        if (oc) {
+            const ctx = oc.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, oc.width, oc.height);
+            oc.style.opacity = '0';
+            oc.style.visibility = 'hidden';
+            oc.style.display = 'none';
+        }
+    } catch (_) {
+        // ignore
+    }
 
     // 初期化
     preFtbActive = true;
@@ -1293,6 +1322,7 @@ function startPreFTB(durationSec, fillKeyMode) {
     }
     preFtbRaf = requestAnimationFrame(step);
 }
+
 
 // 事前FTBのキャンセル
 function cancelPreFTB() {
