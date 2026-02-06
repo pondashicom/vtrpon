@@ -5598,8 +5598,9 @@ if (dskButton) {
         event.preventDefault();
         logOpe('[playlist.js] DSK button clicked');
         if (window.dskModule.getCurrentDSKItem()) {
+            const currentItem = window.dskModule.getCurrentDSKItem();
             window.dskModule.toggleOnAirDSK();
-            window.electronAPI.sendDSKCommand({ command: 'DSK_TOGGLE' });
+            window.electronAPI.sendDSKCommand({ command: 'DSK_TOGGLE', payload: currentItem });
             return;
         }
         const playlist = await stateControl.getPlaylistState();

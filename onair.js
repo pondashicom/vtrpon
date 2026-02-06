@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.5.5
+//     ver 2.5.7
 // -----------------------
 
 // -----------------------
@@ -126,12 +126,8 @@ function initializeOverlayCanvasOnAir() {
         parent.appendChild(canvas);
     }
 
-    try {
-        const baseZ = (fade && fade.style && fade.style.zIndex) ? (parseInt(fade.style.zIndex, 10) || 0) : 0;
-        canvas.style.zIndex = String(Math.max(baseZ + 1, 1002));
-    } catch (_) {
-        canvas.style.zIndex = '1002';
-    }
+    // 最終フレーム保持は「映像より上」、ただし「DSK(2000)より下」で固定
+    canvas.style.zIndex = '1500';
 
     // サイズ同期
     try {
@@ -537,6 +533,12 @@ function onairInitialize() {
 
     const elements = onairGetElements();
     onairReset(elements);
+
+    // FTB/オフエア黒は最前面（DSKも含めて黒にする）
+    if (elements && elements.onairFadeCanvas) {
+        elements.onairFadeCanvas.style.zIndex = '9999';
+        elements.onairFadeCanvas.style.pointerEvents = 'none';
+    }
 
     // ボタンハンドラ設定
     onairSetupButtonHandlers();
@@ -2255,6 +2257,23 @@ function onairHandleOffAirButton() {
     logInfo('[onair.js] Executing off-air processing.');
     onairNowOnAir = false;
     window.onairWasOffAir = true;
+
+    // OffAir では DSK も含めて黒になる仕様に統一するため、DSKを強制OFF
+    try {
+        // OnAir側のDSKを停止（内部でdsk-active-clearも発火するが、即時OFFのため下でも明示発火）
+        if (window.dskModule && typeof window.dskModule.clearOnAirDSK === 'function') {
+            window.dskModule.clearOnAirDSK();
+        }
+        // Fullscreen側も確実に停止（target無し＝fullscreen側も受ける）
+        if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
+            window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
+        }
+        // UI（playlist.js）のDSKボタンを即時OFFにする
+        window.dispatchEvent(new CustomEvent('dsk-active-clear'));
+    } catch (_) {
+        // ignore
+    }
+
     onairReset();
     const elements = onairGetElements();
     onairInitializeVolumeSlider(elements, 100);
@@ -3929,6 +3948,22 @@ function onairHandleFTBButton() {
     fadeButtonBlink(elements.onairFTBButton);
     const currentTime = elements.onairVideoElement ? elements.onairVideoElement.currentTime : 0;
 
+    // FTB では DSK も含めて黒になる仕様に統一するため、DSKを強制OFF
+    try {
+        // OnAir側のDSKを停止
+        if (window.dskModule && typeof window.dskModule.clearOnAirDSK === 'function') {
+            window.dskModule.clearOnAirDSK();
+        }
+        // Fullscreen側も確実に停止（target無し＝fullscreen側も受ける）
+        if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
+            window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
+        }
+        // UI（playlist.js）のDSKボタンを即時OFFにする
+        window.dispatchEvent(new CustomEvent('dsk-active-clear'));
+    } catch (_) {
+        // ignore
+    }
+
     // 通知: フルスクリーン側にも FTB（endMode=FTB）を明示指示
     window.electronAPI.sendControlToFullscreen({
         command: 'trigger-endMode',
@@ -3939,7 +3974,6 @@ function onairHandleFTBButton() {
     // ローカルでFTB処理（映像フェード・音声フェード）を開始
     onairHandleEndModeFTB();
 }
-
 
 // -----------------------
 // フィルキーモード

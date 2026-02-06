@@ -55,7 +55,7 @@ function initOnAirDSKOverlay() {
         dskOverlay.style.position = 'absolute';
         dskOverlay.style.opacity = '0';
         dskOverlay.style.visibility = 'hidden';
-        // 最終フレームキャプチャ用オーバレイ(canvas)より前、FTB(fadeCanvas=9999)より後ろ
+        // DSKは「映像/最終フレーム保持」より前、ただし「FTB/オフエア黒」より下
         dskOverlay.style.zIndex = '9000';
         dskOverlay.style.pointerEvents = 'none';
         document.body.appendChild(dskOverlay);

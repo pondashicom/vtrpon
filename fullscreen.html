@@ -1,4 +1,4 @@
-﻿<!-- fullscreen.html 2.4.7-->
+﻿<!-- fullscreen.html 2.5.7-->
 
 <!DOCTYPE html>
 <html lang="ja">
@@ -20,7 +20,7 @@
                 object-fit: contain;
                 background: black !important;
             }
-            /* オーバーレイ用キャンバス */
+            /* オーバーレイ用キャンバス（最終フレーム保持など） */
             #overlay-canvas {
                 position: fixed;
                 top: 0;
@@ -29,7 +29,9 @@
                 height: 100vh;
                 display: none;
                 background-color: black;
-                z-index: 9999;
+                /* DSK(z=9000)より下、FTB/OffAir黒(z=8000)よりも下に固定 */
+                z-index: 1500;
+                pointer-events: none;
             }
         </style>
     <script src="dsk.js" defer></script>

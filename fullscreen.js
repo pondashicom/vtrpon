@@ -82,6 +82,8 @@ function initializeFullscreenArea() {
         fc.style.display = 'block';
         fc.style.visibility = 'visible';
         fc.style.opacity = '1';
+        // 黒は映像より前、ただし DSK(z=9000) より下
+        fc.style.zIndex = '8000';
     }
 
     const videoElement = document.getElementById('fullscreen-video');
@@ -175,7 +177,8 @@ function initializeFadeCanvas() {
     fadeCanvas.style.height = '100vh';
     fadeCanvas.style.backgroundColor = 'black';
     fadeCanvas.style.opacity = '0';
-    fadeCanvas.style.zIndex = '1000';
+    // FTB/オフエア黒は最前面（DSKも含めて黒にする）
+    fadeCanvas.style.zIndex = '8000';
     fadeCanvas.style.pointerEvents = 'none';
 
     document.body.appendChild(fadeCanvas);
@@ -374,13 +377,9 @@ function initializeOverlayCanvas() {
 
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
-    try {
-        const fc = document.getElementById('fadeCanvas');
-        const baseZ = fc && fc.style && fc.style.zIndex ? (parseInt(fc.style.zIndex, 10) || 1000) : 1000;
-        canvas.style.zIndex = String(baseZ + 1);
-    } catch (_) {
-        canvas.style.zIndex = '1001';
-    }
+    // 最終フレーム保持は「映像より上」、ただし「DSK(2000)より下」で固定
+    canvas.style.zIndex = '1500';
+
     canvas.style.pointerEvents = 'none';
     if (!canvas.style.display) {
         canvas.style.display = 'none';
@@ -1175,7 +1174,7 @@ if (!fadeCanvas) {
     fadeCanvas.style.left = '0';
     fadeCanvas.style.width = '100vw';
     fadeCanvas.style.height = '100vh';
-    // DSKより背面にする（DSKはオフエアでも表示され続ける要件）
+    // 黒は映像より前、ただし DSK より下（FTB/OffAir時はDSKをOFFにして消す）
     fadeCanvas.style.zIndex = '8000';
     fadeCanvas.style.pointerEvents = 'none';
     fadeCanvas.style.backgroundColor = 'black';
@@ -1549,6 +1548,15 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     logDebug(`[fullscreen.js] Updating globalState.endMode from ${globalState.endMode} to ${receivedEndMode}`);
                     globalState.endMode = receivedEndMode;
                 }
+
+                // FTB は「即時実行」する（OUT到達watcher待ちにしない）
+                if (receivedEndMode === 'FTB') {
+                    fullscreenPendingEndMode = null;
+                    fullscreenStopPendingEndModeWatcher();
+                    handleEndModeFTB();
+                    break;
+                }
+
                 fullscreenPendingEndMode = receivedEndMode;
                 fullscreenStartPendingEndModeWatcher();
                 break;
@@ -1720,8 +1728,8 @@ function handleEndModeFTB() {
     // FILL-KEY モードの場合
     fadeCanvas.style.backgroundColor = isFillKeyMode && fillKeyBgColor ? fillKeyBgColor : "black";
 
-    // FTB は他のオーバーレイより前面
-    fadeCanvas.style.zIndex = '9999';
+    // FTB 黒は映像より前、ただし DSK より下（FTB時はDSKをOFFにして消す）
+    fadeCanvas.style.zIndex = '8000';
 
     // フェード
     const durationMs = Math.max(fadeDuration, 0.05) * 1000;
@@ -2452,29 +2460,27 @@ window.electronAPI.ipcRenderer.on('dsk-control', (event, dskCommandData) => {
 let fsDSKOverlay = null;
 
 function initFsDSKOverlay() {
-    const container = document.getElementById('fullscreen-video')?.parentElement;
-    if (!container) {
-        logInfo('[fullscreen.js] Full-screen DSK overlay container cannot be found.');
-        return;
-    }
-    // 既存のオーバーレイがあれば再利用
-    fsDSKOverlay = container.querySelector('#fs-dsk-overlay');
+    // 常に body 直下で管理（親要素の stacking context の影響を受けない）
+    fsDSKOverlay = document.getElementById('fs-dsk-overlay');
     if (!fsDSKOverlay) {
         fsDSKOverlay = document.createElement('div');
         fsDSKOverlay.id = 'fs-dsk-overlay';
-        fsDSKOverlay.style.position = 'absolute';
-        fsDSKOverlay.style.top = '0';
-        fsDSKOverlay.style.left = '0';
-        fsDSKOverlay.style.width = '100%';
-        fsDSKOverlay.style.height = '100%';
-        fsDSKOverlay.style.opacity = '0';
-        fsDSKOverlay.style.visibility = 'hidden';
-        // fullscreen-fade-canvas(8000)より前
-        fsDSKOverlay.style.zIndex = '9000';
-        fsDSKOverlay.style.pointerEvents = 'none';
-        fsDSKOverlay.style.backgroundColor = 'transparent';
-        container.appendChild(fsDSKOverlay);
+        document.body.appendChild(fsDSKOverlay);
+    } else if (fsDSKOverlay.parentElement !== document.body) {
+        document.body.appendChild(fsDSKOverlay);
     }
+
+    fsDSKOverlay.style.position = 'fixed';
+    fsDSKOverlay.style.top = '0';
+    fsDSKOverlay.style.left = '0';
+    fsDSKOverlay.style.width = '100vw';
+    fsDSKOverlay.style.height = '100vh';
+    fsDSKOverlay.style.opacity = '0';
+    fsDSKOverlay.style.visibility = 'hidden';
+    // 黒(FTB/OffAir)より前に出す
+    fsDSKOverlay.style.zIndex = '9000';
+    fsDSKOverlay.style.pointerEvents = 'none';
+    fsDSKOverlay.style.backgroundColor = 'transparent';
 }
 
 function showFullscreenDSK(itemData) {
