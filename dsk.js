@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     dsk.js
-//     ver 2.4.0
+//     ver 2.5.7
 // -----------------------
 
 // -----------------------
@@ -55,7 +55,9 @@ function initOnAirDSKOverlay() {
         dskOverlay.style.position = 'absolute';
         dskOverlay.style.opacity = '0';
         dskOverlay.style.visibility = 'hidden';
-        dskOverlay.style.zIndex = '5';
+        // 最終フレームキャプチャ用オーバレイ(canvas)より前、FTB(fadeCanvas=9999)より後ろ
+        dskOverlay.style.zIndex = '9000';
+        dskOverlay.style.pointerEvents = 'none';
         document.body.appendChild(dskOverlay);
     }
     adjustDskOverlay();

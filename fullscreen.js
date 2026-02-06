@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.6
+//     ver 2.5.7
 // -----------------------
 
 // -----------------------
@@ -362,6 +362,16 @@ function initializeOverlayCanvas() {
         logInfo('[fullscreen.js] overlay-canvas element not found.');
         return null;
     }
+
+    // レイアウトに影響しないよう、viewport 基準で固定
+    canvas.style.position = 'fixed';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+    canvas.style.margin = '0';
+    canvas.style.padding = '0';
+
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
     try {
@@ -1165,7 +1175,8 @@ if (!fadeCanvas) {
     fadeCanvas.style.left = '0';
     fadeCanvas.style.width = '100vw';
     fadeCanvas.style.height = '100vh';
-    fadeCanvas.style.zIndex = '9999';
+    // DSKより背面にする（DSKはオフエアでも表示され続ける要件）
+    fadeCanvas.style.zIndex = '8000';
     fadeCanvas.style.pointerEvents = 'none';
     fadeCanvas.style.backgroundColor = 'black';
     fadeCanvas.style.opacity = '0';
@@ -2458,7 +2469,9 @@ function initFsDSKOverlay() {
         fsDSKOverlay.style.height = '100%';
         fsDSKOverlay.style.opacity = '0';
         fsDSKOverlay.style.visibility = 'hidden';
-        fsDSKOverlay.style.zIndex = '5';
+        // fullscreen-fade-canvas(8000)より前
+        fsDSKOverlay.style.zIndex = '9000';
+        fsDSKOverlay.style.pointerEvents = 'none';
         fsDSKOverlay.style.backgroundColor = 'transparent';
         container.appendChild(fsDSKOverlay);
     }
