@@ -775,6 +775,14 @@ function setupVideoPlayer() {
         return;
     }
 
+    // FTB/OffAirで即カットした場合に備えて、セットアップ開始時に表示を復帰
+    try {
+        videoElement.style.visibility = 'visible';
+        videoElement.style.opacity = '1';
+    } catch (_) {
+        // ignore
+    }
+
     if (!globalState.path) {
         logInfo('[fullscreen.js] No video path available in global state.');
         return;
@@ -856,6 +864,14 @@ async function setupUVCDevice() {
     if (!videoElement) {
         logInfo('[fullscreen.js] Video player element not found.');
         return;
+    }
+
+    // FTBで即カットした場合に備えて、UVCセットアップ開始時に表示を復帰
+    try {
+        videoElement.style.visibility = 'visible';
+        videoElement.style.opacity = '1';
+    } catch (_) {
+        // ignore
     }
 
     if (!deviceId) {
@@ -1689,6 +1705,22 @@ function handleEndModeFTB() {
     const fadeDuration = globalState.ftbRate || 1;
 
     logInfo(`[fullscreen.js] Starting FTB: Fade duration is ${fadeDuration} seconds.`);
+
+    // FTB開始時にDSKが出ている（またはフェード中）なら、裏（fullscreen-video）を即カットして透けを防止
+    try {
+        const videoElement = document.getElementById('fullscreen-video');
+        const dskVisible = !!(
+            (typeof window.fsDSKActive !== 'undefined' && window.fsDSKActive) ||
+            (fsDSKOverlay && fsDSKOverlay.style && fsDSKOverlay.style.visibility === 'visible')
+        );
+        if (dskVisible && videoElement) {
+            try { videoElement.pause(); } catch (_) {}
+            videoElement.style.visibility = 'hidden';
+            videoElement.style.opacity = '0';
+        }
+    } catch (_) {
+        // ignore
+    }
 
     // フェードキャンバス初期化
     let fadeCanvas = document.getElementById('fadeCanvas');

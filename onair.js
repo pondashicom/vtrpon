@@ -1271,6 +1271,14 @@ function onairStartPlayback(itemData) {
         return;
     }
 
+    // FTB/OffAirで即カットした場合に備えて、再生開始前に表示を復帰
+    try {
+        onairVideoElement.style.visibility = 'visible';
+        onairVideoElement.style.opacity = '1';
+    } catch (_) {
+        // ignore
+    }
+
     // 倍速ボタン初期化
     if (!onairRepeatFlag) {
         try { if (typeof window.onairResetSpeedTo1x === 'function') window.onairResetSpeedTo1x(); } catch (_) {}
@@ -3945,8 +3953,23 @@ function onairHandleFTBButton() {
     logOpe('[onair.js] FTB button clicked');
     logInfo('[onair.js] FTB button clicked. Forcing FTB end mode.');
     const elements = onairGetElements();
+
+    // FTB開始時にDSKが出ている場合は、裏（on-air-video）を即カットして透けを防止
+    try {
+        const dskBtn = document.getElementById('dsk-button');
+        const wasDskActive = !!(dskBtn && dskBtn.classList.contains('button-recording'));
+        if (wasDskActive && elements.onairVideoElement) {
+            try { elements.onairVideoElement.pause(); } catch (_) {}
+            elements.onairVideoElement.style.visibility = 'hidden';
+            elements.onairVideoElement.style.opacity = '0';
+        }
+    } catch (_) {
+        // ignore
+    }
+
     fadeButtonBlink(elements.onairFTBButton);
     const currentTime = elements.onairVideoElement ? elements.onairVideoElement.currentTime : 0;
+
 
     // FTB では DSK も含めて黒になる仕様に統一するため、DSKを強制OFF
     try {
