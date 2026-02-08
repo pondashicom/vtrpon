@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.5.7
+//     ver 2.5.8
 // -----------------------
 
 // -----------------------
@@ -1568,13 +1568,15 @@ function onairStartPlayback(itemData) {
         const maxFade = Math.max(0.05, totalSpan - 0.1);
         fadeDuration = Math.min(fadeDuration, maxFade);
 
-        // 黒オーバーレイ無効
+        // 黒オーバーレイ準備（FADEIN開始直前のチラつき防止）
         try {
             const elsFTB = onairGetElements();
             const canvas = elsFTB?.onairFadeCanvas;
             if (canvas) {
-                canvas.style.visibility = 'hidden';
-                canvas.style.opacity = 0;
+                const selectedColor = isFillKeyMode ? (document.getElementById('fillkey-color-picker')?.value || "#00FF00") : "black";
+                canvas.style.backgroundColor = selectedColor;
+                canvas.style.visibility = 'visible';
+                canvas.style.opacity = 1;
             }
         } catch (_) {}
 
