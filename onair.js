@@ -178,8 +178,10 @@ function onairSetFtbToggleHoldVisual(active, durationSec) {
     const startOpacity = Math.max(0, Math.min(1, parseFloat(layer.style.opacity || '0') || 0));
     const targetOpacity = active ? 1 : 0;
 
-    // FillKey時はFillKey色、それ以外は黒
-    layer.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+    // FillKey時はカラーピッカーの選択色、それ以外は黒
+    const fillKeyColorPicker = document.getElementById('fillkey-color-picker');
+    const fillKeySelectedColor = fillKeyColorPicker ? fillKeyColorPicker.value : "#00FF00";
+    layer.style.backgroundColor = (isFillKeyMode && fillKeySelectedColor) ? fillKeySelectedColor : 'black';
     layer.style.display = 'block';
     layer.style.visibility = 'visible';
 
@@ -219,7 +221,6 @@ function onairSetFtbToggleHoldVisual(active, durationSec) {
 
     onairFtbToggleRaf = requestAnimationFrame(animate);
 }
-
 // オーバーレイCanvas初期化
 function initializeOverlayCanvasOnAir() {
     // 既存キャンバス取得 or 作成
@@ -4112,17 +4113,24 @@ function onairHandleFTBButton() {
     }
 
     // 映像FTB
+    const fillKeyColorPicker = document.getElementById('fillkey-color-picker');
+    const ftbFillKeyColor = !!isFillKeyMode
+        ? ((fillKeyColorPicker && fillKeyColorPicker.value) ? fillKeyColorPicker.value : "#00FF00")
+        : "";
+
     window.electronAPI.sendControlToFullscreen({
         command: 'ftb-toggle-hold',
         value: {
             active: nextActive,
             duration: fadeSec,
             fillKeyMode: !!isFillKeyMode,
+            fillKeyColor: ftbFillKeyColor,
             keepPlaying: onairFtbToggleShouldKeepPlaying,
             audioTargetLinear: nextActive ? 0 : 1
         }
     });
 }
+
 // -----------------------
 // フィルキーモード
 // -----------------------

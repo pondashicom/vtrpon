@@ -235,7 +235,7 @@ function initFullscreenFtbToggleLayer() {
 }
 
 // FTBボタン用トグル保持レイヤーの表示制御（映像のみ）
-function setFullscreenFtbToggleHoldVisual(active, durationSec, fillKeyMode) {
+function setFullscreenFtbToggleHoldVisual(active, durationSec, fillKeyMode, fillKeyColor) {
     const layer = initFullscreenFtbToggleLayer();
     if (!layer) return;
 
@@ -252,8 +252,12 @@ function setFullscreenFtbToggleHoldVisual(active, durationSec, fillKeyMode) {
     const startOpacity = Math.max(0, Math.min(1, parseFloat(layer.style.opacity || '0') || 0));
     const targetOpacity = active ? 1 : 0;
 
-    // FillKey時はFillKey色、それ以外は黒
-    layer.style.backgroundColor = (fillKeyMode && isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+    // FTB時はonair側から渡された色を最優先（通常のFillKey動作は既存のまま）
+    const effectiveFillKeyColor = (typeof fillKeyColor === 'string' && fillKeyColor.trim() !== '')
+        ? fillKeyColor
+        : ((fillKeyMode && isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : '');
+
+    layer.style.backgroundColor = (fillKeyMode && effectiveFillKeyColor) ? effectiveFillKeyColor : 'black';
     layer.style.display = 'block';
     layer.style.visibility = 'visible';
 
@@ -1887,6 +1891,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                         ? value.duration
                         : (globalState.ftbRate || 1.0);
                     const fk = !!(value && value.fillKeyMode);
+                    const fkColor = (value && typeof value.fillKeyColor === 'string') ? value.fillKeyColor : '';
                     const keepPlaying = !!(value && value.keepPlaying);
                     const audioTargetLinear = (value && typeof value.audioTargetLinear === 'number')
                         ? value.audioTargetLinear
@@ -1902,7 +1907,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
 
                     fullscreenFtbToggleTransitionUntilMs = performance.now() + (Math.max(0, Number(dur) || 0) * 1000) + 50;
                     logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}, audioTargetLinear=${audioTargetLinear}`);
-                    setFullscreenFtbToggleHoldVisual(active, dur, fk);
+                    setFullscreenFtbToggleHoldVisual(active, dur, fk, fkColor);
                     if (!active && fullscreenFtbToggleShouldKeepPlaying && fullscreenVideoElement && fullscreenVideoElement.paused) {
                         try {
                             const p = fullscreenVideoElement.play();
