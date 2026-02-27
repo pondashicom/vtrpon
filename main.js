@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.5.2
+//     ver 2.5.8
 // -----------------------
 
 // ---------------------
@@ -1610,8 +1610,12 @@ ipcMain.on('send-video-to-fullscreen', (event, fullscreenData) => {
 // オンエアからフルスクリーンに操作情報を中継
 ipcMain.on('control-fullscreen', (event, commandData) => {
     if (fullscreenWindow && !fullscreenWindow.isDestroyed()) {
-        fullscreenWindow.webContents.send('control-video', commandData); 
-        console.log(`[main.js] Sent command to fullscreen: ${JSON.stringify(commandData)}`);
+        fullscreenWindow.webContents.send('control-video', commandData);
+
+        // set-volume はフェード処理中に高頻度で送られるためログ抑制
+        if (!commandData || commandData.command !== 'set-volume') {
+            console.log(`[main.js] Sent command to fullscreen: ${JSON.stringify(commandData)}`);
+        }
     } else {
         console.warn('[main.js] Fullscreen window is not available to receive commands.');
     }
