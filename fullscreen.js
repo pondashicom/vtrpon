@@ -39,6 +39,9 @@ let fullscreenFtbToggleAudioRaf = null;
 let fullscreenFtbToggleAudioAnimSeq = 0;
 let fullscreenFtbTogglePendingVolume = null;
 let fullscreenFtbToggleTransitionUntilMs = 0;
+const FULLSCREEN_SET_VOLUME_EPSILON = 0.01;
+const FULLSCREEN_SET_VOLUME_ENDPOINT_SNAP_EPSILON = 0.005;
+let fullscreenLastControlAppliedVolume = null;
 const FS_LAYER_Z_PRE_FTB_BLACK = 8000;
 const FS_LAYER_Z_DSK = 9000;
 const FS_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
@@ -1735,13 +1738,6 @@ function stopMonitoringPlayback() {
     logInfo('[fullscreen.js] Playback monitoring stopped.');
 }
 
-
-function stopMonitoringPlayback() {
-    clearInterval(playbackMonitor);
-    playbackMonitor = null;
-    logInfo('[fullscreen.js] Playback monitoring stopped.');
-}
-
 // ------------------------
 // 操作情報受信
 // ------------------------
@@ -1755,7 +1751,11 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
 
     try {
         const { command, value } = commandData;
-        logDebug(`[fullscreen.js] Received control command: ${command}, value: ${value}`);
+
+        // set-volume はフェード中に高頻度で飛ぶため、DEBUGログを抑制する（カクつき対策）
+        if (command !== 'set-volume') {
+            logDebug(`[fullscreen.js] Received control command: ${command}, value: ${value}`);
+        }
 
         switch (command) {
             case 'play':
@@ -1791,23 +1791,33 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 break;
             case 'set-volume':
                 if (value >= 0 && value <= 1) {
-                    // 音声は onair 側のメインフェーダー経路を常に優先する。
-                    // FTB中/遷移中でも set-volume をバッファせず即時適用する。
-                    // （バッファすると「フェーダーは動くのに音が追従しない」状態になる）
-                    const clamped = Math.min(1, Math.max(0, value));
+                    let clamped = Math.min(1, Math.max(0, value));
+                    if (clamped <= FULLSCREEN_SET_VOLUME_ENDPOINT_SNAP_EPSILON) {
+                        clamped = 0;
+                    } else if (clamped >= (1 - FULLSCREEN_SET_VOLUME_ENDPOINT_SNAP_EPSILON)) {
+                        clamped = 1;
+                    }
 
-                    fullscreenVideoElement.volume = clamped;
+                    const isEndpoint = (clamped === 0 || clamped === 1);
+                    if (
+                        !isEndpoint &&
+                        fullscreenLastControlAppliedVolume !== null &&
+                        Math.abs(clamped - fullscreenLastControlAppliedVolume) < FULLSCREEN_SET_VOLUME_EPSILON
+                    ) {
+                        fullscreenFtbTogglePendingVolume = null;
+                        break;
+                    }
                     if (fullscreenGainNode) {
                         const audioContext = FullscreenAudioManager.getContext();
                         const t = audioContext.currentTime;
                         fullscreenGainNode.gain.cancelScheduledValues(t);
                         fullscreenGainNode.gain.setValueAtTime(clamped, t);
+                    } else {
+                        fullscreenVideoElement.volume = clamped;
                     }
 
-                    // 保留値は使わない（旧ロジックの残骸を消す）
+                    fullscreenLastControlAppliedVolume = clamped;
                     fullscreenFtbTogglePendingVolume = null;
-
-                    logDebug(`[fullscreen.js] Fullscreen volume set to: ${clamped}`);
                 } else {
                     logInfo(`[fullscreen.js] Invalid volume value: ${value}. Must be between 0 and 1.`);
                 }
@@ -1888,16 +1898,11 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     }
 
                     fullscreenFtbToggleHoldActive = active;
+                    fullscreenLastControlAppliedVolume = null;
+
                     fullscreenFtbToggleTransitionUntilMs = performance.now() + (Math.max(0, Number(dur) || 0) * 1000) + 50;
                     logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}, audioTargetLinear=${audioTargetLinear}`);
                     setFullscreenFtbToggleHoldVisual(active, dur, fk);
-
-                    // 音声は onair 側のメインフェーダー（set-volume 経路）で制御する。
-                    // fullscreen 側の FTBトグルでは音声フェードを行わない。
-                    // ※ ここで gain/video.volume を触ると Start/End の音声フェードと競合しやすい
-
-                    // FTB OFF時、ON時点で再生中だったものは再生継続を保証
-                    // ただし既に再生中（例: エンドモードリピートで裏再生継続中）の場合は play() を再実行しない
                     if (!active && fullscreenFtbToggleShouldKeepPlaying && fullscreenVideoElement && fullscreenVideoElement.paused) {
                         try {
                             const p = fullscreenVideoElement.play();
@@ -1908,9 +1913,6 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                             // ignore
                         }
                     }
-
-                    // 音声は onair 側のメインフェーダー経路を常時適用するため、
-                    // FTB用の保留 volume 適用は行わない。
                     if (!active) {
                         fullscreenFtbTogglePendingVolume = null;
                     }

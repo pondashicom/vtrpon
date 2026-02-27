@@ -17,6 +17,8 @@ let isFillKeyMode = false;
 let ftbMainTimeout = null;
 let ftbOffAirTimeout = null;
 let onairMasterVolume = 100;
+let onairMasterBaseVolume = 100;
+let onairFtbToggleMasterVisualGain = 1;
 let fadeOutInProgressMain = false;
 let fadeInInProgressMain = false;
 let fadeOutInProgressItem = false;
@@ -35,6 +37,10 @@ let onairFtbToggleShouldKeepPlaying = false;
 let onairFtbToggleMasterFadeRaf = null;
 let onairFtbToggleMasterFadeAnimSeq = 0;
 let onairFtbToggleMasterRestoreValue = null;
+let onairSuppressFullscreenVolumePushOnceOnReset = false;
+const ONAIR_FTB_SET_VOLUME_EPSILON = 0.01;
+const ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON = 0.005;
+let onairLastSentFullscreenGammaVolumeForFtb = null;
 const ONAIR_LAYER_Z_PRE_FTB_BLACK = 8000;
 const ONAIR_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
 
@@ -536,9 +542,6 @@ function onairInitializeVolumeMeter(elements) {
 function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
     const { onairItemVolumeSlider, onairItemVolumeValueDisplay, onairMasterVolumeSlider, onairMasterVolumeValueDisplay } = elements;
     if (!onairItemVolumeSlider || !onairItemVolumeValueDisplay || !onairMasterVolumeSlider || !onairMasterVolumeValueDisplay) return;
-
-    // forcedDefaultVolumeが指定されていればそれを、なければonairCurrentStateの既定値または100を使用（アイテム側）
-    // ※スタートモードがFADEINの場合、実際の出力はフェード中となるため、初期表示は0
     let defaultItemVolume = forcedDefaultVolume !== undefined ? forcedDefaultVolume : (onairCurrentState?.defaultVolume ?? 100);
     if (onairCurrentState && onairCurrentState.startMode === 'FADEIN') {
         defaultItemVolume = 0;
@@ -546,18 +549,32 @@ function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
     onairItemVolumeSlider.value = defaultItemVolume;
     onairItemVolumeValueDisplay.textContent = `${defaultItemVolume}%`;
     onairItemVolumeSlider.style.setProperty('--value', `${defaultItemVolume}%`);
+    const useFtbVisualGain = onairFtbToggleHoldActive || (onairFtbToggleMasterFadeRaf !== null);
+    const effectiveVisualGain = useFtbVisualGain
+        ? (Number(onairFtbToggleMasterVisualGain) || 0)
+        : 1;
 
-    // マスターフェーダーはグローバル変数 onairMasterVolume の値を使用
-    onairMasterVolumeSlider.value = onairMasterVolume;
-    onairMasterVolumeValueDisplay.textContent = `${onairMasterVolume}%`;
-    onairMasterVolumeSlider.style.setProperty('--value', `${onairMasterVolume}%`);
+    const masterDisplayValue = Math.max(
+        0,
+        Math.min(100, Math.round((Number(onairMasterBaseVolume) || 0) * effectiveVisualGain))
+    );
+
+    onairMasterVolume = masterDisplayValue;
+    onairMasterVolumeSlider.value = masterDisplayValue;
+    onairMasterVolumeValueDisplay.textContent = `${masterDisplayValue}%`;
+    onairMasterVolumeSlider.style.setProperty('--value', `${masterDisplayValue}%`);
 
     // 最終出力音量の算出： (item / 100) * (master / 100)
-    const finalVolume = (defaultItemVolume / 100) * (onairMasterVolume / 100);
-    window.electronAPI.sendControlToFullscreen({
-        command: 'set-volume',
-        value: Math.pow(finalVolume, 2.2)
-    });
+    const finalVolume = (defaultItemVolume / 100) * (masterDisplayValue / 100);
+    if (onairSuppressFullscreenVolumePushOnceOnReset) {
+        onairSuppressFullscreenVolumePushOnceOnReset = false;
+        logDebug('[onair.js] Suppressed one fullscreen set-volume during reset (NEXT transition).');
+    } else {
+        window.electronAPI.sendControlToFullscreen({
+            command: 'set-volume',
+            value: Math.pow(finalVolume, 2.2)
+        });
+    }
 
     logDebug(`[onair.js] Item volume slider initialized to ${defaultItemVolume}% and Master volume slider initialized to ${onairMasterVolume}%`);
 }
@@ -1007,7 +1024,32 @@ async function onairSendToFullscreen(itemData) {
     try {
         // 新規アイテムは規定音量を使用
         const itemVal = itemData.defaultVolume !== undefined ? itemData.defaultVolume : 100;
-        const masterVal = (onairMasterVolume !== undefined && onairMasterVolume !== null) ? onairMasterVolume : 100;
+
+        // 通常時は現在のマスター表示値を使う。
+        // ただし FTBトグル保持中（NEXT跨ぎ含む）は、フェード途中の低い表示値を次アイテムの初期音量として送らない。
+        // 復帰先（保存値）→本編基準値→現在表示値の順で採用する。
+        let masterVal;
+        if (onairFtbToggleHoldActive) {
+            const restoreVal = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
+                ? Number(onairFtbToggleMasterRestoreValue)
+                : null;
+
+            const baseVal = (onairMasterBaseVolume !== undefined && onairMasterBaseVolume !== null && !isNaN(Number(onairMasterBaseVolume)))
+                ? Number(onairMasterBaseVolume)
+                : null;
+
+            const currentVal = (onairMasterVolume !== undefined && onairMasterVolume !== null && !isNaN(Number(onairMasterVolume)))
+                ? Number(onairMasterVolume)
+                : 100;
+
+            masterVal = restoreVal !== null ? restoreVal
+                : (baseVal !== null ? baseVal : currentVal);
+        } else {
+            masterVal = (onairMasterVolume !== undefined && onairMasterVolume !== null) ? onairMasterVolume : 100;
+        }
+
+        masterVal = Math.max(0, Math.min(100, Number(masterVal) || 0));
+
         const combinedVolume = (itemVal / 100) * (masterVal / 100);
         const finalVolume = Math.pow(combinedVolume, 2.2);
 
@@ -2238,6 +2280,15 @@ function onairFadeToBlack(fadeCanvas, duration) {
 function onairHandleEndModeNext() {
     logInfo('[onair.js] End Mode: NEXT - Requesting next item.');
 
+    // 通常のMAINフェードは止めるが、FTBのメインフェーダー自動フェードは止めない。
+    // （FTBはNEXT/REPEATと独立して継続させる）
+    if (typeof stopMainFade === 'function') {
+        stopMainFade();
+    }
+
+    // 次に到着する onairReset() での中間 set-volume を1回だけ抑制する
+    onairSuppressFullscreenVolumePushOnceOnReset = true;
+
     // 残存オーバーレイクリア
     onairCancelSeamlessOverlay('before-NEXT');
 
@@ -3005,6 +3056,16 @@ function onairSetupVolumeSliderHandler(elements) {
         }
         const masterVal = parseInt(onairMasterVolumeSlider.value, 10);
         onairMasterVolume = masterVal;
+
+        // 手動操作時は本編基準値を更新する。
+        // ただしFTB自動フェード中は見た目値が動いているだけなので上書きしない。
+        if (onairFtbToggleMasterFadeRaf === null) {
+            onairMasterBaseVolume = masterVal;
+            if (!onairFtbToggleHoldActive) {
+                onairFtbToggleMasterVisualGain = 1;
+            }
+        }
+
         updateCombinedVolume();
         onairMasterVolumeSlider.style.setProperty('--value', `${onairMasterVolumeSlider.value}%`);
     });
@@ -4148,9 +4209,6 @@ function onairHandleFTBButton() {
     if (nextActive) {
         onairFtbToggleShouldKeepPlaying = !!(elements.onairVideoElement && !elements.onairVideoElement.paused);
 
-        // 復帰先は基本的に「最初にFTB ONを押した時のメインフェーダー値」。
-        // 途中でFTB OFF（復帰フェード）中に再度FTB ONした場合、現在値（途中値）で上書きすると
-        // 次回復帰が中途半端な音量で止まるため、既存の復帰値を保持する。
         const currentMasterValue = masterSlider
             ? Math.max(0, Math.min(100, Number(masterSlider.value) || 0))
             : 100;
@@ -4162,15 +4220,20 @@ function onairHandleFTBButton() {
 
         const isFtbMasterFadeRunning = (onairFtbToggleMasterFadeRaf !== null);
 
-        // 「FTB復帰中に再度FTB ON」のケースだけは上書きしない
-        // （復帰値を途中値にしてしまうと、その後の復帰が最後まで戻らない）
+        // 「FTB復帰中に再度FTB ON」のケースだけは復帰先を上書きしない
         const isLikelyReFadeOutDuringRestore =
             isFtbMasterFadeRunning &&
             hasRestoreValue &&
             currentMasterValue < restoreValue;
 
         if (!isLikelyReFadeOutDuringRestore) {
-            onairFtbToggleMasterRestoreValue = currentMasterValue;
+            // 連打や途中反転でも、復帰先を小さい値で潰さない（最大値を維持）
+            const preservedRestoreValue = hasRestoreValue
+                ? Math.max(restoreValue, currentMasterValue)
+                : currentMasterValue;
+
+            onairFtbToggleMasterRestoreValue = preservedRestoreValue;
+            onairMasterBaseVolume = preservedRestoreValue;
         }
     }
 
@@ -4188,9 +4251,21 @@ function onairHandleFTBButton() {
     if (nextActive) {
         onairAnimateMasterFaderForFtb(0, fadeSec);
     } else {
-        const restoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
-            ? onairFtbToggleMasterRestoreValue
-            : 100;
+        const currentMasterValue = masterSlider
+            ? Math.max(0, Math.min(100, Number(masterSlider.value) || 0))
+            : 0;
+
+        const savedRestoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
+            ? Math.max(0, Math.min(100, Number(onairFtbToggleMasterRestoreValue) || 0))
+            : 0;
+
+        const baseRestoreValue = Math.max(0, Math.min(100, Number(onairMasterBaseVolume) || 0));
+
+        // 保存値が壊れていても、より大きい候補を採用して「戻り切らない」を防ぐ
+        const restoreValue = Math.max(savedRestoreValue, baseRestoreValue, currentMasterValue, 0);
+
+        onairFtbToggleMasterRestoreValue = restoreValue;
+        onairMasterBaseVolume = restoreValue;
         onairAnimateMasterFaderForFtb(restoreValue, fadeSec);
     }
 
@@ -4376,18 +4451,25 @@ function onairSyncCombinedVolumeFromSlidersForFtb() {
     const videoElement = document.getElementById('on-air-video');
     if (!itemSlider || !masterSlider) return;
 
-    const itemVal = parseInt(itemSlider.value, 10) || 0;
-    const masterVal = parseInt(masterSlider.value, 10) || 0;
+    // FTBアニメ中の小数値を潰さない（parseIntだと段付きになって復帰終端も取りこぼしやすい）
+    const itemValRaw = Number.parseFloat(itemSlider.value);
+    const masterValRaw = Number.parseFloat(masterSlider.value);
+
+    const itemVal = Number.isFinite(itemValRaw) ? Math.max(0, Math.min(100, itemValRaw)) : 0;
+    const masterVal = Number.isFinite(masterValRaw) ? Math.max(0, Math.min(100, masterValRaw)) : 0;
 
     const itemDisp = document.getElementById('on-air-item-volume-value');
     const masterDisp = document.getElementById('on-air-master-volume-value');
 
+    const itemDispInt = Math.round(itemVal);
+    const masterDispInt = Math.round(masterVal);
+
     if (itemDisp) {
-        itemDisp.textContent = `${itemVal}%`;
+        itemDisp.textContent = `${itemDispInt}%`;
     }
     if (masterDisp) {
-        masterDisp.textContent = `${masterVal}%`;
-        if (masterVal <= 10) masterDisp.classList.add('neon-warning');
+        masterDisp.textContent = `${masterDispInt}%`;
+        if (masterDispInt <= 10) masterDisp.classList.add('neon-warning');
         else masterDisp.classList.remove('neon-warning');
     }
 
@@ -4396,11 +4478,35 @@ function onairSyncCombinedVolumeFromSlidersForFtb() {
 
     onairMasterVolume = masterVal;
 
-    const finalVolume = (itemVal / 100) * (masterVal / 100);
-    window.electronAPI.sendControlToFullscreen({
-        command: 'set-volume',
-        value: Math.pow(finalVolume, 2.2)
-    });
+    let finalVolume = (itemVal / 100) * (masterVal / 100);
+
+    // 終端付近は吸着して、FTB連打/途中反転でも 0 / 1 を取りこぼさない
+    if (finalVolume <= ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON) {
+        finalVolume = 0;
+    } else if (finalVolume >= (1 - ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON)) {
+        finalVolume = 1;
+    }
+
+    let gammaVolume = Math.pow(finalVolume, 2.2);
+    if (gammaVolume <= ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON) {
+        gammaVolume = 0;
+    } else if (gammaVolume >= (1 - ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON)) {
+        gammaVolume = 1;
+    }
+
+    const isEndpoint = (gammaVolume === 0 || gammaVolume === 1);
+
+    if (
+        isEndpoint ||
+        onairLastSentFullscreenGammaVolumeForFtb === null ||
+        Math.abs(gammaVolume - onairLastSentFullscreenGammaVolumeForFtb) >= ONAIR_FTB_SET_VOLUME_EPSILON
+    ) {
+        window.electronAPI.sendControlToFullscreen({
+            command: 'set-volume',
+            value: gammaVolume
+        });
+        onairLastSentFullscreenGammaVolumeForFtb = gammaVolume;
+    }
 
     if (videoElement) {
         videoElement.volume = finalVolume;
@@ -4430,8 +4536,30 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
     const endValue = Math.max(0, Math.min(100, Number(targetValue) || 0));
     const durMs = Math.max(0, (Number(durationSec) || 0) * 1000);
 
+    // 新しいFTBフェード開始時は、onair側の送信間引き状態を引きずらない
+    onairLastSentFullscreenGammaVolumeForFtb = null;
+
+    const updateFtbMasterVisualGain = (currentMasterValue) => {
+        const base = Math.max(0, Math.min(100, Number(onairMasterBaseVolume) || 0));
+        const current = Math.max(0, Math.min(100, Number(currentMasterValue) || 0));
+
+        if (base <= 0) {
+            onairFtbToggleMasterVisualGain = 1;
+            return;
+        }
+
+        onairFtbToggleMasterVisualGain = Math.max(0, Math.min(1, current / base));
+    };
+
     if (durMs <= 0) {
         masterSlider.value = endValue;
+        updateFtbMasterVisualGain(endValue);
+
+        // 復帰先まで戻り切った場合は係数を正規化して残留を防ぐ
+        if (Math.abs(endValue - (Number(onairMasterBaseVolume) || 0)) <= 0.05) {
+            onairFtbToggleMasterVisualGain = 1;
+        }
+
         onairSyncCombinedVolumeFromSlidersForFtb();
         return;
     }
@@ -4444,9 +4572,15 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
         }
 
         const t = Math.min(1, (now - startTs) / durMs);
-        const v = startValue + ((endValue - startValue) * t);
+        let v = startValue + ((endValue - startValue) * t);
+
+        // 終端付近は目標値に吸着（連打時の途中反転でも最後を取りこぼしにくくする）
+        if (Math.abs(v - endValue) <= 0.05) {
+            v = endValue;
+        }
 
         masterSlider.value = v;
+        updateFtbMasterVisualGain(v);
         onairSyncCombinedVolumeFromSlidersForFtb();
 
         if (t < 1) {
@@ -4458,9 +4592,16 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
             return;
         }
 
-        masterSlider.value = endValue;
-        onairSyncCombinedVolumeFromSlidersForFtb();
         onairFtbToggleMasterFadeRaf = null;
+        masterSlider.value = endValue;
+        updateFtbMasterVisualGain(endValue);
+
+        // 復帰先まで戻り切った場合は係数を正規化して残留を防ぐ
+        if (Math.abs(endValue - (Number(onairMasterBaseVolume) || 0)) <= 0.05) {
+            onairFtbToggleMasterVisualGain = 1;
+        }
+
+        onairSyncCombinedVolumeFromSlidersForFtb();
     };
 
     onairFtbToggleMasterFadeRaf = requestAnimationFrame(step);
