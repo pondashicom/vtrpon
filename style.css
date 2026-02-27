@@ -1,4 +1,4 @@
-﻿/* style.css 2.5.5 */
+﻿/* style.css 2.5.8 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -755,6 +755,7 @@ html {
     animation: blinkGlowRed 2s ease infinite;
     border: 0.0625rem solid rgba(204, 51, 51, 0.3);
     box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
+    color: #fff;
 }
 
 .button-recording:hover {

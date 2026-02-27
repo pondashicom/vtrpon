@@ -28,6 +28,15 @@ let onairSeamlessGuardActive = false;
 let onairOverlayForceBlack = false;
 let onairSuppressFadeUntilPlaying = false;
 let onairPendingUvcFadeInSec = 0;
+let onairFtbToggleHoldActive = false;
+let onairFtbToggleRaf = null;
+let onairFtbToggleVisualAnimSeq = 0;
+let onairFtbToggleShouldKeepPlaying = false;
+let onairFtbToggleMasterFadeRaf = null;
+let onairFtbToggleMasterFadeAnimSeq = 0;
+let onairFtbToggleMasterRestoreValue = null;
+const ONAIR_LAYER_Z_PRE_FTB_BLACK = 8000;
+const ONAIR_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
 
 // -----------------------
 // 共通補助関数
@@ -93,6 +102,118 @@ function onairGetElements() {
         onairFadeInButton: document.getElementById('on-air-fi-button'),
         onairFTBButton: document.getElementById('ftb-off-button')
     };
+}
+
+// OnAir側 FTBボタン用「トグル保持」専用レイヤー（常に最上位）
+function onairInitFtbToggleLayer() {
+    let layer = document.getElementById('onair-ftb-toggle-layer');
+    const isNew = !layer;
+
+    if (!layer) {
+        layer = document.createElement('div');
+        layer.id = 'onair-ftb-toggle-layer';
+        document.body.appendChild(layer);
+    } else if (layer.parentElement !== document.body) {
+        document.body.appendChild(layer);
+    }
+
+    layer.style.position = 'fixed';
+    layer.style.margin = '0';
+    layer.style.border = '0';
+    layer.style.padding = '0';
+    layer.style.pointerEvents = 'none';
+    layer.style.zIndex = String(ONAIR_LAYER_Z_FTB_TOGGLE_HOLD);
+
+    // 位置・サイズは毎回同期対象なので毎回設定
+    if (isNew) {
+        layer.style.top = '0';
+        layer.style.left = '0';
+        layer.style.width = '0px';
+        layer.style.height = '0px';
+        layer.style.backgroundColor = 'black';
+        layer.style.opacity = '0';
+        layer.style.visibility = 'hidden';
+        layer.style.display = 'block';
+    }
+
+    onairSyncFtbToggleLayerRect();
+
+    return layer;
+}
+
+function onairSyncFtbToggleLayerRect() {
+    const layer = document.getElementById('onair-ftb-toggle-layer');
+    const els = onairGetElements();
+    const videoEl = els?.onairVideoElement;
+    if (!layer || !videoEl) return;
+
+    const rect = videoEl.getBoundingClientRect();
+    layer.style.left = `${rect.left}px`;
+    layer.style.top = `${rect.top}px`;
+    layer.style.width = `${rect.width}px`;
+    layer.style.height = `${rect.height}px`;
+}
+
+// FTBボタン用トグル保持レイヤーの表示制御
+function onairSetFtbToggleHoldVisual(active, durationSec) {
+    const layer = onairInitFtbToggleLayer();
+    if (!layer) return;
+
+    onairSyncFtbToggleLayerRect();
+
+    if (onairFtbToggleRaf !== null) {
+        cancelAnimationFrame(onairFtbToggleRaf);
+        onairFtbToggleRaf = null;
+    }
+
+    // 古いRAFコールバックを無効化するための世代番号
+    onairFtbToggleVisualAnimSeq += 1;
+    const animSeq = onairFtbToggleVisualAnimSeq;
+
+    const dur = Math.max(0, Number(durationSec) || 0);
+    const startOpacity = Math.max(0, Math.min(1, parseFloat(layer.style.opacity || '0') || 0));
+    const targetOpacity = active ? 1 : 0;
+
+    // FillKey時はFillKey色、それ以外は黒
+    layer.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+    layer.style.display = 'block';
+    layer.style.visibility = 'visible';
+
+    if (dur <= 0) {
+        layer.style.opacity = String(targetOpacity);
+        if (!active) {
+            layer.style.visibility = 'hidden';
+        }
+        return;
+    }
+
+    const startTs = performance.now();
+    const animate = (now) => {
+        if (animSeq !== onairFtbToggleVisualAnimSeq) {
+            return;
+        }
+
+        const t = Math.min(1, (now - startTs) / (dur * 1000));
+        const next = startOpacity + ((targetOpacity - startOpacity) * t);
+        layer.style.opacity = String(next);
+
+        if (t < 1) {
+            onairFtbToggleRaf = requestAnimationFrame(animate);
+            return;
+        }
+
+        if (animSeq !== onairFtbToggleVisualAnimSeq) {
+            return;
+        }
+
+        onairFtbToggleRaf = null;
+        layer.style.opacity = String(targetOpacity);
+        if (!active) {
+            layer.style.visibility = 'hidden';
+        }
+    };
+
+    onairFtbToggleRaf = requestAnimationFrame(animate);
 }
 
 // オーバーレイCanvas初期化
@@ -382,6 +503,11 @@ function onairInitializeButtons(elements) {
     }
     if (elements.onairFTBButton) {
         elements.onairFTBButton.className = buttonClass;
+
+        // FTBトグル保持中は、ボタン初期化で className を上書きした後に赤点灯を復元する
+        if (onairFtbToggleHoldActive) {
+            elements.onairFTBButton.classList.add('button-recording');
+        }
     }
 }
 
@@ -536,9 +662,16 @@ function onairInitialize() {
 
     // フェードキャンバスは映像より前、ただし DSK より下（FTB/OffAirでDSKを消すのは強制OFF処理で担保）
     if (elements && elements.onairFadeCanvas) {
-        elements.onairFadeCanvas.style.zIndex = '8000';
+        elements.onairFadeCanvas.style.zIndex = String(ONAIR_LAYER_Z_PRE_FTB_BLACK);
         elements.onairFadeCanvas.style.pointerEvents = 'none';
     }
+
+    // FTBボタン用トグル保持レイヤー（最上位）を初期化だけしておく
+    // ※ このステップでは表示しない
+    onairInitFtbToggleLayer();
+
+    // 動画表示サイズの変化に追従（音量メーター側まで黒くならないようにする）
+    window.addEventListener('resize', onairSyncFtbToggleLayerRect);
 
     // ボタンハンドラ設定
     onairSetupButtonHandlers();
@@ -787,6 +920,9 @@ function onairReset() {
 
     // リソース解放
     onairReleaseResources(elements);
+
+    // FTBボタン赤点滅を解除（状態取り残し防止）
+    onairSetFtbButtonRecordingBlink(false);
 
     logDebug('[onair.js] On-Air area reset completed.');
 }
@@ -3961,6 +4097,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function onairSetFtbButtonRecordingBlink(isActive) {
+    const ftbBtn = document.getElementById('ftb-off-button');
+    if (!ftbBtn) return;
+
+    if (isActive) {
+        ftbBtn.classList.add('button-recording');
+    } else {
+        ftbBtn.classList.remove('button-recording');
+    }
+}
+
 // -----------------------
 // FTBボタン
 // -----------------------
@@ -3969,54 +4116,108 @@ function onairHandleFTBButton() {
         logDebug('[onair.js] FTB button clicked, but On-Air is not active.');
         return;
     }
+
     logOpe('[onair.js] FTB button clicked');
-    logInfo('[onair.js] FTB button clicked. Forcing FTB end mode.');
+
     const elements = onairGetElements();
 
-    // FTB開始時にDSKが出ている場合は、裏（on-air-video）を即カットして透けを防止
-    try {
-        const dskBtn = document.getElementById('dsk-button');
-        const wasDskActive = !!(dskBtn && dskBtn.classList.contains('button-recording'));
-        if (wasDskActive && elements.onairVideoElement) {
-            try { elements.onairVideoElement.pause(); } catch (_) {}
-            elements.onairVideoElement.style.visibility = 'hidden';
-            elements.onairVideoElement.style.opacity = '0';
+    // 既存エンドモードFTBとは分離した「FTBボタントグル保持」
+    const nextActive = !onairFtbToggleHoldActive;
+
+    // 秒数参照元（明示）
+    //   FTB開始（黒へ） : 画面入力 #ftbRate を優先、取れなければ onairCurrentState.ftbRate
+    //   FTB解除（復帰） : 画面入力 #startFadeInSec を優先、取れなければ onairCurrentState.startFadeInSec（未設定/0なら ftbRate）
+    const ftbRateInputEl = document.getElementById('ftbRate');
+    const startFadeInInputEl = document.getElementById('startFadeInSec');
+
+    const ftbOutSecRaw = (ftbRateInputEl && !isNaN(parseFloat(ftbRateInputEl.value)))
+        ? parseFloat(ftbRateInputEl.value)
+        : Number(onairCurrentState?.ftbRate || 1.0);
+
+    const startFadeInSecRaw = (startFadeInInputEl && !isNaN(parseFloat(startFadeInInputEl.value)))
+        ? parseFloat(startFadeInInputEl.value)
+        : Number(onairCurrentState?.startFadeInSec || 0);
+
+    const ftbOutSec = Math.max(0, ftbOutSecRaw);
+    const startFadeInSec = Math.max(0, startFadeInSecRaw);
+    const fadeSec = nextActive ? ftbOutSec : (startFadeInSec > 0 ? startFadeInSec : ftbOutSec);
+
+    const masterSlider = document.getElementById('on-air-master-volume-slider');
+
+    // FTB ON時点で再生中だったかを保存（FTBは映像を隠すだけで再生は継続させる）
+    if (nextActive) {
+        onairFtbToggleShouldKeepPlaying = !!(elements.onairVideoElement && !elements.onairVideoElement.paused);
+
+        // 復帰先は基本的に「最初にFTB ONを押した時のメインフェーダー値」。
+        // 途中でFTB OFF（復帰フェード）中に再度FTB ONした場合、現在値（途中値）で上書きすると
+        // 次回復帰が中途半端な音量で止まるため、既存の復帰値を保持する。
+        const currentMasterValue = masterSlider
+            ? Math.max(0, Math.min(100, Number(masterSlider.value) || 0))
+            : 100;
+
+        const hasRestoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue));
+        const restoreValue = hasRestoreValue
+            ? Math.max(0, Math.min(100, Number(onairFtbToggleMasterRestoreValue) || 0))
+            : null;
+
+        const isFtbMasterFadeRunning = (onairFtbToggleMasterFadeRaf !== null);
+
+        // 「FTB復帰中に再度FTB ON」のケースだけは上書きしない
+        // （復帰値を途中値にしてしまうと、その後の復帰が最後まで戻らない）
+        const isLikelyReFadeOutDuringRestore =
+            isFtbMasterFadeRunning &&
+            hasRestoreValue &&
+            currentMasterValue < restoreValue;
+
+        if (!isLikelyReFadeOutDuringRestore) {
+            onairFtbToggleMasterRestoreValue = currentMasterValue;
         }
-    } catch (_) {
-        // ignore
     }
 
-    fadeButtonBlink(elements.onairFTBButton);
-    const currentTime = elements.onairVideoElement ? elements.onairVideoElement.currentTime : 0;
+    // トグル状態を保存（これが無いと毎回 ON 扱いになり、2回目で復帰しない）
+    onairFtbToggleHoldActive = nextActive;
 
+    onairSetFtbButtonRecordingBlink(nextActive);
+    logInfo(`[onair.js] FTB toggle hold ${nextActive ? 'ON' : 'OFF'} (visual+audio, step3). duration=${fadeSec}s`);
 
-    // FTB では DSK も含めて黒になる仕様に統一するため、DSKを強制OFF
-    try {
-        // OnAir側のDSKを停止
-        if (window.dskModule && typeof window.dskModule.clearOnAirDSK === 'function') {
-            window.dskModule.clearOnAirDSK();
-        }
-        // Fullscreen側も確実に停止（target無し＝fullscreen側も受ける）
-        if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
-            window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
-        }
-        // UI（playlist.js）のDSKボタンを即時OFFにする
-        window.dispatchEvent(new CustomEvent('dsk-active-clear'));
-    } catch (_) {
-        // ignore
+    // OnAir側（制御画面側）映像レイヤー
+    onairSetFtbToggleHoldVisual(nextActive, fadeSec);
+
+    // 音声は fullscreen 側で直接フェードさせず、OnAir のメインフェーダーを実際に動かす
+    // （既存の set-volume 経路に一本化して Start/End/FTB の競合を避ける）
+    if (nextActive) {
+        onairAnimateMasterFaderForFtb(0, fadeSec);
+    } else {
+        const restoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
+            ? onairFtbToggleMasterRestoreValue
+            : 100;
+        onairAnimateMasterFaderForFtb(restoreValue, fadeSec);
     }
 
-    // 通知: フルスクリーン側にも FTB（endMode=FTB）を明示指示
+    // FTB OFF時、ON時点で再生中だったものは再生継続を保証
+    if (!nextActive && onairFtbToggleShouldKeepPlaying && elements.onairVideoElement) {
+        try {
+            const p = elements.onairVideoElement.play();
+            if (p && typeof p.catch === 'function') {
+                p.catch(() => {});
+            }
+        } catch (_) {
+            // ignore
+        }
+    }
+
+    // Fullscreen側は映像FTBのみ（音声は onair のメインフェーダー経路で制御）
     window.electronAPI.sendControlToFullscreen({
-        command: 'trigger-endMode',
-        value: 'FTB',
-        startMode: (onairCurrentState?.startMode || 'PAUSE')
+        command: 'ftb-toggle-hold',
+        value: {
+            active: nextActive,
+            duration: fadeSec,
+            fillKeyMode: !!isFillKeyMode,
+            keepPlaying: onairFtbToggleShouldKeepPlaying,
+            audioTargetLinear: nextActive ? 0 : 1
+        }
     });
-
-    // ローカルでFTB処理（映像フェード・音声フェード）を開始
-    onairHandleEndModeFTB();
 }
-
 // -----------------------
 // フィルキーモード
 // -----------------------
@@ -4167,6 +4368,102 @@ function animateSliderTo(slider, targetValue, {
         }
     }
     requestAnimationFrame(frame);
+}
+
+function onairSyncCombinedVolumeFromSlidersForFtb() {
+    const itemSlider = document.getElementById('on-air-item-volume-slider');
+    const masterSlider = document.getElementById('on-air-master-volume-slider');
+    const videoElement = document.getElementById('on-air-video');
+    if (!itemSlider || !masterSlider) return;
+
+    const itemVal = parseInt(itemSlider.value, 10) || 0;
+    const masterVal = parseInt(masterSlider.value, 10) || 0;
+
+    const itemDisp = document.getElementById('on-air-item-volume-value');
+    const masterDisp = document.getElementById('on-air-master-volume-value');
+
+    if (itemDisp) {
+        itemDisp.textContent = `${itemVal}%`;
+    }
+    if (masterDisp) {
+        masterDisp.textContent = `${masterVal}%`;
+        if (masterVal <= 10) masterDisp.classList.add('neon-warning');
+        else masterDisp.classList.remove('neon-warning');
+    }
+
+    itemSlider.style.setProperty('--value', `${itemVal}%`);
+    masterSlider.style.setProperty('--value', `${masterVal}%`);
+
+    onairMasterVolume = masterVal;
+
+    const finalVolume = (itemVal / 100) * (masterVal / 100);
+    window.electronAPI.sendControlToFullscreen({
+        command: 'set-volume',
+        value: Math.pow(finalVolume, 2.2)
+    });
+
+    if (videoElement) {
+        videoElement.volume = finalVolume;
+    }
+}
+
+function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
+    const masterSlider = document.getElementById('on-air-master-volume-slider');
+    if (!masterSlider) {
+        logInfo('[onair.js] FTB master fade skipped: master slider not found.');
+        return;
+    }
+
+    if (typeof stopMainFade === 'function') {
+        stopMainFade();
+    }
+
+    if (onairFtbToggleMasterFadeRaf !== null) {
+        cancelAnimationFrame(onairFtbToggleMasterFadeRaf);
+        onairFtbToggleMasterFadeRaf = null;
+    }
+
+    onairFtbToggleMasterFadeAnimSeq += 1;
+    const animSeq = onairFtbToggleMasterFadeAnimSeq;
+
+    const startValue = Math.max(0, Math.min(100, Number(masterSlider.value) || 0));
+    const endValue = Math.max(0, Math.min(100, Number(targetValue) || 0));
+    const durMs = Math.max(0, (Number(durationSec) || 0) * 1000);
+
+    if (durMs <= 0) {
+        masterSlider.value = endValue;
+        onairSyncCombinedVolumeFromSlidersForFtb();
+        return;
+    }
+
+    const startTs = performance.now();
+
+    const step = (now) => {
+        if (animSeq !== onairFtbToggleMasterFadeAnimSeq) {
+            return;
+        }
+
+        const t = Math.min(1, (now - startTs) / durMs);
+        const v = startValue + ((endValue - startValue) * t);
+
+        masterSlider.value = v;
+        onairSyncCombinedVolumeFromSlidersForFtb();
+
+        if (t < 1) {
+            onairFtbToggleMasterFadeRaf = requestAnimationFrame(step);
+            return;
+        }
+
+        if (animSeq !== onairFtbToggleMasterFadeAnimSeq) {
+            return;
+        }
+
+        masterSlider.value = endValue;
+        onairSyncCombinedVolumeFromSlidersForFtb();
+        onairFtbToggleMasterFadeRaf = null;
+    };
+
+    onairFtbToggleMasterFadeRaf = requestAnimationFrame(step);
 }
 
 // ショートカットからボタンの mousedown を発火させるヘルパー

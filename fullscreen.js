@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.7
+//     ver 2.5.8
 // -----------------------
 
 // -----------------------
@@ -31,7 +31,17 @@ let overlaySuppressedByPreFTB = false;
 let fullscreenSeamlessCleanup = null;
 let fullscreenApplySeq = 0;
 let fullscreenApplyRafId = null;
-
+let fullscreenFtbToggleHoldActive = false;
+let fullscreenFtbToggleRaf = null;
+let fullscreenFtbToggleVisualAnimSeq = 0;
+let fullscreenFtbToggleShouldKeepPlaying = false;
+let fullscreenFtbToggleAudioRaf = null;
+let fullscreenFtbToggleAudioAnimSeq = 0;
+let fullscreenFtbTogglePendingVolume = null;
+let fullscreenFtbToggleTransitionUntilMs = 0;
+const FS_LAYER_Z_PRE_FTB_BLACK = 8000;
+const FS_LAYER_Z_DSK = 9000;
+const FS_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
 
 // ----------------------------------------
 // フルスクリーン初期化
@@ -151,6 +161,10 @@ function initializeFullscreenArea() {
     // 音声チェーン再初期化
     setupFullscreenAudio.initialized = false;
 
+    // FTBボタン用トグル保持レイヤー（最上位）を初期化だけしておく
+    // ※ このステップでは表示しない
+    initFullscreenFtbToggleLayer();
+
     logInfo('[fullscreen.js] Fullscreen area has been reset.');
 }
 
@@ -177,14 +191,193 @@ function initializeFadeCanvas() {
     fadeCanvas.style.height = '100vh';
     fadeCanvas.style.backgroundColor = 'black';
     fadeCanvas.style.opacity = '0';
-    // FTB/オフエア黒は最前面（DSKも含めて黒にする）
-    fadeCanvas.style.zIndex = '8000';
+    // 既存の FTB/オフエア黒（pre-FTB / endMode系）は DSK より下の層
+    // ※ 新しい「FTBトグル保持専用レイヤー」は別レイヤーで最上位に作る（このステップでは未使用）
+    fadeCanvas.style.zIndex = String(FS_LAYER_Z_PRE_FTB_BLACK);
     fadeCanvas.style.pointerEvents = 'none';
 
     document.body.appendChild(fadeCanvas);
     return fadeCanvas;
 }
 
+// FTBボタン用「トグル保持」専用レイヤー（常に最上位）
+function initFullscreenFtbToggleLayer() {
+    let layer = document.getElementById('fullscreen-ftb-toggle-layer');
+    const isNew = !layer;
+
+    if (!layer) {
+        layer = document.createElement('div');
+        layer.id = 'fullscreen-ftb-toggle-layer';
+        document.body.appendChild(layer);
+    } else if (layer.parentElement !== document.body) {
+        document.body.appendChild(layer);
+    }
+
+    layer.style.position = 'fixed';
+    layer.style.top = '0';
+    layer.style.left = '0';
+    layer.style.width = '100vw';
+    layer.style.height = '100vh';
+    layer.style.pointerEvents = 'none';
+    layer.style.zIndex = String(FS_LAYER_Z_FTB_TOGGLE_HOLD);
+
+    if (isNew) {
+        layer.style.backgroundColor = 'black';
+        layer.style.opacity = '0';
+        layer.style.visibility = 'hidden';
+        layer.style.display = 'block';
+    }
+
+    return layer;
+}
+
+// FTBボタン用トグル保持レイヤーの表示制御（映像のみ）
+function setFullscreenFtbToggleHoldVisual(active, durationSec, fillKeyMode) {
+    const layer = initFullscreenFtbToggleLayer();
+    if (!layer) return;
+
+    if (fullscreenFtbToggleRaf !== null) {
+        cancelAnimationFrame(fullscreenFtbToggleRaf);
+        fullscreenFtbToggleRaf = null;
+    }
+
+    // 古いRAFコールバックを無効化するための世代番号
+    fullscreenFtbToggleVisualAnimSeq += 1;
+    const animSeq = fullscreenFtbToggleVisualAnimSeq;
+
+    const dur = Math.max(0, Number(durationSec) || 0);
+    const startOpacity = Math.max(0, Math.min(1, parseFloat(layer.style.opacity || '0') || 0));
+    const targetOpacity = active ? 1 : 0;
+
+    // FillKey時はFillKey色、それ以外は黒
+    layer.style.backgroundColor = (fillKeyMode && isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+    layer.style.display = 'block';
+    layer.style.visibility = 'visible';
+
+    if (dur <= 0) {
+        layer.style.opacity = String(targetOpacity);
+        if (!active) {
+            layer.style.visibility = 'hidden';
+        }
+        return;
+    }
+
+    const startTs = performance.now();
+    const animate = (now) => {
+        if (animSeq !== fullscreenFtbToggleVisualAnimSeq) {
+            return;
+        }
+
+        const t = Math.min(1, (now - startTs) / (dur * 1000));
+        const next = startOpacity + ((targetOpacity - startOpacity) * t);
+        layer.style.opacity = String(next);
+
+        if (t < 1) {
+            fullscreenFtbToggleRaf = requestAnimationFrame(animate);
+            return;
+        }
+
+        if (animSeq !== fullscreenFtbToggleVisualAnimSeq) {
+            return;
+        }
+
+        fullscreenFtbToggleRaf = null;
+        layer.style.opacity = String(targetOpacity);
+        if (!active) {
+            layer.style.visibility = 'hidden';
+        }
+    };
+
+    fullscreenFtbToggleRaf = requestAnimationFrame(animate);
+}
+
+function fullscreenApplyVolumeValueForFtbToggle(value) {
+    const v = Math.max(0, Math.min(1, Number(value) || 0));
+    const fullscreenVideoElement = document.getElementById('fullscreen-video');
+    if (!fullscreenVideoElement) return;
+
+    // FTB音声は「masterフェーダー相当」の経路で適用する。
+    // StartMode側の audioFadeIn / メーター再開が gain にスケジュールを入れても、
+    // ここで毎回 cancelScheduledValues して現在値を明示的に適用することで競合を抑える。
+    try {
+        fullscreenVideoElement.volume = v;
+    } catch (_) {
+        // ignore
+    }
+
+    try {
+        if (fullscreenGainNode) {
+            const audioContext = FullscreenAudioManager.getContext();
+            const t = audioContext.currentTime;
+            fullscreenGainNode.gain.cancelScheduledValues(t);
+            fullscreenGainNode.gain.setValueAtTime(v, t);
+        }
+    } catch (_) {
+        // ignore
+    }
+}
+
+function fullscreenAnimateFtbToggleAudioTo(targetLinear, durationSec) {
+    if (fullscreenFtbToggleAudioRaf !== null) {
+        cancelAnimationFrame(fullscreenFtbToggleAudioRaf);
+        fullscreenFtbToggleAudioRaf = null;
+    }
+
+    // 古いRAFコールバックを無効化するための世代番号
+    fullscreenFtbToggleAudioAnimSeq += 1;
+    const animSeq = fullscreenFtbToggleAudioAnimSeq;
+
+    const fullscreenVideoElement = document.getElementById('fullscreen-video');
+    if (!fullscreenVideoElement) return;
+
+    const targetLinearClamped = Math.max(0, Math.min(1, Number(targetLinear) || 0));
+    const target = Math.pow(targetLinearClamped, 2.2); // set-volume と同じ補正に合わせる
+    const dur = Math.max(0, Number(durationSec) || 0);
+
+    // FTB音声は AudioParam の ramp を使わず、
+    // 「masterフェーダー相当の適用経路（fullscreenApplyVolumeValueForFtbToggle）」を
+    // 毎フレーム更新する。これにより StartMode 側の gain スケジュール競合を抑える。
+    let start;
+    try {
+        if (fullscreenGainNode) {
+            start = Math.max(0, Math.min(1, Number(fullscreenGainNode.gain.value) || 0));
+        } else {
+            start = Math.max(0, Math.min(1, Number(fullscreenVideoElement.volume) || 0));
+        }
+    } catch (_) {
+        start = Math.max(0, Math.min(1, Number(fullscreenVideoElement.volume) || 0));
+    }
+
+    if (dur <= 0) {
+        fullscreenApplyVolumeValueForFtbToggle(target);
+        return;
+    }
+
+    const startTs = performance.now();
+    const animate = (now) => {
+        if (animSeq !== fullscreenFtbToggleAudioAnimSeq) {
+            return;
+        }
+
+        const t = Math.min(1, (now - startTs) / (dur * 1000));
+        const v = start + ((target - start) * t);
+        fullscreenApplyVolumeValueForFtbToggle(v);
+
+        if (t < 1) {
+            fullscreenFtbToggleAudioRaf = requestAnimationFrame(animate);
+            return;
+        }
+
+        if (animSeq !== fullscreenFtbToggleAudioAnimSeq) {
+            return;
+        }
+
+        fullscreenFtbToggleAudioRaf = null;
+        fullscreenApplyVolumeValueForFtbToggle(target);
+    };
+
+    fullscreenFtbToggleAudioRaf = requestAnimationFrame(animate);
+}
 // -------------------
 // オンエアデータ受信
 // -------------------
@@ -409,6 +602,13 @@ function initializeOverlayCanvas() {
 function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     // pre-FTB（フェードアウト）中は、最終フレーム保持オーバレイを絶対に出さない
     if (overlaySuppressedByPreFTB) {
+        return;
+    }
+
+    // FTBボタントグル黒保持中も、最終フレーム保持オーバレイは不要。
+    // 呼び出し元を個別に塞いでも別経路から来る可能性があるため、関数本体で全面スキップする。
+    if (typeof fullscreenFtbToggleHoldActive !== 'undefined' && fullscreenFtbToggleHoldActive) {
+        logInfo('[fullscreen.js] Overlay capture skipped due to FTB toggle hold.');
         return;
     }
 
@@ -1249,7 +1449,7 @@ if (!fadeCanvas) {
     fadeCanvas.style.width = '100vw';
     fadeCanvas.style.height = '100vh';
     // 黒は映像より前、ただし DSK より下（FTB/OffAir時はDSKをOFFにして消す）
-    fadeCanvas.style.zIndex = '8000';
+    fadeCanvas.style.zIndex = String(FS_LAYER_Z_PRE_FTB_BLACK);
     fadeCanvas.style.pointerEvents = 'none';
     fadeCanvas.style.backgroundColor = 'black';
     fadeCanvas.style.opacity = '0';
@@ -1591,12 +1791,23 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 break;
             case 'set-volume':
                 if (value >= 0 && value <= 1) {
-                    fullscreenVideoElement.volume = Math.min(1, Math.max(0, value));
+                    // 音声は onair 側のメインフェーダー経路を常に優先する。
+                    // FTB中/遷移中でも set-volume をバッファせず即時適用する。
+                    // （バッファすると「フェーダーは動くのに音が追従しない」状態になる）
+                    const clamped = Math.min(1, Math.max(0, value));
+
+                    fullscreenVideoElement.volume = clamped;
                     if (fullscreenGainNode) {
                         const audioContext = FullscreenAudioManager.getContext();
-                        fullscreenGainNode.gain.setValueAtTime(value, audioContext.currentTime);
+                        const t = audioContext.currentTime;
+                        fullscreenGainNode.gain.cancelScheduledValues(t);
+                        fullscreenGainNode.gain.setValueAtTime(clamped, t);
                     }
-                    logDebug(`[fullscreen.js] Fullscreen volume set to: ${value}`);
+
+                    // 保留値は使わない（旧ロジックの残骸を消す）
+                    fullscreenFtbTogglePendingVolume = null;
+
+                    logDebug(`[fullscreen.js] Fullscreen volume set to: ${clamped}`);
                 } else {
                     logInfo(`[fullscreen.js] Invalid volume value: ${value}. Must be between 0 and 1.`);
                 }
@@ -1658,6 +1869,52 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
 
                 fullscreenPendingEndMode = receivedEndMode;
                 fullscreenStartPendingEndModeWatcher();
+                break;
+            case 'ftb-toggle-hold':
+                {
+                    const active = !!(value && value.active);
+                    const dur = (value && typeof value.duration === 'number')
+                        ? value.duration
+                        : (globalState.ftbRate || 1.0);
+                    const fk = !!(value && value.fillKeyMode);
+                    const keepPlaying = !!(value && value.keepPlaying);
+                    const audioTargetLinear = (value && typeof value.audioTargetLinear === 'number')
+                        ? value.audioTargetLinear
+                        : (active ? 0 : 1);
+
+                    // FTB ON時点の「再生継続意思」を保存
+                    if (active) {
+                        fullscreenFtbToggleShouldKeepPlaying = keepPlaying;
+                    }
+
+                    fullscreenFtbToggleHoldActive = active;
+                    fullscreenFtbToggleTransitionUntilMs = performance.now() + (Math.max(0, Number(dur) || 0) * 1000) + 50;
+                    logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}, audioTargetLinear=${audioTargetLinear}`);
+                    setFullscreenFtbToggleHoldVisual(active, dur, fk);
+
+                    // 音声は onair 側のメインフェーダー（set-volume 経路）で制御する。
+                    // fullscreen 側の FTBトグルでは音声フェードを行わない。
+                    // ※ ここで gain/video.volume を触ると Start/End の音声フェードと競合しやすい
+
+                    // FTB OFF時、ON時点で再生中だったものは再生継続を保証
+                    // ただし既に再生中（例: エンドモードリピートで裏再生継続中）の場合は play() を再実行しない
+                    if (!active && fullscreenFtbToggleShouldKeepPlaying && fullscreenVideoElement && fullscreenVideoElement.paused) {
+                        try {
+                            const p = fullscreenVideoElement.play();
+                            if (p && typeof p.catch === 'function') {
+                                p.catch(() => {});
+                            }
+                        } catch (_) {
+                            // ignore
+                        }
+                    }
+
+                    // 音声は onair 側のメインフェーダー経路を常時適用するため、
+                    // FTB用の保留 volume 適用は行わない。
+                    if (!active) {
+                        fullscreenFtbTogglePendingVolume = null;
+                    }
+                }
                 break;
             case 'start-pre-ftb':
                 {
@@ -1929,7 +2186,17 @@ function handleEndModeREPEAT() {
         logInfo('[fullscreen.js] Video element not found. Cannot handle REPEAT mode.');
         return;
     }
-    captureLastFrameAndHoldUntilNextReady(true);
+
+    // FTBトグル黒保持中「または」FTBトグル遷移中は、
+    // 最終フレーム保持オーバーレイを作ると停止画に見えることがあるためスキップする。
+    const nowMs = performance.now();
+    const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
+
+    if (!fullscreenFtbToggleHoldActive && !isFtbToggleTransitionActive) {
+        captureLastFrameAndHoldUntilNextReady(true);
+    } else {
+        logInfo('[fullscreen.js] REPEAT skipped last-frame overlay capture due to FTB toggle hold/transition.');
+    }
 
     globalState.repeatFlag = true; 
     logInfo('[fullscreen.js] End Mode: REPEAT - Setting repeat flag and restarting playback.');
@@ -1942,11 +2209,21 @@ function handleEndModeREPEAT() {
 // ------------------------------------
 function handleEndModeNEXT() {
     logInfo('[fullscreen.js] Called endmode:NEXT - capturing last frame');
+
     const fc = document.getElementById('fadeCanvas');
-    if (holdBlackUntilFadeIn || (fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9)) {
-        logInfo('[fullscreen.js] NEXT skipped overlay capture due to black hold.');
+    const nowMs = performance.now();
+    const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
+
+    if (
+        holdBlackUntilFadeIn ||
+        isFtbToggleTransitionActive ||
+        fullscreenFtbToggleHoldActive ||
+        (fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9)
+    ) {
+        logInfo('[fullscreen.js] NEXT skipped overlay capture due to black hold / FTB toggle hold / transition.');
         return;
     }
+
     try {
         captureLastFrameAndHoldUntilNextReady(true);
     } catch (e) {
@@ -2187,21 +2464,30 @@ function setupFullscreenAudio(videoElement) {
                 }
                 const ctx = FullscreenAudioManager.getContext();
                 if (fullscreenGainNode) {
-                    const t = ctx.currentTime;
-                    const rawGain = (typeof globalState.volume === 'number')
-                        ? globalState.volume
-                        : (globalState?.defaultVolume ?? 100) / 100;
+                    const nowMs = performance.now();
+                    const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
 
-                    // ストリームソース（UVC/NDI）はゲイン 0.35（約 -9 dB）を上限とし、
-                    // それ以外は従来どおりゲイン 4.0（約 +12 dB）まで許容する
-                    const maxGain = (fullscreenSourceKind === 'stream') ? 0.5 : 4.0;
-                    const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
+                    // FTBトグル保持中/遷移中は、FTB側の音声フェードスケジュールを優先する。
+                    // ここで gain を再スケジュールすると、解除フェードが途中で潰れて無音/中途半端音量になることがある。
+                    if (!fullscreenFtbToggleHoldActive && !isFtbToggleTransitionActive) {
+                        const t = ctx.currentTime;
+                        const rawGain = (typeof globalState.volume === 'number')
+                            ? globalState.volume
+                            : (globalState?.defaultVolume ?? 100) / 100;
 
-                    // いきなりステップさせるとノイズが出る
-                    // ごく小さな値から 30ms かけて滑らかに目標ゲインまでフェードさせる
-                    fullscreenGainNode.gain.cancelScheduledValues(t);
-                    fullscreenGainNode.gain.setValueAtTime(0.0001, t);
-                    fullscreenGainNode.gain.linearRampToValueAtTime(targetGain, t + 0.03);
+                        // ストリームソース（UVC/NDI）はゲイン 0.35（約 -9 dB）を上限とし、
+                        // それ以外は従来どおりゲイン 4.0（約 +12 dB）まで許容する
+                        const maxGain = (fullscreenSourceKind === 'stream') ? 0.5 : 4.0;
+                        const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
+
+                        // いきなりステップさせるとノイズが出る
+                        // ごく小さな値から 30ms かけて滑らかに目標ゲインまでフェードさせる
+                        fullscreenGainNode.gain.cancelScheduledValues(t);
+                        fullscreenGainNode.gain.setValueAtTime(0.0001, t);
+                        fullscreenGainNode.gain.linearRampToValueAtTime(targetGain, t + 0.03);
+                    } else {
+                        logDebug('[fullscreen.js] resumeMeasure skipped gain restore due to FTB toggle hold/transition.');
+                    }
                 }
             } catch (_e) {}
             try { startVolumeMeasurement(60); } catch (_e) {}
@@ -2307,10 +2593,22 @@ function resetFullscreenAudio() {
 function audioFadeIn(duration) {
     const videoElement = document.getElementById('fullscreen-video');
     if (!videoElement) return;
+
+    // FTBトグル保持中/遷移中は、FTB側の音声フェードを優先する。
+    // （StartMode FADEIN の audioFadeIn と同時に走ると gain スケジュールが競合して、
+    //  中途半端な音量で止まることがある）
+    const nowMs = performance.now();
+    const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
+    if (fullscreenFtbToggleHoldActive || isFtbToggleTransitionActive) {
+        logDebug('[fullscreen.js] audioFadeIn skipped due to FTB toggle hold/transition (FTB audio fade takes priority).');
+        return;
+    }
+
     if (!fullscreenGainNode) {
         videoElement.volume = globalState.defaultVolume / 100;
         return;
     }
+
     const audioContext = FullscreenAudioManager.getContext();
     const currentTime = audioContext.currentTime;
     const targetGain = globalState.defaultVolume / 100;
@@ -2357,19 +2655,27 @@ function startVolumeMeasurement(updateInterval = 60) {
     logDebug('[fullscreen.js] Volume measurement loop started.');
 
     // stopVolumeMeasurement の linger で Gain が極小に落ちたままになるのを防ぐ
+    // ただし FTBトグル保持中/遷移中は、FTB側の音声フェードを優先して gain を上書きしない。
     try {
-        const t = audioContext.currentTime;
-        const rawGain = (typeof globalState.volume === 'number')
-            ? globalState.volume
-            : (globalState.defaultVolume ?? 100) / 100;
+        const nowMs = performance.now();
+        const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
 
-        // ストリームソース（UVC/NDI）は 0dB（1.0）まで、それ以外は従来どおり最大 4.0 まで許容
-        const maxGain = (fullscreenSourceKind === 'stream') ? 1.0 : 4.0;
-        const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
+        if (!fullscreenFtbToggleHoldActive && !isFtbToggleTransitionActive) {
+            const t = audioContext.currentTime;
+            const rawGain = (typeof globalState.volume === 'number')
+                ? globalState.volume
+                : (globalState.defaultVolume ?? 100) / 100;
 
-        if (fullscreenGainNode) {
-            fullscreenGainNode.gain.cancelScheduledValues(t);
-            fullscreenGainNode.gain.setValueAtTime(targetGain, t);
+            // ストリームソース（UVC/NDI）は 0dB（1.0）まで、それ以外は従来どおり最大 4.0 まで許容
+            const maxGain = (fullscreenSourceKind === 'stream') ? 1.0 : 4.0;
+            const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
+
+            if (fullscreenGainNode) {
+                fullscreenGainNode.gain.cancelScheduledValues(t);
+                fullscreenGainNode.gain.setValueAtTime(targetGain, t);
+            }
+        } else {
+            logDebug('[fullscreen.js] startVolumeMeasurement skipped gain restore due to FTB toggle hold/transition.');
         }
     } catch (_e) {}
 
@@ -2592,8 +2898,8 @@ function initFsDSKOverlay() {
     fsDSKOverlay.style.height = '100vh';
     fsDSKOverlay.style.opacity = '0';
     fsDSKOverlay.style.visibility = 'hidden';
-    // 黒(FTB/OffAir)より前に出す
-    fsDSKOverlay.style.zIndex = '9000';
+    // 既存DSKレイヤー（新規FTBトグル保持専用レイヤーよりは下）
+    fsDSKOverlay.style.zIndex = String(FS_LAYER_Z_DSK);
     fsDSKOverlay.style.pointerEvents = 'none';
     fsDSKOverlay.style.backgroundColor = 'transparent';
 }
