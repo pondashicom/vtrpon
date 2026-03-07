@@ -6091,7 +6091,7 @@ function buildPlaylistContextMenuItems(playlistItemId) {
 
     // ON AIR / OFF AIR / DSK → START → END → COPY → PASTE(条件付き無効) → BGCOLOR → RENAME → MAP
     return [
-        { label: onAirLabel, action: () => triggerPlaylistContextOnAir() },
+        { label: onAirLabel, action: () => triggerPlaylistContextOnAir(), highlightRedBold: true },
         { label: offAirLabel, action: () => triggerPlaylistContextOffAir() },
         { label: dskToggleLabel, action: () => triggerPlaylistContextDskToggle() },
         { label: startModeLabel, children: startModeChildren },
@@ -6121,6 +6121,12 @@ function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
 
         const labelSpan = document.createElement('span');
         labelSpan.textContent = it.label;
+
+        if (it.highlightRedBold) {
+            labelSpan.style.color = '#ff3b30';
+            labelSpan.style.fontWeight = '700';
+        }
+
         row.appendChild(labelSpan);
 
         if (it.disabled) {
