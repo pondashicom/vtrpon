@@ -1078,7 +1078,7 @@ async function getUVCResolution(deviceId) {
 // プレイリストアイテム描画
 // ---------------------------
 
-function renderPlaylistItem(file, index) {
+function renderPlaylistItem(file, index, activeDSKItemId) {
     const item = document.createElement('div');
     item.classList.add('playlist-item');
     item.playlistItem_id = file.playlistItem_id;
@@ -1302,7 +1302,7 @@ function renderPlaylistItem(file, index) {
     item.appendChild(statusContainer);
 
     // 状態をUIに反映
-    updateItemStateClass(item, file);
+    updateItemStateClass(item, file, activeDSKItemId);
 
     return item;
 }
@@ -2024,7 +2024,7 @@ function createStatusContainer(file) {
     return statusContainer;
 }
 
-function updateItemStateClass(item, file) {
+function updateItemStateClass(item, file, activeDSKItemId) {
     item.classList.remove('onair', 'editing', 'selected');
 
     // 状態を順番に適用（優先順位: onair > editing > selected）
@@ -2045,8 +2045,10 @@ function updateItemStateClass(item, file) {
     } else {
         item.classList.remove('selected');
     }
-    if (file.dskActive) {
+    if (activeDSKItemId && file.playlistItem_id === activeDSKItemId) {
         item.classList.add('dsk-active');
+    } else {
+        item.classList.remove('dsk-active');
     }
 
     // 背景色（プレイリスト色分け）反映
@@ -2105,23 +2107,14 @@ async function updatePlaylistUI() {
         logInfo('[playlist.js] Playlist is not an array:', playlist);
         return;
     }
-    try {
-        let needUpdate = false;
-        for (const it of playlist) {
-            if (it.dskActive) {
-                it.dskActive = false;
-                needUpdate = true;
-            }
-        }
-        if (needUpdate) {
-            await stateControl.setPlaylistState(playlist);
-        }
-    } catch (e) {
-        logInfo('[playlist.js] DSK reconcile failed:', e);
-    }
+
+    const currentDSKItem = (window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function')
+        ? window.dskModule.getCurrentDSKItem()
+        : null;
+    const activeDSKItemId = currentDSKItem ? currentDSKItem.playlistItem_id : null;
+
     // ソート
     const sortedPlaylistBase = getSortedPlaylist(playlist);
-
     // TOTAL（予測）を全アイテムに付与（UI表示用。stateには保存しない）
     const storeNumberRaw =
         (activePlaylistIndex !== undefined && activePlaylistIndex !== null)
@@ -2191,11 +2184,10 @@ async function updatePlaylistUI() {
 
     // 各プレイリストアイテム描画
     sortedPlaylist.forEach((file, index) => {
-        const item = renderPlaylistItem(file, index);
+        const item = renderPlaylistItem(file, index, activeDSKItemId);
 
         // 初期化
         item.classList.remove('selected', 'editing', 'onair');
-
         // 状態に応じたクラスの付与
         if (file.onAirState === "onair") {
             item.classList.add('onair');
@@ -5579,18 +5571,11 @@ if (dskButton) {
 }
 
 // DSK送出状態反映
-window.addEventListener('dsk-active-set', async (e) => {
-    const activeItemId = e.detail.itemId;
+window.addEventListener('dsk-active-set', async () => {
     try {
-        const playlist = await stateControl.getPlaylistState();
-        const updatedPlaylist = playlist.map(item => ({
-            ...item,
-            dskActive: item.playlistItem_id === activeItemId
-        }));
-        await stateControl.setPlaylistState(updatedPlaylist);
         await updatePlaylistUI();
     } catch (err) {
-        logInfo("Error updating dskActive flag in state:", err);
+        logInfo("Error reflecting active DSK UI:", err);
     }
     const dskButton = document.getElementById('dsk-button');
     if (dskButton) {
@@ -5601,12 +5586,9 @@ window.addEventListener('dsk-active-set', async (e) => {
 // DSK送出解除時
 window.addEventListener('dsk-active-clear', async () => {
     try {
-        const playlist = await stateControl.getPlaylistState();
-        const cleared = playlist.map(item => ({ ...item, dskActive: false }));
-        await stateControl.setPlaylistState(cleared);
         await updatePlaylistUI();
     } catch (err) {
-        logInfo("Error clearing dskActive flags:", err);
+        logInfo("Error clearing active DSK UI:", err);
     }
     const dskButton = document.getElementById('dsk-button');
     if (dskButton) {
