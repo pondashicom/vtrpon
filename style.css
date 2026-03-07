@@ -1,4 +1,4 @@
-﻿/* style.css 2.5.8 */
+﻿/* style.css 2.5.9 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -485,34 +485,48 @@ html {
 
 /* オンエア中プレイリスト */
 .playlist-item.onair {
-    border: 0.125rem solid rgba(255, 0, 0, 0.3);
-    box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2);
+    border: 0.1875rem solid rgba(255, 60, 60, 0.78);
+    box-shadow:
+        0 0 0.25rem rgba(255, 40, 40, 0.60),
+        0 0 0.5rem rgba(255, 0, 0, 0.42);
     animation: onair-blink 2s infinite;
 }
 
 /* アニメーション定義 */
 @keyframes onair-blink {
     0% {
-        box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2);
+        box-shadow:
+            0 0 0.25rem rgba(255, 40, 40, 0.60),
+            0 0 0.5rem rgba(255, 0, 0, 0.42);
     }
     50% {
-        box-shadow: 0 0 0.75rem rgba(255, 0, 0, 0.6), 0 0 0.9375rem rgba(255, 0, 0, 0.4);
+        box-shadow:
+            0 0 0.375rem rgba(255, 70, 70, 0.78),
+            0 0 0.75rem rgba(255, 0, 0, 0.55);
     }
     100% {
-        box-shadow: 0 0 0.3125rem rgba(255, 0, 0, 0.3), 0 0 0.625rem rgba(255, 0, 0, 0.2);
+        box-shadow:
+            0 0 0.25rem rgba(255, 40, 40, 0.60),
+            0 0 0.5rem rgba(255, 0, 0, 0.42);
     }
 }
 
 /* 編集中 */
 .playlist-item.editing:not(.onair) {
-    border: 0.125rem solid rgba(0, 255, 0, 0.3);
-    box-shadow: 0 0 0.3125rem rgba(0, 255, 0, 0.3), 0 0 0.625rem rgba(0, 255, 0, 0.2);
+    border: 0.125rem solid rgba(120, 255, 120, 0.95);
+    box-shadow:
+        0 0 0.375rem rgba(120, 255, 120, 0.95),
+        0 0 0.875rem rgba(0, 255, 80, 0.85),
+        0 0 1.5rem rgba(0, 255, 80, 0.55),
+        inset 0 0 0.25rem rgba(180, 255, 180, 0.35);
 }
 
-/* 選択中 */
-.playlist-item.selected:not(.onair):not(.editing) {
-    border: 0.0625rem solid rgba(255, 255, 128, 0.3);
-    box-shadow: 0 0 0.3125rem rgba(255, 255, 128, 0.3), 0 0 0.625rem rgba(128, 128, 128, 0.2);
+/* 編集中 */
+.playlist-item.editing:not(.onair) {
+    border: 0.1875rem solid rgba(120, 255, 120, 0.65);
+    box-shadow:
+        0 0 0.25rem rgba(120, 255, 120, 0.55),
+        0 0 0.5rem rgba(0, 255, 80, 0.35);
 }
 
 /*   DSK送出中 */
