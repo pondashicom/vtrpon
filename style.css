@@ -666,14 +666,18 @@ html {
 .button-red {
     background-color: rgba(215, 94, 94, 0.9)!important;
     border: 0.0625rem solid rgba(204, 51, 51, 0.3);
-    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
+    box-shadow:
+        0 0 0.25rem rgba(255, 70, 70, 0.55),
+        0 0 0.625rem rgba(255, 30, 30, 0.35);
     backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
 }
 
 .button-red:hover {
     background-color: rgba(215, 94, 94, 1);
-    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8);
+    box-shadow:
+        0 0 0.375rem rgba(255, 80, 80, 0.70),
+        0 0 0.875rem rgba(255, 40, 40, 0.45);
 }
 
 /* グレーボタン */
@@ -725,10 +729,14 @@ html {
 /* オンエアボタン（赤） */
 @keyframes glowAnimationRed {
     0%, 100% {
-        box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
+        box-shadow:
+            0 0 0.25rem rgba(255, 70, 70, 0.60),
+            0 0 0.625rem rgba(255, 30, 30, 0.38);
     }
     50% {
-        box-shadow: 0 0 0.9375rem rgba(215, 94, 94, 1);
+        box-shadow:
+            0 0 0.375rem rgba(255, 85, 85, 0.78),
+            0 0 0.95rem rgba(255, 40, 40, 0.52);
     }
 }
 
@@ -741,7 +749,9 @@ html {
     width: 6.25rem;
     background-color: rgba(215, 94, 94, 0.9);
     border: 0.0625rem solid rgba(204, 51, 51, 0.3);
-    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
+    box-shadow:
+        0 0 0.25rem rgba(255, 70, 70, 0.60),
+        0 0 0.625rem rgba(255, 30, 30, 0.38);
     backdrop-filter: blur(0.25rem);
     transition: all 0.3s ease;
     animation: glowAnimationRed 1.5s infinite;
@@ -749,7 +759,9 @@ html {
 
 .important-button-red:hover {
     background-color: rgba(215, 94, 94, 1);
-    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8);
+    box-shadow:
+        0 0 0.375rem rgba(255, 85, 85, 0.78),
+        0 0 0.875rem rgba(255, 40, 40, 0.48);
     animation: none;
 }
 
@@ -757,24 +769,32 @@ html {
 @keyframes blinkGlowRed {
     0%, 100% {
         background-color: rgba(215, 94, 94, 0.9);
-        box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
+        box-shadow:
+            0 0 0.25rem rgba(255, 70, 70, 0.60),
+            0 0 0.625rem rgba(255, 30, 30, 0.38);
     }
     50% {
         background-color: rgba(215, 94, 94, 1);
-        box-shadow: 0 0 0.625rem rgba(215, 94, 94, 1);
+        box-shadow:
+            0 0 0.375rem rgba(255, 85, 85, 0.78),
+            0 0 0.95rem rgba(255, 40, 40, 0.52);
     }
 }
 
 .button-recording {
-    animation: blinkGlowRed 2s ease infinite;
+    animation: blinkGlowRed 1.7s ease infinite;
     border: 0.0625rem solid rgba(204, 51, 51, 0.3);
-    box-shadow: 0 0 0.5rem rgba(215, 94, 94, 0.6);
+    box-shadow:
+        0 0 0.25rem rgba(255, 70, 70, 0.60),
+        0 0 0.625rem rgba(255, 30, 30, 0.38);
     color: #fff;
 }
 
 .button-recording:hover {
     background-color: rgba(215, 94, 94, 1);
-    box-shadow: 0 0 0.8125rem rgba(215, 94, 94, 0.8);
+    box-shadow:
+        0 0 0.375rem rgba(255, 85, 85, 0.78),
+        0 0 0.875rem rgba(255, 40, 40, 0.48);
     animation: none;
 }
 
