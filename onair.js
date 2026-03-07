@@ -530,6 +530,11 @@ function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
     onairMasterVolumeSlider.value = masterDisplayValue;
     onairMasterVolumeValueDisplay.textContent = `${masterDisplayValue}%`;
     onairMasterVolumeSlider.style.setProperty('--value', `${masterDisplayValue}%`);
+    if (masterDisplayValue <= 10) {
+        onairMasterVolumeValueDisplay.classList.add('neon-warning');
+    } else {
+        onairMasterVolumeValueDisplay.classList.remove('neon-warning');
+    }
 
     // 最終出力音量の算出： (item / 100) * (master / 100)
     const finalVolume = (defaultItemVolume / 100) * (masterDisplayValue / 100);
@@ -879,8 +884,8 @@ function onairReset() {
     // リソース解放
     onairReleaseResources(elements);
 
-    // FTBボタン赤点滅解除
-    onairSetFtbButtonRecordingBlink(false);
+    // FTBボタン表示はトグル保持状態に合わせる
+    onairSetFtbButtonRecordingBlink(!!onairFtbToggleHoldActive);
 
     logDebug('[onair.js] On-Air area reset completed.');
 }
@@ -1008,6 +1013,25 @@ async function onairSendToFullscreen(itemData) {
 
         logDebug('[onair.js] Sending video data to fullscreen:', fullscreenData);
         window.electronAPI.sendToFullscreenViaMain(fullscreenData);
+
+        if (onairFtbToggleHoldActive) {
+            const fillKeyColorPicker = document.getElementById('fillkey-color-picker');
+            const ftbFillKeyColor = !!isFillKeyMode
+                ? ((fillKeyColorPicker && fillKeyColorPicker.value) ? fillKeyColorPicker.value : "#00FF00")
+                : "";
+
+            window.electronAPI.sendControlToFullscreen({
+                command: 'ftb-toggle-hold',
+                value: {
+                    active: true,
+                    duration: 0,
+                    fillKeyMode: !!isFillKeyMode,
+                    fillKeyColor: ftbFillKeyColor,
+                    keepPlaying: !!onairFtbToggleShouldKeepPlaying,
+                    audioTargetLinear: 0
+                }
+            });
+        }
     } catch (error) {
         logDebug('[onair.js] Error while sending video data to fullscreen:', error);
     }
@@ -2318,6 +2342,25 @@ function onairHandleOffAirButton() {
         // ignore
     }
 
+    if (onairFtbToggleMasterFadeRaf !== null) {
+        cancelAnimationFrame(onairFtbToggleMasterFadeRaf);
+        onairFtbToggleMasterFadeRaf = null;
+    }
+    if (onairFtbToggleRaf !== null) {
+        cancelAnimationFrame(onairFtbToggleRaf);
+        onairFtbToggleRaf = null;
+    }
+
+    if (onairFtbToggleHoldActive) {
+        onairFtbToggleMasterVisualGain = 0;
+        onairSetFtbButtonRecordingBlink(true);
+        onairSetFtbToggleHoldVisual(true, 0);
+    } else {
+        onairFtbToggleMasterVisualGain = 1;
+        onairSetFtbButtonRecordingBlink(false);
+        onairSetFtbToggleHoldVisual(false, 0);
+    }
+
     onairReset();
     const elements = onairGetElements();
     onairInitializeVolumeSlider(elements, 100);
@@ -2329,6 +2372,7 @@ function onairHandleOffAirButton() {
     isOffAirProcessing = false;
     isOffAir = true;
 }
+
 // イベントリスナー
 function onairSetupButtonHandlers() {
     const elements = onairGetElements();

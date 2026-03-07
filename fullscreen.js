@@ -62,6 +62,33 @@ function initializeFullscreenArea() {
     seamlessGuardActive = false;
     overlayForceBlack = false;
 
+    if (fullscreenFtbToggleAudioRaf !== null) {
+        cancelAnimationFrame(fullscreenFtbToggleAudioRaf);
+        fullscreenFtbToggleAudioRaf = null;
+    }
+    if (fullscreenFtbToggleRaf !== null) {
+        cancelAnimationFrame(fullscreenFtbToggleRaf);
+        fullscreenFtbToggleRaf = null;
+    }
+    fullscreenFtbToggleAudioAnimSeq += 1;
+    fullscreenFtbToggleVisualAnimSeq += 1;
+    fullscreenFtbToggleHoldActive = false;
+    fullscreenFtbToggleShouldKeepPlaying = false;
+    fullscreenFtbTogglePendingVolume = null;
+    fullscreenFtbToggleTransitionUntilMs = 0;
+    fullscreenLastControlAppliedVolume = null;
+
+    try {
+        const ftbLayer = document.getElementById('fullscreen-ftb-toggle-layer');
+        if (ftbLayer) {
+            ftbLayer.style.opacity = '0';
+            ftbLayer.style.visibility = 'hidden';
+            ftbLayer.style.display = 'block';
+        }
+    } catch (_) {
+        // ignore
+    }
+
     // offAir 直後に残っている「前フレームオーバレイ（残像）」を確実に消す
     try {
         const oc = document.getElementById('overlay-canvas');
@@ -1939,6 +1966,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     fullscreenFtbToggleTransitionUntilMs = performance.now() + (Math.max(0, Number(dur) || 0) * 1000) + 50;
                     logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}, audioTargetLinear=${audioTargetLinear}`);
                     setFullscreenFtbToggleHoldVisual(active, dur, fk, fkColor);
+                    fullscreenAnimateFtbToggleAudioTo(audioTargetLinear, dur);
                     if (!active && fullscreenFtbToggleShouldKeepPlaying && fullscreenVideoElement && fullscreenVideoElement.paused) {
                         try {
                             const p = fullscreenVideoElement.play();
