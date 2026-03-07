@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.5.9
+//     ver 2.6.0
 // -----------------------
 
 // -----------------------
@@ -528,13 +528,8 @@ function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
 
     onairMasterVolume = masterDisplayValue;
     onairMasterVolumeSlider.value = masterDisplayValue;
-    onairMasterVolumeValueDisplay.textContent = `${masterDisplayValue}%`;
+    onairUpdateMasterVolumeDisplay(masterDisplayValue);
     onairMasterVolumeSlider.style.setProperty('--value', `${masterDisplayValue}%`);
-    if (masterDisplayValue <= 10) {
-        onairMasterVolumeValueDisplay.classList.add('neon-warning');
-    } else {
-        onairMasterVolumeValueDisplay.classList.remove('neon-warning');
-    }
 
     // 最終出力音量の算出： (item / 100) * (master / 100)
     const finalVolume = (defaultItemVolume / 100) * (masterDisplayValue / 100);
@@ -2894,23 +2889,19 @@ function onairSetupVolumeSliderHandler(elements) {
             onairItemVolumeValueDisplay.textContent = `${itemVal}%`;
         }
         if (onairMasterVolumeValueDisplay) {
-            onairMasterVolumeValueDisplay.textContent = `${masterVal}%`;
-            if (masterVal <= 10) {
-                onairMasterVolumeValueDisplay.classList.add('neon-warning');
-            } else {
-                onairMasterVolumeValueDisplay.classList.remove('neon-warning');
-            }
+            onairUpdateMasterVolumeDisplay(masterVal);
         }
-        const finalVolume = (itemVal / 100) * (masterVal / 100);
+        const visualFinalVolume = (itemVal / 100) * (masterVal / 100);
+        const actualFinalVolume = onairFtbToggleHoldActive ? 0 : visualFinalVolume;
         window.electronAPI.sendControlToFullscreen({
             command: 'set-volume',
-            value: Math.pow(finalVolume, 2.2)
+            value: Math.pow(actualFinalVolume, 2.2)
         });
         const videoElement = document.getElementById('on-air-video');
         if (videoElement) {
-            videoElement.volume = finalVolume;
+            videoElement.volume = actualFinalVolume;
         }
-        logInfo(`[onair.js] Combined volume updated: Item ${itemVal}%, Master ${masterVal}% -> Final ${(finalVolume * 100).toFixed(0)}%`);
+        logInfo(`[onair.js] Combined volume updated: Item ${itemVal}%, Master ${masterVal}% -> Final ${(actualFinalVolume * 100).toFixed(0)}%`);
     }
 
     // アイテムスライダー
@@ -4039,6 +4030,28 @@ function onairSetFtbButtonRecordingBlink(isActive) {
     }
 }
 
+function onairUpdateMasterVolumeDisplay(masterValue) {
+    const masterVolumeDisplay = document.getElementById('on-air-master-volume-value');
+    if (!masterVolumeDisplay) return;
+
+    if (onairFtbToggleHoldActive) {
+        masterVolumeDisplay.textContent = 'MUTE';
+        masterVolumeDisplay.classList.add('button-recording');
+        masterVolumeDisplay.classList.remove('neon-warning');
+        return;
+    }
+
+    const roundedValue = Math.round(Math.max(0, Math.min(100, Number(masterValue) || 0)));
+    masterVolumeDisplay.textContent = `${roundedValue}%`;
+    masterVolumeDisplay.classList.remove('button-recording');
+
+    if (roundedValue <= 10) {
+        masterVolumeDisplay.classList.add('neon-warning');
+    } else {
+        masterVolumeDisplay.classList.remove('neon-warning');
+    }
+}
+
 // -----------------------
 // FTBボタン
 // -----------------------
@@ -4330,9 +4343,7 @@ function onairSyncCombinedVolumeFromSlidersForFtb() {
         itemDisp.textContent = `${itemDispInt}%`;
     }
     if (masterDisp) {
-        masterDisp.textContent = `${masterDispInt}%`;
-        if (masterDispInt <= 10) masterDisp.classList.add('neon-warning');
-        else masterDisp.classList.remove('neon-warning');
+        onairUpdateMasterVolumeDisplay(masterDispInt);
     }
 
     itemSlider.style.setProperty('--value', `${itemVal}%`);
