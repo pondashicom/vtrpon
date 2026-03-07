@@ -9,6 +9,7 @@
 let currentDSKItem = null;
 let dskOverlay = null;
 let dskVideo = null;
+let dskTransitionToken = 0;
 const DEFAULT_FADE_DURATION = 300;
 
 // -----------------------
@@ -86,9 +87,21 @@ function fadeOut(element, duration, callback) {
     element.style.transition = `opacity ${duration}ms ease`;
     element.style.opacity = '0';
     setTimeout(() => {
-        element.style.visibility = 'hidden';
         if (callback) callback();
     }, duration);
+}
+
+function clearOnAirDSKOverlayState() {
+    if (!dskOverlay) {
+        currentDSKItem = null;
+        dskVideo = null;
+        return;
+    }
+    dskOverlay.innerHTML = '';
+    dskOverlay.style.opacity = '0';
+    dskOverlay.style.visibility = 'hidden';
+    currentDSKItem = null;
+    dskVideo = null;
 }
 
 function isOnAirDSKActuallyActive() {
@@ -112,8 +125,13 @@ function showOnAirDSK(itemData) {
     if (!itemData) {
         return;
     }
+
+    const transitionToken = ++dskTransitionToken;
+
     currentDSKItem = itemData;
     dskOverlay.innerHTML = '';
+    dskOverlay.style.visibility = 'visible';
+    dskOverlay.style.opacity = '0';
 
     const video = document.createElement('video');
     video.src = getSafeFileURL(itemData.path);
@@ -162,10 +180,14 @@ function showOnAirDSK(itemData) {
     dskVideo = video;
 
     const fadeDuration = itemData.ftbRate * 1000;
-    fadeIn(dskOverlay, fadeDuration);
+    fadeIn(dskOverlay, fadeDuration, () => {
+        if (transitionToken !== dskTransitionToken) {
+            return;
+        }
+    });
     
     if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
-        window.electronAPI.sendDSKCommand({ command: 'DSK_SHOW', payload: itemData, target: 'onair' });
+        window.electronAPI.sendDSKCommand({ command: 'DSK_SHOW', payload: itemData });
     }
     window.dispatchEvent(new CustomEvent('dsk-active-set', { detail: { itemId: itemData.playlistItem_id } }));
 }
@@ -195,14 +217,11 @@ function handleDskEnd() {
 
         case 'OFF':
         case 'NEXT':
+            dskTransitionToken++;
             if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
-                window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR', target: 'onair' });
+                window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
             }
-            dskOverlay.innerHTML = '';
-            dskOverlay.style.opacity = '0';
-            dskOverlay.style.visibility = 'hidden';
-            currentDSKItem = null;
-            dskVideo = null;
+            clearOnAirDSKOverlayState();
             window.dispatchEvent(new CustomEvent('dsk-active-clear'));
             break;
     }
@@ -213,6 +232,8 @@ function handleDskEnd() {
 // DSK非表示
 // -----------------------
 function hideOnAirDSK() {
+    const transitionToken = ++dskTransitionToken;
+
     if (!dskOverlay) {
         currentDSKItem = null;
         dskVideo = null;
@@ -220,15 +241,14 @@ function hideOnAirDSK() {
         return;
     }
     if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
-        window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR', target: 'onair' });
+        window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
     }
     const fadeDuration = currentDSKItem && currentDSKItem.ftbRate ? currentDSKItem.ftbRate * 1000 : DEFAULT_FADE_DURATION;
     fadeOut(dskOverlay, fadeDuration, () => {
-        dskOverlay.innerHTML = '';
-        dskOverlay.style.opacity = '0';
-        dskOverlay.style.visibility = 'hidden';
-        currentDSKItem = null;
-        dskVideo = null;
+        if (transitionToken !== dskTransitionToken) {
+            return;
+        }
+        clearOnAirDSKOverlayState();
         window.dispatchEvent(new CustomEvent('dsk-active-clear'));
     });
 }
