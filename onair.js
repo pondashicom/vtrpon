@@ -4043,7 +4043,7 @@ function onairSetFtbButtonRecordingBlink(isActive) {
 // FTBボタン
 // -----------------------
 function onairHandleFTBButton() {
-    if (!onairNowOnAir) {
+    if (!onairNowOnAir && !onairFtbToggleHoldActive) {
         logDebug('[onair.js] FTB button clicked, but On-Air is not active.');
         return;
     }
