@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.5.8
+//     ver 2.5.9
 // -----------------------
 
 // -----------------------
@@ -1941,6 +1941,8 @@ function onairHandleEndMode() {
         // repeatCount が未設定（∞扱い）の場合は従来どおり REPEAT のまま
     }
 
+    const wasGotoEndMode = (effectiveEndMode === 'GOTO');
+
     // GOTO は NEXT 完了通知経路を流用するため、実行系は NEXT として扱う
     if (effectiveEndMode === 'GOTO') {
         effectiveEndMode = 'NEXT';
@@ -1975,11 +1977,11 @@ function onairHandleEndMode() {
     });
     logDebug(`[onair.js] EndMode command sent to fullscre... }, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
 
-    onairExecuteEndMode(effectiveEndMode);
+    onairExecuteEndMode(effectiveEndMode, { wasGotoEndMode });
 }
 
 // エンドモード振分
-function onairExecuteEndMode(endMode) {
+function onairExecuteEndMode(endMode, options = {}) {
     logInfo(`[onair.js] Executing End Mode: ${endMode}`);
 
     switch (endMode) {
@@ -1993,7 +1995,7 @@ function onairExecuteEndMode(endMode) {
             onairHandleEndModeRepeat();
             break;
         case 'NEXT':
-            onairHandleEndModeNext();
+            onairHandleEndModeNext(options);
             break;
         default:
             logInfo(`[onair.js] Unknown End Mode: ${endMode}`);
@@ -2309,22 +2311,6 @@ function onairHandleOffAirButton() {
     onairNowOnAir = false;
     window.onairWasOffAir = true;
 
-    // DSK強制OFF
-    try {
-        // DSKを停止
-        if (window.dskModule && typeof window.dskModule.clearOnAirDSK === 'function') {
-            window.dskModule.clearOnAirDSK();
-        }
-        // Fullscreen側も停止
-        if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
-            window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
-        }
-        // DSKボタンを即時OFFにする
-        window.dispatchEvent(new CustomEvent('dsk-active-clear'));
-    } catch (_) {
-        // ignore
-    }
-
     // FTBフェードを中断
     try {
         window.electronAPI.sendControlToFullscreen({ command: 'cancel-fadeout' });
@@ -2343,7 +2329,6 @@ function onairHandleOffAirButton() {
     isOffAirProcessing = false;
     isOffAir = true;
 }
-
 // イベントリスナー
 function onairSetupButtonHandlers() {
     const elements = onairGetElements();

@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     dsk.js
-//     ver 2.5.7
+//     ver 2.5.9
 // -----------------------
 
 // -----------------------
@@ -89,6 +89,16 @@ function fadeOut(element, duration, callback) {
         element.style.visibility = 'hidden';
         if (callback) callback();
     }, duration);
+}
+
+function isOnAirDSKActuallyActive() {
+    return !!(
+        currentDSKItem &&
+        dskVideo &&
+        dskOverlay &&
+        dskOverlay.childElementCount > 0 &&
+        dskOverlay.style.visibility !== 'hidden'
+    );
 }
 
 // -----------------------
@@ -192,6 +202,7 @@ function handleDskEnd() {
             dskOverlay.style.opacity = '0';
             dskOverlay.style.visibility = 'hidden';
             currentDSKItem = null;
+            dskVideo = null;
             window.dispatchEvent(new CustomEvent('dsk-active-clear'));
             break;
     }
@@ -202,14 +213,22 @@ function handleDskEnd() {
 // DSK非表示
 // -----------------------
 function hideOnAirDSK() {
-    if (!dskOverlay) return;
+    if (!dskOverlay) {
+        currentDSKItem = null;
+        dskVideo = null;
+        window.dispatchEvent(new CustomEvent('dsk-active-clear'));
+        return;
+    }
     if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
         window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR', target: 'onair' });
     }
-    const fadeDuration = currentDSKItem.ftbRate * 1000;
+    const fadeDuration = currentDSKItem && currentDSKItem.ftbRate ? currentDSKItem.ftbRate * 1000 : DEFAULT_FADE_DURATION;
     fadeOut(dskOverlay, fadeDuration, () => {
         dskOverlay.innerHTML = '';
+        dskOverlay.style.opacity = '0';
+        dskOverlay.style.visibility = 'hidden';
         currentDSKItem = null;
+        dskVideo = null;
         window.dispatchEvent(new CustomEvent('dsk-active-clear'));
     });
 }
@@ -218,7 +237,7 @@ function hideOnAirDSK() {
 // DSKトグル
 // -----------------------
 function toggleOnAirDSK(itemData) {
-    if (currentDSKItem) {
+    if (isOnAirDSKActuallyActive()) {
         hideOnAirDSK();
         return;
     }
@@ -250,7 +269,6 @@ function toggleOnAirDSK(itemData) {
 function clearOnAirDSK() {
     hideOnAirDSK();
 }
-
 // -----------------------
 // 再生と一時停止
 // -----------------------
@@ -320,9 +338,7 @@ function setCurrentDSKItemById(itemId) {
         const list = window.electronAPI.stateControl.getPlaylistState();
         const item = list.find(i => i.playlistItem_id === itemId);
         if (!item) return;
-        // 現在のDSK対象として記録（再生や表示は開始しない）
-        currentDSKItem = item;
-        // Playlist側にdskActiveを付与してUI（オレンジ枠）を復元
+        // Playlist側にdskActiveを付与してUI（オレンジ枠）だけを復元する
         window.dispatchEvent(new CustomEvent('dsk-active-set', { detail: { itemId } }));
     } catch (e) {
         console.error('[dsk.js] setCurrentDSKItemById error:', e);

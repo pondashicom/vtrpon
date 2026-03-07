@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.5.7
+//     ver 2.5.9
 // -----------------------
 
 
@@ -2106,35 +2106,11 @@ async function updatePlaylistUI() {
         return;
     }
     try {
-        const currentDSKItem =
-            window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function'
-                ? window.dskModule.getCurrentDSKItem()
-                : null;
         let needUpdate = false;
-        if (currentDSKItem && currentDSKItem.playlistItem_id) {
-            const existsHere = playlist.some(it => it.playlistItem_id === currentDSKItem.playlistItem_id);
-            if (existsHere) {
-                for (const it of playlist) {
-                    const should = it.playlistItem_id === currentDSKItem.playlistItem_id;
-                    if ((it.dskActive || false) !== should) {
-                        it.dskActive = should;
-                        needUpdate = true;
-                    }
-                }
-            } else {
-                for (const it of playlist) {
-                    if (it.dskActive) {
-                        it.dskActive = false;
-                        needUpdate = true;
-                    }
-                }
-            }
-        } else {
-            for (const it of playlist) {
-                if (it.dskActive) {
-                    it.dskActive = false;
-                    needUpdate = true;
-                }
+        for (const it of playlist) {
+            if (it.dskActive) {
+                it.dskActive = false;
+                needUpdate = true;
             }
         }
         if (needUpdate) {
@@ -3824,17 +3800,6 @@ async function savePlaylistToStore(storeNumber, playlistName) {
         })
         .sort((a, b) => Number(a.order) - Number(b.order));
 
-    // DSK選択中アイテムID取得（取れなければ null）
-    let dskCurrentItemId = null;
-    try {
-        const dskItem = window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function'
-            ? window.dskModule.getCurrentDSKItem()
-            : null;
-        dskCurrentItemId = dskItem ? dskItem.playlistItem_id : null;
-    } catch (e) {
-        dskCurrentItemId = null;
-    }
-
     // 保存（空なら空で保存する：スロットは常に存在）
     localStorage.setItem(key, JSON.stringify({
         name,
@@ -3842,7 +3807,7 @@ async function savePlaylistToStore(storeNumber, playlistName) {
         soundPadMode: !!soundPadActive,
         directOnAirMode: !!directOnAirActive,
         fillKeyMode: !!isFillKeyMode,
-        dskCurrentItemId: dskCurrentItemId,
+        dskCurrentItemId: null,
         data
     }));
 
@@ -4261,9 +4226,9 @@ async function loadPlaylist(storeNumber) {
         // FILLKEYモードの状態通知
         window.electronAPI.ipcRenderer.send('fillkey-mode-update', isFillKeyMode);
 
-        // DSK選択状態復元
-        if (playlistData.dskCurrentItemId && window.dskModule && typeof window.dskModule.setCurrentDSKItemById === 'function') {
-            window.dskModule.setCurrentDSKItemById(playlistData.dskCurrentItemId);
+        // DSK状態はプレイリスト切替で復元しない
+        if (window.dskModule && typeof window.dskModule.setCurrentDSKItemById === 'function') {
+            window.dskModule.setCurrentDSKItemById(null);
         }
 
     } catch (error) {

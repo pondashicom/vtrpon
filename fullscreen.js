@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.8
+//     ver 2.5.9
 // -----------------------
 
 // -----------------------
@@ -1086,13 +1086,27 @@ function setupVideoPlayer() {
         logDebug('[fullscreen.js] Audio (re)initialized during setupVideoPlayer.');
 
         // 音量適用
-        videoElement.volume = initialVolume;
+        // FTBトグル保持中/遷移中は「裏の再生」は続けるが、実出力音量は必ず0に固定する
+        const nowMsForInitVolume = performance.now();
+        const isFtbToggleTransitionActiveForInitVolume =
+            nowMsForInitVolume < (fullscreenFtbToggleTransitionUntilMs || 0);
+        const shouldForceMuteByFtbForInitVolume =
+            fullscreenFtbToggleHoldActive || isFtbToggleTransitionActiveForInitVolume;
+
+        const appliedInitialVolume = shouldForceMuteByFtbForInitVolume ? 0 : initialVolume;
+
+        videoElement.volume = appliedInitialVolume;
         if (fullscreenGainNode) {
             const audioContext = FullscreenAudioManager.getContext();
-            fullscreenGainNode.gain.setValueAtTime(initialVolume, audioContext.currentTime);
+            fullscreenGainNode.gain.setValueAtTime(appliedInitialVolume, audioContext.currentTime);
         }
 
-        logInfo(`[fullscreen.js] Fullscreen video started with default volume: ${initialVolume}`);
+        if (shouldForceMuteByFtbForInitVolume) {
+            fullscreenFtbTogglePendingVolume = initialVolume;
+            fullscreenLastControlAppliedVolume = 0;
+        }
+
+        logInfo(`[fullscreen.js] Fullscreen video started with default volume: ${appliedInitialVolume}`);
     }, { once: true });
 
     logInfo('[fullscreen.js] Video player initialized with the following settings:');
@@ -1175,10 +1189,24 @@ async function setupUVCDevice() {
             audio: audioConstraints
         });
 
-        // 初期音量設定
-        let initialVolume = (globalState.volume !== undefined ? globalState.volume : (globalState.defaultVolume / 100));
-        if (typeof initialVolume !== 'number' || isNaN(initialVolume)) {
-            initialVolume = 1.0;
+        // 初期音量
+        // FTBトグル保持中/遷移中は「裏の再生」は続けるが、実出力音量は必ず0に固定する
+        const nowMsForUvcInitVolume = performance.now();
+        const isFtbToggleTransitionActiveForUvcInitVolume =
+            nowMsForUvcInitVolume < (fullscreenFtbToggleTransitionUntilMs || 0);
+        const shouldForceMuteByFtbForUvcInitVolume =
+            fullscreenFtbToggleHoldActive || isFtbToggleTransitionActiveForUvcInitVolume;
+
+        const appliedUvcInitialVolume = shouldForceMuteByFtbForUvcInitVolume ? 0 : initialVolume;
+
+        if (fullscreenGainNode) {
+            const audioContext = FullscreenAudioManager.getContext();
+            fullscreenGainNode.gain.setValueAtTime(appliedUvcInitialVolume, audioContext.currentTime);
+        }
+
+        if (shouldForceMuteByFtbForUvcInitVolume) {
+            fullscreenFtbTogglePendingVolume = initialVolume;
+            fullscreenLastControlAppliedVolume = 0;
         }
         const maxStreamGain = 1.0;
         initialVolume = Math.max(0.0, Math.min(maxStreamGain, initialVolume));
@@ -1829,6 +1857,9 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
             case 'set-playback-speed':
                 fullscreenVideoElement.playbackRate = value;
                 logDebug(`[fullscreen.js] Fullscreen playback speed set to: ${value}`);
+                break;
+            case 'cancel-fadeout':
+                cancelFadeOut();
                 break;
             case 'offAir':
                 logInfo('[fullscreen.js]  Received offAir command.');
