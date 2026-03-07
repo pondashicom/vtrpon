@@ -6010,6 +6010,38 @@ function getContextLabel(labelId, fallback) {
     return fallback;
 }
 
+function triggerContextMenuShortcutKey(key, options = {}) {
+    const keyboardEvent = new KeyboardEvent('keydown', {
+        key,
+        code: options.code || key,
+        ctrlKey: !!options.ctrlKey,
+        metaKey: !!options.metaKey,
+        shiftKey: !!options.shiftKey,
+        altKey: !!options.altKey,
+        bubbles: true,
+        cancelable: true
+    });
+
+    document.dispatchEvent(keyboardEvent);
+    window.dispatchEvent(keyboardEvent);
+}
+
+function triggerPlaylistContextOnAir() {
+    triggerButtonMouseDown(
+        'cue-button',
+        '[playlist.js] On-Air triggered via context menu (synthetic mousedown).'
+    );
+}
+
+function triggerPlaylistContextOffAir() {
+    window.electronAPI.sendOffAirEvent();
+    logOpe('[playlist.js] Off-Air triggered via context menu.');
+}
+
+function triggerPlaylistContextDskToggle() {
+    handlePlaylistShortcut('Shift+D');
+}
+
 function buildPlaylistContextMenuItems(playlistItemId) {
     const L = (key, fallback) => getContextLabel(key, fallback);
     const cap = (s) => (s && typeof s === 'string') ? (s.charAt(0).toUpperCase() + s.slice(1)) : s;
@@ -6024,6 +6056,9 @@ function buildPlaylistContextMenuItems(playlistItemId) {
 
     const startModeLabel = L('context-start-mode', 'スタートモード');
     const endModeLabel = L('context-end-mode', 'エンドモード');
+    const onAirLabel = L('context-on-air', 'オンエア');
+    const offAirLabel = L('context-off-air', 'オフエア');
+    const dskToggleLabel = L('context-dsk-toggle', 'DSK（トグル）');
     const ftbToggleLabel = L('context-end-mode-ftb', 'FTB');
     const bgColorLabel = L('context-bg-color', '背景色');
     const copyStateLabel = L('context-copy-item-state', 'アイテムの状態をコピー');
@@ -6054,8 +6089,11 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         action: () => setPlaylistItemBgColor(playlistItemId, v)
     }));
 
-    // START → END → MAP → COPY → PASTE(条件付き無効) → BGCOLOR → RENAME
+    // ON AIR / OFF AIR / DSK → START → END → COPY → PASTE(条件付き無効) → BGCOLOR → RENAME → MAP
     return [
+        { label: onAirLabel, action: () => triggerPlaylistContextOnAir() },
+        { label: offAirLabel, action: () => triggerPlaylistContextOffAir() },
+        { label: dskToggleLabel, action: () => triggerPlaylistContextDskToggle() },
         { label: startModeLabel, children: startModeChildren },
         { label: endModeLabel, children: endModeChildren },
         { label: copyStateLabel, action: () => copyItemState() },
@@ -6065,7 +6103,6 @@ function buildPlaylistContextMenuItems(playlistItemId) {
         { label: mapLabel, action: () => openPlaylistItemMapModal(playlistItemId) }
     ];
 }
-
 
 function renderContextMenu(menuEl, items, level = 0, anchorRect = null) {
     menuEl.innerHTML = '';

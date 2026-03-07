@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.5.7
+//     ver 2.5.9
 // -----------------------
 
 const labels = {
@@ -164,6 +164,9 @@ const labels = {
     "context-rename-item": "名前の変更",
     "context-start-mode": "スタートモード",
     "context-end-mode": "エンドモード",
+    "context-on-air": "オンエア",
+    "context-off-air": "オフエア",
+    "context-dsk-toggle": "DSK（トグル）",
     "context-bg-color": "背景色",
     "context-bg-color-default": "標準",
     "context-bg-color-red": "赤",
@@ -364,6 +367,9 @@ const labels = {
     "context-start-mode": "Start Mode",
     "context-end-mode": "End Mode",
     "context-end-mode": "End Mode",
+    "context-on-air": "On Air",
+    "context-off-air": "Off Air",
+    "context-dsk-toggle": "DSK (Toggle)",
     "context-bg-color": "Background Color",
     "context-bg-color-default": "Default",
     "context-bg-color-red": "Red",
