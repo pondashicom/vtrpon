@@ -688,9 +688,25 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     const isReadyToRelease = (nowSrc) => {
         if (!nowSrc) return false;
         if (nowSrc !== capturedSrc) return true;
+
         const nowTime = Number(videoElement.currentTime || 0);
+
         if (nowTime <= 0.12 && capturedTime > 0.30) return true;
         if (nowTime + 0.25 < capturedTime) return true;
+
+        // 同じソースを offAir → 再 onAir したとき、
+        // startMode=PAUSE では playing にならないため、
+        // 「最初のフレームが読めていて、IN付近へシーク済み」なら解除可とする
+        if (
+            videoElement.paused &&
+            (videoElement.readyState >= 2) &&
+            (videoElement.videoWidth | 0) > 0 &&
+            (videoElement.videoHeight | 0) > 0 &&
+            Math.abs(nowTime - Number(globalState.inPoint || 0)) <= 0.12
+        ) {
+            return true;
+        }
+
         const elapsed = performance.now() - capturedAt;
         if (
             elapsed >= 1500 &&
@@ -700,6 +716,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         ) {
             return true;
         }
+
         return false;
     };
 
