@@ -1883,13 +1883,16 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                         fullscreenFtbTogglePendingVolume = null;
                         break;
                     }
+
+                    if (fullscreenVideoElement) {
+                        fullscreenVideoElement.volume = clamped;
+                    }
+
                     if (fullscreenGainNode) {
                         const audioContext = FullscreenAudioManager.getContext();
                         const t = audioContext.currentTime;
                         fullscreenGainNode.gain.cancelScheduledValues(t);
                         fullscreenGainNode.gain.setValueAtTime(clamped, t);
-                    } else {
-                        fullscreenVideoElement.volume = clamped;
                     }
 
                     fullscreenLastControlAppliedVolume = clamped;
@@ -1981,7 +1984,13 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     fullscreenFtbToggleTransitionUntilMs = performance.now() + (Math.max(0, Number(dur) || 0) * 1000) + 50;
                     logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}, audioTargetLinear=${audioTargetLinear}`);
                     setFullscreenFtbToggleHoldVisual(active, dur, fk, fkColor);
-                    fullscreenAnimateFtbToggleAudioTo(audioTargetLinear, dur);
+
+                    if (fullscreenFtbToggleAudioRaf !== null) {
+                        cancelAnimationFrame(fullscreenFtbToggleAudioRaf);
+                        fullscreenFtbToggleAudioRaf = null;
+                    }
+                    fullscreenFtbToggleAudioAnimSeq += 1;
+
                     if (!active && fullscreenFtbToggleShouldKeepPlaying && fullscreenVideoElement && fullscreenVideoElement.paused) {
                         try {
                             const p = fullscreenVideoElement.play();
