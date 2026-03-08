@@ -690,29 +690,34 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         if (nowSrc !== capturedSrc) return true;
 
         const nowTime = Number(videoElement.currentTime || 0);
+        const inPoint = Number(globalState.inPoint || 0);
+        const hasDecodedFrame =
+            (videoElement.readyState >= 2) &&
+            (videoElement.videoWidth | 0) > 0 &&
+            (videoElement.videoHeight | 0) > 0;
 
         if (nowTime <= 0.12 && capturedTime > 0.30) return true;
         if (nowTime + 0.25 < capturedTime) return true;
 
-        // 同じソースを offAir → 再 onAir したとき、
-        // startMode=PAUSE では playing にならないため、
-        // 「最初のフレームが読めていて、IN付近へシーク済み」なら解除可とする
+        // 同一ソース再 onAir では、再生位置が進み始めた時点でオーバレイ解除を許可する
+        if (!videoElement.paused && nowTime >= inPoint + 0.08) {
+            return true;
+        }
+
+        // startMode=PAUSE 用
         if (
             videoElement.paused &&
-            (videoElement.readyState >= 2) &&
-            (videoElement.videoWidth | 0) > 0 &&
-            (videoElement.videoHeight | 0) > 0 &&
-            Math.abs(nowTime - Number(globalState.inPoint || 0)) <= 0.12
+            hasDecodedFrame &&
+            Math.abs(nowTime - inPoint) <= 0.12
         ) {
             return true;
         }
 
         const elapsed = performance.now() - capturedAt;
         if (
-            elapsed >= 1500 &&
-            (videoElement.readyState >= 2) &&
+            elapsed >= 120 &&
             !videoElement.paused &&
-            (Math.abs(nowTime - capturedTime) >= 0.30 || nowTime >= 0.25)
+            (hasDecodedFrame || nowTime >= inPoint + 0.08)
         ) {
             return true;
         }
@@ -800,25 +805,21 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
 
     const onLoadedData = () => {
         if (!isCurrentToken()) return;
-        if (useRVFC && !videoElement.paused) return;
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (isReadyToRelease(nowSrc)) clearOverlay('loadeddata');
     };
     const onCanPlay = () => {
         if (!isCurrentToken()) return;
-        if (useRVFC && !videoElement.paused) return;
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (isReadyToRelease(nowSrc)) clearOverlay('canplay');
     };
     const onSeeked = () => {
         if (!isCurrentToken()) return;
-        if (useRVFC && !videoElement.paused) return;
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (isReadyToRelease(nowSrc)) clearOverlay('seeked');
     };
     const onTimeUpdate = () => {
         if (!isCurrentToken()) return;
-        if (useRVFC && !videoElement.paused) return;
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (isReadyToRelease(nowSrc)) clearOverlay('timeupdate');
     };
@@ -848,27 +849,24 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     fullscreenSeamlessCleanup = cleanup;
 
     const clearOverlay = (reason) => {
-        const RELEASE_DELAY_MS = 50;
-        setTimeout(() => {
-            if (!isCurrentToken()) {
-                cleanup();
-                if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
-                return;
-            }
-
-            try {
-                overlayCanvas.style.display = 'none';
-                try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
-            } catch (_) {}
-
-            seamlessGuardActive = false;
-            overlayForceBlack = false;
-
-            logDebug(`[fullscreen.js] Overlay cleared after smal... (${RELEASE_DELAY_MS}ms)${reason ? ' [' + reason + ']' : ''}.`);
-
+        if (!isCurrentToken()) {
             cleanup();
             if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
-        }, RELEASE_DELAY_MS);
+            return;
+        }
+
+        try {
+            overlayCanvas.style.display = 'none';
+            try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
+        } catch (_) {}
+
+        seamlessGuardActive = false;
+        overlayForceBlack = false;
+
+        logDebug(`[fullscreen.js] Overlay cleared immediately${reason ? ' [' + reason + ']' : ''}.`);
+
+        cleanup();
+        if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
     };
 
     const rvfc = useRVFC ? (ts, md) => {
@@ -877,22 +875,22 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
             return;
         }
+
         const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
         if (!isReadyToRelease(nowSrc)) {
             try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
             return;
         }
+
         const pf = (md && typeof md.presentedFrames === 'number') ? md.presentedFrames : null;
+
         if (!rvfcArmed) {
             rvfcArmed = true;
             rvfcArmedAt = performance.now();
             rvfcCount = 0;
             rvfcLastPresentedFrames = (pf !== null) ? pf : 0;
 
-            try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
-            return;
-        }
-        if ((performance.now() - rvfcArmedAt) < 120) {
+            // ここで待たず、次のフレームでそのまま解除判定に入る
             try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
             return;
         }
@@ -906,8 +904,8 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
             rvfcCount += 1;
         }
 
-        // スタートモードPAUSEの場合
-        const requiredFrames = videoElement.paused ? 1 : 2;
+        // PLAY中も 1 フレーム確認で十分。2フレーム待ちは不要。
+        const requiredFrames = 1;
 
         if (rvfcCount >= requiredFrames) {
             clearOverlay('rvfc');
