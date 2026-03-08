@@ -49,7 +49,7 @@ const FS_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
 // ----------------------------------------
 // フルスクリーン初期化
 // ----------------------------------------
-function initializeFullscreenArea() {
+function initializeFullscreenArea(keepBlackHold = false) {
     // シームレス切替オーバレイが残っている場合は確実に掃除（offAir→次オンエアで前フレーム混入を防ぐ）
     try {
         if (typeof fullscreenSeamlessCleanup === 'function') {
@@ -114,20 +114,27 @@ function initializeFullscreenArea() {
         // ignore
     }
 
-    // offAir / OFF は「黒（またはFILLKEY背景）」を保持して、次映像が出るまで前フレームを見せない
-    holdBlackUntilFadeIn = true;
     const fc = initializeFadeCanvas();
-    if (fc) {
-        fc.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
-        fc.style.display = 'block';
-        fc.style.visibility = 'visible';
-        fc.style.opacity = '1';
-        // 黒は映像より前、ただし DSK(z=9000) より下
-        fc.style.zIndex = '8000';
+    if (keepBlackHold) {
+        holdBlackUntilFadeIn = true;
+        if (fc) {
+            fc.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+            fc.style.display = 'block';
+            fc.style.visibility = 'visible';
+            fc.style.opacity = '1';
+            // 黒は映像より前、ただし DSK(z=9000) より下
+            fc.style.zIndex = '8000';
+        }
+    } else {
+        holdBlackUntilFadeIn = false;
+        if (fc) {
+            fc.style.opacity = '0';
+            fc.style.display = 'none';
+            fc.style.visibility = 'hidden';
+        }
     }
 
     const videoElement = document.getElementById('fullscreen-video');
-
     if (videoElement) {
         videoElement.pause();
 
@@ -849,24 +856,28 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     fullscreenSeamlessCleanup = cleanup;
 
     const clearOverlay = (reason) => {
-        if (!isCurrentToken()) {
+        const RELEASE_DELAY_MS = 180;
+
+        setTimeout(() => {
+            if (!isCurrentToken()) {
+                cleanup();
+                if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+                return;
+            }
+
+            try {
+                overlayCanvas.style.display = 'none';
+                try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
+            } catch (_) {}
+
+            seamlessGuardActive = false;
+            overlayForceBlack = false;
+
+            logDebug(`[fullscreen.js] Overlay cleared after delay (${RELEASE_DELAY_MS}ms)${reason ? ' [' + reason + ']' : ''}.`);
+
             cleanup();
             if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
-            return;
-        }
-
-        try {
-            overlayCanvas.style.display = 'none';
-            try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
-        } catch (_) {}
-
-        seamlessGuardActive = false;
-        overlayForceBlack = false;
-
-        logDebug(`[fullscreen.js] Overlay cleared immediately${reason ? ' [' + reason + ']' : ''}.`);
-
-        cleanup();
-        if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+        }, RELEASE_DELAY_MS);
     };
 
     const rvfc = useRVFC ? (ts, md) => {
@@ -1424,9 +1435,15 @@ function handleStartMode() {
             const expectedSrc = String(videoElement.src || '');
             let releaseStarted = false;
 
+            const cleanupReleaseListeners = () => {
+                videoElement.removeEventListener('loadeddata', tryRelease);
+                videoElement.removeEventListener('canplay', tryRelease);
+            };
+
             const releaseHeldBlackOnce = () => {
                 if (releaseStarted) return;
                 releaseStarted = true;
+                cleanupReleaseListeners();
                 try {
                     fullscreenFadeFromBlack(0.06, isFillKeyMode);
                 } catch (_) {
@@ -1440,7 +1457,7 @@ function handleStartMode() {
                 }
             };
 
-            const tryRelease = () => {
+            function tryRelease() {
                 if (releaseStarted) return;
 
                 // 旧フレーム（動画1）で黒解除されないよう、src が新ソースであることを確認
@@ -1452,17 +1469,24 @@ function handleStartMode() {
                 if ((videoElement.videoWidth | 0) <= 0 || (videoElement.videoHeight | 0) <= 0) return;
 
                 releaseHeldBlackOnce();
-            };
+            }
 
-            // loadeddata は「最初の映像フレームがデコード済み」なので、ここで解除するのが最も安全
-            videoElement.addEventListener('loadeddata', tryRelease, { once: true });
+            // loadeddata が来ない経路の保険として canplay でも同条件を確認する
+            videoElement.addEventListener('loadeddata', tryRelease);
+            videoElement.addEventListener('canplay', tryRelease);
 
-            // 念のため保険（loadeddata 前後で条件が揃った瞬間に解除）
+            // すでにデコード済みなら即解除
+            tryRelease();
+
+            // 念のため保険（loadeddata/canplay 前後で条件が揃った瞬間に解除）
             let tries = 0;
             const rafTry = () => {
                 if (releaseStarted) return;
                 tries++;
-                if (tries > 180) return; // 約3秒で打ち切り（黒のまま維持）
+                if (tries > 30) {
+                    cleanupReleaseListeners();
+                    return;
+                }
                 tryRelease();
                 if (!releaseStarted) requestAnimationFrame(rafTry);
             };
@@ -1908,7 +1932,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 break;
             case 'offAir':
                 logInfo('[fullscreen.js]  Received offAir command.');
-                initializeFullscreenArea();
+                initializeFullscreenArea(false);
                 stopMonitoringPlayback();
                 stopVolumeMeasurement();
                 break;
@@ -2104,7 +2128,7 @@ function handleEndMode() {
 function handleEndModeOFF() {
     logInfo('[fullscreen.js] Called endmode:OFF');
     stopVolumeMeasurement();
-    initializeFullscreenArea();
+    initializeFullscreenArea(true);
     logInfo('[fullscreen.js] Initialized fullscreen area.');
 }
 
@@ -2164,7 +2188,7 @@ function handleEndModeFTB() {
             cancelAnimationFrame(preFtbRaf);
             preFtbRaf = null;
         }
-        initializeFullscreenArea();
+        initializeFullscreenArea(true);
         fadeCanvas.style.opacity = '0';
         fadeCanvas.style.display = 'none';
         fadeCanvas.style.visibility = 'hidden';
@@ -2220,7 +2244,7 @@ function handleEndModeFTB() {
             logInfo('[fullscreen.js] FTB complete: Fade ended.');
 
             // フルスクリーンエリア初期化
-            initializeFullscreenArea();
+            initializeFullscreenArea(true);
 
             // FTB 完了後フェードキャンバス非表示
             // ※ initializeFullscreenArea() が holdBlackUntilFadeIn=true の間は fadeCanvas を黒表示のまま保持する
