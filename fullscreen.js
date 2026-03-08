@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.5.9
+//     ver 2.6.0
 // -----------------------
 
 // -----------------------
@@ -1972,10 +1972,8 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                         ? value.audioTargetLinear
                         : (active ? 0 : 1);
 
-                    // FTB ON時点の「再生継続意思」を保存
-                    if (active) {
-                        fullscreenFtbToggleShouldKeepPlaying = keepPlaying;
-                    }
+                    // FTB解除時も含めて、最新の「再生継続意思」を常に反映する
+                    fullscreenFtbToggleShouldKeepPlaying = keepPlaying;
 
                     fullscreenFtbToggleHoldActive = active;
                     fullscreenLastControlAppliedVolume = null;

@@ -2298,6 +2298,7 @@ function onairHandlePauseButton() {
     // 再生停止
     onairVideoElement.pause();
     onairIsPlaying = false;
+    onairFtbToggleShouldKeepPlaying = false;
     onairUpdatePlayPauseButtons(elements); 
     onairStopRemainingTimer(); 
     logOpe('[onair.js] Playback paused.');
