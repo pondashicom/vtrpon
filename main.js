@@ -1,6 +1,6 @@
 // -----------------------
 //     main.js
-//     ver 2.5.8
+//     ver 2.6.0
 // -----------------------
 
 // ---------------------
@@ -1779,9 +1779,10 @@ function removeFlacPicture(input, output) {
         let cmd = `metaflac --remove --block-type=PICTURE --output="${output}" "${input}"`;
         exec(cmd, (err, _s, stderr) => {
             if (!err) return resolve();
-            cmd = `ffmpeg -y -i "${input}" -c:a copy -map_metadata -1 "${output}"`;
+
+            cmd = `"${ffmpegPath}" -y -i "${input}" -c:a copy -map_metadata -1 "${output}"`;
             exec(cmd, (err2, _s2, stderr2) => {
-                if (err2) return reject(stderr2||err2);
+                if (err2) return reject(stderr2 || err2);
                 resolve();
             });
         });
