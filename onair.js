@@ -5013,7 +5013,7 @@ function handleShortcut(action) {
             break;
 
         // ITEM音量
-        case 'Alt+]':
+        case 'Alt+]': {
             const s = document.getElementById('on-air-item-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
@@ -5075,7 +5075,7 @@ function handleShortcut(action) {
             }
             break;
         }
-        case 'Ctrl+Alt[':
+        case 'Ctrl+Alt[': {
             const s = document.getElementById('on-air-master-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
@@ -5095,6 +5095,7 @@ function handleShortcut(action) {
             }
             break;
         }
+
         default:
             logDebug(`[onair.js] Unknown shortcut: ${action}`);
             break;
