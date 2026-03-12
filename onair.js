@@ -813,7 +813,7 @@ function onairBuildTransitionPlan(itemId, itemData) {
         currentPath,
         currentEndMode,
         currentIsUvc,
-        hasTransitionFadeOut: !!(onairCurrentState && onairCurrentState.ftbEnabled === true),
+        currentFtbActive: !!(onairCurrentState && onairCurrentState.ftbEnabled === true),
         nextPath,
         nextStartMode,
         nextEndMode,
@@ -841,7 +841,7 @@ function onairResolveBridgeMode(transitionPlan) {
     const currentEndMode = String(transitionPlan.currentEndMode || '').toUpperCase();
     const transitionSource = transitionPlan.transitionSource || 'auto';
     const isManual = transitionSource === 'manual';
-    const hasTransitionFadeOut = !!transitionPlan.hasTransitionFadeOut;
+    const currentFtbActive = !!transitionPlan.currentFtbActive;
     const nextMediaKind = transitionPlan.nextMediaKind ||
         (transitionPlan.nextIsAudio ? 'audioOnly' : (transitionPlan.nextIsUvc ? 'uvc' : 'video'));
 
@@ -894,7 +894,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
-    if (hasTransitionFadeOut) {
+    if (currentFtbActive) {
         return {
             bridgeMode: 'BLACK',
             transitionSource: 'auto'
@@ -1258,7 +1258,7 @@ async function onairSendToFullscreen(itemData, transitionPlan = null) {
                 currentPath: transitionPlan.currentPath,
                 currentEndMode: transitionPlan.currentEndMode,
                 currentIsUvc: transitionPlan.currentIsUvc,
-                hasTransitionFadeOut: transitionPlan.hasTransitionFadeOut,
+                currentFtbActive: transitionPlan.currentFtbActive,
                 nextPath: transitionPlan.nextPath,
                 nextStartMode: transitionPlan.nextStartMode,
                 nextEndMode: transitionPlan.nextEndMode,
