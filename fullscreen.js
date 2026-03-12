@@ -22,8 +22,8 @@ let preFtbActive = false;
 let preFtbRaf = null;
 let preFtbStartTime = null;
 let preFtbDuration = 0;
-let holdBlackUntilFadeIn = false;
-let blackHoldReason = null;
+let fullscreenBlackHoldActive = false;
+let fullscreenBlackHoldKind = null;
 let seamlessGuardActive = false;
 let suppressIncomingUvcFadeUntilPlaying = false;
 let overlayForceBlack = false;;
@@ -116,8 +116,8 @@ function initializeFullscreenArea(blackHoldMode = null) {
 
     const fc = initializeFadeCanvas();
     if (blackHoldMode) {
-        holdBlackUntilFadeIn = true;
-        blackHoldReason = blackHoldMode;
+        fullscreenBlackHoldActive = true;
+        fullscreenBlackHoldKind = blackHoldMode;
         if (fc) {
             fc.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
             fc.style.display = 'block';
@@ -127,8 +127,8 @@ function initializeFullscreenArea(blackHoldMode = null) {
             fc.style.zIndex = '8000';
         }
     } else {
-        holdBlackUntilFadeIn = false;
-        blackHoldReason = null;
+        fullscreenBlackHoldActive = false;
+        fullscreenBlackHoldKind = null;
         if (fc) {
             fc.style.opacity = '0';
             fc.style.display = 'none';
@@ -213,7 +213,7 @@ function initializeFullscreenArea(blackHoldMode = null) {
 function initializeFadeCanvas() {
     const existingCanvas = document.getElementById('fadeCanvas');
     if (existingCanvas) {
-        if (!(holdBlackUntilFadeIn && blackHoldReason)) {
+        if (!(fullscreenBlackHoldActive && fullscreenBlackHoldKind)) {
             existingCanvas.style.opacity = '0';
             existingCanvas.style.display = 'none';
         }
@@ -512,7 +512,7 @@ function getIncomingMediaKind(itemData) {
 
 // 遷移用の黒保持中か判定する関数
 function isTransitionBlackHoldActive() {
-    return !!(holdBlackUntilFadeIn && blackHoldReason === 'transition');
+    return !!(fullscreenBlackHoldActive && fullscreenBlackHoldKind === 'transition');
 }
 
 let visualBridgeOverlayClearTimerId = null;
@@ -585,8 +585,8 @@ function runScheduledVisualBridgeOverlayClear(delayMs, isCurrentToken, cleanup, 
 
 // 遷移用の黒保持を解除する関数
 function clearTransitionBlackHold() {
-    holdBlackUntilFadeIn = false;
-    blackHoldReason = null;
+    fullscreenBlackHoldActive = false;
+    fullscreenBlackHoldKind = null;
 
     const fc = document.getElementById('fadeCanvas');
     if (fc) {
@@ -602,8 +602,8 @@ function clearTransitionBlackHold() {
 function beginTransitionBlackHold() {
     const fc = initializeFadeCanvas();
 
-    holdBlackUntilFadeIn = true;
-    blackHoldReason = 'transition';
+    fullscreenBlackHoldActive = true;
+    fullscreenBlackHoldKind = 'transition';
 
     if (fc) {
         fc.style.display = 'block';
@@ -2202,7 +2202,7 @@ function handleEndModeFTB() {
     // 事前FTBが既に完了している場合
     if (
         preFtbActive ||
-        (holdBlackUntilFadeIn && blackHoldReason === 'transition')
+        (fullscreenBlackHoldActive && fullscreenBlackHoldKind === 'transition')
     ) {
         preFtbActive = false;
         if (preFtbRaf) {
@@ -2269,7 +2269,7 @@ function handleEndModeFTB() {
 
             // FTB 完了後フェードキャンバス非表示
             // ※ initializeFullscreenArea('ftb') により FTB 理由の黒保持中は fadeCanvas を保持する
-            if (!(holdBlackUntilFadeIn && blackHoldReason === 'transition')) {
+            if (!(fullscreenBlackHoldActive && fullscreenBlackHoldKind === 'transition')) {
                 fadeCanvas.style.opacity = '0';
                 fadeCanvas.style.display = 'none';
                 fadeCanvas.style.visibility = 'hidden';
@@ -2296,9 +2296,9 @@ function cancelFadeOut() {
     if (fadeCanvas) {
         // 通常遷移の「黒保持」中は fadeCanvas を消さない（次オンエア時の前フレーム混入を防ぐ）
         const keepBlackHold = !!(
-            typeof holdBlackUntilFadeIn !== 'undefined' &&
-            holdBlackUntilFadeIn &&
-            blackHoldReason === 'transition'
+            typeof fullscreenBlackHoldActive !== 'undefined' &&
+            fullscreenBlackHoldActive &&
+            fullscreenBlackHoldKind === 'transition'
         );
 
         if (!keepBlackHold) {
@@ -2668,71 +2668,6 @@ window.electronAPI.ipcRenderer.on('device-settings-updated', (event, newSettings
         logInfo('[fullscreen.js] hiddenAudio.setSinkId is not supported or hidden audio element not found.');
     }
 });
-
-// 音声リセット関数
-function resetFullscreenAudio() {
-    if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-    }
-
-    // ソースノードの切断と破棄
-    if (fullscreenSourceNode) {
-        try {
-            fullscreenSourceNode.disconnect();
-        } catch (_e) {}
-        fullscreenSourceNode = null;
-    }
-    if (fullscreenElementSourceNode) {
-        try {
-            fullscreenElementSourceNode.disconnect();
-        } catch (_e) {}
-        fullscreenElementSourceNode = null;
-    }
-    if (fullscreenStreamSourceNode) {
-        try {
-            fullscreenStreamSourceNode.disconnect();
-        } catch (_e) {}
-        fullscreenStreamSourceNode = null;
-    }
-
-    // 解析・ゲイン・ルーティング系ノードもすべて切断して破棄
-    try { if (fullscreenAnalyserL) fullscreenAnalyserL.disconnect(); } catch (_e) {}
-    try { if (fullscreenAnalyserR) fullscreenAnalyserR.disconnect(); } catch (_e) {}
-    try { if (fullscreenGainNode)   fullscreenGainNode.disconnect(); } catch (_e) {}
-    try { if (fullscreenSplitter)   fullscreenSplitter.disconnect(); } catch (_e) {}
-    try { if (fullscreenMerger)     fullscreenMerger.disconnect(); } catch (_e) {}
-    try { if (fullscreenUpmixNode)  fullscreenUpmixNode.disconnect(); } catch (_e) {}
-
-    fullscreenAnalyserL = null;
-    fullscreenAnalyserR = null;
-    fullscreenGainNode   = null;
-    fullscreenSplitter   = null;
-    fullscreenMerger     = null;
-    fullscreenUpmixNode  = null;
-    fullscreenMediaDest  = null;
-
-    // メーター関連フラグのリセット
-    if (fullscreenLingerTimerId) {
-        clearTimeout(fullscreenLingerTimerId);
-        fullscreenLingerTimerId = null;
-    }
-    isVolumeMeasurementActive = false;
-
-    // mono 判定などのフラグもリセット
-    if (typeof isMonoSource !== 'undefined') {
-        isMonoSource = false;
-    }
-    fullscreenSourceKind = null;
-
-    // AudioContext のリセット
-    FullscreenAudioManager.resetContext();
-
-    // 初期化フラグを戻して、次回 setupFullscreenAudio で完全再構築させる
-    setupFullscreenAudio.initialized = false;
-
-    logDebug('[fullscreen.js] Fullscreen audio reset completed.');
-}
 
 // 音声フェードイン処理
 function audioFadeIn(duration) {
