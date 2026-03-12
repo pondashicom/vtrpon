@@ -38,6 +38,8 @@ let onairFtbToggleMasterFadeRaf = null;
 let onairFtbToggleMasterFadeAnimSeq = 0;
 let onairFtbToggleMasterRestoreValue = null;
 let onairSuppressFullscreenVolumePushOnceOnReset = false;
+let onairPendingTransitionSource = null;
+let onairPendingCurrentEndMode = null;
 const ONAIR_FTB_SET_VOLUME_EPSILON = 0.01;
 const ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON = 0.005;
 let onairLastSentFullscreenGammaVolumeForFtb = null;
@@ -275,9 +277,13 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
     if (respectBlackHold) {
         const els = onairGetElements();
         const fc = els?.onairFadeCanvas;
-        if (fc && fc.style && fc.style.visibility !== 'hidden' && parseFloat(fc.style.opacity || '0') > 0.9) {
-            logInfo('[onair.js] Overlay capture skipped due to black hold.');
-            return;
+        if (fc) {
+            const cs = window.getComputedStyle(fc);
+            const fadeVisible = cs.visibility !== 'hidden' && parseFloat(cs.opacity || '0') > 0.01;
+            if (fadeVisible) {
+                logInfo('[onair.js] Overlay capture skipped due to visible fade layer.');
+                return;
+            }
         }
     }
 
@@ -440,11 +446,20 @@ function onairInitializeVideo(elements) {
 
     onairVideoElement.pause();
     onairVideoElement.currentTime = 0;
+
     if (onairVideoElement.srcObject) {
         onairVideoElement.srcObject.getTracks().forEach(track => track.stop());
         onairVideoElement.srcObject = null;
     }
+
+    try {
+        onairVideoElement.removeAttribute('src');
+    } catch (_) {
+        onairVideoElement.src = '';
+    }
+
     onairVideoElement.src = '';
+    onairVideoElement.load();
 }
 
 // UVCストリーム停止
@@ -563,7 +578,7 @@ function onairInitializeSeekBar(elements) {
         onairVideoElement.__vtrponLoadedMetadataBound = true;
 
         onairVideoElement.addEventListener('loadedmetadata', () => {
-            if (onairCurrentState?.endMode === "UVC") {
+            if (onairIsUvcItemData(onairCurrentState)) {
                 return;
             }
             const duration = onairVideoElement.duration || 0;
@@ -693,6 +708,225 @@ function onairInitialize() {
 // オンエア・オフエア情報受信
 // -----------------------------------------------
 
+function onairIsUvcPath(path) {
+    return typeof path === 'string' && path.startsWith('UVC_DEVICE:');
+}
+
+// UVCアイテムかどうかを判定する関数
+function onairIsUvcItemData(itemData) {
+    if (!itemData || typeof itemData !== 'object') {
+        return false;
+    }
+
+    if (onairIsUvcPath(itemData.path)) {
+        return true;
+    }
+
+    if ((itemData.endMode === 'UVC') && onairGetUvcDeviceId(itemData)) {
+        return true;
+    }
+
+    return false;
+}
+
+function onairGetUvcDeviceId(itemData) {
+    if (!itemData || typeof itemData !== 'object') {
+        return null;
+    }
+
+    if (typeof itemData.deviceId === 'string' && itemData.deviceId) {
+        return itemData.deviceId;
+    }
+
+    if (onairIsUvcPath(itemData.path)) {
+        return itemData.path.substring('UVC_DEVICE:'.length);
+    }
+
+    return null;
+}
+
+// 送出時の開始モードを正規化する関数
+function onairResolveIncomingStartMode(itemData) {
+    if (onairIsUvcItemData(itemData)) {
+        return 'PLAY';
+    }
+
+    if (itemData && typeof itemData.startMode === 'string' && itemData.startMode) {
+        return itemData.startMode;
+    }
+
+    return 'PAUSE';
+}
+
+
+function onairBuildTransitionPlan(itemId, itemData) {
+    const currentPath =
+        (onairCurrentState && typeof onairCurrentState.path === 'string')
+            ? onairCurrentState.path
+            : '';
+
+    const currentIsUvc = onairIsUvcPath(currentPath);
+
+    const currentEndMode =
+        (typeof onairPendingCurrentEndMode === 'string' && onairPendingCurrentEndMode)
+            ? onairPendingCurrentEndMode
+            : ((onairCurrentState && typeof onairCurrentState.endMode === 'string')
+                ? onairCurrentState.endMode
+                : '');
+
+    const nextPath =
+        (itemData && typeof itemData.path === 'string')
+            ? itemData.path
+            : '';
+
+    const nextIsUvc = onairIsUvcItemData(itemData);
+
+    const nextStartMode = onairResolveIncomingStartMode(itemData);
+
+    const nextEndMode =
+        (itemData && typeof itemData.endMode === 'string')
+            ? itemData.endMode
+            : 'PAUSE';
+
+    const nextTransitionSource =
+        (typeof onairPendingTransitionSource === 'string' && onairPendingTransitionSource)
+            ? onairPendingTransitionSource
+            : ((itemData && typeof itemData.transitionSource === 'string' && itemData.transitionSource)
+                ? itemData.transitionSource
+                : 'auto');
+
+    const nextIsAudio = !!nextPath && !nextIsUvc &&
+        /\.(mp3|wav|m4a|aac|flac|ogg|opus|wma|aif|aiff)(\?.*)?$/i.test(nextPath);
+
+    const nextMediaKind = nextIsAudio
+        ? 'audioOnly'
+        : (nextIsUvc ? 'uvc' : 'video');
+
+    const sameUvcItem =
+        !!onairNowOnAir &&
+        !!onairCurrentState &&
+        onairCurrentState.itemId === itemId &&
+        onairIsUvcItemData(onairCurrentState);
+
+    return {
+        itemId,
+        currentPath,
+        currentEndMode,
+        currentIsUvc,
+        hasTransitionFadeOut: !!(onairCurrentState && onairCurrentState.ftbEnabled === true),
+        nextPath,
+        nextStartMode,
+        nextEndMode,
+        nextTransitionSource,
+        nextIsUvc,
+        nextIsAudio,
+        nextMediaKind,
+        sameUvcItem,
+        shouldPrepareOverlayBeforeReset: false,
+        shouldResetCurrentOnAir: !!onairNowOnAir,
+        bridgeMode: null,
+        transitionSource: nextTransitionSource
+    };
+}
+
+function onairResolveBridgeMode(transitionPlan) {
+    if (!transitionPlan) {
+        return {
+            bridgeMode: null,
+            transitionSource: null
+        };
+    }
+
+    const nextStartMode = String(transitionPlan.nextStartMode || 'PAUSE').toUpperCase();
+    const currentEndMode = String(transitionPlan.currentEndMode || '').toUpperCase();
+    const transitionSource = transitionPlan.transitionSource || 'auto';
+    const isManual = transitionSource === 'manual';
+    const hasTransitionFadeOut = !!transitionPlan.hasTransitionFadeOut;
+    const nextMediaKind = transitionPlan.nextMediaKind ||
+        (transitionPlan.nextIsAudio ? 'audioOnly' : (transitionPlan.nextIsUvc ? 'uvc' : 'video'));
+
+    if (nextMediaKind === 'audioOnly') {
+        return {
+            bridgeMode: 'NONE',
+            transitionSource: isManual ? 'manual' : 'auto'
+        };
+    }
+
+    if (isManual) {
+        if (nextStartMode === 'PAUSE') {
+            return {
+                bridgeMode: 'OVERLAY',
+                transitionSource: 'manual'
+            };
+        }
+
+        if (nextStartMode === 'FADEIN') {
+            return {
+                bridgeMode: 'BLACK',
+                transitionSource: 'manual'
+            };
+        }
+
+        if (nextStartMode === 'PLAY') {
+            return {
+                bridgeMode: 'OVERLAY',
+                transitionSource: 'manual'
+            };
+        }
+
+        return {
+            bridgeMode: null,
+            transitionSource: 'manual'
+        };
+    }
+
+    if (currentEndMode === 'OFF') {
+        return {
+            bridgeMode: 'BLACK',
+            transitionSource: 'auto'
+        };
+    }
+
+    if (hasTransitionFadeOut) {
+        return {
+            bridgeMode: 'BLACK',
+            transitionSource: 'auto'
+        };
+    }
+
+    if (nextStartMode === 'FADEIN') {
+        return {
+            bridgeMode: 'BLACK',
+            transitionSource: 'auto'
+        };
+    }
+
+    if (currentEndMode === 'REPEAT' || currentEndMode === 'NEXT' || currentEndMode === 'GOTO') {
+        if (nextStartMode === 'PLAY' || nextStartMode === 'PAUSE') {
+            return {
+                bridgeMode: 'OVERLAY',
+                transitionSource: 'auto'
+            };
+        }
+
+        return {
+            bridgeMode: 'NONE',
+            transitionSource: 'auto'
+        };
+    }
+
+    if (nextStartMode === 'PAUSE') {
+        return {
+            bridgeMode: 'NONE',
+            transitionSource: 'auto'
+        };
+    }
+
+    return {
+        bridgeMode: null,
+        transitionSource: 'auto'
+    };
+}
 // オンエア開始情報受信
 window.electronAPI.onReceiveOnAirData((itemId) => {
     logDebug(`[onair.js] Received On-Air data for item ID: ${itemId}`);
@@ -706,30 +940,6 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
         onairHandleOffAirButton();
         return;
     }
-    // リセット処理
-    if (onairNowOnAir && onairCurrentState && onairCurrentState.itemId === itemId && onairCurrentState.endMode === 'UVC') {
-        logDebug('[onair.js] Same UVC itemId received while already on-air. Skipping reset/reload to prevent device disconnect.');
-        return;
-    }
-
-    if (onairNowOnAir) {
-        try {
-            const isCurrentUvc =
-                !!onairCurrentState &&
-                typeof onairCurrentState.path === 'string' &&
-                onairCurrentState.path.startsWith('UVC_DEVICE');
-
-            if (!isCurrentUvc) {
-                captureLastFrameAndHoldUntilNextReadyOnAir(true);
-                logInfo('[onair.js] (onReceiveOnAirData) overlay prepared before reset/source swap.');
-            } else {
-                logInfo('[onair.js] (onReceiveOnAirData) overlay skipped (current source is UVC).');
-            }
-        } catch (_) {}
-
-        logDebug('[onair.js] An item is currently on-air. Resetting before loading the new one.');
-        onairReset();
-    }
 
     // 状態情報取得
     const itemData = onairGetStateData(itemId);
@@ -737,10 +947,41 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
         logDebug(`[onair.js] No valid state data found for item ID: ${itemId}`);
         return;
     }
-    const nextPath = (itemData && typeof itemData.path === 'string') ? itemData.path : '';
-    const nextIsAudio = !!nextPath && !nextPath.startsWith('UVC_DEVICE') &&
-        /\.(mp3|wav|m4a|aac|flac|ogg|opus|wma|aif|aiff)(\?.*)?$/i.test(nextPath);
-    if (nextIsAudio) {
+
+    const transitionPlan = onairBuildTransitionPlan(itemId, itemData);
+    onairPendingTransitionSource = null;
+    onairPendingCurrentEndMode = null;
+
+    const bridgeDecision = onairResolveBridgeMode(transitionPlan);
+
+    transitionPlan.bridgeMode = bridgeDecision.bridgeMode;
+    transitionPlan.transitionSource = bridgeDecision.transitionSource;
+    transitionPlan.shouldPrepareOverlayBeforeReset =
+        !!transitionPlan.shouldResetCurrentOnAir &&
+        transitionPlan.bridgeMode === 'OVERLAY';
+    itemData.transitionSource = transitionPlan.transitionSource;
+
+    // リセット処理
+    if (transitionPlan.sameUvcItem) {
+        logDebug('[onair.js] Same UVC itemId received while already on-air. Skipping reset/reload to prevent device disconnect.');
+        return;
+    }
+
+    if (transitionPlan.shouldResetCurrentOnAir) {
+        try {
+            if (transitionPlan.shouldPrepareOverlayBeforeReset) {
+                captureLastFrameAndHoldUntilNextReadyOnAir(true);
+                logInfo('[onair.js] (onReceiveOnAirData) overlay prepared before reset/source swap.');
+            } else {
+                logInfo(`[onair.js] (onReceiveOnAirData) overlay skipped. bridgeMode=${transitionPlan.bridgeMode || 'null'}`);
+            }
+        } catch (_) {}
+
+        logDebug('[onair.js] An item is currently on-air. Resetting before loading the new one.');
+        onairReset();
+    }
+
+    if (transitionPlan.nextIsAudio) {
         onairCancelSeamlessOverlay('next-is-audio');
     }
 
@@ -748,19 +989,13 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
     onairNowOnAir = true;
 
     // フルスクリーンに情報送信
-    onairSendToFullscreen(itemData);
+    onairSendToFullscreen(itemData, transitionPlan);
 
     // UI更新
     onairUpdateUI(itemData);
 
     // 再生プロセス呼び出し
     onairStartPlayback(itemData);
-});
-
-// Off-Air通知受信
-window.electronAPI.onReceiveOffAirNotify(() => {
-    logDebug('[onair.js] Received an off-air notification. Starting off-air processing.');
-    onairHandleOffAirButton();
 });
 
 // ----------------------------------
@@ -929,8 +1164,8 @@ function onairGetStateData(itemId) {
         }
     }
 
-    // データ型調整と最新状態格納
-    onairCurrentState = {
+    // データ型調整のみ行い、この時点では onairCurrentState を上書きしない
+    const normalizedItemData = {
         itemId: itemId,
         path: itemData.path || '',
         name: itemData.name || (itemData.path ? itemData.path.split('/').pop() : 'Unknown'),
@@ -939,6 +1174,7 @@ function onairGetStateData(itemId) {
         outPoint: onairParseTimeToSeconds(itemData.outPoint || '00:00:00:00'),
         startMode: itemData.startMode || 'PAUSE',
         endMode: itemData.endMode || 'PAUSE',
+        transitionSource: itemData.transitionSource || 'auto',
         defaultVolume: itemData.defaultVolume !== undefined ? itemData.defaultVolume : 100,
         ftbEnabled: !!itemData.ftbEnabled,
         ftbRate: parseFloat(itemData.ftbRate || 1.0),
@@ -948,16 +1184,19 @@ function onairGetStateData(itemId) {
         repeatCount: repeatCount,
         repeatEndMode: repeatEndMode,
         repeatRemaining: repeatRemaining,
+        repeatPlayedCount: (typeof repeatCount === 'number' && typeof repeatRemaining === 'number')
+            ? Math.max(0, repeatCount - repeatRemaining)
+            : undefined
     };
 
-    logDebug('[onair.js] State data updated:', onairCurrentState);
-    return onairCurrentState;
+    logDebug('[onair.js] State data updated:', normalizedItemData);
+    return normalizedItemData;
 }
 
 // ---------------------------
 // フルスクリーンデータ送信
 // ---------------------------
-async function onairSendToFullscreen(itemData) {
+async function onairSendToFullscreen(itemData, transitionPlan = null) {
     if (!itemData) {
         logDebug('[onair.js] No item data available to send to fullscreen.');
         return;
@@ -991,19 +1230,39 @@ async function onairSendToFullscreen(itemData) {
 
         const combinedVolume = (itemVal / 100) * (masterVal / 100);
         const finalVolume = Math.pow(combinedVolume, 2.2);
+        const fullscreenStartMode = onairResolveIncomingStartMode(itemData);
 
         const fullscreenData = {
             playlistItem_id: itemData.playlistItem_id,
             deviceId: itemData.deviceId || null,
             path: itemData.path || '',
-            startMode: itemData.startMode || 'PAUSE',
+            startMode: fullscreenStartMode,
             endMode: itemData.endMode || 'PAUSE',
             volume: finalVolume,
             inPoint: itemData.inPoint,
             outPoint: itemData.outPoint,
             ftbRate: itemData.ftbRate,
             startFadeInSec: itemData.startFadeInSec,
-            fillKeyMode: itemData.fillKeyMode
+            fillKeyMode: itemData.fillKeyMode,
+            ftbEnabled: !!itemData.ftbEnabled,
+            transitionPlan: transitionPlan ? {
+                itemId: transitionPlan.itemId,
+                currentPath: transitionPlan.currentPath,
+                currentEndMode: transitionPlan.currentEndMode,
+                currentIsUvc: transitionPlan.currentIsUvc,
+                hasTransitionFadeOut: transitionPlan.hasTransitionFadeOut,
+                nextPath: transitionPlan.nextPath,
+                nextStartMode: transitionPlan.nextStartMode,
+                nextEndMode: transitionPlan.nextEndMode,
+                nextIsUvc: transitionPlan.nextIsUvc,
+                nextIsAudio: transitionPlan.nextIsAudio,
+                nextMediaKind: transitionPlan.nextMediaKind,
+                sameUvcItem: transitionPlan.sameUvcItem,
+                shouldPrepareOverlayBeforeReset: transitionPlan.shouldPrepareOverlayBeforeReset,
+                shouldResetCurrentOnAir: transitionPlan.shouldResetCurrentOnAir,
+                bridgeMode: transitionPlan.bridgeMode,
+                transitionSource: transitionPlan.transitionSource
+            } : null
         };
 
         logDebug('[onair.js] Sending video data to fullscreen:', fullscreenData);
@@ -1051,9 +1310,16 @@ function onairSetupPlayer(itemData) {
     updateFillKeyModeState();
 
     // UVCデバイス判定
-    if (itemData.endMode === "UVC" && itemData.deviceId) {
-        logInfo(`[onair.js] Setting up UVC stream for device ID: ${itemData.deviceId}`);
-        onairSetupUVCStream(onairVideoElement, itemData.deviceId)
+    if (onairIsUvcItemData(itemData)) {
+        const uvcDeviceId = onairGetUvcDeviceId(itemData);
+
+        if (!uvcDeviceId) {
+            logInfo('[onair.js] UVC item detected but deviceId could not be resolved.');
+            return;
+        }
+
+        logInfo(`[onair.js] Setting up UVC stream for device ID: ${uvcDeviceId}`);
+        onairSetupUVCStream(onairVideoElement, uvcDeviceId)
             .then(() => {
                 // UVC再生開始後フェードイン
                 onairFadeFromBlack(0.3);
@@ -1066,14 +1332,6 @@ function onairSetupPlayer(itemData) {
 
     // 動画ファイル処理
     if (itemData.path) {
-        const isUvcPath = (typeof itemData.path === 'string' && itemData.path.startsWith('UVC_DEVICE:'));
-        if (isUvcPath) {
-            const parsedDeviceId = itemData.path.substring('UVC_DEVICE:'.length);
-            logInfo(`[onair.js] Detected UVC path. Redirecting to UVC stream with deviceId: ${parsedDeviceId}`);
-            onairSetupUVCStream(onairVideoElement, parsedDeviceId);
-            return;
-        }
-
         logInfo(`[onair.js] Setting up video file: ${itemData.path}`);
         onairSetupVideoFile(onairVideoElement, itemData.path);
         return;
@@ -1206,9 +1464,10 @@ async function onairSetupUVCStream(onairVideoElement, deviceId) {
 // UI更新
 function onairUpdateUI(itemData) {
     const elements = onairGetElements();
+    const isUvcItem = onairIsUvcItemData(itemData);
 
     // 再生ボタン状態更新
-    if (itemData.endMode !== "UVC") {
+    if (!isUvcItem) {
         onairUpdatePlayPauseButtons(elements);
     } else {
         logDebug('[onair.js] Skipping play/pause button update for UVC device.');
@@ -1260,7 +1519,7 @@ function onairUpdateRemainingTime(elements, itemData) {
     if (!onairVideoElement || !onairRemainTimeDisplay) return;
 
     // UVCの場合
-    if (itemData.endMode === "UVC") {
+    if (onairIsUvcItemData(itemData)) {
         onairRemainTimeDisplay.textContent = 'LIVE';
         onairRemainTimeDisplay.style.color = 'green';
         return;
@@ -1324,7 +1583,7 @@ function onairUpdateSeekBar(elements, itemData) {
     }
 
     // UVCデバイスの場合
-    if (itemData.endMode === "UVC") {
+    if (onairIsUvcItemData(itemData)) {
         logDebug('[onair.js] Seek bar update for UVC device.');
         onairProgressSlider.value = 0;
         onairProgressSlider.disabled = true;
@@ -1418,8 +1677,20 @@ function onairStartPlayback(itemData) {
         // ignore
     }
 
+    const sameItem =
+        !!onairCurrentState &&
+        !!itemData &&
+        (
+            (onairCurrentState.itemId === itemData.itemId) ||
+            (onairCurrentState.itemId === itemData.playlistItem_id)
+        );
+
+    const sameItemAutoReplay =
+        sameItem &&
+        String(itemData?.transitionSource || '').toLowerCase() === 'auto';
+
     // 倍速ボタン初期化
-    if (!onairRepeatFlag) {
+    if (!sameItemAutoReplay) {
         try { if (typeof window.onairResetSpeedTo1x === 'function') window.onairResetSpeedTo1x(); } catch (_) {}
         try { if (typeof window.onairSetSpeedButtonsEnabled === 'function') window.onairSetSpeedButtonsEnabled(true); } catch (_) {}
 
@@ -1434,14 +1705,6 @@ function onairStartPlayback(itemData) {
                     repeatCount = parsed;
                 }
             }
-
-            const sameItem =
-                !!onairCurrentState &&
-                !!itemData &&
-                (
-                    (onairCurrentState.itemId === itemData.itemId) ||
-                    (onairCurrentState.itemId === itemData.playlistItem_id)
-                );
 
             if (endModeUpper === 'REPEAT' && typeof repeatCount === 'number') {
                 itemData.repeatCount = repeatCount;
@@ -1647,25 +1910,30 @@ function onairStartPlayback(itemData) {
     };
 
     // 処理分岐
-    if (itemData.startMode === 'PLAY' || (onairRepeatFlag && itemData.startMode === 'PAUSE')) {
+    if (itemData.startMode === 'PLAY') {
         // 非FADEIN
         onairVideoElement.volume = targetVolPct / 100;
         applySliderValue(targetVolPct);
 
+        const isRepeatReplay = !!onairRepeatFlag;
+        const shouldSendFadeFromBlack = !isRepeatReplay || !!itemData.ftbEnabled;
+
         // リピート時
-        if (onairRepeatFlag) {
+        if (isRepeatReplay) {
             try {
                 window.electronAPI.sendControlToFullscreen({ command: 'play' });
             } catch (_) {}
         }
 
-        // リピート直後
-        try {
-            window.electronAPI.sendControlToFullscreen({
-                command: 'fade-from-black',
-                value: { duration: 0.05, fillKeyMode: isFillKeyMode }
-            });
-        } catch (_) {}
+        // 通常開始、または FTB 有効の REPEAT 開始時は fullscreen 側の黒フェード解除を送る
+        if (shouldSendFadeFromBlack) {
+            try {
+                window.electronAPI.sendControlToFullscreen({
+                    command: 'fade-from-black',
+                    value: { duration: 0.05, fillKeyMode: isFillKeyMode }
+                });
+            } catch (_) {}
+        }
 
         onairIsPlaying = true; 
         onairVideoElement.play()
@@ -1675,12 +1943,14 @@ function onairStartPlayback(itemData) {
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via PLAY start mode.');
                 window.electronAPI.sendControlToFullscreen({ command: 'play' });
-                try {
-                    window.electronAPI.sendControlToFullscreen({
-                        command: 'fade-from-black',
-                        value: { duration: 0.05, fillKeyMode: isFillKeyMode }
-                    });
-                } catch (_) {}
+                if (shouldSendFadeFromBlack) {
+                    try {
+                        window.electronAPI.sendControlToFullscreen({
+                            command: 'fade-from-black',
+                            value: { duration: 0.05, fillKeyMode: isFillKeyMode }
+                        });
+                    } catch (_) {}
+                }
             })
             .catch(error => {
                 onairIsPlaying = false;
@@ -1717,7 +1987,6 @@ function onairStartPlayback(itemData) {
 
                 // 音声フェードイン処理
                 audioFadeInItem(fadeDuration);
-                onairRepeatFlag = false;
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via FADEIN start mode with fade in effect.');
@@ -1740,11 +2009,9 @@ function onairStartPlayback(itemData) {
         onairStopRemainingTimer();
         logOpe('[onair.js] Playback paused via start mode.');
 
-        if (!onairRepeatFlag) {
-            try {
-                window.electronAPI.sendControlToFullscreen({ command: 'pause' });
-            } catch (_) {}
-        }
+        try {
+            window.electronAPI.sendControlToFullscreen({ command: 'pause' });
+        } catch (_) {}
     }
     // 再生監視
     onairMonitorPlayback(onairVideoElement, outPoint);
@@ -1763,7 +2030,7 @@ function onairSeekToInPoint(onairVideoElement, inPoint) {
 function onairMonitorPlayback(onairVideoElement, outPoint) {
     if (!onairVideoElement) return;
 
-    if (onairCurrentState?.endMode === "UVC") {
+    if (onairIsUvcItemData(onairCurrentState)) {
         logDebug('[onair.js] UVC device detected. Skipping playback monitoring.');
         return;
     }
@@ -1988,13 +2255,18 @@ function onairHandleEndMode() {
     
     // フルスクリーン通知
     const currentTime = onairGetElements().onairVideoElement?.currentTime || 0;
+    const fullscreenEndModeStartMode =
+        (effectiveEndMode === 'REPEAT')
+            ? ((((onairCurrentState?.startMode || 'PAUSE').toUpperCase()) === 'FADEIN') ? 'FADEIN' : 'PLAY')
+            : (onairCurrentState?.startMode || 'PAUSE');
+
     window.electronAPI.sendControlToFullscreen({
         command: 'trigger-endMode',
         value: effectiveEndMode,
         currentTime: currentTime,
-        startMode: (onairCurrentState?.startMode || 'PAUSE')
+        startMode: fullscreenEndModeStartMode
     });
-    logDebug(`[onair.js] EndMode command sent to fullscre... }, startMode: ${(onairCurrentState?.startMode || 'PAUSE')} }`);
+    logDebug(`[onair.js] EndMode command sent to fullscre... }, startMode: ${fullscreenEndModeStartMode} }`);
 
     onairExecuteEndMode(effectiveEndMode, { wasGotoEndMode });
 }
@@ -2025,6 +2297,9 @@ function onairExecuteEndMode(endMode, options = {}) {
 function onairHandleEndModeOff() {
     logInfo('[onair.js] End Mode: OFF - Triggering Off-Air button click.');
 
+    onairPendingTransitionSource = null;
+    onairPendingCurrentEndMode = null;
+
     const elements = onairGetElements();
     const { onairOffAirButton } = elements;
 
@@ -2040,6 +2315,9 @@ function onairHandleEndModeOff() {
 // エンドモードPAUSE
 function onairHandleEndModePause() {
     logInfo('[onair.js] End Mode: PAUSE - Pausing at the last frame.');
+
+    onairPendingTransitionSource = null;
+    onairPendingCurrentEndMode = null;
 
     const elements = onairGetElements();
     const { onairVideoElement } = elements;
@@ -2065,37 +2343,42 @@ function onairHandleEndModePause() {
 
 // エンドモードREPEAT
 function onairHandleEndModeRepeat() {
-    logInfo('[onair.js] End Mode: REPEAT - Restarting playback.');
+    logInfo('[onair.js] End Mode: REPEAT - Replaying the same item.');
 
-    const sm = (onairCurrentState?.startMode || 'PAUSE').toUpperCase();
+    if (!onairCurrentState) {
+        logInfo('[onair.js] No current state for REPEAT. Going Off-Air.');
+        onairHandleEndModeOff();
+        return;
+    }
+
+    const sm = (onairCurrentState.startMode || 'PAUSE').toUpperCase();
     if (sm === 'OFF') {
         logInfo('[onair.js] StartMode is OFF -> do not repeat; going Off-Air.');
         onairHandleEndModeOff();
         return;
     }
 
-    // スタートモード無視
-    onairRepeatFlag = true;
+    const repeatStartMode = (sm === 'FADEIN') ? 'FADEIN' : 'PLAY';
+    const repeatItemData = {
+        ...onairCurrentState,
+        startMode: repeatStartMode,
+        transitionSource: 'auto'
+    };
 
-    // 2周目以降速度・音量保持
+    onairCurrentState = repeatItemData;
+    onairRepeatFlag = true;
     window.onairPreserveSpeed = true;
 
-    const ftbEnabled = !!(onairCurrentState && onairCurrentState.ftbEnabled === true);
-    if (ftbEnabled && sm === 'PLAY') {
-        // FTB + REPEAT + StartMode=PLAY:
+    const ftbEnabled = !!(repeatItemData.ftbEnabled === true);
+    if (ftbEnabled && repeatStartMode === 'PLAY') {
         window.onairPreserveItemVolume = false;
     } else {
-        // 通常のREPEAT時は従来どおり直前のアイテム音量を保持
         window.onairPreserveItemVolume = true;
     }
 
-    // 音声FADE状態リセット
     stopItemFade();
-
-    // REPEAT指定回数表示を更新（6/1のまま固定されるのを防ぐ）
     updateEndModeDisplayLabel();
-
-    onairStartPlayback(onairCurrentState);
+    onairStartPlayback(repeatItemData);
 }
 
 // キャンバスサイズ調整
@@ -2163,13 +2446,17 @@ function onairHandleEndModeNext() {
         return;
     }
 
+    onairPendingTransitionSource = 'auto';
+    onairPendingCurrentEndMode =
+        (onairCurrentState && typeof onairCurrentState.endMode === 'string')
+            ? onairCurrentState.endMode
+            : 'NEXT';
+
+    // 現在再生はここで止めるが、状態本体は次アイテム受信まで保持する
+    onairIsPlaying = false;
+
     // 次アイテムリクエスト
     window.electronAPI.notifyNextModeComplete(currentItemId);
-
-    // 状態リセット
-    onairCurrentState = null;
-    onairNowOnAir    = false;
-    onairIsPlaying   = false;
 
     logInfo('[onair.js] NEXT mode processing completed.');
 }
@@ -2460,7 +2747,7 @@ function onairSetupSeekBarHandlers(elements) {
 
     // シークバー操作
     onairProgressSlider.addEventListener('input', (event) => {
-        if (!onairCurrentState || onairCurrentState.endMode === "UVC") {
+        if (!onairCurrentState || onairIsUvcItemData(onairCurrentState)) {
             logDebug('[onair.js] Seek bar operation disabled for UVC device or invalid state.');
             onairProgressSlider.value = 0;
             return;
@@ -2473,7 +2760,7 @@ function onairSetupSeekBarHandlers(elements) {
         if (!onairCurrentState) return;
 
         // UVCデバイス
-        if (onairCurrentState.endMode === "UVC") return;
+        if (onairIsUvcItemData(onairCurrentState)) return;
 
         // 通常動画
         onairUpdateSeekBar(elements, onairCurrentState);

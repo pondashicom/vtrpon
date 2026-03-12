@@ -1,6 +1,6 @@
 // -----------------------
 //     listedit.js
-//     ver 2.5.5
+//     ver 2.6.0
 // -----------------------
 
 // -----------------------
@@ -1759,9 +1759,42 @@ function setupStartModeControls(videoElement) {
     });
 }
 
+// REPEAT + PAUSE の禁止メッセージを表示する関数
+function showRepeatPauseConflictMessage() {
+    const msg = (typeof getMessage === 'function')
+        ? getMessage('repeat-pause-conflict')
+        : 'When End Mode is REPEAT, Start Mode cannot be PAUSE. Please choose PLAY or FADEIN.';
+
+    if (typeof showMessage === 'function') {
+        showMessage(msg, 5000, 'alert');
+    } else {
+        alert(msg);
+    }
+}
+
+// REPEAT + PAUSE の組み合わせか判定する関数
+function isRepeatPauseConflict(item, nextStartMode, nextEndMode) {
+    if (!item) {
+        return false;
+    }
+
+    const startMode = String(nextStartMode ?? item.startMode ?? 'PAUSE').toUpperCase();
+    const endMode = String(nextEndMode ?? item.endMode ?? 'OFF').toUpperCase();
+
+    return startMode === 'PAUSE' && endMode === 'REPEAT';
+}
+
 // startModeを更新してstatecontrolに反映
 async function updateStartModeState(newMode) {
     const playlist = await stateControl.getPlaylistState();
+    const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
+
+    if (isRepeatPauseConflict(currentItem, newMode, null)) {
+        showRepeatPauseConflictMessage();
+        updateStartModeButtons(String(currentItem?.startMode || 'PAUSE').toUpperCase());
+        return;
+    }
+
     const updatedPlaylist = playlist.map(file => {
         if (file.playlistItem_id === currentEditingItemId) {
             return {
@@ -1885,7 +1918,16 @@ async function updateEndModeState(newMode) {
     }
 
     const playlist = await stateControl.getPlaylistState();
+    const currentItem = playlist.find(file => file.playlistItem_id === currentEditingItemId);
     logOpe('[listedit.js] updateEndModeState called with newMode:', newMode);
+
+    if (isRepeatPauseConflict(currentItem, null, newMode)) {
+        showRepeatPauseConflictMessage();
+        updateEndModeButtons(String(currentItem?.endMode || 'OFF').toUpperCase());
+        updateRepeatConfigUI();
+        updateGotoConfigUI();
+        return;
+    }
 
     // REPEATに切り替えた最初のタイミングで、リピート設定のデフォルトを作る
     if (newMode === 'REPEAT'

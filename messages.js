@@ -1,7 +1,7 @@
 ﻿
 // -----------------------
 //     messages.js
-//     ver 2.5.0
+//     ver 2.6.0
 // -----------------------
 
 const messages = {
@@ -36,6 +36,7 @@ const messages = {
     "files-not-found": "以下のファイルが見つかりませんでした:",
     "playlist-importing-cannot-edit": "プレイリスト読み込み中は編集できません。",
     "repeat-mode-activated": "リピートモードが有効になりました: 各アイテムのスタートモードと、エンドモードが変更されました。",
+    "repeat-pause-conflict": "エンドモードがリピートのとき、スタートモードに一時停止は使えません。PLAY か FADEIN を選んでください。",
     "list-mode-activated": "リストモードが有効になりました: 各アイテムのスタートモードと、エンドモードが変更されました。",
     "sound-pad-on-air-triggered": "SOUND PAD On-Airがトリガーされました。アイテム:",
     "direct-on-air-triggered": "DIRECT ONAIRがトリガーされました。アイテム:",
@@ -87,6 +88,7 @@ const messages = {
     "playlist-importing-cannot-edit": "You cannot edit items while playlist import is in progress.",
     "files-not-found": "The following files were not found:",
     "repeat-mode-activated": "Repeat mode activated.",
+    "repeat-pause-conflict": "When End Mode is REPEAT, Start Mode cannot be PAUSE. Please choose PLAY or FADEIN.",
     "list-mode-activated": "List mode activated.",
     "sound-pad-on-air-triggered": "SOUND PAD On-Air triggered for item:",
     "direct-on-air-triggered": "DIRECT ONAIR triggered for item:",

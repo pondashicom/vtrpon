@@ -23,9 +23,9 @@ let preFtbRaf = null;
 let preFtbStartTime = null;
 let preFtbDuration = 0;
 let holdBlackUntilFadeIn = false;
+let blackHoldReason = null;
 let seamlessGuardActive = false;
-let suppressFadeUntilPlaying = false;
-let pendingUvcFadeInSec = 0;
+let suppressIncomingUvcFadeUntilPlaying = false;
 let overlayForceBlack = false;;
 let overlaySuppressedByPreFTB = false;
 let fullscreenSeamlessCleanup = null;
@@ -49,7 +49,7 @@ const FS_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
 // ----------------------------------------
 // フルスクリーン初期化
 // ----------------------------------------
-function initializeFullscreenArea(keepBlackHold = false) {
+function initializeFullscreenArea(blackHoldMode = null) {
     // シームレス切替オーバレイが残っている場合は確実に掃除（offAir→次オンエアで前フレーム混入を防ぐ）
     try {
         if (typeof fullscreenSeamlessCleanup === 'function') {
@@ -115,8 +115,9 @@ function initializeFullscreenArea(keepBlackHold = false) {
     }
 
     const fc = initializeFadeCanvas();
-    if (keepBlackHold) {
+    if (blackHoldMode) {
         holdBlackUntilFadeIn = true;
+        blackHoldReason = blackHoldMode;
         if (fc) {
             fc.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
             fc.style.display = 'block';
@@ -127,6 +128,7 @@ function initializeFullscreenArea(keepBlackHold = false) {
         }
     } else {
         holdBlackUntilFadeIn = false;
+        blackHoldReason = null;
         if (fc) {
             fc.style.opacity = '0';
             fc.style.display = 'none';
@@ -211,7 +213,7 @@ function initializeFullscreenArea(keepBlackHold = false) {
 function initializeFadeCanvas() {
     const existingCanvas = document.getElementById('fadeCanvas');
     if (existingCanvas) {
-        if (!holdBlackUntilFadeIn) {
+        if (!(holdBlackUntilFadeIn && blackHoldReason)) {
             existingCanvas.style.opacity = '0';
             existingCanvas.style.display = 'none';
         }
@@ -419,13 +421,14 @@ function fullscreenAnimateFtbToggleAudioTo(targetLinear, durationSec) {
 
     fullscreenFtbToggleAudioRaf = requestAnimationFrame(animate);
 }
+
 // -------------------
 // オンエアデータ受信
 // -------------------
 window.electronAPI.onReceiveFullscreenData((itemData) => {
     logInfo(`[fullscreen.js] Received On-Air data in fullscreen: ${JSON.stringify(itemData)}`);
 
-    const nextIsUVC = isUVCItem(itemData);
+    const incomingBridgeMode = getIncomingBridgeMode(itemData);
 
     // 切替直前フェードレイヤー解除
     cancelPreFTB();
@@ -436,79 +439,9 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
         ffCanvas.style.visibility = 'hidden';
     }
 
-    // スタートモードフォーマット
-    const nextStartModeUpper = String(itemData.startMode || 'PAUSE').toUpperCase();
-    const nextIsPause  = (nextStartModeUpper === 'PAUSE');
-    const nextIsFadeIn = (nextStartModeUpper === 'FADEIN');
+    executeIncomingBridgeMode(incomingBridgeMode);
 
-    // 次ソースが音声ファイルの場合は、前フレームオーバーレイを即時クリア（数秒残る問題の対策）
-    const nextPath = (itemData && typeof itemData.path === 'string') ? itemData.path : '';
-    const nextIsAudio = !!nextPath && !nextPath.startsWith('UVC_DEVICE') && (
-        /\.(mp3|wav|m4a|aac|flac|ogg|opus|wma|aif|aiff)(\?.*)?$/i.test(nextPath) ||
-        /\.(mp3|wav|m4a|aac|flac|ogg|opus|wma|aif|aiff)(#.*)?$/i.test(nextPath)
-    );
-    if (nextIsAudio) {
-        try {
-            if (typeof fullscreenSeamlessCleanup === 'function') {
-                fullscreenSeamlessCleanup();
-            }
-        } catch (_) {
-            // ignore
-        }
-        fullscreenSeamlessCleanup = null;
-        seamlessGuardActive = false;
-        overlayForceBlack = false;
-        try {
-            const oc = document.getElementById('overlay-canvas');
-            if (oc) {
-                const ctx = oc.getContext('2d');
-                if (ctx) ctx.clearRect(0, 0, oc.width, oc.height);
-                oc.style.opacity = '0';
-                oc.style.visibility = 'hidden';
-                oc.style.display = 'none';
-            }
-        } catch (_) {
-            // ignore
-        }
-    }
-
-    // 次ソースがUVCの場合
-    suppressFadeUntilPlaying = nextIsUVC;
-    pendingUvcFadeInSec = (nextIsUVC && nextIsFadeIn && Number(itemData.startFadeInSec) > 0)
-        ? Number(itemData.startFadeInSec)
-        : 0;
-    if (nextIsUVC) {
-        const fc = initializeFadeCanvas();
-        if (fc) {
-            holdBlackUntilFadeIn = true;
-            fc.style.display = 'block';
-            fc.style.opacity = '1';
-        }
-    }
-
-    // 前ソースオーバーレイキャプチャをスキップ
-    const skipOverlayCapture = isCurrentSourceUVC() || nextIsUVC || nextIsFadeIn || nextIsAudio
-        || (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn);
-
-    if (!skipOverlayCapture) {
-        try {
-            captureLastFrameAndHoldUntilNextReady(true);
-        } catch (e) {
-            logDebug(`[fullscreen.js] overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
-        }
-    } else {
-        if (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn) {
-            logInfo('[fullscreen.js] Overlay capture skipped because holdBlackUntilFadeIn is active.');
-        } else if (isCurrentSourceUVC()) {
-            logInfo('[fullscreen.js] Overlay capture skipped because current source is UVC.');
-        } else if (nextIsUVC) {
-            logInfo('[fullscreen.js] Overlay capture skipped because next source is UVC.');
-        } else if (nextIsPause) {
-            logInfo('[fullscreen.js] Overlay capture skipped because next startMode is PAUSE.');
-        } else if (nextIsFadeIn) {
-            logInfo('[fullscreen.js] Overlay capture skipped because next startMode is FADEIN.');
-        }
-    }
+    suppressIncomingUvcFadeUntilPlaying = (getIncomingMediaKind(itemData) === 'uvc');
 
     // ビデオ要素のミュート状態更新
     applyMuteStateForNextSource(itemData);
@@ -531,20 +464,257 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     });
 });
 
-// UVCソース判定：itemData判定
-function isUVCItem(itemData) {
-    if (!itemData) return false;
-    if (itemData.path && typeof itemData.path === 'string' && itemData.path.startsWith('UVC_DEVICE')) return true;
-    if (itemData.deviceId && itemData.deviceId !== null) return true;
-    return false;
+function getIncomingBridgeMode(itemData) {
+    if (!itemData || !itemData.transitionPlan || typeof itemData.transitionPlan !== 'object') {
+        logInfo('[fullscreen.js] transitionPlan.bridgeMode is missing. Fallback to NONE.');
+        return 'NONE';
+    }
+
+    const bridgeMode = itemData.transitionPlan.bridgeMode;
+    if (typeof bridgeMode !== 'string' || !bridgeMode) {
+        logInfo('[fullscreen.js] transitionPlan.bridgeMode is empty. Fallback to NONE.');
+        return 'NONE';
+    }
+
+    const normalizedBridgeMode = bridgeMode.toUpperCase();
+    if (
+        normalizedBridgeMode !== 'BLACK' &&
+        normalizedBridgeMode !== 'NONE' &&
+        normalizedBridgeMode !== 'OVERLAY'
+    ) {
+        logInfo(`[fullscreen.js] Unsupported bridgeMode "${bridgeMode}". Fallback to NONE.`);
+        return 'NONE';
+    }
+
+    return normalizedBridgeMode;
 }
 
-// UVCソース判定：グローバルステート判定
-function isCurrentSourceUVC() {
-    if (!globalState) return false;
-    if (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE')) return true;
-    if (globalState.deviceId && globalState.deviceId !== null) return true;
-    return false;
+function getIncomingMediaKind(itemData) {
+    if (!itemData || !itemData.transitionPlan || typeof itemData.transitionPlan !== 'object') {
+        logInfo('[fullscreen.js] transitionPlan.nextMediaKind is missing. Fallback to video.');
+        return 'video';
+    }
+
+    const mediaKind = itemData.transitionPlan.nextMediaKind;
+    if (typeof mediaKind !== 'string' || !mediaKind) {
+        logInfo('[fullscreen.js] transitionPlan.nextMediaKind is empty. Fallback to video.');
+        return 'video';
+    }
+
+    const normalizedMediaKind = normalizeMediaKind(mediaKind);
+
+    if (normalizedMediaKind === 'video' && mediaKind.toLowerCase() !== 'video') {
+        logInfo(`[fullscreen.js] Unsupported nextMediaKind "${mediaKind}". Fallback to video.`);
+    }
+
+    return normalizedMediaKind;
+}
+
+// 遷移用の黒保持中か判定する関数
+function isTransitionBlackHoldActive() {
+    return !!(holdBlackUntilFadeIn && blackHoldReason === 'transition');
+}
+
+let visualBridgeOverlayClearTimerId = null;
+let visualBridgeOverlayClearRequestId = 0;
+
+// 映像ブリッジオーバーレイを解除する関数
+function clearVisualBridgeOverlay() {
+    if (visualBridgeOverlayClearTimerId) {
+        clearTimeout(visualBridgeOverlayClearTimerId);
+        visualBridgeOverlayClearTimerId = null;
+    }
+    visualBridgeOverlayClearRequestId++;
+
+    try {
+        if (typeof fullscreenSeamlessCleanup === 'function') {
+            fullscreenSeamlessCleanup();
+        }
+    } catch (_) {
+        // ignore
+    }
+    fullscreenSeamlessCleanup = null;
+    seamlessGuardActive = false;
+    overlayForceBlack = false;
+
+    try {
+        const oc = document.getElementById('overlay-canvas');
+        if (oc) {
+            const ctx = oc.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, oc.width, oc.height);
+            oc.style.opacity = '0';
+            oc.style.visibility = 'hidden';
+            oc.style.display = 'none';
+        }
+    } catch (_) {
+        // ignore
+    }
+}
+
+// 映像ブリッジオーバーレイの遅延解除を実行する関数
+function runScheduledVisualBridgeOverlayClear(delayMs, isCurrentToken, cleanup, reason) {
+    const normalizedDelayMs = Math.max(0, Number(delayMs) || 0);
+    const requestId = ++visualBridgeOverlayClearRequestId;
+
+    if (visualBridgeOverlayClearTimerId) {
+        clearTimeout(visualBridgeOverlayClearTimerId);
+        visualBridgeOverlayClearTimerId = null;
+    }
+
+    visualBridgeOverlayClearTimerId = setTimeout(() => {
+        visualBridgeOverlayClearTimerId = null;
+
+        if (requestId !== visualBridgeOverlayClearRequestId) {
+            return;
+        }
+
+        if (typeof isCurrentToken === 'function' && !isCurrentToken()) {
+            if (typeof cleanup === 'function') {
+                cleanup();
+            }
+            if (fullscreenSeamlessCleanup === cleanup) {
+                fullscreenSeamlessCleanup = null;
+            }
+            return;
+        }
+
+        clearVisualBridgeOverlay();
+        logDebug(`[fullscreen.js] Overlay cleared${normalizedDelayMs > 0 ? ' after delay (' + normalizedDelayMs + 'ms)' : ''}${reason ? ' [' + reason + ']' : ''}.`);
+    }, normalizedDelayMs);
+}
+
+// 遷移用の黒保持を解除する関数
+function clearTransitionBlackHold() {
+    holdBlackUntilFadeIn = false;
+    blackHoldReason = null;
+
+    const fc = document.getElementById('fadeCanvas');
+    if (fc) {
+        fc.style.opacity = '0';
+        fc.style.display = 'none';
+        fc.style.visibility = 'hidden';
+    }
+
+    overlaySuppressedByPreFTB = false;
+}
+
+// 遷移用の黒保持を開始する関数
+function beginTransitionBlackHold() {
+    const fc = initializeFadeCanvas();
+
+    holdBlackUntilFadeIn = true;
+    blackHoldReason = 'transition';
+
+    if (fc) {
+        fc.style.display = 'block';
+        fc.style.visibility = 'visible';
+        fc.style.opacity = '1';
+    }
+}
+
+// 動画が遷移黒解除可能な状態か判定する関数
+function isVideoReadyForTransitionBlackRelease(videoElement, expectedSrc) {
+    const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+
+    if (expectedSrc && nowSrc && nowSrc !== expectedSrc) {
+        return false;
+    }
+
+    if ((videoElement.readyState | 0) < 2) {
+        return false;
+    }
+
+    if ((videoElement.videoWidth | 0) <= 0 || (videoElement.videoHeight | 0) <= 0) {
+        return false;
+    }
+
+    return true;
+}
+
+// incoming の bridgeMode 開始処理を実行する関数
+function executeIncomingBridgeMode(incomingBridgeMode) {
+    if (incomingBridgeMode === 'OVERLAY') {
+        if (overlaySuppressedByPreFTB) {
+            logInfo('[fullscreen.js] Overlay capture skipped due to pre-FTB suppression.');
+            return;
+        }
+
+        if (isTransitionBlackHoldActive()) {
+            logInfo('[fullscreen.js] Overlay capture skipped due to transition black hold.');
+            return;
+        }
+
+        try {
+            captureLastFrameAndHoldUntilNextReady();
+        } catch (e) {
+            logDebug(`[fullscreen.js] overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
+        }
+
+        clearTransitionBlackHold();
+        return;
+    }
+
+    if (incomingBridgeMode === 'BLACK') {
+        beginTransitionBlackHold();
+        return;
+    }
+
+    clearVisualBridgeOverlay();
+    clearTransitionBlackHold();
+
+    logInfo(`[fullscreen.js] Overlay capture skipped because incoming bridgeMode is ${incomingBridgeMode}.`);
+}
+// 動画の ready を待って遷移黒を解除する関数
+function releaseTransitionBlackOnVideoReady(videoElement, fillKeyMode) {
+    if (!videoElement || !isTransitionBlackHoldActive()) {
+        return;
+    }
+
+    const expectedSrc = String(videoElement.src || '');
+    let releaseStarted = false;
+
+    function tryRelease() {
+        if (releaseStarted) return;
+
+        if (!isTransitionBlackHoldActive()) {
+            cleanupReleaseListeners();
+            return;
+        }
+
+        if (!isVideoReadyForTransitionBlackRelease(videoElement, expectedSrc)) return;
+
+        releaseStarted = true;
+        cleanupReleaseListeners();
+
+        try {
+            fullscreenFadeFromBlack(0.06, fillKeyMode);
+        } catch (_) {
+            clearTransitionBlackHold();
+        }
+    }
+
+    const cleanupReleaseListeners = () => {
+        videoElement.removeEventListener('loadeddata', tryRelease);
+        videoElement.removeEventListener('canplay', tryRelease);
+    };
+
+    videoElement.addEventListener('loadeddata', tryRelease);
+    videoElement.addEventListener('canplay', tryRelease);
+
+    tryRelease();
+
+    let tries = 0;
+    const rafTry = () => {
+        if (releaseStarted) return;
+        tries++;
+        if (tries > 30 || !isTransitionBlackHoldActive()) {
+            cleanupReleaseListeners();
+            return;
+        }
+        tryRelease();
+        if (!releaseStarted) requestAnimationFrame(rafTry);
+    };
+    requestAnimationFrame(rafTry);
 }
 
 // ビデオ要素のミュート状態更新
@@ -552,13 +722,12 @@ function applyMuteStateForNextSource(itemData) {
     const videoElement = document.getElementById('fullscreen-video');
     if (!videoElement) return;
 
-    const shouldMute = isUVCItem(itemData);
+    const shouldMute = (getIncomingMediaKind(itemData) === 'uvc');
 
     videoElement.muted = shouldMute;
 
     logDebug(`[fullscreen.js] applyMuteStateForNextSource: isUVC=${shouldMute}, muted=${videoElement.muted}`);
 }
-
 // -------------------------
 // グローバルステート初期化
 // -------------------------
@@ -572,6 +741,9 @@ function setInitialData(itemData) {
     const defVol = (itemData.defaultVolume !== undefined ? itemData.defaultVolume : 100);
     const masterVol = (itemData.masterVolume !== undefined ? itemData.masterVolume : 100);
     const computedVolume = ((defVol) / 100) * ((masterVol) / 100);
+    const incomingBridgeMode = getIncomingBridgeMode(itemData);
+    const incomingMediaKind = getIncomingMediaKind(itemData);
+
     globalState = {
         playlistItemId: itemData.playlistItem_id || null,
         path: itemData.path || '',
@@ -581,6 +753,9 @@ function setInitialData(itemData) {
         outPoint: parseFloat(itemData.outPoint || 0),
         startMode: itemData.startMode || 'PAUSE',
         endMode: itemData.endMode || 'PAUSE',
+        bridgeMode: incomingBridgeMode,
+        mediaKind: incomingMediaKind,
+        transitionFadeOutEnabled: !!itemData.ftbEnabled,
         defaultVolume: defVol,
         masterVolume: masterVol,
         ftbRate: itemData.ftbRate || 1.0,
@@ -637,30 +812,109 @@ function initializeOverlayCanvas() {
     return canvas;
 }
 
+// mediaKind を正規化する関数
+function normalizeMediaKind(mediaKind) {
+    const normalizedMediaKind = String(mediaKind || '').toLowerCase();
+
+    if (normalizedMediaKind === 'audioonly') return 'audioOnly';
+    if (normalizedMediaKind === 'uvc' || normalizedMediaKind === 'video') return normalizedMediaKind;
+
+    return 'video';
+}
+
+function getCurrentIncomingMediaKind() {
+    if (!globalState) return 'video';
+    return normalizeMediaKind(globalState.mediaKind);
+}
+
+function getResolvedStartMode() {
+    return String(globalState.startMode || 'PAUSE').toUpperCase();
+}
+
+function hasDecodedVisualFrame(videoElement) {
+    return !!(
+        videoElement &&
+        (videoElement.readyState >= 2) &&
+        (videoElement.videoWidth | 0) > 0 &&
+        (videoElement.videoHeight | 0) > 0
+    );
+}
+function isUvcReadyForOverlayRelease(videoElement, releaseState) {
+    if (!videoElement) return false;
+
+    if (hasDecodedVisualFrame(videoElement)) {
+        return true;
+    }
+
+    const elapsed = performance.now() - releaseState.capturedAt;
+    if (elapsed >= 120 && !videoElement.paused) {
+        return true;
+    }
+
+    return false;
+}
+
+function isVideoReadyForOverlayRelease(videoElement, releaseState) {
+    if (!videoElement) return false;
+
+    const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+    const nowTime = Number(videoElement.currentTime || 0);
+    const inPoint = Number(globalState.inPoint || 0);
+    const currentStartMode = getResolvedStartMode();
+    const allowPausedReleaseAtInPoint = (currentStartMode === 'PAUSE');
+    const decodedFrameReady = hasDecodedVisualFrame(videoElement);
+
+    if (!nowSrc) return false;
+    if (nowSrc !== releaseState.capturedSrc) return true;
+
+    if (nowTime <= 0.12 && releaseState.capturedTime > 0.30) return true;
+
+    if (nowTime + 0.25 < releaseState.capturedTime) return true;
+
+    if (!videoElement.paused && nowTime >= inPoint + 0.08) {
+        return true;
+    }
+
+    if (
+        allowPausedReleaseAtInPoint &&
+        videoElement.paused &&
+        decodedFrameReady &&
+        Math.abs(nowTime - inPoint) <= 0.12
+    ) {
+        return true;
+    }
+
+    const elapsed = performance.now() - releaseState.capturedAt;
+    if (
+        elapsed >= 120 &&
+        !videoElement.paused &&
+        (decodedFrameReady || nowTime >= inPoint + 0.08)
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+function isIncomingVisualItemReady(videoElement, releaseState) {
+    const mediaKind = getCurrentIncomingMediaKind();
+
+    if (mediaKind === 'audioOnly') {
+        return true;
+    }
+
+    if (mediaKind === 'uvc') {
+        return isUvcReadyForOverlayRelease(videoElement, releaseState);
+    }
+
+    return isVideoReadyForOverlayRelease(videoElement, releaseState);
+}
+
 // ------------------------------------
 // オーバレイキャプチャ固定
 // ------------------------------------
-function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
-    // pre-FTB（フェードアウト）中は、最終フレーム保持オーバレイを絶対に出さない
-    if (overlaySuppressedByPreFTB) {
-        return;
-    }
-
-    // FTBボタントグル黒保持中も、最終フレーム保持オーバレイは不要。
-    // 呼び出し元を個別に塞いでも別経路から来る可能性があるため、関数本体で全面スキップする。
-    if (typeof fullscreenFtbToggleHoldActive !== 'undefined' && fullscreenFtbToggleHoldActive) {
-        logInfo('[fullscreen.js] Overlay capture skipped due to FTB toggle hold.');
-        return;
-    }
-
-    if (respectBlackHold) {
-        const fc = document.getElementById('fadeCanvas');
-        const fcBlackHold = !!(fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9);
-        if (typeof holdBlackUntilFadeIn !== 'undefined' && holdBlackUntilFadeIn && fcBlackHold) {
-            logInfo('[fullscreen.js] Overlay capture skipped due to black hold.');
-            return;
-        }
-    }
+// 最終フレーム保持オーバーレイを開始して次映像の準備完了まで維持する関数
+function captureLastFrameAndHoldUntilNextReady() {
     const videoElement = document.getElementById('fullscreen-video');
     const overlayCanvas = initializeOverlayCanvas();
     if (!videoElement || !overlayCanvas) {
@@ -668,8 +922,18 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         return;
     }
 
+    const fadeCanvas = document.getElementById('fadeCanvas');
+    if (fadeCanvas) {
+        const cs = window.getComputedStyle(fadeCanvas);
+        const fadeVisible = cs.visibility !== 'hidden' && parseFloat(cs.opacity || '0') > 0.01;
+        if (fadeVisible) {
+            logInfo('[fullscreen.js] Overlay capture skipped due to visible fade layer.');
+            return;
+        }
+    }
+
     // 前ソースが「何も出ていない（src空 & srcObjectなし）」場合は、
-    // オーバレイ保持が黒のまま残り「遅れて出たように見える」原因になるためキャプチャをスキップする
+    // オーバーレイ保持が黒のまま残り「遅れて出たように見える」原因になるためキャプチャをスキップする
     const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
     const hasSrcObject = !!videoElement.srcObject;
     if (!hasSrcObject && !nowSrc) {
@@ -692,106 +956,38 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     const capturedTime = Number(videoElement.currentTime || 0);
     const capturedAt = performance.now();
 
-    const isReadyToRelease = (nowSrc) => {
-        if (!nowSrc) return false;
-        if (nowSrc !== capturedSrc) return true;
-
-        const nowTime = Number(videoElement.currentTime || 0);
-        const inPoint = Number(globalState.inPoint || 0);
-        const hasDecodedFrame =
-            (videoElement.readyState >= 2) &&
-            (videoElement.videoWidth | 0) > 0 &&
-            (videoElement.videoHeight | 0) > 0;
-
-        if (nowTime <= 0.12 && capturedTime > 0.30) return true;
-        if (nowTime + 0.25 < capturedTime) return true;
-
-        // 同一ソース再 onAir では、再生位置が進み始めた時点でオーバレイ解除を許可する
-        if (!videoElement.paused && nowTime >= inPoint + 0.08) {
-            return true;
-        }
-
-        // startMode=PAUSE 用
-        if (
-            videoElement.paused &&
-            hasDecodedFrame &&
-            Math.abs(nowTime - inPoint) <= 0.12
-        ) {
-            return true;
-        }
-
-        const elapsed = performance.now() - capturedAt;
-        if (
-            elapsed >= 120 &&
-            !videoElement.paused &&
-            (hasDecodedFrame || nowTime >= inPoint + 0.08)
-        ) {
-            return true;
-        }
-
-        return false;
+    const isReadyToRelease = () => {
+        return isIncomingVisualItemReady(videoElement, {
+            capturedSrc,
+            capturedTime,
+            capturedAt
+        });
     };
 
     const ctx = overlayCanvas.getContext('2d');
 
     try {
-        if (typeof pendingUvcFadeInSec !== 'undefined' && pendingUvcFadeInSec > 0) {
-            overlayForceBlack = true;
-            overlayCanvas.style.opacity = '1';
-            overlayCanvas.style.display = 'block';
+        (function () {
+            const cw = overlayCanvas.width;
+            const ch = overlayCanvas.height;
+            const vw = Math.max(1, (videoElement.videoWidth | 0));
+            const vh = Math.max(1, (videoElement.videoHeight | 0));
+            const scale = Math.min(cw / vw, ch / vh);
+            const dw = Math.round(vw * scale);
+            const dh = Math.round(vh * scale);
+            const dx = Math.floor((cw - dw) / 2);
+            const dy = Math.floor((ch - dh) / 2);
             ctx.save();
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.drawImage(videoElement, dx, dy, dw, dh);
             ctx.restore();
-        } else {
-            (function () {
-                const cw = overlayCanvas.width;
-                const ch = overlayCanvas.height;
-                const vw = Math.max(1, (videoElement.videoWidth | 0));
-                const vh = Math.max(1, (videoElement.videoHeight | 0));
-                const scale = Math.min(cw / vw, ch / vh);
-                const dw = Math.round(vw * scale);
-                const dh = Math.round(vh * scale);
-                const dx = Math.floor((cw - dw) / 2);
-                const dy = Math.floor((ch - dh) / 2);
-                ctx.save();
-                ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
-                ctx.fillRect(0, 0, cw, ch);
-                ctx.drawImage(videoElement, dx, dy, dw, dh);
-                ctx.restore();
-            })();
+        })();
 
-            overlayCanvas.style.opacity = '1';
-            overlayCanvas.style.display = 'block';
-            overlayCanvas.style.visibility = 'visible';
-            seamlessGuardActive = true;
-
-            // 音声アイテムから映像アイテムへの復帰時
-            if (videoElement.getAttribute('data-hide-due-to-audio') === '1' &&
-                (videoElement.videoWidth | 0) > 0 && (videoElement.videoHeight | 0) > 0) {
-                videoElement.style.display = '';
-                videoElement.removeAttribute('data-hide-due-to-audio');
-                logDebug('[fullscreen.js] Video display restored (entering video item).');
-            }
-        }
-
-        // 先出し黒フェード
-        if (overlayForceBlack && typeof preFtbActive !== 'undefined' && preFtbActive) {
-            overlayCanvas.style.display = 'block';
-            overlayCanvas.style.opacity = '1';
-            let p = 0;
-            try {
-                const now = performance.now();
-                const elapsed = now - (preFtbStartTime || now);
-                p = preFtbDuration > 0 ? Math.min(elapsed / preFtbDuration, 1) : 1;
-            } catch (_) {}
-            overlayCanvas.style.opacity = String(1 - p);
-            if (p >= 1) {
-                overlayCanvas.style.display = 'none';
-                overlayCanvas.style.opacity = '1';
-                overlayForceBlack = false;
-            }
-        }
+        overlayCanvas.style.opacity = '1';
+        overlayCanvas.style.display = 'block';
+        overlayCanvas.style.visibility = 'visible';
+        seamlessGuardActive = true;
     } catch (e) {
         try {
             ctx.save();
@@ -809,34 +1005,45 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     let rvfcLastPresentedFrames = 0;
     let rvfcHandle = null;
     let safetyTimerId = null;
+    let overlayClearScheduled = false;
+
+    const tryReleaseOverlay = (reason) => {
+        if (!isCurrentToken()) {
+            return;
+        }
+
+        if (!isReadyToRelease()) {
+            return;
+        }
+
+        clearOverlay(reason);
+    };
 
     const onLoadedData = () => {
-        if (!isCurrentToken()) return;
-        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-        if (isReadyToRelease(nowSrc)) clearOverlay('loadeddata');
+        tryReleaseOverlay('loadeddata');
     };
     const onCanPlay = () => {
-        if (!isCurrentToken()) return;
-        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-        if (isReadyToRelease(nowSrc)) clearOverlay('canplay');
+        tryReleaseOverlay('canplay');
     };
     const onSeeked = () => {
-        if (!isCurrentToken()) return;
-        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-        if (isReadyToRelease(nowSrc)) clearOverlay('seeked');
+        tryReleaseOverlay('seeked');
     };
     const onTimeUpdate = () => {
-        if (!isCurrentToken()) return;
-        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-        if (isReadyToRelease(nowSrc)) clearOverlay('timeupdate');
+        tryReleaseOverlay('timeupdate');
     };
 
+    const overlayReleaseEventBindings = [
+        ['playing', onPlaying],
+        ['loadeddata', onLoadedData],
+        ['canplay', onCanPlay],
+        ['seeked', onSeeked],
+        ['timeupdate', onTimeUpdate]
+    ];
+
     const detach = () => {
-        videoElement.removeEventListener('playing', onPlaying);
-        videoElement.removeEventListener('loadeddata', onLoadedData);
-        videoElement.removeEventListener('canplay', onCanPlay);
-        videoElement.removeEventListener('seeked', onSeeked);
-        videoElement.removeEventListener('timeupdate', onTimeUpdate);
+        overlayReleaseEventBindings.forEach(([eventName, handler]) => {
+            videoElement.removeEventListener(eventName, handler);
+        });
     };
 
     const cleanup = () => {
@@ -853,42 +1060,47 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         }
     };
 
+    const finalizeCleanup = () => {
+        cleanup();
+        if (fullscreenSeamlessCleanup === cleanup) {
+            fullscreenSeamlessCleanup = null;
+        }
+    };
+
+    const stopIfStale = () => {
+        if (isCurrentToken()) {
+            return false;
+        }
+
+        finalizeCleanup();
+        return true;
+    };
+
     fullscreenSeamlessCleanup = cleanup;
 
+    // 映像ブリッジオーバーレイを解除する関数
     const clearOverlay = (reason) => {
         const RELEASE_DELAY_MS = 180;
 
-        setTimeout(() => {
-            if (!isCurrentToken()) {
-                cleanup();
-                if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
-                return;
-            }
+        if (overlayClearScheduled) {
+            return;
+        }
+        overlayClearScheduled = true;
 
-            try {
-                overlayCanvas.style.display = 'none';
-                try { ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); } catch (_) {}
-            } catch (_) {}
-
-            seamlessGuardActive = false;
-            overlayForceBlack = false;
-
-            logDebug(`[fullscreen.js] Overlay cleared after delay (${RELEASE_DELAY_MS}ms)${reason ? ' [' + reason + ']' : ''}.`);
-
-            cleanup();
-            if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
-        }, RELEASE_DELAY_MS);
+        runScheduledVisualBridgeOverlayClear(
+            RELEASE_DELAY_MS,
+            isCurrentToken,
+            cleanup,
+            reason
+        );
     };
 
     const rvfc = useRVFC ? (ts, md) => {
-        if (!isCurrentToken()) {
-            cleanup();
-            if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+        if (stopIfStale()) {
             return;
         }
 
-        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-        if (!isReadyToRelease(nowSrc)) {
+        if (!isReadyToRelease()) {
             try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
             return;
         }
@@ -919,7 +1131,7 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
         const requiredFrames = 1;
 
         if (rvfcCount >= requiredFrames) {
-            clearOverlay('rvfc');
+            tryReleaseOverlay('rvfc');
         } else {
             try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
         }
@@ -927,24 +1139,18 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     } : null;
 
     function onPlaying() {
-        if (!isCurrentToken()) {
-            cleanup();
-            if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+        if (stopIfStale()) {
             return;
         }
-        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-        if (!isReadyToRelease(nowSrc)) return;
 
         if (!useRVFC) {
-            clearOverlay('playing');
+            tryReleaseOverlay('playing');
         }
     }
 
-    videoElement.addEventListener('playing', onPlaying);
-    videoElement.addEventListener('loadeddata', onLoadedData);
-    videoElement.addEventListener('canplay', onCanPlay);
-    videoElement.addEventListener('seeked', onSeeked);
-    videoElement.addEventListener('timeupdate', onTimeUpdate);
+    overlayReleaseEventBindings.forEach(([eventName, handler]) => {
+        videoElement.addEventListener(eventName, handler);
+    });
 
     if (useRVFC) {
         try { rvfcHandle = videoElement.requestVideoFrameCallback(rvfc); } catch (_) {}
@@ -957,18 +1163,15 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     let safetyLogged = false;
 
     const safetyPoll = () => {
-        if (!isCurrentToken()) {
-            cleanup();
-            if (fullscreenSeamlessCleanup === cleanup) fullscreenSeamlessCleanup = null;
+        if (stopIfStale()) {
             return;
         }
         if (!seamlessGuardActive) return;
 
         const elapsed = performance.now() - safetyStart;
         if (elapsed >= SAFETY_TIMEOUT_MS) {
-            const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-            if (isReadyToRelease(nowSrc)) {
-                clearOverlay('safety');
+            if (isReadyToRelease()) {
+                tryReleaseOverlay('safety');
                 return;
             }
             if (!safetyLogged) {
@@ -983,7 +1186,6 @@ function captureLastFrameAndHoldUntilNextReady(respectBlackHold) {
     };
     safetyTimerId = setTimeout(safetyPoll, SAFETY_POLL_MS);
 }
-
 // ---------------------------------------
 // オンエアデータ処理と再生
 // ---------------------------------------
@@ -1007,17 +1209,27 @@ function handleOnAirData(itemData) {
     cancelAudioFade();
     setInitialData(itemData);
 
-    const isUvc = !!(globalState.deviceId || (typeof globalState.path === 'string' && globalState.path.startsWith('UVC_DEVICE:')));
+    const incomingMediaKind = getCurrentIncomingMediaKind();
+    const isUvc = (incomingMediaKind === 'uvc');
+
+    if (incomingMediaKind !== 'audioOnly') {
+        const videoElement = document.getElementById('fullscreen-video');
+        if (videoElement) {
+            try {
+                videoElement.style.visibility = 'visible';
+                videoElement.style.opacity = '1';
+                videoElement.style.display = '';
+                if (videoElement.getAttribute('data-hide-due-to-audio') === '1') {
+                    videoElement.removeAttribute('data-hide-due-to-audio');
+                }
+            } catch (_) {
+                // ignore
+            }
+        }
+    }
 
     // 動画とUVCの振り分け
     if (isUvc) {
-        if (!globalState.deviceId && typeof globalState.path === 'string') {
-            const id = globalState.path.substring('UVC_DEVICE:'.length);
-            if (id) {
-                globalState.deviceId = id;
-                logInfo(`[fullscreen.js] deviceId complemented from path: ${id}`);
-            }
-        }
         logInfo('[fullscreen.js] Detected UVC device. Setting up UVC device stream.');
         setupUVCDevice();
         return;
@@ -1029,7 +1241,6 @@ function handleOnAirData(itemData) {
     }
     handleStartMode();
 }
-
 // --------------------------------------------
 // 動画・音声ファイルをビデオプレーヤーにセット
 // --------------------------------------------
@@ -1040,28 +1251,8 @@ function setupVideoPlayer() {
         return;
     }
 
-    // FTB/OffAirで即カットした場合に備えて、セットアップ開始時に表示を復帰
-    try {
-        videoElement.style.visibility = 'visible';
-        videoElement.style.opacity = '1';
-
-        // 音声アイテムで display:none 等にしていた場合に備えて必ず復帰
-        videoElement.style.display = '';
-        if (videoElement.getAttribute('data-hide-due-to-audio') === '1') {
-            videoElement.removeAttribute('data-hide-due-to-audio');
-        }
-    } catch (_) {
-        // ignore
-    }
-
     if (!globalState.path) {
         logInfo('[fullscreen.js] No video path available in global state.');
-        return;
-    }
-
-    // UVCパス
-    if (typeof globalState.path === 'string' && globalState.path.startsWith("UVC_DEVICE")) {
-        logInfo('[fullscreen.js] UVC path detected in setupVideoPlayer; skipping file URL.');
         return;
     }
 
@@ -1106,29 +1297,7 @@ function setupVideoPlayer() {
                     // ignore
                 }
 
-                try {
-                    if (typeof fullscreenSeamlessCleanup === 'function') {
-                        fullscreenSeamlessCleanup();
-                    }
-                } catch (_) {
-                    // ignore
-                }
-                fullscreenSeamlessCleanup = null;
-                seamlessGuardActive = false;
-                overlayForceBlack = false;
-
-                try {
-                    const oc = document.getElementById('overlay-canvas');
-                    if (oc) {
-                        const ctx = oc.getContext('2d');
-                        if (ctx) ctx.clearRect(0, 0, oc.width, oc.height);
-                        oc.style.opacity = '0';
-                        oc.style.visibility = 'hidden';
-                        oc.style.display = 'none';
-                    }
-                } catch (_) {
-                    // ignore
-                }
+                clearVisualBridgeOverlay();
             }
         } catch (_) {
             // ignore
@@ -1192,20 +1361,6 @@ async function setupUVCDevice() {
         return;
     }
 
-    // FTBで即カットした場合に備えて、UVCセットアップ開始時に表示を復帰
-    try {
-        videoElement.style.visibility = 'visible';
-        videoElement.style.opacity = '1';
-
-        // 音声アイテムで display:none 等にしていた場合に備えて必ず復帰
-        videoElement.style.display = '';
-        if (videoElement.getAttribute('data-hide-due-to-audio') === '1') {
-            videoElement.removeAttribute('data-hide-due-to-audio');
-        }
-    } catch (_) {
-        // ignore
-    }
-
     if (!deviceId) {
         logInfo('[fullscreen.js] No UVC device ID available in global state.');
         return;
@@ -1243,6 +1398,10 @@ async function setupUVCDevice() {
         });
 
         // 初期音量
+        let initialVolume = (globalState.volume !== undefined
+            ? globalState.volume
+            : (globalState.defaultVolume / 100));
+
         // FTBトグル保持中/遷移中は「裏の再生」は続けるが、実出力音量は必ず0に固定する
         const nowMsForUvcInitVolume = performance.now();
         const isFtbToggleTransitionActiveForUvcInitVolume =
@@ -1264,6 +1423,21 @@ async function setupUVCDevice() {
         const maxStreamGain = 1.0;
         initialVolume = Math.max(0.0, Math.min(maxStreamGain, initialVolume));
         videoElement.volume = initialVolume;
+
+        // 旧ファイル再生ソースを完全に切ってから UVC ストリームを入れる
+        try {
+            videoElement.pause();
+        } catch (_) {
+            // ignore
+        }
+
+        try {
+            videoElement.removeAttribute('src');
+            videoElement.src = '';
+            videoElement.load();
+        } catch (_) {
+            // ignore
+        }
 
         // ストリームセット
         videoElement.srcObject = stream;
@@ -1294,22 +1468,13 @@ async function setupUVCDevice() {
             fullscreenGainNode.gain.setValueAtTime(initialVolume, audioContext.currentTime);
         }
 
-        const smUpper = String(globalState.startMode || 'PLAY').toUpperCase();
-
-        // スタートモードPAUSEの場合
-        if (smUpper === 'PAUSE') {
-            globalState.stream = stream;
-            stopVolumeMeasurement();
-            logInfo('[fullscreen.js] UVC startMode=PAUSE: stream set, awaiting manual play.');
-            return;
-        }
-
-        const fadeSec = (typeof pendingUvcFadeInSec !== 'undefined' && pendingUvcFadeInSec > 0)
-            ? pendingUvcFadeInSec
+        const fadeSec = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec) && globalState.startFadeInSec > 0)
+            ? globalState.startFadeInSec
             : 0.3;
 
-        // ストリームスタート確認
+        // UVC再生開始後の遷移黒解除と後処理を行う関数
         const handlePlaying = () => {
+            suppressIncomingUvcFadeUntilPlaying = false;
             fullscreenFadeFromBlack(fadeSec, isFillKeyMode);
             videoElement.removeEventListener('playing', handlePlaying);
             try {
@@ -1347,192 +1512,56 @@ function handleStartMode() {
         return;
     }
 
-    // リピートの場合のスタートモード分岐処理
-    if (globalState.repeatFlag) {
-        const sm = (globalState.startMode || 'PAUSE').toUpperCase();
+    const resolvedStartMode = getResolvedStartMode();
 
-        if (sm === 'OFF') {
-            logInfo('[fullscreen.js] Repeat requested but startMode=OFF -> do not repeat; going Off-Air.');
-            globalState.repeatFlag = false;
-            handleEndModeOFF();
-            return;
-        }
-        if (sm === 'PAUSE') {
-            logInfo('[fullscreen.js] Repeat with startMode=PAUSE -> auto-play from IN on repeat.');
-            const initialVol = (typeof globalState.volume === 'number') ? Math.max(0, Math.min(1, globalState.volume)) : (typeof globalState.defaultVolume === 'number' ? Math.max(0, Math.min(1, globalState.defaultVolume / 100)) : 1);
-            videoElement.currentTime = globalState.inPoint;
-            videoElement.volume = initialVol;
-            videoElement.play()
-                .then(() => {
-                    startVolumeMeasurement();
-                    logInfo('[fullscreen.js] Repeat playback started (PAUSE overridden to PLAY on repeat).');
-                })
-                .catch(error => logDebug(`[fullscreen.js] Repeat playback (PAUSE->PLAY) failed: ${error.message}`));
-            monitorVideoPlayback();
-            globalState.repeatFlag = false;
-            return;
-        }
+    videoElement.currentTime = globalState.inPoint;
 
-        // PLAY/FADEIN のときのみリピート再生開始
-        if (sm === 'PLAY') {
-            logInfo('[fullscreen.js] Repeat with startMode=PLAY.');
-            videoElement.currentTime = globalState.inPoint;
-            videoElement.play()
-                .then(() => {
-                    logInfo('[fullscreen.js] Repeat playback started successfully.');
-                    startVolumeMeasurement();
-                })
-                .catch(error => logDebug(`[fullscreen.js] Repeat playback failed to start: ${error.message}`));
-            monitorVideoPlayback();
-            globalState.repeatFlag = false;
-            return;
-        }
-
-        if (sm === 'FADEIN') {
-            logInfo('[fullscreen.js] Repeat with startMode=FADEIN.');
-            videoElement.currentTime = globalState.inPoint;
-            videoElement.volume = 0;
-            const preCanvas = document.getElementById('fadeCanvas');
-            if (preCanvas) {
-                preCanvas.style.backgroundColor = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
-                preCanvas.style.opacity = '1';
-                preCanvas.style.display = 'block';
-                preCanvas.style.visibility = 'visible';
-                holdBlackUntilFadeIn = true;
-            }
-
-            // フェードイン
-            const fadeDur = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec))
-                ? globalState.startFadeInSec
-                : 1.0;
-            fullscreenFadeFromBlack(fadeDur, isFillKeyMode);
-
-            videoElement.play()
-                .then(() => {
-                    audioFadeIn(fadeDur);
-                    startVolumeMeasurement();
-                    logInfo('[fullscreen.js] Repeat playback started with FADEIN.');
-                })
-                .catch(error => logDebug(`[fullscreen.js] Repeat FADEIN failed to start: ${error.message}`));
-            monitorVideoPlayback();
-            globalState.repeatFlag = false;
-            return;
-        }
-        logInfo(`[fullscreen.js] Repeat requested but unknown startMode=${sm}. No action taken.`);
-        globalState.repeatFlag = false;
+    if (resolvedStartMode === 'PAUSE') {
+        logInfo('[fullscreen.js] Start mode is PAUSE. Video is ready to play.');
+        stopVolumeMeasurement();
         return;
     }
 
-    // 通常のスタートモード処理
-    if (globalState.startMode === 'PLAY') {
+    let fadeDur = 0;
+
+    if (resolvedStartMode === 'PLAY') {
         logInfo('[fullscreen.js] Start mode is PLAY. Starting playback.');
 
-        videoElement.currentTime = globalState.inPoint;
+        // offAir/OFF 由来の通常遷移黒保持中だけ：
+        // 「新しいソースの最初の映像フレームがデコードされた瞬間」に黒を外す
+        releaseTransitionBlackOnVideoReady(videoElement, isFillKeyMode);
 
-        // offAir/OFF で黒保持している場合：
-        // 「新しいソースの最初の映像フレームがデコードされた瞬間」に黒を外す（動画1最終フレーム混入を確実に防ぐ）
-        if (holdBlackUntilFadeIn) {
-            const expectedSrc = String(videoElement.src || '');
-            let releaseStarted = false;
-
-            const cleanupReleaseListeners = () => {
-                videoElement.removeEventListener('loadeddata', tryRelease);
-                videoElement.removeEventListener('canplay', tryRelease);
-            };
-
-            const releaseHeldBlackOnce = () => {
-                if (releaseStarted) return;
-                releaseStarted = true;
-                cleanupReleaseListeners();
-                try {
-                    fullscreenFadeFromBlack(0.06, isFillKeyMode);
-                } catch (_) {
-                    const fc = document.getElementById('fadeCanvas');
-                    if (fc) {
-                        fc.style.opacity = '0';
-                        fc.style.display = 'none';
-                        fc.style.visibility = 'hidden';
-                    }
-                    holdBlackUntilFadeIn = false;
-                }
-            };
-
-            function tryRelease() {
-                if (releaseStarted) return;
-
-                // 旧フレーム（動画1）で黒解除されないよう、src が新ソースであることを確認
-                const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
-                if (expectedSrc && nowSrc && nowSrc !== expectedSrc) return;
-
-                // 「映像フレームが利用可能」になってから解除する
-                if ((videoElement.readyState | 0) < 2) return;
-                if ((videoElement.videoWidth | 0) <= 0 || (videoElement.videoHeight | 0) <= 0) return;
-
-                releaseHeldBlackOnce();
-            }
-
-            // loadeddata が来ない経路の保険として canplay でも同条件を確認する
-            videoElement.addEventListener('loadeddata', tryRelease);
-            videoElement.addEventListener('canplay', tryRelease);
-
-            // すでにデコード済みなら即解除
-            tryRelease();
-
-            // 念のため保険（loadeddata/canplay 前後で条件が揃った瞬間に解除）
-            let tries = 0;
-            const rafTry = () => {
-                if (releaseStarted) return;
-                tries++;
-                if (tries > 30) {
-                    cleanupReleaseListeners();
-                    return;
-                }
-                tryRelease();
-                if (!releaseStarted) requestAnimationFrame(rafTry);
-            };
-            requestAnimationFrame(rafTry);
-        }
-
-        videoElement.play()
-            .then(() => {
-                logInfo('[fullscreen.js] Playback started successfully.');
-                startVolumeMeasurement();
-                window.electronAPI.sendControlToFullscreen({ command: 'play' });
-            })
-            .catch(error => logDebug(`[fullscreen.js] Playback failed to start: ${error.message}`));
-
-        monitorVideoPlayback();
-
-    } else if (globalState.startMode === 'PAUSE') {
-        logInfo('[fullscreen.js] Start mode is PAUSE. Video is ready to play.');
-        videoElement.currentTime = globalState.inPoint;
-        stopVolumeMeasurement();
-
-    } else if (globalState.startMode === 'FADEIN') {
+    } else if (resolvedStartMode === 'FADEIN') {
         logInfo('[fullscreen.js] Start mode is FADEIN. Initiating fade in playback.');
 
-        videoElement.currentTime = globalState.inPoint;
         videoElement.volume = 0;
 
-        const fadeDur = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec))
+        fadeDur = (typeof globalState.startFadeInSec === 'number' && !isNaN(globalState.startFadeInSec))
             ? globalState.startFadeInSec
             : 1.0;
 
         fullscreenFadeFromBlack(fadeDur, isFillKeyMode);
 
-        videoElement.play()
-            .then(() => {
-                audioFadeIn(fadeDur);
-                startVolumeMeasurement();
-                logInfo('[fullscreen.js] Playback started with FADEIN effect.');
-            })
-            .catch(error => logDebug(`[fullscreen.js] Playback failed to start in FADEIN mode: ${error.message}`));
-
-        monitorVideoPlayback();
-
     } else {
-        logInfo(`[fullscreen.js] Unknown start mode: ${globalState.startMode}. No action taken.`);
+        logInfo(`[fullscreen.js] Unknown start mode: ${resolvedStartMode}. No action taken.`);
+        return;
     }
+
+    videoElement.play()
+        .then(() => {
+            if (resolvedStartMode === 'FADEIN') {
+                audioFadeIn(fadeDur);
+                logInfo('[fullscreen.js] Playback started with FADEIN effect.');
+            } else {
+                logInfo('[fullscreen.js] Playback started successfully.');
+                window.electronAPI.sendControlToFullscreen({ command: 'play' });
+            }
+
+            startVolumeMeasurement();
+        })
+        .catch(error => logDebug(`[fullscreen.js] Playback failed to start: ${error.message}`));
+
+    monitorVideoPlayback();
 }
 
 // ------------------------------------------
@@ -1559,10 +1588,11 @@ if (!fadeCanvas) {
 }
 
 // 映像フェードイン処理
+// 映像フェードイン処理
 function fullscreenFadeFromBlack(duration, fillKeyMode) {
 
-    // 黒保持中だった場合
-    if (holdBlackUntilFadeIn) {
+    // 通常遷移の黒保持中だった場合
+    if (isTransitionBlackHoldActive()) {
         let fc = document.getElementById('fadeCanvas');
         if (!fc) fc = initializeFadeCanvas();
 
@@ -1583,7 +1613,7 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
                 fc.style.opacity = '0';
                 fc.style.display = 'block';
                 fc.style.visibility = 'visible';
-                holdBlackUntilFadeIn = false;
+                clearTransitionBlackHold();
 
                 // フェードイン完了で抑止解除
                 overlaySuppressedByPreFTB = false;
@@ -1626,21 +1656,8 @@ function startPreFTB(durationSec, fillKeyMode) {
     let fadeCanvas = document.getElementById('fadeCanvas');
     if (!fadeCanvas) fadeCanvas = initializeFadeCanvas();
 
-    // pre-FTB（フェードアウト）中は、最終フレーム保持オーバレイを出す意味がない。
-    // ここで抑止フラグを立て、既存オーバレイも即時に消してフラッシュの競合を根絶する。
     overlaySuppressedByPreFTB = true;
-    try {
-        const oc = document.getElementById('overlay-canvas');
-        if (oc) {
-            const ctx = oc.getContext('2d');
-            if (ctx) ctx.clearRect(0, 0, oc.width, oc.height);
-            oc.style.opacity = '0';
-            oc.style.visibility = 'hidden';
-            oc.style.display = 'none';
-        }
-    } catch (_) {
-        // ignore
-    }
+    clearVisualBridgeOverlay();
 
     // 初期化
     preFtbActive = true;
@@ -1670,7 +1687,7 @@ function startPreFTB(durationSec, fillKeyMode) {
             preFtbRaf = requestAnimationFrame(step);
         } else {
             preFtbRaf = null;
-            holdBlackUntilFadeIn = true; 
+            beginTransitionBlackHold();
             logInfo('[fullscreen.js] Pre-FTB reached full black. Holding until fade-in.');
         }
     }
@@ -1685,11 +1702,12 @@ function cancelPreFTB() {
         cancelAnimationFrame(preFtbRaf);
         preFtbRaf = null;
     }
-    holdBlackUntilFadeIn = false;
+    clearTransitionBlackHold();
     const fadeCanvas = document.getElementById('fadeCanvas');
     if (fadeCanvas) {
         fadeCanvas.style.opacity = '0';
         fadeCanvas.style.display = 'none';
+        fadeCanvas.style.visibility = 'hidden';
     }
     logInfo('[fullscreen.js] Pre-FTB canceled.');
 }
@@ -1706,7 +1724,7 @@ window.electronAPI.ipcRenderer.on('control', (event, data) => {
             return;
         }
         // 次ソースがUVCで再生開始前は、フェードを抑止
-        if (suppressFadeUntilPlaying) {
+        if (suppressIncomingUvcFadeUntilPlaying) {
             return;
         }
 
@@ -1932,7 +1950,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 break;
             case 'offAir':
                 logInfo('[fullscreen.js]  Received offAir command.');
-                initializeFullscreenArea(false);
+                initializeFullscreenArea(null);
                 stopMonitoringPlayback();
                 stopVolumeMeasurement();
                 break;
@@ -2047,7 +2065,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                         logInfo('[fullscreen.js] fade-from-black skipped due to seamless guard.');
                         break;
                     }
-                    if (suppressFadeUntilPlaying) {
+                    if (suppressIncomingUvcFadeUntilPlaying) {
                         logInfo('[fullscreen.js] fade-from-black skipped due to incoming UVC.');
                         break;
                     }
@@ -2128,7 +2146,7 @@ function handleEndMode() {
 function handleEndModeOFF() {
     logInfo('[fullscreen.js] Called endmode:OFF');
     stopVolumeMeasurement();
-    initializeFullscreenArea(true);
+    initializeFullscreenArea('transition');
     logInfo('[fullscreen.js] Initialized fullscreen area.');
 }
 
@@ -2182,13 +2200,16 @@ function handleEndModeFTB() {
     }
 
     // 事前FTBが既に完了している場合
-    if (preFtbActive || (fadeCanvas && parseFloat(fadeCanvas.style.opacity) >= 0.99)) {
+    if (
+        preFtbActive ||
+        (holdBlackUntilFadeIn && blackHoldReason === 'transition')
+    ) {
         preFtbActive = false;
         if (preFtbRaf) {
             cancelAnimationFrame(preFtbRaf);
             preFtbRaf = null;
         }
-        initializeFullscreenArea(true);
+        initializeFullscreenArea('ftb');
         fadeCanvas.style.opacity = '0';
         fadeCanvas.style.display = 'none';
         fadeCanvas.style.visibility = 'hidden';
@@ -2244,11 +2265,11 @@ function handleEndModeFTB() {
             logInfo('[fullscreen.js] FTB complete: Fade ended.');
 
             // フルスクリーンエリア初期化
-            initializeFullscreenArea(true);
+            initializeFullscreenArea('ftb');
 
             // FTB 完了後フェードキャンバス非表示
-            // ※ initializeFullscreenArea() が holdBlackUntilFadeIn=true の間は fadeCanvas を黒表示のまま保持する
-            if (!holdBlackUntilFadeIn) {
+            // ※ initializeFullscreenArea('ftb') により FTB 理由の黒保持中は fadeCanvas を保持する
+            if (!(holdBlackUntilFadeIn && blackHoldReason === 'transition')) {
                 fadeCanvas.style.opacity = '0';
                 fadeCanvas.style.display = 'none';
                 fadeCanvas.style.visibility = 'hidden';
@@ -2273,12 +2294,11 @@ function cancelFadeOut() {
         logInfo('[fullscreen.js] FTB fadeout canceled.');
     }
     if (fadeCanvas) {
-        // offAir/OFF の「黒保持」中は fadeCanvas を消さない（次オンエア時の前フレーム混入を防ぐ）
+        // 通常遷移の「黒保持」中は fadeCanvas を消さない（次オンエア時の前フレーム混入を防ぐ）
         const keepBlackHold = !!(
             typeof holdBlackUntilFadeIn !== 'undefined' &&
             holdBlackUntilFadeIn &&
-            fadeCanvas.style.display !== 'none' &&
-            parseFloat(fadeCanvas.style.opacity || '0') > 0.9
+            blackHoldReason === 'transition'
         );
 
         if (!keepBlackHold) {
@@ -2286,6 +2306,39 @@ function cancelFadeOut() {
             fadeCanvas.style.display = 'none';
         }
     }
+}
+
+function shouldUseRepeatOverlayBridge(effectiveRepeatStartMode) {
+    if (effectiveRepeatStartMode !== 'PLAY') {
+        return false;
+    }
+
+    if (globalState.transitionFadeOutEnabled) {
+        return false;
+    }
+
+    if (preFtbActive) {
+        return false;
+    }
+
+    if (isTransitionBlackHoldActive()) {
+        return false;
+    }
+
+    return true;
+}
+
+// REPEAT時のbridgeModeを解決する関数
+function resolveRepeatBridgeMode(repeatStartMode) {
+    if (repeatStartMode === 'FADEIN') {
+        return 'BLACK';
+    }
+
+    if (shouldUseRepeatOverlayBridge(repeatStartMode)) {
+        return 'OVERLAY';
+    }
+
+    return 'NONE';
 }
 
 // ------------------------------------
@@ -2299,48 +2352,28 @@ function handleEndModeREPEAT() {
         return;
     }
 
-    // FTBトグル黒保持中「または」FTBトグル遷移中は、
-    // 最終フレーム保持オーバーレイを作ると停止画に見えることがあるためスキップする。
-    const nowMs = performance.now();
-    const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
-
-    if (!fullscreenFtbToggleHoldActive && !isFtbToggleTransitionActive) {
-        captureLastFrameAndHoldUntilNextReady(true);
-    } else {
-        logInfo('[fullscreen.js] REPEAT skipped last-frame overlay capture due to FTB toggle hold/transition.');
+    const repeatStartMode = getResolvedStartMode();
+    if (repeatStartMode === 'OFF') {
+        logInfo('[fullscreen.js] Repeat requested but startMode=OFF -> do not repeat; going Off-Air.');
+        handleEndModeOFF();
+        return;
     }
 
-    globalState.repeatFlag = true; 
-    logInfo('[fullscreen.js] End Mode: REPEAT - Setting repeat flag and restarting playback.');
-    
+    const repeatBridgeMode = resolveRepeatBridgeMode(repeatStartMode);
+    executeIncomingBridgeMode(repeatBridgeMode);
+
+    globalState.startMode = repeatStartMode;
+    logInfo(`[fullscreen.js] End Mode: REPEAT - Replaying the same item with startMode=${repeatStartMode}, bridgeMode=${repeatBridgeMode}.`);
+
     handleStartMode();
 }
-
 // ------------------------------------
 // エンドモード NEXT/GOTO
 // ------------------------------------
 function handleEndModeNEXT() {
-    logInfo('[fullscreen.js] Called endmode:NEXT - capturing last frame');
+    logInfo('[fullscreen.js] Called endmode:NEXT - waiting for incoming transitionPlan.');
 
-    const fc = document.getElementById('fadeCanvas');
-    const nowMs = performance.now();
-    const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
-
-    if (
-        holdBlackUntilFadeIn ||
-        isFtbToggleTransitionActive ||
-        fullscreenFtbToggleHoldActive ||
-        (fc && fc.style.display !== 'none' && parseFloat(fc.style.opacity || '0') > 0.9)
-    ) {
-        logInfo('[fullscreen.js] NEXT skipped overlay capture due to black hold / FTB toggle hold / transition.');
-        return;
-    }
-
-    try {
-        captureLastFrameAndHoldUntilNextReady(true);
-    } catch (e) {
-        logDebug(`[fullscreen.js] handleEndModeNEXT overlay capture skipped: ${e && e.message ? e.message : String(e)}`);
-    }
+    return;
 }
 
 // ------------------------------------

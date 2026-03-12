@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.5.9
+//     ver 2.6.0
 // -----------------------
 
 
@@ -3499,7 +3499,7 @@ async function movePlaylistItem(item, direction) {
 let lastOnAirItemId = null;
 
 // 編集中アイテムをオンエア
-async function performOnAirForEditingItem() {
+async function performOnAirForEditingItem(options = {}) {
     try {
         const playlist = await stateControl.getPlaylistState();
         const editingItem = playlist.find(item => item.editingState === 'editing'); // 現在編集中アイテム
@@ -3509,6 +3509,11 @@ async function performOnAirForEditingItem() {
             showMessage(getMessage('no-item-in-editing-state'), 5000, 'alert');
             return;
         }
+
+        const transitionSource =
+            (options && typeof options.transitionSource === 'string' && options.transitionSource)
+                ? options.transitionSource
+                : 'manual';
 
         // 最後のオンエアアイテムとして記憶
         lastOnAirItemId = editingItem.playlistItem_id;
@@ -3527,6 +3532,9 @@ async function performOnAirForEditingItem() {
             playlist.map(item => ({
                 ...item,
                 order: Number(item.order), // 数値形式に変換して保存
+                transitionSource: item.playlistItem_id === editingItem.playlistItem_id
+                    ? transitionSource
+                    : item.transitionSource
             }))
         );
 
@@ -3560,7 +3568,7 @@ function initializeOnAirButtonListener() {
         logOpe('[playlist.js] On-Air button clicked');
 
         // 共通オンエア処理を呼び出し
-        await performOnAirForEditingItem();
+        await performOnAirForEditingItem({ transitionSource: 'manual' });
     });
 
     // Enterキーによる誤動作を防ぐため、keydownイベントでEnterキーのデフォルト動作を無効化
@@ -5070,7 +5078,7 @@ async function handleSoundPadOnAir(item, index) {
     }
 
     // オンエア処理
-    await performOnAirForEditingItem();
+    await performOnAirForEditingItem({ transitionSource: 'manual' });
 
     showMessage(
         `${getMessage('sound-pad-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`,
@@ -5126,7 +5134,7 @@ async function handleDirectOnAir(item, index) {
     }
 
     // オンエア処理
-    await performOnAirForEditingItem();
+    await performOnAirForEditingItem({ transitionSource: 'manual' });
 
     showMessage(
         `${getMessage('direct-on-air-triggered')} ${targetItem ? targetItem.name : targetId}`,
@@ -6820,7 +6828,7 @@ function handlePlaylistShortcut(action) {
             break;
         case 'on-air':
             logOpe('[playlist.js] On-Air triggered via shortcut.');
-            performOnAirForEditingItem();
+            performOnAirForEditingItem({ transitionSource: 'manual' });
             break;
         case 'Shift+Alt+D': {
             const directOnAirButton = document.getElementById('directonair-mode-button');
