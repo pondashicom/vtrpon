@@ -792,6 +792,8 @@ function onairResolveIncomingStartMode(itemData) {
 
 // 遷移計画生成
 function onairBuildTransitionPlan(itemId, itemData) {
+
+    // 現在状態取得
     const currentPath =
         (onairCurrentState && typeof onairCurrentState.path === 'string')
             ? onairCurrentState.path
@@ -806,6 +808,7 @@ function onairBuildTransitionPlan(itemId, itemData) {
                 ? onairCurrentState.endMode
                 : '');
 
+    // 次アイテム取得
     const nextPath =
         (itemData && typeof itemData.path === 'string')
             ? itemData.path
@@ -827,6 +830,7 @@ function onairBuildTransitionPlan(itemId, itemData) {
                 ? itemData.transitionSource
                 : 'auto');
 
+    // 次メディア種別判定
     const nextIsAudio = !!nextPath && !nextIsUvc &&
         /\.(mp3|wav|m4a|aac|flac|ogg|opus|wma|aif|aiff)(\?.*)?$/i.test(nextPath);
 
@@ -834,12 +838,14 @@ function onairBuildTransitionPlan(itemId, itemData) {
         ? 'audioOnly'
         : (nextIsUvc ? 'uvc' : 'video');
 
+    // UVC同一アイテム判定
     const sameUvcItem =
         !!onairNowOnAir &&
         !!onairCurrentState &&
         onairCurrentState.itemId === itemId &&
         onairIsUvcItemData(onairCurrentState);
 
+    // 後段へ渡す判断材料
     return {
         itemId,
         currentPath,
@@ -863,6 +869,8 @@ function onairBuildTransitionPlan(itemId, itemData) {
 
 // ブリッジモード判定
 function onairResolveBridgeMode(transitionPlan) {
+
+    // 入力確認
     if (!transitionPlan) {
         return {
             bridgeMode: null,
@@ -870,6 +878,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // 判定用正規化
     const nextStartMode = String(transitionPlan.nextStartMode || 'PAUSE').toUpperCase();
     const currentEndMode = String(transitionPlan.currentEndMode || '').toUpperCase();
     const transitionSource = transitionPlan.transitionSource || 'auto';
@@ -878,6 +887,7 @@ function onairResolveBridgeMode(transitionPlan) {
     const nextMediaKind = transitionPlan.nextMediaKind ||
         (transitionPlan.nextIsAudio ? 'audioOnly' : (transitionPlan.nextIsUvc ? 'uvc' : 'video'));
 
+    // 音声のみ遷移
     if (nextMediaKind === 'audioOnly') {
         return {
             bridgeMode: 'NONE',
@@ -885,6 +895,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // リセット不要
     if (!transitionPlan.shouldResetCurrentOnAir) {
         return {
             bridgeMode: 'NONE',
@@ -892,6 +903,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // manual遷移
     if (isManual) {
         if (nextStartMode === 'PAUSE') {
             return {
@@ -920,6 +932,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // auto + OFF
     if (currentEndMode === 'OFF') {
         return {
             bridgeMode: 'BLACK',
@@ -927,6 +940,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // auto + FTB中
     if (currentFtbActive) {
         return {
             bridgeMode: 'BLACK',
@@ -934,6 +948,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // auto + FADEIN開始
     if (nextStartMode === 'FADEIN') {
         return {
             bridgeMode: 'BLACK',
@@ -941,6 +956,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // auto + 連続遷移
     if (currentEndMode === 'REPEAT' || currentEndMode === 'NEXT' || currentEndMode === 'GOTO') {
         if (nextStartMode === 'PLAY' || nextStartMode === 'PAUSE') {
             return {
@@ -955,6 +971,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // auto + PAUSE開始
     if (nextStartMode === 'PAUSE') {
         return {
             bridgeMode: 'NONE',
@@ -962,6 +979,7 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    // 判定なし
     return {
         bridgeMode: null,
         transitionSource: 'auto'
@@ -2825,7 +2843,6 @@ function onairSetupSeekBarHandlers(elements) {
 // -----------------------
 // 再生速度コントローラー
 // -----------------------
-
 let playbackSpeedAnimationFrame = null;
 let isPlaybackSpeedDragging = false;
 let isPlaybackSpeedFixed = false;
@@ -3288,6 +3305,8 @@ function onairSetupVolumeSliderHandler(elements) {
 
 // メインフェードアウト
 function audioFadeOut(duration) {
+
+    // 多重開始防止
     if (fadeOutInProgressMain || fadeInInProgressMain) return;
     fadeOutInProgressMain = true;
 
@@ -3296,6 +3315,7 @@ function audioFadeOut(duration) {
     let currentValue = masterSlider.value;
     let targetValue = 0; 
 
+    // スライダー反映
     function setSliderValue(value) {
         masterSlider.value = value;
         const roundedValue = Math.round(value);
@@ -3318,6 +3338,7 @@ function audioFadeOut(duration) {
         });
     }
 
+    // フェード更新
     function fadeStep(timestamp) {
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
@@ -3331,6 +3352,7 @@ function audioFadeOut(duration) {
         if (elapsed < duration * 1000) {
             requestAnimationFrame(fadeStep);
         } else {
+            // 終了処理
             setSliderValue(targetValue);
             onairMasterVolume = targetValue;
             fadeOutInProgressMain = false;
@@ -3342,6 +3364,8 @@ function audioFadeOut(duration) {
 
 // メインフェードイン
 function audioFadeIn(duration) {
+
+    // 多重開始防止
     if (fadeInInProgressMain || fadeOutInProgressMain) return;
     fadeInInProgressMain = true;
 
@@ -3364,6 +3388,7 @@ function audioFadeIn(duration) {
     const currentValue = parseFloat(masterSlider.value);
     const targetValue = 100;
 
+    // スライダー反映
     function setSliderValue(value) {
         masterSlider.value = value;
         const roundedValue = Math.round(value);
@@ -3380,6 +3405,7 @@ function audioFadeIn(duration) {
         if (videoElement) videoElement.volume = finalLinear;
     }
 
+    // フェード更新
     function fadeStep(ts) {
         if (!fadeInInProgressMain) return;
         if (!startTime) startTime = ts;
@@ -3390,6 +3416,7 @@ function audioFadeIn(duration) {
         if (p < 1) {
             requestAnimationFrame(fadeStep);
         } else {
+            // 終了処理
             setSliderValue(targetValue);
             onairMasterVolume = targetValue;
             fadeInInProgressMain = false;
@@ -3401,6 +3428,8 @@ function audioFadeIn(duration) {
 
 // アイテムフェードアウト
 function audioFadeOutItem(duration) {
+
+    // 多重開始防止
     if (fadeOutInProgressItem || fadeInInProgressItem) return;
     fadeOutInProgressItem = true;
 
@@ -3409,6 +3438,7 @@ function audioFadeOutItem(duration) {
     let currentValue = itemSlider.value;
     let targetValue = 0;
 
+    // スライダー反映
     function setSliderValue(value) {
         itemSlider.value = value;
         const roundedValue = Math.round(value);
@@ -3428,6 +3458,7 @@ function audioFadeOutItem(duration) {
         }
     }
 
+    // フェード更新
     function fadeStep(timestamp) {
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
@@ -3440,6 +3471,7 @@ function audioFadeOutItem(duration) {
         if (elapsed < duration * 1000) {
             requestAnimationFrame(fadeStep);
         } else {
+            // 終了処理
             setSliderValue(targetValue);
             fadeOutInProgressItem = false;
             stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
@@ -3450,6 +3482,8 @@ function audioFadeOutItem(duration) {
 
 // アイテムフェードイン
 function audioFadeInItem(duration) {
+
+    // 多重開始防止
     if (fadeInInProgressItem || fadeOutInProgressItem) return;
     fadeInInProgressItem = true;
 
@@ -3463,6 +3497,7 @@ function audioFadeInItem(duration) {
     let startTime = null;
     const currentValue = parseFloat(itemSlider.value);
 
+    // スライダー反映
     function setSliderValue(value) {
         itemSlider.value = value;
         const roundedValue = Math.round(value);
@@ -3481,6 +3516,7 @@ function audioFadeInItem(duration) {
         }
     }
 
+    // フェード更新
     function fadeStep(timestamp) {
         if (!fadeInInProgressItem) return;
         if (!startTime) startTime = timestamp;
@@ -3491,6 +3527,7 @@ function audioFadeInItem(duration) {
         if (progress < 1) {
             requestAnimationFrame(fadeStep);
         } else {
+            // 終了処理
             setSliderValue(targetValue);
             fadeInInProgressItem = false;
             stopFadeButtonBlink(document.getElementById('on-air-item-fi-button'));
@@ -3501,6 +3538,7 @@ function audioFadeInItem(duration) {
 
 // メインフェードイン、フェードアウトボタンイベントリスナー
 document.getElementById('on-air-fo-button').addEventListener('mousedown', (event) => {
+    // 左クリック限定
     if (event.button !== 0) return;
     event.preventDefault();
 
@@ -3508,11 +3546,13 @@ document.getElementById('on-air-fo-button').addEventListener('mousedown', (event
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
+    // 再生可能状態確認
     if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
         logInfo('[onair.js] No video loaded or not ready. Fade out operation canceled.');
         return;
     }
 
+    // フェード開始
     const fioRate = parseFloat(document.getElementById('mainFioRate').value);
     stopMainFade();
     fadeButtonBlink(document.getElementById('on-air-fo-button'));
@@ -3520,6 +3560,8 @@ document.getElementById('on-air-fo-button').addEventListener('mousedown', (event
 });
 
 document.getElementById('on-air-fi-button').addEventListener('mousedown', (event) => {
+
+    // 左クリック限定
     if (event.button !== 0) return;
     event.preventDefault();
 
@@ -3527,11 +3569,13 @@ document.getElementById('on-air-fi-button').addEventListener('mousedown', (event
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
+    // 再生可能状態確認
     if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
         logInfo('[onair.js] No video loaded or not ready. Fade in operation canceled.');
         return;
     }
 
+    // フェード開始
     const fioRate = parseFloat(document.getElementById('mainFioRate').value);
     stopMainFade();
     fadeButtonBlink(document.getElementById('on-air-fi-button')); 
@@ -3540,6 +3584,8 @@ document.getElementById('on-air-fi-button').addEventListener('mousedown', (event
 
 // アイテムフェードイン・フェードアウトボタン
 document.getElementById('on-air-item-fo-button').addEventListener('mousedown', (event) => {
+
+    // 左クリック限定
     if (event.button !== 0) return;
     event.preventDefault();
 
@@ -3547,21 +3593,28 @@ document.getElementById('on-air-item-fo-button').addEventListener('mousedown', (
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
+    // 再生可能状態確認
     if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
         logInfo('[onair.js] No video loaded or not ready. Item fade-out operation canceled.');
         return;
     }
+
+    // フェード時間決定
     const itemFioRateEl = document.getElementById('itemFioRate');
     const fadeDuration = (itemFioRateEl && !isNaN(parseFloat(itemFioRateEl.value)))
         ? parseFloat(itemFioRateEl.value)
         : (onairCurrentState?.ftbRate || 1.0);
 
+    // フェード開始
     stopItemFade(); 
     fadeButtonBlink(document.getElementById('on-air-item-fo-button'));
     audioFadeOutItem(fadeDuration);
 });
 
+// アイテムフェードインボタン
 document.getElementById('on-air-item-fi-button').addEventListener('mousedown', (event) => {
+
+    // 左クリック限定
     if (event.button !== 0) return;
     event.preventDefault();
 
@@ -3569,16 +3622,19 @@ document.getElementById('on-air-item-fi-button').addEventListener('mousedown', (
     const elements = onairGetElements();
     const videoElement = elements.onairVideoElement;
 
+    // 再生可能状態確認
     if (!videoElement || !videoElement.src || videoElement.src.trim() === "" || videoElement.readyState < 2) {
         logInfo('[onair.js] No video loaded or not ready. Item fade-in operation canceled.');
         return;
     }
 
+    // フェード時間決定
     const itemFioRateEl = document.getElementById('itemFioRate');
     const fadeDuration = (itemFioRateEl && !isNaN(parseFloat(itemFioRateEl.value)))
         ? parseFloat(itemFioRateEl.value)
         : (onairCurrentState?.ftbRate || 1.0);
 
+    // フェード開始
     stopItemFade();
     fadeButtonBlink(document.getElementById('on-air-item-fi-button'));
     audioFadeInItem(fadeDuration); 
@@ -4328,10 +4384,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // -----------------------
 // 録画
 // -----------------------
+
+// 録画ボタン
 document.addEventListener('DOMContentLoaded', () => {
     const recBtn = document.getElementById('rec-button');
     if (recBtn) {
         recBtn.addEventListener('mousedown', async (event) => {
+            // 左クリック限定
             if (event.button !== 0) return;
             event.preventDefault();
 
@@ -4352,38 +4411,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-function onairSetFtbButtonRecordingBlink(isActive) {
-    const ftbBtn = document.getElementById('ftb-off-button');
-    if (!ftbBtn) return;
 
-    if (isActive) {
-        ftbBtn.classList.add('button-recording');
-    } else {
-        ftbBtn.classList.remove('button-recording');
-    }
-}
-
-function onairUpdateMasterVolumeDisplay(masterValue) {
-    const masterVolumeDisplay = document.getElementById('on-air-master-volume-value');
-    if (!masterVolumeDisplay) return;
-
-    if (onairFtbToggleHoldActive) {
-        masterVolumeDisplay.textContent = 'MUTE';
-        masterVolumeDisplay.classList.add('button-recording');
-        masterVolumeDisplay.classList.remove('neon-warning');
-        return;
-    }
-
-    const roundedValue = Math.round(Math.max(0, Math.min(100, Number(masterValue) || 0)));
-    masterVolumeDisplay.textContent = `${roundedValue}%`;
-    masterVolumeDisplay.classList.remove('button-recording');
-
-    if (roundedValue <= 10) {
-        masterVolumeDisplay.classList.add('neon-warning');
-    } else {
-        masterVolumeDisplay.classList.remove('neon-warning');
-    }
-}
 
 // -----------------------
 // FTBボタン
@@ -4501,9 +4529,46 @@ function onairHandleFTBButton() {
     });
 }
 
+// FTBボタン点滅表示
+function onairSetFtbButtonRecordingBlink(isActive) {
+    const ftbBtn = document.getElementById('ftb-off-button');
+    if (!ftbBtn) return;
+
+    if (isActive) {
+        ftbBtn.classList.add('button-recording');
+    } else {
+        ftbBtn.classList.remove('button-recording');
+    }
+}
+
+// マスター音量表示更新
+function onairUpdateMasterVolumeDisplay(masterValue) {
+    const masterVolumeDisplay = document.getElementById('on-air-master-volume-value');
+    if (!masterVolumeDisplay) return;
+
+    if (onairFtbToggleHoldActive) {
+        masterVolumeDisplay.textContent = 'MUTE';
+        masterVolumeDisplay.classList.add('button-recording');
+        masterVolumeDisplay.classList.remove('neon-warning');
+        return;
+    }
+
+    const roundedValue = Math.round(Math.max(0, Math.min(100, Number(masterValue) || 0)));
+    masterVolumeDisplay.textContent = `${roundedValue}%`;
+    masterVolumeDisplay.classList.remove('button-recording');
+
+    if (roundedValue <= 10) {
+        masterVolumeDisplay.classList.add('neon-warning');
+    } else {
+        masterVolumeDisplay.classList.remove('neon-warning');
+    }
+}
+
 // -----------------------
 // フィルキーモード
 // -----------------------
+
+// 初期化
 (function setupFillKeyMode() {
     isFillKeyMode = false;
     const fillKeyButton = document.getElementById('fillkey-mode-button');
@@ -4511,6 +4576,8 @@ function onairHandleFTBButton() {
         logInfo('[onair.js] FILL-KEY mode button not found.');
         return;
     }
+
+    // SHIFT+ENTER抑止
     fillKeyButton.addEventListener('keydown', (event) => {
         if (event.shiftKey && event.key === 'Enter') {
             event.preventDefault();
@@ -4518,12 +4585,16 @@ function onairHandleFTBButton() {
             logDebug('[onair.js] Prevented SHIFT+ENTER default behavior on FILL-KEY button.');
         }
     });
+
+    // ボタン操作
     fillKeyButton.addEventListener('mousedown', (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
 
         logOpe('[onair.js] FillKey button clicked');
+        
         if (!isFillKeyMode) {
+            // モード有効化
             isFillKeyMode = true;
             fillKeyButton.classList.add('button-green');
             fillKeyButton.style.backgroundColor = "";
@@ -4557,12 +4628,13 @@ function onairHandleFTBButton() {
     });
 })();
 
-// FILLKEYモード状態更新
+// FILLKEYモード状態反映
 function updateFillKeyModeState() {
     const fillKeyButton = document.getElementById('fillkey-mode-button');
     const onAirVideo = document.getElementById('on-air-video');
     
     if (isFillKeyMode) {
+        // 有効時表示
         if (fillKeyButton) {
             fillKeyButton.classList.add('button-green');
             fillKeyButton.style.backgroundColor = "";
@@ -4575,6 +4647,7 @@ function updateFillKeyModeState() {
         }
         logDebug('[onair.js] FillKey mode updated: ENABLED with color ' + (document.getElementById('fillkey-color-picker') ? document.getElementById('fillkey-color-picker').value : "#00FF00"));
     } else {
+        // 無効時表示
         if (fillKeyButton) {
             fillKeyButton.classList.remove('button-green');
             fillKeyButton.style.backgroundColor = "";
@@ -4587,7 +4660,7 @@ function updateFillKeyModeState() {
     }
 }
 
-// FILLKEYモード更新IPC受信
+// IPC受信
 window.electronAPI.ipcRenderer.on('fillkey-mode-update', (event, fillKeyMode) => {
     logDebug(`[onair.js] Received fillkey-mode-update: ${fillKeyMode}`);
     if (typeof fillKeyMode === 'boolean') {
@@ -4597,10 +4670,12 @@ window.electronAPI.ipcRenderer.on('fillkey-mode-update', (event, fillKeyMode) =>
     }
 });
 
+// モード解除受信
 window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
     logDebug('[onair.js] Received clear-modes notification with value:', newFillKeyMode);
     isFillKeyMode = newFillKeyMode; 
     updateFillKeyModeState();
+
     // フルスクリーン側フィルキー解除
     window.electronAPI.sendControlToFullscreen({ command: 'set-fillkey-bg', value: '' });
     logDebug('[onair.js] FillKey mode has been updated to:', isFillKeyMode);
@@ -4610,14 +4685,14 @@ window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
 // ショートカットキー管理
 // -----------------------
 
-// モーダル状態初期化
+// モーダル状態
 let isOnAirModalActive = false;
 
-// モーダル状態ログ/リスナー重複防止
+// モーダル状態ログ
 let lastLoggedOnAirModalState = null;
 let onairModalListenerRegistered = false;
 
-// 音量フェード補助関数
+// 音量フェード補助
 function animateSliderTo(slider, targetValue, {
     durationMs = 120,
     syncCombinedVolume,
@@ -4634,6 +4709,7 @@ function animateSliderTo(slider, targetValue, {
     }
     const startTime = performance.now();
 
+    // フェード更新
     function frame(now) {
         const t = Math.min((now - startTime) / durationMs, 1);
         const v = startValue + (endValue - startValue) * t;
@@ -4644,6 +4720,7 @@ function animateSliderTo(slider, targetValue, {
         if (t < 1) {
             requestAnimationFrame(frame);
         } else {
+            // 終了反映
             slider.value = endValue;
             if (typeof updateAppearance === 'function') updateAppearance(slider, endValue);
             if (typeof syncCombinedVolume === 'function') syncCombinedVolume();
@@ -4653,13 +4730,14 @@ function animateSliderTo(slider, targetValue, {
     requestAnimationFrame(frame);
 }
 
+// FTB音量同期
 function onairSyncCombinedVolumeFromSlidersForFtb() {
     const itemSlider = document.getElementById('on-air-item-volume-slider');
     const masterSlider = document.getElementById('on-air-master-volume-slider');
     const videoElement = document.getElementById('on-air-video');
     if (!itemSlider || !masterSlider) return;
 
-    // FTBアニメ中の小数値
+    // スライダー値取得
     const itemValRaw = Number.parseFloat(itemSlider.value);
     const masterValRaw = Number.parseFloat(masterSlider.value);
 
@@ -4672,6 +4750,7 @@ function onairSyncCombinedVolumeFromSlidersForFtb() {
     const itemDispInt = Math.round(itemVal);
     const masterDispInt = Math.round(masterVal);
 
+    // 表示更新
     if (itemDisp) {
         itemDisp.textContent = `${itemDispInt}%`;
     }
@@ -4684,6 +4763,7 @@ function onairSyncCombinedVolumeFromSlidersForFtb() {
 
     onairMasterVolume = masterVal;
 
+    // 最終音量算出
     let finalVolume = (itemVal / 100) * (masterVal / 100);
     if (finalVolume <= ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON) {
         finalVolume = 0;
@@ -4700,6 +4780,7 @@ function onairSyncCombinedVolumeFromSlidersForFtb() {
 
     const isEndpoint = (gammaVolume === 0 || gammaVolume === 1);
 
+    // Fullscreen送信
     if (
         isEndpoint ||
         onairLastSentFullscreenGammaVolumeForFtb === null ||
@@ -4712,11 +4793,13 @@ function onairSyncCombinedVolumeFromSlidersForFtb() {
         onairLastSentFullscreenGammaVolumeForFtb = gammaVolume;
     }
 
+    // プレビュー反映
     if (videoElement) {
         videoElement.volume = finalVolume;
     }
 }
 
+// FTBマスターフェード
 function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
     const masterSlider = document.getElementById('on-air-master-volume-slider');
     if (!masterSlider) {
@@ -4724,6 +4807,7 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
         return;
     }
 
+    // 既存フェード停止
     if (typeof stopMainFade === 'function') {
         stopMainFade();
     }
@@ -4740,9 +4824,10 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
     const endValue = Math.max(0, Math.min(100, Number(targetValue) || 0));
     const durMs = Math.max(0, (Number(durationSec) || 0) * 1000);
 
-    // 新しいFTBフェード開始時
+    // 送信状態初期化
     onairLastSentFullscreenGammaVolumeForFtb = null;
 
+    // FTB表示ゲイン更新
     const updateFtbMasterVisualGain = (currentMasterValue) => {
         const base = Math.max(0, Math.min(100, Number(onairMasterBaseVolume) || 0));
         const current = Math.max(0, Math.min(100, Number(currentMasterValue) || 0));
@@ -4755,11 +4840,11 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
         onairFtbToggleMasterVisualGain = Math.max(0, Math.min(1, current / base));
     };
 
+    // 即時反映
     if (durMs <= 0) {
         masterSlider.value = endValue;
         updateFtbMasterVisualGain(endValue);
 
-        // 復帰先まで戻り切った場合
         if (Math.abs(endValue - (Number(onairMasterBaseVolume) || 0)) <= 0.05) {
             onairFtbToggleMasterVisualGain = 1;
         }
@@ -4770,6 +4855,7 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
 
     const startTs = performance.now();
 
+    // フェード更新
     const step = (now) => {
         if (animSeq !== onairFtbToggleMasterFadeAnimSeq) {
             return;
@@ -4795,6 +4881,7 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
             return;
         }
 
+        // 終了反映
         onairFtbToggleMasterFadeRaf = null;
         masterSlider.value = endValue;
         updateFtbMasterVisualGain(endValue);
@@ -4809,7 +4896,7 @@ function onairAnimateMasterFaderForFtb(targetValue, durationSec) {
     onairFtbToggleMasterFadeRaf = requestAnimationFrame(step);
 }
 
-// ショートカットからボタンの mousedown を発火させるヘルパー
+// ボタン発火補助
 function triggerOnAirMouseDown(buttonId) {
     const btn = document.getElementById(buttonId);
     if (!btn) {
@@ -4824,19 +4911,21 @@ function triggerOnAirMouseDown(buttonId) {
     btn.dispatchEvent(mouseDownEvent);
 }
 
-// ショートカットキー共通処理関数
+// ショートカット処理
 function handleShortcut(action) {
+
+    // モーダル中は無効
     if (isOnAirModalActive) {
         logDebug('[onair.js] Shortcut ignored because OnAir modal is active.');
         return;
     }
 
-    // "Shift+Alt+S" は playlist.js 側で処理しているため、onair.js では無視
+    // playlist.js側処理
     if (action === 'Shift+Alt+S') {
         return;
     }
 
-    // 音量更新共通処理
+    // 音量同期
     function syncCombinedVolume() {
         const itemSlider   = document.getElementById('on-air-item-volume-slider');
         const masterSlider = document.getElementById('on-air-master-volume-slider');
@@ -4856,73 +4945,75 @@ function handleShortcut(action) {
             else masterDisp.classList.remove('neon-warning');
         }
 
-        // CSSカスタムプロパティ更新
+        // スライダー表示更新
         itemSlider.style.setProperty('--value',   `${itemVal}%`);
         masterSlider.style.setProperty('--value', `${masterVal}%`);
 
-        // 現在アイテム音量状態反映（REPEAT 2周目以降保持）
+        // 現在状態反映
         if (onairCurrentState && typeof onairCurrentState === 'object') {
             onairCurrentState.defaultVolume = itemVal;
         }
 
-        // 最終出力をFullscreen送信
+        // Fullscreen送信
         const finalVolume = (itemVal / 100) * (masterVal / 100);
         window.electronAPI.sendControlToFullscreen({
             command: 'set-volume',
             value: Math.pow(finalVolume, 2.2)
         });
 
-        // プレビュー側反映
+        // プレビュー反映
         if (videoElement) videoElement.volume = finalVolume;
     }
 
+    // 0-100補正
     function clampPercent(v) {
         return Math.max(0, Math.min(100, Math.round(v)));
     }
 
+    // アクション分岐
     switch (action) {
-            case 'Escape': // ESCキー
-            case 'Esc':    // メニューからのEsc
+            case 'Escape':
+            case 'Esc':
                 logOpe('[onair.js] Shortcut: ESC pressed.');
                 onairHandleOffAirButton();
                 break;
 
-        case 'Space': // スペースキー
+        case 'Space':
             logOpe('[onair.js] Shortcut: Space pressed.');
             if (onairIsPlaying) {
-                onairHandlePauseButton(); // 一時停止
+                onairHandlePauseButton();
             } else {
-                onairHandlePlayButton(); // 再生
+                onairHandlePlayButton();
             }
             break;
 
-        case 'Ctrl+,': // CTRL + , (フェードイン)
+        case 'Ctrl+,':
             logOpe('[onair.js] Shortcut: CTRL+, (fade in) triggered.');
             triggerOnAirMouseDown('on-air-fi-button');
             break;
 
-        case 'Ctrl+.': // CTRL + . (フェードアウト)
+        case 'Ctrl+.':
             logOpe('[onair.js] Shortcut: CTRL+. (fade out) triggered.');
             triggerOnAirMouseDown('on-air-fo-button');
             break;
 
-        case 'Shift+Alt+F': // Shift + Alt + F で FILL-KEY モードをトグル
+        case 'Shift+Alt+F':
             logOpe('[onair.js] Shortcut: Shift+Alt+F triggered.');
             triggerOnAirMouseDown('fillkey-mode-button');
             break;
 
-        case 'Shift+F': // Shift+F で FTB ボタンの処理を呼び出し
+        case 'Shift+F':
             logOpe('[onair.js] Shortcut: Shift+F triggered.');
             onairHandleFTBButton();
             break;
 
-        case 'Shift+R': // Shift+R で録画の開始／停止をトグル
+        case 'Shift+R':
             logOpe('[onair.js] Shortcut: Shift+R (recording toggle) triggered.');
             triggerOnAirMouseDown('rec-button');
             break;
 
-        // 音量ショートカット
-        case 'Alt+]': { // ITEM +3%（ミニフェード）
+        // ITEM音量
+        case 'Alt+]':
             const s = document.getElementById('on-air-item-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
@@ -4942,7 +5033,7 @@ function handleShortcut(action) {
             }
             break;
         }
-        case 'Alt+[': { // ITEM -3%（ミニフェード）
+        case 'Alt+[': {
             const s = document.getElementById('on-air-item-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
@@ -4962,7 +5053,9 @@ function handleShortcut(action) {
             }
             break;
         }
-        case 'Ctrl+Alt+]': { // MAIN +3%（ミニフェード）
+
+        // MAIN音量
+        case 'Ctrl+Alt+]': {
             const s = document.getElementById('on-air-master-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
@@ -4982,7 +5075,7 @@ function handleShortcut(action) {
             }
             break;
         }
-        case 'Ctrl+Alt[': { // MAIN -3%（ミニフェード）
+        case 'Ctrl+Alt[':
             const s = document.getElementById('on-air-master-volume-slider');
             if (s) {
                 const before = parseInt(s.value, 10) || 0;
@@ -5008,7 +5101,7 @@ function handleShortcut(action) {
     }
 }
 
-// キーボードショートカット設定
+// キーボード入力監視
 document.addEventListener('keydown', (event) => {
     if (event.code === 'Space') {
         handleShortcut('Space');
@@ -5023,8 +5116,7 @@ document.addEventListener('keydown', (event) => {
     const isAlt   = event.altKey;
     const isShift = event.shiftKey;
 
-    // → Ctrl+.／Cmd+.+Option+. でフェードアウト
-    // → Ctrl+,／Cmd+,／Option+, でフェードイン
+    // ショートカット判定
     if ((isMod || isAlt) && event.key === '.') {
         action = 'Ctrl+.';
     } else if ((isMod || isAlt) && event.key === ',') {
@@ -5037,28 +5129,28 @@ document.addEventListener('keydown', (event) => {
         action = 'Shift+R';
     }
 
-    // 音量ショートカット
-    // ITEM：Alt + ] / Alt + [
+    // ITEM音量判定
     if (!action && isAlt && !isShift && !isMod && event.key === ']') {
         action = 'Alt+]';
     } else if (!action && isAlt && !isShift && !isMod && event.key === '[') {
         action = 'Alt+[';
     }
 
-    // MAIN：Ctrl+Alt + ] / [
+    // MAIN音量判定
     if (!action && isAlt && !isShift && ( (isCtrl && !isMeta) || (!isCtrl && isMeta) ) && event.key === ']') {
         action = 'Ctrl+Alt+]';
     } else if (!action && isAlt && !isShift && ( (isCtrl && !isMeta) || (!isCtrl && isMeta) ) && event.key === '[') {
         action = 'Ctrl+Alt[';
     }
 
+    // 実行
     if (action) {
         handleShortcut(action);
         event.preventDefault();
     }
 });
 
-// メニューからショートカット通知受信
+// メニュー通知受信
 window.electronAPI.onShortcutTrigger((event, action) => {
     logDebug(`[onair.js] Shortcut triggered from menu: ${action}`);
     handleShortcut(action);
