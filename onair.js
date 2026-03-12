@@ -852,6 +852,13 @@ function onairResolveBridgeMode(transitionPlan) {
         };
     }
 
+    if (!transitionPlan.shouldResetCurrentOnAir) {
+        return {
+            bridgeMode: 'NONE',
+            transitionSource: isManual ? 'manual' : 'auto'
+        };
+    }
+
     if (isManual) {
         if (nextStartMode === 'PAUSE') {
             return {
@@ -927,6 +934,7 @@ function onairResolveBridgeMode(transitionPlan) {
         transitionSource: 'auto'
     };
 }
+
 // オンエア開始情報受信
 window.electronAPI.onReceiveOnAirData((itemId) => {
     logDebug(`[onair.js] Received On-Air data for item ID: ${itemId}`);
