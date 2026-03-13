@@ -440,11 +440,6 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
     // 切替直前フェードレイヤー解除
     cancelPreFTB();
     cancelFadeOut();
-    const ffCanvas = document.getElementById('fullscreen-fade-canvas');
-    if (ffCanvas) {
-        ffCanvas.style.opacity = '0';
-        ffCanvas.style.visibility = 'hidden';
-    }
 
     executeIncomingBridgeMode(incomingBridgeMode);
 
@@ -1658,50 +1653,30 @@ function handleStartMode() {
 // フェードキャンバス制御（FADEIN / Pre-FTB）
 // ------------------------------------------
 
-// フェードキャンバス作成
-let fadeCanvas = document.getElementById('fullscreen-fade-canvas');
-if (!fadeCanvas) {
-    fadeCanvas = document.createElement('canvas');
-    fadeCanvas.id = 'fullscreen-fade-canvas';
-    fadeCanvas.style.position = 'fixed';
-    fadeCanvas.style.top = '0';
-    fadeCanvas.style.left = '0';
-    fadeCanvas.style.width = '100vw';
-    fadeCanvas.style.height = '100vh';
-    // 黒は映像より前、ただし DSK より下
-    fadeCanvas.style.zIndex = String(FS_LAYER_Z_PRE_FTB_BLACK);
-    fadeCanvas.style.pointerEvents = 'none';
-    fadeCanvas.style.backgroundColor = 'black';
-    fadeCanvas.style.opacity = '0';
-    fadeCanvas.style.visibility = 'hidden';
-    document.body.appendChild(fadeCanvas);
-}
-
 // 映像フェードイン処理
 function fullscreenFadeFromBlack(duration, fillKeyMode) {
+    let fadeCanvas = document.getElementById('fadeCanvas');
+    if (!fadeCanvas) fadeCanvas = initializeFadeCanvas();
 
     // 通常遷移の黒保持中だった場合
     if (isTransitionBlackHoldActive()) {
-        let fc = document.getElementById('fadeCanvas');
-        if (!fc) fc = initializeFadeCanvas();
-
-        fc.style.visibility = 'visible';
-        fc.style.display = 'block';
-        fc.style.opacity = '1';
-        fc.style.backgroundColor = (fillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+        fadeCanvas.style.visibility = 'visible';
+        fadeCanvas.style.display = 'block';
+        fadeCanvas.style.opacity = '1';
+        fadeCanvas.style.backgroundColor = (fillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
 
         let startTime = null;
         function step(ts) {
             if (!startTime) startTime = ts;
             const elapsed = ts - startTime;
             const newOpacity = Math.max(1 - (elapsed / (duration * 1000)), 0);
-            fc.style.opacity = newOpacity.toString();
+            fadeCanvas.style.opacity = newOpacity.toString();
             if (elapsed < duration * 1000) {
                 requestAnimationFrame(step);
             } else {
-                fc.style.opacity = '0';
-                fc.style.display = 'block';
-                fc.style.visibility = 'visible';
+                fadeCanvas.style.opacity = '0';
+                fadeCanvas.style.display = 'block';
+                fadeCanvas.style.visibility = 'visible';
                 clearTransitionBlackHold();
 
                 // フェードイン完了で抑止解除
@@ -1716,6 +1691,7 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
 
     // 通常時
     fadeCanvas.style.visibility = 'visible';
+    fadeCanvas.style.display = 'block';
     fadeCanvas.style.opacity = '1';
     fadeCanvas.style.backgroundColor = (fillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
 
@@ -1724,11 +1700,12 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
         const newOpacity = Math.max(1 - (elapsed / (duration * 1000)), 0);
-        fadeCanvas.style.opacity = newOpacity;
+        fadeCanvas.style.opacity = newOpacity.toString();
         if (elapsed < duration * 1000) {
             requestAnimationFrame(fadeStep);
         } else {
             fadeCanvas.style.opacity = '0';
+            fadeCanvas.style.display = 'none';
             fadeCanvas.style.visibility = 'hidden';
 
             // フェードイン完了で抑止解除
