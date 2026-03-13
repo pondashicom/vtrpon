@@ -461,7 +461,7 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
         if (applySeq !== fullscreenApplySeq) return;
 
         fullscreenApplyRafId = null;
-        resetFullscreenState();
+        cleanupBeforeSourceApply();
         handleOnAirData(itemData);
     });
 });
@@ -476,6 +476,27 @@ function applyMuteStateForNextSource(itemData) {
     videoElement.muted = shouldMute;
 
     logDebug(`[fullscreen.js] applyMuteStateForNextSource: isUVC=${shouldMute}, muted=${videoElement.muted}`);
+}
+
+// 次ソース適用前の再生要素クリーンアップ
+function cleanupBeforeSourceApply() {
+    // フェードアウト中断
+    cancelFadeOut();
+    const videoElement = document.getElementById('fullscreen-video');
+
+    if (videoElement) {
+        // 再生停止
+        videoElement.pause();
+
+        // UVCストリーム解除
+        if (videoElement.srcObject) {
+            const tracks = videoElement.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            videoElement.srcObject = null;
+        }
+    }
+
+    logInfo('[fullscreen.js] Cleanup before source apply completed.');
 }
 
 // ---------------------------
@@ -3284,25 +3305,3 @@ function handleFullscreenDskEnd(videoEl) {
     }
 }
 
-// ----------------------------------------
-// フルスクリーン状態のリセット
-// ----------------------------------------
-function resetFullscreenState() {
-    // フェードアウト中断
-    cancelFadeOut();
-    const videoElement = document.getElementById('fullscreen-video');
-
-    if (videoElement) {
-        // 再生停止
-        videoElement.pause();
-
-        // UVCストリーム解除
-        if (videoElement.srcObject) {
-            const tracks = videoElement.srcObject.getTracks();
-            tracks.forEach(track => track.stop());
-            videoElement.srcObject = null;
-        }
-    }
-
-    logInfo('[fullscreen.js] Fullscreen state has been reset.');
-}
