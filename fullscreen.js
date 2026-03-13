@@ -1878,15 +1878,7 @@ function fullscreenStartPendingEndModeWatcher() {
 
                 try { stopVolumeMeasurement(); } catch (_) {}
 
-                if (mode === 'REPEAT') {
-                    if ((globalState.startMode || '').toUpperCase() === 'OFF') {
-                        handleEndModeOFF();
-                    } else {
-                        handleEndMode();
-                    }
-                } else {
-                    handleEndMode();
-                }
+                handleEndMode();
                 return;
             }
         }
@@ -2480,12 +2472,6 @@ function handleEndModeREPEAT() {
 
     // 開始モード取得
     const repeatStartMode = getResolvedStartMode();
-    if (repeatStartMode === 'OFF') {
-        // OFF例外処理
-        logInfo('[fullscreen.js] Repeat requested but startMode=OFF -> do not repeat; going Off-Air.');
-        handleEndModeOFF();
-        return;
-    }
 
     // bridgeMode決定
     const repeatBridgeMode = resolveRepeatBridgeMode(repeatStartMode);
@@ -2498,7 +2484,6 @@ function handleEndModeREPEAT() {
     // 再開
     handleStartMode();
 }
-
 // ------------------------------------
 // エンドモード NEXT/GOTO
 // ------------------------------------
