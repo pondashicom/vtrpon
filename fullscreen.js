@@ -2223,8 +2223,10 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
 });
 
 // ------------------------------------
- // エンドモード振り分け
+// エンドモードOFF
 // ------------------------------------
+
+ // エンドモード振り分け
 function handleEndMode() {
     logInfo(`[fullscreen.js] endmode status: ${globalState.endMode} `);
 
@@ -2251,9 +2253,7 @@ function handleEndMode() {
     }
 }
 
-// ------------------------------------
 // エンドモードOFF
-// ------------------------------------
 function handleEndModeOFF() {
     logInfo('[fullscreen.js] Called endmode:OFF');
     stopVolumeMeasurement();
@@ -2261,9 +2261,7 @@ function handleEndModeOFF() {
     logInfo('[fullscreen.js] Initialized fullscreen area.');
 }
 
-// ------------------------------------
 // エンドモードPAUSE
-// ------------------------------------
 function handleEndModePAUSE() {
     logInfo('[fullscreen.js] Called endmode:PAUSE');
 
@@ -2279,9 +2277,7 @@ function handleEndModePAUSE() {
     logInfo('[fullscreen.js] Video paused.');
 }
 
-// ------------------------------------
 // エンドモードFADEOUT
-// ------------------------------------
 function handleEndModeFTB() {
     const fadeDuration = globalState.ftbRate || 1;
 
@@ -2456,9 +2452,7 @@ function resolveRepeatBridgeMode(repeatStartMode) {
     return 'NONE';
 }
 
-// ------------------------------------
 // エンドモード REPEAT
-// ------------------------------------
 function handleEndModeREPEAT() {
     const videoElement = document.getElementById('fullscreen-video');
 
@@ -2482,9 +2476,8 @@ function handleEndModeREPEAT() {
     // 再開
     handleStartMode();
 }
-// ------------------------------------
+
 // エンドモード NEXT/GOTO
-// ------------------------------------
 function handleEndModeNEXT() {
     logInfo('[fullscreen.js] Called endmode:NEXT - waiting for incoming transitionPlan.');
 
@@ -3194,7 +3187,7 @@ function showFullscreenDSK(itemData) {
     fadeIn(fsDSKOverlay, fadeDuration);
 }
 
-// タイムコード変換
+// DSK用タイムコード変換
 function parseTimecode(timecode) {
     if (typeof timecode === 'number') {
         return timecode;
