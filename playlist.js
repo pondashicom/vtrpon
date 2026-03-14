@@ -5449,10 +5449,23 @@ async function handleNextModePlaylist(currentItemId) {
         }
 
         // GOTOは指定アイテムに固定（利用不可ならOff-Air）
-        if (nextItem.mediaOffline || nextItem.dskActive) {
-            logInfo('[playlist.js] GOTO mode: Target item is not available (media offline or DSK active). Sending Off-Air.');
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: target item unavailable）');
+        const currentDSKItem = (window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function')
+            ? window.dskModule.getCurrentDSKItem()
+            : null;
+        const activeDSKItemId = currentDSKItem ? currentDSKItem.playlistItem_id : null;
+        const isActiveDSKItem = !!(activeDSKItemId && nextItem.playlistItem_id === activeDSKItemId);
+
+        if (nextItem.mediaOffline || nextItem.dskActive || isActiveDSKItem) {
+            logInfo('[playlist.js] GOTO mode: Target item is not available (media offline, DSK active, or currently on DSK). Triggering Off-Air button.');
+            const offAirButton = document.getElementById('off-air-button');
+            if (offAirButton) {
+                offAirButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                logOpe('[playlist.js] Off-Airボタン処理を実行しました。（GOTO: target item unavailable）');
+            } else {
+                logInfo('[playlist.js] GOTO mode: Off-Air button not found. Falling back to Off-Air notify.');
+                window.electronAPI.sendOffAirEvent();
+                logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: target item unavailable / fallback）');
+            }
             return;
         }
 
