@@ -2290,10 +2290,7 @@ function onairHandleEndMode() {
     
     // フルスクリーン通知
     const currentTime = onairGetElements().onairVideoElement?.currentTime || 0;
-    const fullscreenEndModeStartMode =
-        (effectiveEndMode === 'REPEAT')
-            ? ((((onairCurrentState?.startMode || 'PAUSE').toUpperCase()) === 'FADEIN') ? 'FADEIN' : 'PLAY')
-            : (onairCurrentState?.startMode || 'PAUSE');
+    const fullscreenEndModeStartMode = (onairCurrentState?.startMode || 'PAUSE');
 
     window.electronAPI.sendControlToFullscreen({
         command: 'trigger-endMode',
@@ -2391,6 +2388,28 @@ function onairHandleEndModeRepeat() {
         transitionSource: 'auto'
     };
 
+    onairPendingTransitionSource = 'auto';
+    onairPendingCurrentEndMode =
+        (onairCurrentState && typeof onairCurrentState.endMode === 'string')
+            ? onairCurrentState.endMode
+            : 'REPEAT';
+
+    const repeatItemId =
+        repeatItemData.itemId || repeatItemData.playlistItem_id;
+
+    const transitionPlan = onairBuildTransitionPlan(repeatItemId, repeatItemData);
+    const bridgeDecision = onairResolveBridgeMode(transitionPlan);
+
+    transitionPlan.bridgeMode = bridgeDecision.bridgeMode;
+    transitionPlan.transitionSource = bridgeDecision.transitionSource;
+    transitionPlan.shouldPrepareOverlayBeforeReset =
+        !!transitionPlan.shouldResetCurrentOnAir &&
+        transitionPlan.bridgeMode === 'OVERLAY';
+    repeatItemData.transitionSource = transitionPlan.transitionSource;
+
+    onairPendingTransitionSource = null;
+    onairPendingCurrentEndMode = null;
+
     onairCurrentState = repeatItemData;
     onairRepeatFlag = true;
     window.onairPreserveSpeed = true;
@@ -2399,6 +2418,8 @@ function onairHandleEndModeRepeat() {
         captureLastFrameAndHoldUntilNextReadyOnAir(true);
         logInfo('[onair.js] (onairHandleEndModeRepeat) overlay prepared before repeat playback.');
     } catch (_) {}
+
+    onairSendToFullscreen(repeatItemData, transitionPlan);
 
     stopItemFade();
     updateEndModeDisplayLabel();

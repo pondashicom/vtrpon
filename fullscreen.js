@@ -2418,63 +2418,11 @@ function cancelFadeOut() {
     }
 }
 
-// REPEATオーバレイブリッジ判定
-function shouldUseRepeatOverlayBridge(effectiveRepeatStartMode) {
-    if (effectiveRepeatStartMode !== 'PLAY') {
-        return false;
-    }
-
-    if (globalState.transitionFadeOutEnabled) {
-        return false;
-    }
-
-    if (preFtbActive) {
-        return false;
-    }
-
-    if (isTransitionBlackHoldActive()) {
-        return false;
-    }
-
-    return true;
-}
-
-// REPEAT bridgeMode解決
-function resolveRepeatBridgeMode(repeatStartMode) {
-    if (repeatStartMode === 'FADEIN') {
-        return 'BLACK';
-    }
-
-    if (shouldUseRepeatOverlayBridge(repeatStartMode)) {
-        return 'OVERLAY';
-    }
-
-    return 'NONE';
-}
-
 // エンドモード REPEAT
 function handleEndModeREPEAT() {
-    const videoElement = document.getElementById('fullscreen-video');
+    logInfo('[fullscreen.js] Called endmode:REPEAT - waiting for incoming transitionPlan.');
 
-    // 要素確認
-    if (!videoElement) {
-        logInfo('[fullscreen.js] Video element not found. Cannot handle REPEAT mode.');
-        return;
-    }
-
-    // 開始モード取得
-    const repeatStartMode = getResolvedStartMode();
-
-    // bridgeMode決定
-    const repeatBridgeMode = resolveRepeatBridgeMode(repeatStartMode);
-    executeIncomingBridgeMode(repeatBridgeMode);
-
-    // 状態更新
-    globalState.startMode = repeatStartMode;
-    logInfo(`[fullscreen.js] End Mode: REPEAT - Replaying the same item with startMode=${repeatStartMode}, bridgeMode=${repeatBridgeMode}.`);
-
-    // 再開
-    handleStartMode();
+    return;
 }
 
 // エンドモード NEXT/GOTO
