@@ -3217,7 +3217,12 @@ function showFullscreenDSK(itemData) {
 
     // 再生開始準備
     video.addEventListener('loadeddata', function() {
-        video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
+        const startMode = String(itemData.startMode || 'PAUSE').toUpperCase();
+        if (startMode === 'PLAY') {
+            video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
+        } else {
+            video.pause();
+        }
     });
 
     fsDSKOverlay.appendChild(video);
