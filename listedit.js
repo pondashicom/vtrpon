@@ -482,10 +482,13 @@ async function validateFadeDurationConstraint({ proposedStartFadeInSec = null, p
         : (typeof currentItem.ftbRate === 'number' ? currentItem.ftbRate : 1.0);
 
     const activeFadeIn = (startMode === 'FADEIN') ? startFadeInSec : 0;
-    const activeFadeOut = (ftbEnabled) ? ftbRate : 0;
+    const activeFadeOut = ((typeof proposedFtbRate === 'number') || ftbEnabled) ? ftbRate : 0;
     const sumActive = activeFadeIn + activeFadeOut;
 
-    const shouldCheck = (startMode === 'FADEIN') || ftbEnabled;
+    const shouldCheck =
+        (startMode === 'FADEIN') ||
+        ftbEnabled ||
+        (typeof proposedFtbRate === 'number');
 
     if (shouldCheck && clipLen > 0 && clipLen < sumActive - 0.0001) {
         const now = Date.now();
@@ -519,7 +522,6 @@ async function validateFadeDurationConstraint({ proposedStartFadeInSec = null, p
         currentItem
     };
 }
-
 // -----------------------
 // 再生コントロール設定
 // -----------------------
@@ -2584,7 +2586,7 @@ function setupFtbRateListener(ftbRateInput) {
 
         // フェード長の整合チェック（必要時は上限クランプ）
         const fadeCheck = await validateFadeDurationConstraint({ proposedFtbRate: newRate });
-        if (!fadeCheck.ok && fadeCheck.ftbEnabled) {
+        if (!fadeCheck.ok) {
             let maxAllowed = fadeCheck.clipLen;
             if (fadeCheck.startMode === 'FADEIN') {
                 const inFade = (typeof fadeCheck.currentItem?.startFadeInSec === 'number')
