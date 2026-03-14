@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     dsk.js
-//     ver 2.5.9
+//     ver 2.6.0
 // -----------------------
 
 // -----------------------
@@ -145,7 +145,11 @@ function showOnAirDSK(itemData) {
 
     video.loop = false;
     video.currentTime = inSec;
-    const mode = itemData.endMode || 'OFF';
+
+    const rawMode = itemData.endMode || 'OFF';
+    const mode = (rawMode === 'NEXT' || rawMode === 'GOTO' || rawMode === 'FTB')
+        ? 'OFF'
+        : rawMode;
 
     if (mode === 'REPEAT') {
         video.addEventListener('timeupdate', function loopSegment() {
@@ -167,7 +171,7 @@ function showOnAirDSK(itemData) {
         video.addEventListener('ended', onPauseEnd);
 
     } else {
-        // OFF/FTB/NEXTは終了時にクリア
+        // OFF系は終了時にクリア
         function onClearEnd() {
             handleDskEnd();
             video.removeEventListener('ended', onClearEnd);
@@ -198,7 +202,11 @@ function handleDskEnd() {
 
     const inSec = parseTimecode(currentDSKItem.inPoint);
     const outSec = parseTimecode(currentDSKItem.outPoint);
-    const mode  = currentDSKItem.endMode || 'OFF';
+
+    const rawMode = currentDSKItem.endMode || 'OFF';
+    const mode = (rawMode === 'NEXT' || rawMode === 'GOTO' || rawMode === 'FTB')
+        ? 'OFF'
+        : rawMode;
 
     switch (mode) {
         case 'REPEAT':
@@ -211,12 +219,7 @@ function handleDskEnd() {
             dskVideo.currentTime = outSec;
             break;
 
-        case 'FTB':
-            hideOnAirDSK();
-            break;
-
         case 'OFF':
-        case 'NEXT':
             dskTransitionToken++;
             if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
                 window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
@@ -226,7 +229,6 @@ function handleDskEnd() {
             break;
     }
 }
-
 
 // -----------------------
 // DSK非表示

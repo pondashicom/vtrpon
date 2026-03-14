@@ -5179,12 +5179,21 @@ window.electronAPI.onNextModeCompleteBroadcast((currentItemId) => {
 
 // 次に利用可能なアイテムのインデックスを返すヘルパー
 function findNextAvailableIndex(sortedPlaylist, startIndex) {
+    const currentDSKItem = (window.dskModule && typeof window.dskModule.getCurrentDSKItem === 'function')
+        ? window.dskModule.getCurrentDSKItem()
+        : null;
+    const activeDSKItemId = currentDSKItem ? currentDSKItem.playlistItem_id : null;
+
     let count = sortedPlaylist.length;
     let idx = startIndex;
     while (count > 0) {
-        if (!sortedPlaylist[idx].mediaOffline && !sortedPlaylist[idx].dskActive) {
+        const candidate = sortedPlaylist[idx];
+        const isActiveDSKItem = !!(activeDSKItemId && candidate.playlistItem_id === activeDSKItemId);
+
+        if (!candidate.mediaOffline && !candidate.dskActive && !isActiveDSKItem) {
             return idx;
         }
+
         idx = (idx + 1) % sortedPlaylist.length;
         count--;
     }
