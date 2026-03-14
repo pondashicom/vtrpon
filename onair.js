@@ -582,6 +582,11 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
         return;
     }
 
+    if (videoElement.srcObject) {
+        logInfo('[onair.js] Overlay capture skipped for live srcObject source.');
+        return;
+    }
+
     // 背景色決定
     const ctx = overlayCanvas.getContext('2d');
     overlayCanvas.style.visibility = 'visible';

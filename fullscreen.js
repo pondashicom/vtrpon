@@ -989,6 +989,11 @@ function shouldSkipOverlayCapture(videoElement, overlayCanvas) {
         return true;
     }
 
+    if (hasSrcObject) {
+        logInfo('[fullscreen.js] Overlay capture skipped for live srcObject source.');
+        return true;
+    }
+
     return false;
 }
 
