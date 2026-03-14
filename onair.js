@@ -2377,16 +2377,19 @@ function onairHandleEndModePause() {
 function onairHandleEndModeRepeat() {
     logInfo('[onair.js] End Mode: REPEAT - Replaying the same item.');
 
-    if (!onairCurrentState) {
-        logInfo('[onair.js] No current state for REPEAT. Going Off-Air.');
+    if (typeof stopMainFade === 'function') {
+        stopMainFade();
+    }
+    onairSuppressFullscreenVolumePushOnceOnReset = true;
+
+    // 残存オーバーレイクリア
+    onairCancelSeamlessOverlay('before-REPEAT');
+
+    const repeatItemId = onairCurrentState?.itemId;
+    if (!repeatItemId) {
         onairHandleEndModeOff();
         return;
     }
-
-    const repeatItemData = {
-        ...onairCurrentState,
-        transitionSource: 'auto'
-    };
 
     onairPendingTransitionSource = 'auto';
     onairPendingCurrentEndMode =
@@ -2394,9 +2397,13 @@ function onairHandleEndModeRepeat() {
             ? onairCurrentState.endMode
             : 'REPEAT';
 
-    const repeatItemId =
-        repeatItemData.itemId || repeatItemData.playlistItem_id;
+    // 現在再生はここで止めるが、状態本体は再送完了まで保持する
+    onairIsPlaying = false;
 
+    const repeatItemData = {
+        ...onairCurrentState,
+        transitionSource: 'auto'
+    };
     const transitionPlan = onairBuildTransitionPlan(repeatItemId, repeatItemData);
     const bridgeDecision = onairResolveBridgeMode(transitionPlan);
 
@@ -2414,16 +2421,12 @@ function onairHandleEndModeRepeat() {
     onairRepeatFlag = true;
     window.onairPreserveSpeed = true;
 
-    try {
-        captureLastFrameAndHoldUntilNextReadyOnAir(true);
-        logInfo('[onair.js] (onairHandleEndModeRepeat) overlay prepared before repeat playback.');
-    } catch (_) {}
-
     onairSendToFullscreen(repeatItemData, transitionPlan);
 
-    stopItemFade();
     updateEndModeDisplayLabel();
     onairStartPlayback(repeatItemData);
+
+    logInfo('[onair.js] REPEAT mode processing completed.');
 }
 
 // キャンバスサイズ調整
