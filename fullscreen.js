@@ -756,11 +756,6 @@ function runScheduledVisualBridgeOverlayClear(delayMs, isCurrentToken, cleanup, 
 // 映像ブリッジ開始処理
 function executeIncomingBridgeMode(incomingBridgeMode) {
     if (incomingBridgeMode === 'OVERLAY') {
-        if (overlaySuppressedByPreFTB) {
-            logInfo('[fullscreen.js] Overlay capture skipped due to pre-FTB suppression.');
-            return;
-        }
-
         try {
             captureLastFrameAndHoldUntilNextReady();
         } catch (e) {
@@ -1748,7 +1743,6 @@ function handleStartMode() {
 // ------------------------------------------
 
 // 映像フェードイン処理
-// 映像フェードイン処理
 function fullscreenFadeFromBlack(duration, fillKeyMode) {
     let fadeCanvas = document.getElementById('fadeCanvas');
     if (!fadeCanvas) fadeCanvas = initializeFadeCanvas();
@@ -1872,7 +1866,6 @@ function startPreFTB(durationSec, fillKeyMode) {
     preFtbRaf = requestAnimationFrame(step);
 }
 
-
 // 事前FTBのキャンセル
 function cancelPreFTB() {
     preFtbActive = false;
@@ -1880,13 +1873,17 @@ function cancelPreFTB() {
         cancelAnimationFrame(preFtbRaf);
         preFtbRaf = null;
     }
+
+    overlaySuppressedByPreFTB = false;
     clearTransitionBlackHold();
+
     const fadeCanvas = document.getElementById('fadeCanvas');
     if (fadeCanvas) {
         fadeCanvas.style.opacity = '0';
         fadeCanvas.style.display = 'none';
         fadeCanvas.style.visibility = 'hidden';
     }
+
     logInfo('[fullscreen.js] Pre-FTB canceled.');
 }
 
