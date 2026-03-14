@@ -30,6 +30,8 @@ let overlaySuppressedByPreFTB = false;
 let fullscreenSeamlessCleanup = null;
 let fullscreenApplySeq = 0;
 let fullscreenApplyRafId = null;
+let fullscreenFadeFromBlackRaf = null;
+let fullscreenFadeFromBlackAnimSeq = 0;
 let fullscreenFtbToggleHoldActive = false;
 let fullscreenFtbToggleRaf = null;
 let fullscreenFtbToggleVisualAnimSeq = 0;
@@ -60,6 +62,13 @@ function initializeFullscreenArea(blackHoldMode = null) {
     fullscreenSeamlessCleanup = null;
     seamlessGuardActive = false;
     overlayForceBlack = false;
+
+    // フェードインアニメーション状態リセット
+    if (fullscreenFadeFromBlackRaf !== null) {
+        cancelAnimationFrame(fullscreenFadeFromBlackRaf);
+        fullscreenFadeFromBlackRaf = null;
+    }
+    fullscreenFadeFromBlackAnimSeq += 1;
 
     // FTBアニメーション状態リセット
     if (fullscreenFtbToggleAudioRaf !== null) {
@@ -437,11 +446,19 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
 
     const incomingBridgeMode = getIncomingBridgeMode(itemData);
 
-    // 切替直前フェードレイヤー解除
-    cancelPreFTB();
-    cancelFadeOut();
+    if (incomingBridgeMode === 'OVERLAY') {
+        executeIncomingBridgeMode(incomingBridgeMode);
 
-    executeIncomingBridgeMode(incomingBridgeMode);
+        // 切替直前フェードレイヤー解除
+        cancelPreFTB();
+        cancelFadeOut();
+    } else {
+        // 切替直前フェードレイヤー解除
+        cancelPreFTB();
+        cancelFadeOut();
+
+        executeIncomingBridgeMode(incomingBridgeMode);
+    }
 
     suppressIncomingUvcFadeUntilPlaying = (getIncomingMediaKind(itemData) === 'uvc');
 
@@ -744,11 +761,6 @@ function executeIncomingBridgeMode(incomingBridgeMode) {
             return;
         }
 
-        if (isTransitionBlackHoldActive()) {
-            logInfo('[fullscreen.js] Overlay capture skipped due to transition black hold.');
-            return;
-        }
-
         try {
             captureLastFrameAndHoldUntilNextReady();
         } catch (e) {
@@ -976,16 +988,6 @@ function shouldSkipOverlayCapture(videoElement, overlayCanvas) {
         return true;
     }
 
-    const fadeCanvas = document.getElementById('fadeCanvas');
-    if (fadeCanvas) {
-        const cs = window.getComputedStyle(fadeCanvas);
-        const fadeVisible = cs.visibility !== 'hidden' && parseFloat(cs.opacity || '0') > 0.01;
-        if (fadeVisible) {
-            logInfo('[fullscreen.js] Overlay capture skipped due to visible fade layer.');
-            return true;
-        }
-    }
-
     const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
     const hasSrcObject = !!videoElement.srcObject;
     if (!hasSrcObject && !nowSrc) {
@@ -997,6 +999,12 @@ function shouldSkipOverlayCapture(videoElement, overlayCanvas) {
 
 // オーバレイキャプチャ事前状態初期化
 function prepareOverlayCaptureState(overlayCanvas) {
+    if (visualBridgeOverlayClearTimerId) {
+        clearTimeout(visualBridgeOverlayClearTimerId);
+        visualBridgeOverlayClearTimerId = null;
+    }
+    visualBridgeOverlayClearRequestId += 1;
+
     if (typeof fullscreenSeamlessCleanup === 'function') {
         try { fullscreenSeamlessCleanup(); } catch (_) {}
         fullscreenSeamlessCleanup = null;
@@ -1039,6 +1047,29 @@ function drawCapturedFrameToOverlay(videoElement, overlayCanvas) {
         ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
         ctx.fillRect(0, 0, cw, ch);
         ctx.drawImage(videoElement, dx, dy, dw, dh);
+
+        const fadeCanvas = document.getElementById('fadeCanvas');
+        if (fadeCanvas) {
+            const fadeStyle = window.getComputedStyle(fadeCanvas);
+            const fadeVisible = fadeStyle.visibility !== 'hidden' && fadeStyle.display !== 'none';
+            const fadeOpacity = Math.max(0, Math.min(1, parseFloat(fadeStyle.opacity || '0')));
+
+            if (fadeVisible && fadeOpacity > 0.01) {
+                ctx.save();
+                ctx.globalAlpha = fadeOpacity;
+                ctx.fillStyle = fadeStyle.backgroundColor || ((isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black');
+                ctx.fillRect(0, 0, cw, ch);
+                ctx.restore();
+            }
+        }
+
+        if (overlayForceBlack) {
+            ctx.save();
+            ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.restore();
+        }
+
         ctx.restore();
 
         overlayCanvas.style.opacity = '1';
@@ -1083,15 +1114,58 @@ function startOverlayReleaseMonitoring(videoElement, isCurrentToken, isReadyToRe
 
     // イベントハンドラ
     const onLoadedData = () => {
+        if (stopIfStale()) {
+            return;
+        }
+
+        const nowSrc = String(videoElement.currentSrc || videoElement.src || '');
+        const decodedFrameReady = hasDecodedVisualFrame(videoElement);
+
+        if (!nowSrc) {
+            return;
+        }
+
+        if (!decodedFrameReady) {
+            return;
+        }
+
         tryReleaseOverlay('loadeddata');
     };
     const onCanPlay = () => {
+        if (stopIfStale()) {
+            return;
+        }
+
+        if (!hasDecodedVisualFrame(videoElement)) {
+            return;
+        }
+
         tryReleaseOverlay('canplay');
     };
     const onSeeked = () => {
         tryReleaseOverlay('seeked');
     };
     const onTimeUpdate = () => {
+        if (stopIfStale()) {
+            return;
+        }
+
+        const inPoint = Number(globalState.inPoint || 0);
+        const nowTime = Number(videoElement.currentTime || 0);
+        const decodedFrameReady = hasDecodedVisualFrame(videoElement);
+
+        if (videoElement.paused) {
+            return;
+        }
+
+        if (!decodedFrameReady) {
+            return;
+        }
+
+        if (nowTime < inPoint + 0.12) {
+            return;
+        }
+
         tryReleaseOverlay('timeupdate');
     };
 
@@ -1250,7 +1324,6 @@ function startOverlayReleaseMonitoring(videoElement, isCurrentToken, isReadyToRe
     };
     safetyTimerId = setTimeout(safetyPoll, SAFETY_POLL_MS);
 }
-
 // ------------------------------------
 // オーバレイキャプチャ固定
 // ------------------------------------
@@ -1675,9 +1748,17 @@ function handleStartMode() {
 // ------------------------------------------
 
 // 映像フェードイン処理
+// 映像フェードイン処理
 function fullscreenFadeFromBlack(duration, fillKeyMode) {
     let fadeCanvas = document.getElementById('fadeCanvas');
     if (!fadeCanvas) fadeCanvas = initializeFadeCanvas();
+
+    if (fullscreenFadeFromBlackRaf !== null) {
+        cancelAnimationFrame(fullscreenFadeFromBlackRaf);
+        fullscreenFadeFromBlackRaf = null;
+    }
+    fullscreenFadeFromBlackAnimSeq += 1;
+    const animSeq = fullscreenFadeFromBlackAnimSeq;
 
     // 通常遷移の黒保持中だった場合
     if (isTransitionBlackHoldActive()) {
@@ -1688,13 +1769,18 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
 
         let startTime = null;
         function step(ts) {
+            if (animSeq !== fullscreenFadeFromBlackAnimSeq) {
+                return;
+            }
+
             if (!startTime) startTime = ts;
             const elapsed = ts - startTime;
             const newOpacity = Math.max(1 - (elapsed / (duration * 1000)), 0);
             fadeCanvas.style.opacity = newOpacity.toString();
             if (elapsed < duration * 1000) {
-                requestAnimationFrame(step);
+                fullscreenFadeFromBlackRaf = requestAnimationFrame(step);
             } else {
+                fullscreenFadeFromBlackRaf = null;
                 fadeCanvas.style.opacity = '0';
                 fadeCanvas.style.display = 'block';
                 fadeCanvas.style.visibility = 'visible';
@@ -1706,7 +1792,7 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
                 logInfo('[fullscreen.js] Fade in completed (held black released).');
             }
         }
-        requestAnimationFrame(step);
+        fullscreenFadeFromBlackRaf = requestAnimationFrame(step);
         return;
     }
 
@@ -1718,13 +1804,18 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
 
     let startTime = null;
     function fadeStep(timestamp) {
+        if (animSeq !== fullscreenFadeFromBlackAnimSeq) {
+            return;
+        }
+
         if (!startTime) startTime = timestamp;
         const elapsed = timestamp - startTime;
         const newOpacity = Math.max(1 - (elapsed / (duration * 1000)), 0);
         fadeCanvas.style.opacity = newOpacity.toString();
         if (elapsed < duration * 1000) {
-            requestAnimationFrame(fadeStep);
+            fullscreenFadeFromBlackRaf = requestAnimationFrame(fadeStep);
         } else {
+            fullscreenFadeFromBlackRaf = null;
             fadeCanvas.style.opacity = '0';
             fadeCanvas.style.display = 'none';
             fadeCanvas.style.visibility = 'hidden';
@@ -1735,7 +1826,7 @@ function fullscreenFadeFromBlack(duration, fillKeyMode) {
             logInfo('[fullscreen.js] Fade in completed.');
         }
     }
-    requestAnimationFrame(fadeStep);
+    fullscreenFadeFromBlackRaf = requestAnimationFrame(fadeStep);
 }
 
 // 映像事前フェードアウト処理
