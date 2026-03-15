@@ -1,4 +1,4 @@
-﻿/* devicesettings.css 2.5.0 */
+﻿/* devicesettings.css 2.6.0 */
 
 /* ------------------ */
 /*     共通スタイル      */
@@ -396,4 +396,38 @@ button:active {
     border-radius: 4px;
     font-size: 0.8em;
     text-align: center;
+}
+
+/* ------------------ */
+/* Playlist / ONAIR Settings */
+/* ------------------ */
+
+.settings-check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.settings-check-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex: 0 0 auto;
+}
+
+.settings-check-row label {
+    display: block;
+    margin-top: 0;
+    font-weight: bold;
+    font-size: 0.8em;
+    flex: 1 1 auto;
+}
+
+.settings-check-row-center {
+    justify-content: center;
+}
+
+.settings-check-row-center label {
+    flex: 0 0 auto;
 }

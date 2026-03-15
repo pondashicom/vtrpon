@@ -12,6 +12,8 @@ const DEFAULT_PLAYLIST_ONAIR_SETTINGS = {
     restoreOnStartup: false
 };
 
+let currentPlaylistOnAirSettings = { ...DEFAULT_PLAYLIST_ONAIR_SETTINGS };
+
 // 言語を取得する関数
 function getCurrentModalLanguage() {
     const lang =
@@ -34,14 +36,11 @@ function getLabel(key, fallback) {
 
 // ラベルを反映する関数
 function applyLabels() {
-    document.getElementById('playlistOnAirSettingsTitle').textContent = getLabel('playlist-onair-settings-title', 'Playlist / ONAIR Settings');
     document.getElementById('playlistSectionTitle').textContent = getLabel('playlist-onair-section-playlist', 'PLAYLIST');
     document.getElementById('onairSectionTitle').textContent = getLabel('playlist-onair-section-onair', 'ONAIR');
     document.getElementById('preferAudioAlbumArtLabel').textContent = getLabel('playlist-onair-prefer-album-art-label', 'Prefer album art for audio thumbnails');
     document.getElementById('autoSelectNextAfterOffAirLabel').textContent = getLabel('playlist-onair-auto-select-next-label', 'Auto-select next item after Off-Air');
     document.getElementById('disableFtbButtonLabel').textContent = getLabel('playlist-onair-disable-ftb-button-label', 'Disable FTB button');
-    document.getElementById('ftbButtonFadeSecLabel').textContent = getLabel('playlist-onair-ftb-fade-label', 'FTB button fade duration');
-    document.getElementById('dskFadeSecLabel').textContent = getLabel('playlist-onair-dsk-fade-label', 'DSK fade duration');
     document.getElementById('restoreOnStartupLabel').textContent = getLabel('playlist-onair-restore-on-startup-label', 'Restore on next startup');
     document.getElementById('okButton').textContent = getLabel('playlist-onair-ok-button', 'OK');
 }
@@ -53,22 +52,21 @@ function applySettingsToDom(settings) {
         ...(settings || {})
     };
 
+    currentPlaylistOnAirSettings = { ...merged };
+
     document.getElementById('preferAudioAlbumArt').checked = !!merged.preferAudioAlbumArt;
     document.getElementById('autoSelectNextAfterOffAir').checked = !!merged.autoSelectNextAfterOffAir;
     document.getElementById('disableFtbButton').checked = !!merged.disableFtbButton;
-    document.getElementById('ftbButtonFadeSec').value = String(merged.ftbButtonFadeSec ?? 1);
-    document.getElementById('dskFadeSec').value = String(merged.dskFadeSec ?? 1);
     document.getElementById('restoreOnStartup').checked = !!merged.restoreOnStartup;
 }
 
 // 設定を保存する関数
 function saveSettings() {
     const settings = {
+        ...currentPlaylistOnAirSettings,
         preferAudioAlbumArt: document.getElementById('preferAudioAlbumArt').checked,
         autoSelectNextAfterOffAir: document.getElementById('autoSelectNextAfterOffAir').checked,
         disableFtbButton: document.getElementById('disableFtbButton').checked,
-        ftbButtonFadeSec: Math.max(0, Number(document.getElementById('ftbButtonFadeSec').value) || 1),
-        dskFadeSec: Math.max(0, Number(document.getElementById('dskFadeSec').value) || 1),
         restoreOnStartup: document.getElementById('restoreOnStartup').checked
     };
 
