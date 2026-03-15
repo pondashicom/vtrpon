@@ -14,10 +14,10 @@ const DEFAULT_FADE_DURATION = 300;
 
 // DSKフェード時間を取得する関数
 function getDskFadeDurationMs() {
-    const sec = Number(window.vtrponPlaylistOnAirSettings?.dskFadeSec ?? 1);
+    const dskFadeSecInput = document.getElementById('dskFadeSec');
+    const sec = Number(dskFadeSecInput ? dskFadeSecInput.value : 1);
     return Math.max(0, sec) * 1000;
 }
-
 // -----------------------
 // DSKオーバーレイ初期化
 // -----------------------
@@ -203,7 +203,11 @@ function showOnAirDSK(itemData) {
     });
     
     if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
-        window.electronAPI.sendDSKCommand({ command: 'DSK_SHOW', payload: itemData });
+        window.electronAPI.sendDSKCommand({
+            command: 'DSK_SHOW',
+            payload: itemData,
+            fadeDurationMs: fadeDuration
+        });
     }
     window.dispatchEvent(new CustomEvent('dsk-active-set', { detail: { itemId: itemData.playlistItem_id } }));
 }
@@ -234,11 +238,16 @@ function handleDskEnd() {
         case 'OFF': {
             const transitionToken = ++dskTransitionToken;
 
+            const fadeDuration = getDskFadeDurationMs();
+
             if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
-                window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
+                window.electronAPI.sendDSKCommand({
+                    command: 'DSK_CLEAR',
+                    fadeDurationMs: fadeDuration
+                });
             }
 
-            fadeOut(dskOverlay, getDskFadeDurationMs(), () => {
+            fadeOut(dskOverlay, fadeDuration, () => {
                 if (transitionToken !== dskTransitionToken) {
                     return;
                 }
@@ -262,10 +271,14 @@ function hideOnAirDSK() {
         window.dispatchEvent(new CustomEvent('dsk-active-clear'));
         return;
     }
-    if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
-        window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
-    }
     const fadeDuration = getDskFadeDurationMs();
+
+    if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
+        window.electronAPI.sendDSKCommand({
+            command: 'DSK_CLEAR',
+            fadeDurationMs: fadeDuration
+        });
+    }
     fadeOut(dskOverlay, fadeDuration, () => {
         if (transitionToken !== dskTransitionToken) {
             return;

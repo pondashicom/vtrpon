@@ -194,8 +194,9 @@
 
             <div id="control-area" class="control-area">
                 <p data-label-id="dsk-title"></p>
-                <div class="controls">
+                <div class="controls dsk-controls">
                     <button id="dsk-button" class="button button button-gray" data-tooltip-id="dsk-button" data-label-id="dsk-button"></button>
+                    <input type="number" id="dskFadeSec" min="0" step="0.1" value="1" class="inline-rate-input" aria-label="DSK Fade Duration">
                     <button id="dks-pause-button" class="button control-button button-gray" data-tooltip-id="dks-pause-button" data-label-id="dks-pause-button">||</button>
                     <button id="dsk-play-button" class="button control-button button-gray" data-tooltip-id="dsk-play-button" data-label-id="dsk-play-button">&gt;</button>
                 </div>
@@ -373,9 +374,10 @@
             </div>
 
             <div id="important-button-area" class="important-button-area">
-                <div class="controls">
+                <div class="controls important-controls">
                     <button id="off-air-button" class="button important-button button-gray" data-tooltip-id="off-air-button" data-label-id="off-air-button"></button>
                     <button id="ftb-off-button" class="button important-button button-gray" data-tooltip-id="ftb-off-button" data-label-id="ftb-off-button"></button>
+                    <input type="number" id="ftbButtonFadeSec" min="0" step="0.1" value="1" class="inline-rate-input" aria-label="FTB Fade Duration">
                     <button id="on-air-pause-button" class="button important-button button-gray" data-tooltip-id="on-air-pause-button" data-label-id="on-air-pause-button"></button>
                     <button id="on-air-play-button" class="button important-button button-gray" data-tooltip-id="on-air-play-button" data-label-id="on-air-play-button"></button>
                 </div>

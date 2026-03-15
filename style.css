@@ -1,4 +1,4 @@
-﻿/* style.css 2.5.9 */
+﻿/* style.css 2.6.0 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -1763,7 +1763,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 /* ------------------ */
 
 /* 入力フィールド */
-#fadeInDuration, #startFadeInSec, #ftbRate, #fioRate, #itemFioRate, #mainFioRate, #repeatCount  {
+#fadeInDuration, #startFadeInSec, #ftbRate, #fioRate, #itemFioRate, #mainFioRate, #repeatCount, #ftbButtonFadeSec, #dskFadeSec  {
     width: 4rem;
     height: 1.6rem;
     background-color: #2e2e2e;
@@ -1778,7 +1778,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     cursor: text;
     -moz-appearance: textfield;
 }
-
 
 /* ディゾルブチェックボックス */
 #pptxDissolve {
@@ -1842,7 +1841,9 @@ input#repeatCount::-webkit-input-placeholder {
 #fadeInDuration:focus,
 #startFadeInSec:focus,
 #ftbRate:focus,
-#fioRate:focus {
+#fioRate:focus,
+#ftbButtonFadeSec:focus,
+#dskFadeSec:focus {
     outline: none;
     border: 0.0625rem solid #007BFF;
     box-shadow: 0 0 0.5rem rgba(0, 123, 255, 0.5);
@@ -1863,6 +1864,27 @@ input#repeatCount::-webkit-input-placeholder {
     text-align: right;
     cursor: text;
     -moz-appearance: textfield;
+}
+
+/* -------------------- */
+/*  FTB / DSK 秒数入力  */
+/* -------------------- */
+
+.important-controls,
+.dsk-controls {
+    flex-wrap: wrap;
+}
+
+.inline-rate-label {
+    font-size: 0.75rem;
+    color: #bbb;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.inline-rate-input {
+    width: 4rem;
+    flex: 0 0 auto;
 }
 
 /* -------------------- */

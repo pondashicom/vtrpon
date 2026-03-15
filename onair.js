@@ -45,6 +45,11 @@ let onairLastSentFullscreenGammaVolumeForFtb = null;
 const ONAIR_LAYER_Z_PRE_FTB_BLACK = 8000;
 const ONAIR_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
 
+
+// -----------------------------------------
+// Playlist / ONAIR 設定読み込み
+// -----------------------------------------
+
 const ONAIR_PLAYLIST_SETTINGS_DEFAULTS = {
     disableFtbButton: false,
     ftbButtonFadeSec: 1,
@@ -61,25 +66,26 @@ function onairGetPlaylistOnAirSettings() {
     };
 }
 
-// Playlist / ONAIR 設定を公開する関数
-function onairExposePlaylistOnAirSettings() {
-    window.vtrponPlaylistOnAirSettings = onairGetPlaylistOnAirSettings();
-}
-
-// Playlist / ONAIR 設定を反映する関数
+// Playlist / ONAIR 設定を画面へ反映する関数
 function onairApplyPlaylistOnAirSettings() {
-    const ftbButton = document.getElementById('ftb-off-button');
     const settings = onairGetPlaylistOnAirSettings();
+    const ftbButton = document.getElementById('ftb-off-button');
+    const ftbButtonFadeSecInput = document.getElementById('ftbButtonFadeSec');
+    const dskFadeSecInput = document.getElementById('dskFadeSec');
 
-    onairExposePlaylistOnAirSettings();
-
-    if (!ftbButton) {
-        return;
+    if (ftbButton) {
+        ftbButton.disabled = settings.disableFtbButton === true;
+        ftbButton.style.pointerEvents = settings.disableFtbButton === true ? 'none' : '';
+        ftbButton.style.opacity = settings.disableFtbButton === true ? '0.45' : '';
     }
 
-    ftbButton.disabled = settings.disableFtbButton === true;
-    ftbButton.style.pointerEvents = settings.disableFtbButton === true ? 'none' : '';
-    ftbButton.style.opacity = settings.disableFtbButton === true ? '0.45' : '';
+    if (ftbButtonFadeSecInput) {
+        ftbButtonFadeSecInput.value = String(settings.ftbButtonFadeSec ?? 1);
+    }
+
+    if (dskFadeSecInput) {
+        dskFadeSecInput.value = String(settings.dskFadeSec ?? 1);
+    }
 }
 
 // Playlist / ONAIR 設定を読み込む関数
@@ -95,6 +101,21 @@ async function onairLoadPlaylistOnAirSettings() {
     }
 
     onairApplyPlaylistOnAirSettings();
+}
+
+// Playlist / ONAIR 秒数設定を保存する関数
+function onairSavePlaylistOnAirTimingSettings() {
+    const ftbButtonFadeSecInput = document.getElementById('ftbButtonFadeSec');
+    const dskFadeSecInput = document.getElementById('dskFadeSec');
+
+    const nextSettings = {
+        ...onairGetPlaylistOnAirSettings(),
+        ftbButtonFadeSec: Math.max(0, Number(ftbButtonFadeSecInput ? ftbButtonFadeSecInput.value : 1) || 1),
+        dskFadeSec: Math.max(0, Number(dskFadeSecInput ? dskFadeSecInput.value : 1) || 1)
+    };
+
+    onairPlaylistOnAirSettings = nextSettings;
+    window.electronAPI.setPlaylistOnAirSettings(nextSettings);
 }
 
 // -----------------------
@@ -137,6 +158,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     onairLoadPlaylistOnAirSettings();
+
+    const ftbButtonFadeSecInput = document.getElementById('ftbButtonFadeSec');
+    const dskFadeSecInput = document.getElementById('dskFadeSec');
+
+    if (ftbButtonFadeSecInput) {
+        ftbButtonFadeSecInput.addEventListener('change', onairSavePlaylistOnAirTimingSettings);
+    }
+
+    if (dskFadeSecInput) {
+        dskFadeSecInput.addEventListener('change', onairSavePlaylistOnAirTimingSettings);
+    }
 
     if (window.electronAPI.onPlaylistOnAirSettingsUpdated) {
         window.electronAPI.onPlaylistOnAirSettingsUpdated((settings) => {
@@ -4461,8 +4493,11 @@ function onairHandleFTBButton() {
 
     // 秒数参照元
     const startFadeInInputEl = document.getElementById('startFadeInSec');
+    const ftbButtonFadeSecInput = document.getElementById('ftbButtonFadeSec');
 
-    const ftbOutSecRaw = Number(settings.ftbButtonFadeSec ?? 1.0);
+    const ftbOutSecRaw = (ftbButtonFadeSecInput && !isNaN(parseFloat(ftbButtonFadeSecInput.value)))
+        ? parseFloat(ftbButtonFadeSecInput.value)
+        : Number(settings.ftbButtonFadeSec ?? 1.0);
 
     const startFadeInSecRaw = (startFadeInInputEl && !isNaN(parseFloat(startFadeInInputEl.value)))
         ? parseFloat(startFadeInInputEl.value)
@@ -4470,7 +4505,7 @@ function onairHandleFTBButton() {
 
     const ftbOutSec = Math.max(0, ftbOutSecRaw);
     const startFadeInSec = Math.max(0, startFadeInSecRaw);
-    const fadeSec = nextActive ? ftbOutSec : (startFadeInSec > 0 ? startFadeInSec : ftbOutSec);
+    const fadeSec = ftbOutSec;
     const masterSlider = document.getElementById('on-air-master-volume-slider');
 
     // FTB ON時点で再生中だったかを保存

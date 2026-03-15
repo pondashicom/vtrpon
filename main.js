@@ -1130,7 +1130,11 @@ app.whenReady().then(async () => {
     // Playlist / ONAIR 設定読込
     const savedPlaylistOnAirSettings = normalizePlaylistOnAirSettings(appConfig.playlistOnAirSettings || {});
     global.playlistOnAirSettings = savedPlaylistOnAirSettings.restoreOnStartup
-        ? savedPlaylistOnAirSettings
+        ? {
+            ...savedPlaylistOnAirSettings,
+            ftbButtonFadeSec: 1,
+            dskFadeSec: 1
+        }
         : getDefaultPlaylistOnAirSettings();
     console.log('[main.js] Initial playlist/onair settings:', global.playlistOnAirSettings);
 
@@ -1362,7 +1366,11 @@ ipcMain.handle('get-playlist-onair-settings', () => {
         const cfg = loadConfig();
         const saved = normalizePlaylistOnAirSettings(cfg.playlistOnAirSettings || {});
         global.playlistOnAirSettings = saved.restoreOnStartup
-            ? saved
+            ? {
+                ...saved,
+                ftbButtonFadeSec: 1,
+                dskFadeSec: 1
+            }
             : getDefaultPlaylistOnAirSettings();
     }
 

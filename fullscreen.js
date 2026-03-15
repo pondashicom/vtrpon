@@ -3110,14 +3110,14 @@ window.electronAPI.ipcRenderer.on('dsk-control', (event, dskCommandData) => {
     
     if (dskCommandData.command === 'DSK_SHOW') {
         if (dskCommandData.payload) {
-            showFullscreenDSK(dskCommandData.payload);
+            showFullscreenDSK(dskCommandData.payload, dskCommandData.fadeDurationMs);
             window.fsDSKActive = true;
             logInfo('[fullscreen.js] Processed DSK_SHOW command.');
         } else {
             logInfo('[fullscreen.js] DSK_SHOW payload is undefined.');
         }
     } else if (dskCommandData.command === 'DSK_CLEAR') {
-        hideFullscreenDSK();
+        hideFullscreenDSK(dskCommandData.fadeDurationMs);
         window.fsDSKActive = false;
         logInfo('[fullscreen.js] Processed DSK_CLEAR command.');
     } else if (dskCommandData.command === 'DSK_TOGGLE') {
@@ -3175,7 +3175,7 @@ function initFsDSKOverlay() {
 
 
 // DSK表示
-function showFullscreenDSK(itemData) {
+function showFullscreenDSK(itemData, fadeDurationMs = null) {
     if (!fsDSKOverlay) {
         initFsDSKOverlay();
         if (!fsDSKOverlay) return;
@@ -3255,7 +3255,9 @@ function showFullscreenDSK(itemData) {
     fsDSKOverlay.style.visibility = 'visible';
 
     // フェードイン
-    const fadeDuration = itemData.ftbRate * 1000;
+    const fadeDuration = (typeof fadeDurationMs === 'number' && !isNaN(fadeDurationMs))
+        ? Math.max(0, fadeDurationMs)
+        : DEFAULT_FADE_DURATION;
     fadeIn(fsDSKOverlay, fadeDuration);
 }
 
@@ -3285,7 +3287,7 @@ function parseTimecode(timecode) {
 
 
 // DSK非表示
-function hideFullscreenDSK() {
+function hideFullscreenDSK(fadeDurationMs = null) {
     if (!fsDSKOverlay) return;
 
     // 即時非表示
@@ -3299,7 +3301,9 @@ function hideFullscreenDSK() {
     }
 
     // フェードアウト
-    const fadeDuration = (currentDSKItem && currentDSKItem.ftbRate ? currentDSKItem.ftbRate * 1000 : DEFAULT_FADE_DURATION);
+    const fadeDuration = (typeof fadeDurationMs === 'number' && !isNaN(fadeDurationMs))
+        ? Math.max(0, fadeDurationMs)
+        : DEFAULT_FADE_DURATION;
     fadeOut(fsDSKOverlay, fadeDuration, () => {
         fsDSKOverlay.innerHTML = '';
     });
