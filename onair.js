@@ -1706,16 +1706,6 @@ function updateSeekBarMarkers(elements, inPoint, outPoint) {
     outMarker.style.left = `${outLeft - 6}px`;
 }
 
-// 音量スライダーと音量表示更新
-function onairUpdateVolume(elements, volume) {
-    const { onairVolumeSlider, onairVolumeValueDisplay } = elements;
-
-    if (!onairVolumeSlider || !onairVolumeValueDisplay) return;
-
-    onairVolumeSlider.value = volume;
-    onairVolumeValueDisplay.textContent = `${volume}%`;
-}
-
 // -----------------------
 // 再生プロセス
 // -----------------------
