@@ -465,17 +465,6 @@ function onairInitializeFadeCanvas(elements) {
     logDebug('[onair.js] Fade canvas initialized.');
 }
 
-// キャンバスサイズ同期
-function adjustFadeCanvasSize(videoElement, fadeCanvas) {
-    if (!videoElement || !fadeCanvas) return;
-    const rect = videoElement.getBoundingClientRect();
-    fadeCanvas.style.width = `${rect.width}px`;
-    fadeCanvas.style.height = `${rect.height}px`;
-    fadeCanvas.style.left = `${rect.left}px`;
-    fadeCanvas.style.top = `${rect.top}px`;
-    logDebug('[onair.js] Fade canvas size adjusted.');
-}
-
 // リソース解放
 function onairReleaseResources(elements) {
     onairInitializeVideo(elements);
