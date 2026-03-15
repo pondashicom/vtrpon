@@ -45,6 +45,58 @@ let onairLastSentFullscreenGammaVolumeForFtb = null;
 const ONAIR_LAYER_Z_PRE_FTB_BLACK = 8000;
 const ONAIR_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
 
+const ONAIR_PLAYLIST_SETTINGS_DEFAULTS = {
+    disableFtbButton: false,
+    ftbButtonFadeSec: 1,
+    dskFadeSec: 1
+};
+
+let onairPlaylistOnAirSettings = { ...ONAIR_PLAYLIST_SETTINGS_DEFAULTS };
+
+// Playlist / ONAIR 設定を取得する関数
+function onairGetPlaylistOnAirSettings() {
+    return {
+        ...ONAIR_PLAYLIST_SETTINGS_DEFAULTS,
+        ...(onairPlaylistOnAirSettings || {})
+    };
+}
+
+// Playlist / ONAIR 設定を公開する関数
+function onairExposePlaylistOnAirSettings() {
+    window.vtrponPlaylistOnAirSettings = onairGetPlaylistOnAirSettings();
+}
+
+// Playlist / ONAIR 設定を反映する関数
+function onairApplyPlaylistOnAirSettings() {
+    const ftbButton = document.getElementById('ftb-off-button');
+    const settings = onairGetPlaylistOnAirSettings();
+
+    onairExposePlaylistOnAirSettings();
+
+    if (!ftbButton) {
+        return;
+    }
+
+    ftbButton.disabled = settings.disableFtbButton === true;
+    ftbButton.style.pointerEvents = settings.disableFtbButton === true ? 'none' : '';
+    ftbButton.style.opacity = settings.disableFtbButton === true ? '0.45' : '';
+}
+
+// Playlist / ONAIR 設定を読み込む関数
+async function onairLoadPlaylistOnAirSettings() {
+    try {
+        const settings = await window.electronAPI.getPlaylistOnAirSettings();
+        onairPlaylistOnAirSettings = {
+            ...ONAIR_PLAYLIST_SETTINGS_DEFAULTS,
+            ...(settings || {})
+        };
+    } catch (_) {
+        onairPlaylistOnAirSettings = { ...ONAIR_PLAYLIST_SETTINGS_DEFAULTS };
+    }
+
+    onairApplyPlaylistOnAirSettings();
+}
+
 // -----------------------
 // 共通補助関数
 // -----------------------
@@ -79,8 +131,21 @@ function onairParseTimeToSeconds(timeString) {
 // 初回起動
 document.addEventListener('DOMContentLoaded', () => {
     onairInitialize();
+
     if (window.dskModule && typeof window.dskModule.initDSKOverlay === 'function') {
         window.dskModule.initDSKOverlay();
+    }
+
+    onairLoadPlaylistOnAirSettings();
+
+    if (window.electronAPI.onPlaylistOnAirSettingsUpdated) {
+        window.electronAPI.onPlaylistOnAirSettingsUpdated((settings) => {
+            onairPlaylistOnAirSettings = {
+                ...ONAIR_PLAYLIST_SETTINGS_DEFAULTS,
+                ...(settings || {})
+            };
+            onairApplyPlaylistOnAirSettings();
+        });
     }
 });
 
@@ -4381,6 +4446,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // FTBボタン
 // -----------------------
 function onairHandleFTBButton() {
+    const settings = onairGetPlaylistOnAirSettings();
+
+    if (settings.disableFtbButton === true) {
+        return;
+    }
+
     logOpe('[onair.js] FTB button clicked');
 
     const elements = onairGetElements();
@@ -4389,12 +4460,9 @@ function onairHandleFTBButton() {
     const nextActive = !onairFtbToggleHoldActive;
 
     // 秒数参照元
-    const ftbRateInputEl = document.getElementById('ftbRate');
     const startFadeInInputEl = document.getElementById('startFadeInSec');
 
-    const ftbOutSecRaw = (ftbRateInputEl && !isNaN(parseFloat(ftbRateInputEl.value)))
-        ? parseFloat(ftbRateInputEl.value)
-        : Number(onairCurrentState?.ftbRate || 1.0);
+    const ftbOutSecRaw = Number(settings.ftbButtonFadeSec ?? 1.0);
 
     const startFadeInSecRaw = (startFadeInInputEl && !isNaN(parseFloat(startFadeInInputEl.value)))
         ? parseFloat(startFadeInInputEl.value)
@@ -4403,7 +4471,6 @@ function onairHandleFTBButton() {
     const ftbOutSec = Math.max(0, ftbOutSecRaw);
     const startFadeInSec = Math.max(0, startFadeInSecRaw);
     const fadeSec = nextActive ? ftbOutSec : (startFadeInSec > 0 ? startFadeInSec : ftbOutSec);
-
     const masterSlider = document.getElementById('on-air-master-volume-slider');
 
     // FTB ON時点で再生中だったかを保存

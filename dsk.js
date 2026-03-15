@@ -12,6 +12,12 @@ let dskVideo = null;
 let dskTransitionToken = 0;
 const DEFAULT_FADE_DURATION = 300;
 
+// DSKフェード時間を取得する関数
+function getDskFadeDurationMs() {
+    const sec = Number(window.vtrponPlaylistOnAirSettings?.dskFadeSec ?? 1);
+    return Math.max(0, sec) * 1000;
+}
+
 // -----------------------
 // DSKオーバーレイ初期化
 // -----------------------
@@ -189,7 +195,7 @@ function showOnAirDSK(itemData) {
         video.pause();
     }
 
-    const fadeDuration = itemData.ftbRate * 1000;
+    const fadeDuration = getDskFadeDurationMs();
     fadeIn(dskOverlay, fadeDuration, () => {
         if (transitionToken !== dskTransitionToken) {
             return;
@@ -225,14 +231,22 @@ function handleDskEnd() {
             dskVideo.currentTime = outSec;
             break;
 
-        case 'OFF':
-            dskTransitionToken++;
+        case 'OFF': {
+            const transitionToken = ++dskTransitionToken;
+
             if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
                 window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
             }
-            clearOnAirDSKOverlayState();
-            window.dispatchEvent(new CustomEvent('dsk-active-clear'));
+
+            fadeOut(dskOverlay, getDskFadeDurationMs(), () => {
+                if (transitionToken !== dskTransitionToken) {
+                    return;
+                }
+                clearOnAirDSKOverlayState();
+                window.dispatchEvent(new CustomEvent('dsk-active-clear'));
+            });
             break;
+        }
     }
 }
 
@@ -251,7 +265,7 @@ function hideOnAirDSK() {
     if (window.electronAPI && typeof window.electronAPI.sendDSKCommand === 'function') {
         window.electronAPI.sendDSKCommand({ command: 'DSK_CLEAR' });
     }
-    const fadeDuration = currentDSKItem && currentDSKItem.ftbRate ? currentDSKItem.ftbRate * 1000 : DEFAULT_FADE_DURATION;
+    const fadeDuration = getDskFadeDurationMs();
     fadeOut(dskOverlay, fadeDuration, () => {
         if (transitionToken !== dskTransitionToken) {
             return;

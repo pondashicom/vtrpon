@@ -25,7 +25,7 @@ const { Atem } = require('atem-connection');
 const { exec } = require('child_process');
 
 // グローバル変数
-let mainWindow, fullscreenWindow, deviceSettingsWindow, recordingSettingsWindow, atemSettingsWindow;
+let mainWindow, fullscreenWindow, deviceSettingsWindow, playlistOnAirSettingsWindow, recordingSettingsWindow, atemSettingsWindow;
 let isDebugMode = false;
 let playlistState = [];
 let powerSaveBlockerId;
@@ -106,6 +106,32 @@ function saveConfig(config) {
     } catch (e) {
         console.error('[main.js] Failed to save config.json:', e);
     }
+}
+
+// Playlist / ONAIR 設定デフォルトを返す関数
+function getDefaultPlaylistOnAirSettings() {
+    return {
+        preferAudioAlbumArt: true,
+        autoSelectNextAfterOffAir: true,
+        disableFtbButton: false,
+        ftbButtonFadeSec: 1,
+        dskFadeSec: 1,
+        restoreOnStartup: false
+    };
+}
+
+// Playlist / ONAIR 設定を正規化する関数
+function normalizePlaylistOnAirSettings(settings = {}) {
+    const defaults = getDefaultPlaylistOnAirSettings();
+
+    return {
+        preferAudioAlbumArt: settings.preferAudioAlbumArt !== false,
+        autoSelectNextAfterOffAir: settings.autoSelectNextAfterOffAir !== false,
+        disableFtbButton: settings.disableFtbButton === true,
+        ftbButtonFadeSec: Math.max(0, Number(settings.ftbButtonFadeSec ?? defaults.ftbButtonFadeSec) || defaults.ftbButtonFadeSec),
+        dskFadeSec: Math.max(0, Number(settings.dskFadeSec ?? defaults.dskFadeSec) || defaults.dskFadeSec),
+        restoreOnStartup: settings.restoreOnStartup === true
+    };
 }
 
 // ---------------------------------
@@ -312,12 +338,18 @@ function buildMenuTemplate(labels) {
             createDeviceSettingsWindow();
           }
         },
+        {
+          label: labels["menu-playlist-onair-settings"],
+          click: () => {
+            createPlaylistOnAirSettingsWindow();
+          }
+        },
         { type: 'separator' },
         {
           label: labels["menu-recording-settings"],
           click: () => {
             createRecordingSettingsWindow();
-          }
+        }
         },
         { type: 'separator' },
         {
@@ -1095,6 +1127,13 @@ app.whenReady().then(async () => {
     };
     console.log('[main.js] Initial device setup:', global.deviceSettings);
 
+    // Playlist / ONAIR 設定読込
+    const savedPlaylistOnAirSettings = normalizePlaylistOnAirSettings(appConfig.playlistOnAirSettings || {});
+    global.playlistOnAirSettings = savedPlaylistOnAirSettings.restoreOnStartup
+        ? savedPlaylistOnAirSettings
+        : getDefaultPlaylistOnAirSettings();
+    console.log('[main.js] Initial playlist/onair settings:', global.playlistOnAirSettings);
+
     // ウインドウ生成
     createMainWindow();
     createFullscreenWindow();
@@ -1198,10 +1237,47 @@ function createDeviceSettingsWindow() {
     });
 }
 
+// Playlist / ONAIR 設定ウインドウ生成
+function createPlaylistOnAirSettingsWindow() {
+    if (playlistOnAirSettingsWindow) {
+        playlistOnAirSettingsWindow.focus();
+        return;
+    }
+
+    playlistOnAirSettingsWindow = new BrowserWindow({
+        width: 500,
+        height: 500,
+        title: 'Playlist / ONAIR Settings',
+        parent: mainWindow,
+        modal: true,
+        frame: false,
+        resizable: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false
+        }
+    });
+
+    playlistOnAirSettingsWindow.loadFile('playlistonairsettings.html');
+    playlistOnAirSettingsWindow.setMenuBarVisibility(false);
+    playlistOnAirSettingsWindow.on('closed', () => {
+        playlistOnAirSettingsWindow = null;
+    });
+}
+
 // デバイス設定ウインドウを閉じるIPC
 ipcMain.on('close-device-settings', (event) => {
     if (deviceSettingsWindow) {
         deviceSettingsWindow.close();
+    }
+});
+
+// Playlist / ONAIR 設定ウインドウを閉じるIPC
+ipcMain.on('close-playlist-onair-settings', () => {
+    if (playlistOnAirSettingsWindow) {
+        playlistOnAirSettingsWindow.close();
     }
 });
 
@@ -1252,6 +1328,20 @@ ipcMain.on('set-device-settings', (event, settings) => {
     });
 });
 
+// Playlist / ONAIR 設定保存・通知IPC
+ipcMain.on('set-playlist-onair-settings', (event, settings) => {
+    const normalized = normalizePlaylistOnAirSettings(settings);
+    global.playlistOnAirSettings = normalized;
+
+    const cfg = loadConfig();
+    cfg.playlistOnAirSettings = normalized;
+    saveConfig(cfg);
+
+    BrowserWindow.getAllWindows().forEach(win => {
+        win.webContents.send('playlist-onair-settings-updated', global.playlistOnAirSettings);
+    });
+});
+
 // デバイス設定呼出・適用IPC
 ipcMain.handle('get-device-settings', () => {
     // config から設定呼び出し
@@ -1264,6 +1354,19 @@ ipcMain.handle('get-device-settings', () => {
     console.log('[main.js] get-device-settings returning:', global.deviceSettings);
 
     return global.deviceSettings;
+});
+
+// Playlist / ONAIR 設定呼出IPC
+ipcMain.handle('get-playlist-onair-settings', () => {
+    if (!global.playlistOnAirSettings) {
+        const cfg = loadConfig();
+        const saved = normalizePlaylistOnAirSettings(cfg.playlistOnAirSettings || {});
+        global.playlistOnAirSettings = saved.restoreOnStartup
+            ? saved
+            : getDefaultPlaylistOnAirSettings();
+    }
+
+    return global.playlistOnAirSettings;
 });
 
 // ---------------------------------

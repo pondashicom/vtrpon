@@ -207,6 +207,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // メインプロセスからデバイス設定情報を取得する API
     getDeviceSettings: () => ipcRenderer.invoke('get-device-settings'),
 
+    // ----------------------------
+    //  Playlist / ONAIR 設定関連
+    // ----------------------------
+
+    // Playlist / ONAIR 設定ウィンドウを閉じる API
+    closePlaylistOnAirSettings: () => ipcRenderer.send('close-playlist-onair-settings'),
+
+    // Playlist / ONAIR 設定取得 API
+    getPlaylistOnAirSettings: () => ipcRenderer.invoke('get-playlist-onair-settings'),
+
+    // Playlist / ONAIR 設定保存 API
+    setPlaylistOnAirSettings: (settings) => ipcRenderer.send('set-playlist-onair-settings', settings),
+
+    // Playlist / ONAIR 設定更新通知
+    onPlaylistOnAirSettingsUpdated: (callback) => ipcRenderer.on('playlist-onair-settings-updated', (event, settings) => callback(settings)),
+
     // ------------------------------
     // MOV透過チェックと変換処理用
     // ------------------------------

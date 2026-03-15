@@ -189,6 +189,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    try {
+        const settings = await window.electronAPI.getPlaylistOnAirSettings();
+        playlistOnAirSettings = {
+            ...PLAYLIST_ONAIR_SETTINGS_DEFAULTS,
+            ...(settings || {})
+        };
+    } catch (_) {
+        playlistOnAirSettings = { ...PLAYLIST_ONAIR_SETTINGS_DEFAULTS };
+    }
+
+    if (window.electronAPI.onPlaylistOnAirSettingsUpdated) {
+        window.electronAPI.onPlaylistOnAirSettingsUpdated((settings) => {
+            playlistOnAirSettings = {
+                ...PLAYLIST_ONAIR_SETTINGS_DEFAULTS,
+                ...(settings || {})
+            };
+        });
+    }
+
     // オンエアボタンイベントリスナー初期化
     initializeOnAirButtonListener();
 
@@ -739,8 +758,8 @@ async function generateThumbnail(filePath) {
 
         // 1) 音声ファイル
         if (['wav','mp3','flac','aac','m4a'].includes(extension)) {
-            // MP3 / FLAC / M4A は埋め込み画像を優先
-            if (['mp3', 'flac', 'm4a'].includes(extension)) {
+            // MP3 / FLAC / M4A は設定ON時のみ埋め込み画像を優先
+            if (getPlaylistOnAirSettings().preferAudioAlbumArt && ['mp3', 'flac', 'm4a'].includes(extension)) {
                 try {
                     const embeddedArtwork = await window.electronAPI.getEmbeddedAudioArtwork(originalFilePath);
                     if (embeddedArtwork) {
@@ -3571,6 +3590,20 @@ async function movePlaylistItem(item, direction) {
 // オンエアアイテム記録
 let lastOnAirItemId = null;
 
+const PLAYLIST_ONAIR_SETTINGS_DEFAULTS = {
+    preferAudioAlbumArt: true,
+    autoSelectNextAfterOffAir: true
+};
+
+let playlistOnAirSettings = { ...PLAYLIST_ONAIR_SETTINGS_DEFAULTS };
+
+// Playlist / ONAIR 設定を取得する関数
+function getPlaylistOnAirSettings() {
+    return {
+        ...PLAYLIST_ONAIR_SETTINGS_DEFAULTS,
+        ...(playlistOnAirSettings || {})
+    };
+}
 // 編集中アイテムをオンエア
 async function performOnAirForEditingItem(options = {}) {
     try {
@@ -3722,6 +3755,13 @@ window.electronAPI.onReceiveOffAirNotify(async () => {
         }
     } catch (error) {
         logDebug('[playlist.js] Failed to get current selected item:', error);
+    }
+
+    if (!getPlaylistOnAirSettings().autoSelectNextAfterOffAir) {
+        if (lastOnAirItemId) {
+            lastOnAirItemId = null;
+        }
+        return;
     }
 
     // 最後にオンエアだったアイテムがあれば次のアイテムを自動選択
