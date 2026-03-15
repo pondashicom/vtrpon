@@ -35,8 +35,8 @@ async function convertAlacToAac(inputPath) {
         ctx.font = '14px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('Loading...', canvas.width / 2, canvas.height / 2);
-
+        ctx.fillText('Converting...', canvas.width / 2, canvas.height / 2);;
+        
         const tempPlaylistItem = {
             path: outputFilePath,
             name: window.electronAPI.path.basename(outputFilePath),
