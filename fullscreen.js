@@ -43,6 +43,7 @@ let fullscreenFtbToggleTransitionUntilMs = 0;
 const FULLSCREEN_SET_VOLUME_EPSILON = 0.01;
 const FULLSCREEN_SET_VOLUME_ENDPOINT_SNAP_EPSILON = 0.005;
 let fullscreenLastControlAppliedVolume = null;
+let fullscreenPlaybackSessionToken = 0;
 const FS_LAYER_Z_PRE_FTB_BLACK = 8000;
 const FS_LAYER_Z_DSK = 9000;
 const FS_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
@@ -1365,6 +1366,11 @@ function handleOnAirData(itemData) {
         logInfo('[fullscreen.js] No On-Air data received.');
         return;
     }
+
+    fullscreenPlaybackSessionToken += 1;
+    fullscreenPendingEndMode = null;
+    fullscreenStopPendingEndModeWatcher();
+
     stopMonitoringPlayback();
     cancelAudioFade();
     setInitialData(itemData);
@@ -1401,6 +1407,7 @@ function handleOnAirData(itemData) {
     }
     handleStartMode();
 }
+
 // --------------------------------------------
 // 動画・音声ファイルをビデオプレーヤーにセット
 // --------------------------------------------
@@ -1926,6 +1933,7 @@ window.electronAPI.ipcRenderer.on('control', (event, data) => {
 let playbackMonitor = null;
 let fullscreenPendingEndMode = null;
 let fullscreenPendingEndModeRafId = null;
+let fullscreenPendingEndModeSessionToken = 0;
 
 // endMode発動待機停止
 function fullscreenStopPendingEndModeWatcher() {
@@ -1942,8 +1950,23 @@ function fullscreenStartPendingEndModeWatcher() {
     const videoElement = document.getElementById('fullscreen-video');
     if (!videoElement) return;
 
+    const watcherSessionToken = fullscreenPlaybackSessionToken;
+    fullscreenPendingEndModeSessionToken = watcherSessionToken;
+
     const tick = () => {
         if (!fullscreenPendingEndMode) {
+            fullscreenPendingEndModeRafId = null;
+            return;
+        }
+
+        if (watcherSessionToken !== fullscreenPlaybackSessionToken) {
+            fullscreenPendingEndMode = null;
+            fullscreenPendingEndModeRafId = null;
+            return;
+        }
+
+        if (fullscreenPendingEndModeSessionToken !== watcherSessionToken) {
+            fullscreenPendingEndMode = null;
             fullscreenPendingEndModeRafId = null;
             return;
         }
@@ -1963,9 +1986,12 @@ function fullscreenStartPendingEndModeWatcher() {
 
             // フレーム精度監視
             if (videoElement.ended || currentTime >= effectiveOutPoint) {
-                const mode = fullscreenPendingEndMode;
                 fullscreenPendingEndMode = null;
                 fullscreenStopPendingEndModeWatcher();
+
+                if (watcherSessionToken !== fullscreenPlaybackSessionToken) {
+                    return;
+                }
 
                 try { stopVolumeMeasurement(); } catch (_) {}
 
