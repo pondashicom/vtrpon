@@ -179,15 +179,9 @@ function showOnAirDSK(itemData) {
         video.addEventListener('ended', onClearEnd);
     }
 
+    video.play().catch(err => console.error('[dsk.js] video.play() error:', err));
     dskOverlay.appendChild(video);
     dskVideo = video;
-
-    const startMode = String(itemData.startMode || 'PAUSE').toUpperCase();
-    if (startMode === 'PLAY') {
-        video.play().catch(err => console.error('[dsk.js] video.play() error:', err));
-    } else {
-        video.pause();
-    }
 
     const fadeDuration = itemData.ftbRate * 1000;
     fadeIn(dskOverlay, fadeDuration, () => {
