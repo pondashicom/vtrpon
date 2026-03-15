@@ -521,6 +521,29 @@ async function getValidUpdates(files, currentPlaylist) {
             continue;
         }
 
+        // ALAC M4A → AAC M4A 変換処理
+        if (lowerPath.endsWith('.m4a')) {
+            logInfo(`[playlist.js] Checking M4A audio codec: ${file.path}`);
+            try {
+                const codecName = await window.electronAPI.getAudioCodec(file.path);
+
+                if (String(codecName).toLowerCase() === 'alac') {
+                    convertAlacToAac(file.path)
+                        .then(() => {
+                            logInfo(`[playlist.js] ALAC conversion succeeded: ${file.path}`);
+                        })
+                        .catch(err => {
+                            logInfo(`[playlist.js] ALAC conversion failed: ${err.message}`);
+                            showMessage(`ALAC変換に失敗しました: ${err.message}`, 5000, 'alert');
+                        });
+
+                    continue;
+                }
+            } catch (error) {
+                logInfo(`[playlist.js] Error checking/converting ALAC M4A (${file.path}): ${error.message || JSON.stringify(error)}`);
+            }
+        }
+
         // PPTX → PNG連番 & MP4変換処理
         if (lowerPath.endsWith('.pptx')) {
             logInfo(`[playlist.js] Converting PPTX: ${file.path}`);
