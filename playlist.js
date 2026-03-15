@@ -626,9 +626,43 @@ window.electronAPI.ipcRenderer.on('invalid-files-dropped', (event, invalidFiles)
 // サムネイル生成
 // -----------------------
 
+// 埋め込みアルバムアートを描画する関数
+async function drawEmbeddedAudioArtworkThumbnail(imageSrc) {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 120;
+        canvas.height = 68;
+
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const img = new Image();
+
+        img.onload = () => {
+            const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+            const drawWidth = Math.round(img.width * scale);
+            const drawHeight = Math.round(img.height * scale);
+            const offsetX = Math.round((canvas.width - drawWidth) / 2);
+            const offsetY = Math.round((canvas.height - drawHeight) / 2);
+
+            ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+            resolve(canvas.toDataURL('image/png'));
+        };
+
+        img.onerror = () => {
+            resolve(null);
+        };
+
+        img.src = imageSrc;
+    });
+}
+
 // サムネイル生成関数
 async function generateThumbnail(filePath) {
     return new Promise(async (resolve) => {
+        const originalFilePath = filePath;
+
         // もしファイルパスが UVC デバイス用でなく、かつ file:// で始まっていなければ、安全なファイルURLに変換
         if (!filePath.startsWith("UVC_DEVICE:") && !/^file:\/\//.test(filePath)) {
             filePath = getSafeFileURL(filePath);
@@ -678,10 +712,26 @@ async function generateThumbnail(filePath) {
         }
 
         // 拡張子取得
-        const extension = filePath.split('.').pop().toLowerCase();
+        const extension = originalFilePath.split('.').pop().toLowerCase();
 
         // 1) 音声ファイル
         if (['wav','mp3','flac','aac','m4a'].includes(extension)) {
+            // MP3 / FLAC / M4A は埋め込み画像を優先
+            if (['mp3', 'flac', 'm4a'].includes(extension)) {
+                try {
+                    const embeddedArtwork = await window.electronAPI.getEmbeddedAudioArtwork(originalFilePath);
+                    if (embeddedArtwork) {
+                        const artworkThumbnail = await drawEmbeddedAudioArtworkThumbnail(embeddedArtwork);
+                        if (artworkThumbnail) {
+                            resolve(artworkThumbnail);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+
             const audio = new Audio(filePath);
 
             // 再生可否判定

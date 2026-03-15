@@ -1383,6 +1383,63 @@ ipcMain.handle('generate-waveform-thumbnail', async (event, filePath) => {
     });
 });
 
+// 埋め込みアルバムアート取得
+ipcMain.handle('get-embedded-audio-artwork', async (event, filePath) => {
+    return new Promise((resolve) => {
+        ffmpeg.ffprobe(filePath, (probeErr, metadata) => {
+            if (probeErr) {
+                resolve(null);
+                return;
+            }
+
+            const hasArtwork = Array.isArray(metadata.streams) && metadata.streams.some(stream => {
+                if (!stream || stream.codec_type !== 'video') {
+                    return false;
+                }
+                if (stream.disposition && Number(stream.disposition.attached_pic) === 1) {
+                    return true;
+                }
+                return true;
+            });
+
+            if (!hasArtwork) {
+                resolve(null);
+                return;
+            }
+
+            const outputFilePath = path.join(
+                app.getPath('temp'),
+                `vtrpon_artwork_${Date.now()}_${Math.random().toString(36).slice(2)}.png`
+            );
+
+            ffmpeg(filePath)
+                .outputOptions([
+                    '-map 0:v:0',
+                    '-frames:v 1',
+                    '-c:v png',
+                    '-an'
+                ])
+                .on('end', () => {
+                    fs.readFile(outputFilePath, (readErr, data) => {
+                        fs.unlink(outputFilePath, () => {});
+
+                        if (readErr) {
+                            resolve(null);
+                            return;
+                        }
+
+                        resolve('data:image/png;base64,' + data.toString('base64'));
+                    });
+                })
+                .on('error', () => {
+                    fs.unlink(outputFilePath, () => {});
+                    resolve(null);
+                })
+                .save(outputFilePath);
+        });
+    });
+});
+
 // ----------------------------------------------
 // プレイリストインポート、エクスポート機能IPC
 // ----------------------------------------------

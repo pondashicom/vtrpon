@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.5.1
+//     ver 2.6.0
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -219,10 +219,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     generateWaveformThumbnail: (filePath) => ipcRenderer.invoke('generate-waveform-thumbnail', filePath),
 
     // ------------------------------
+    // 埋め込みアルバムアート取得
+    // ------------------------------
+    getEmbeddedAudioArtwork: (filePath) => ipcRenderer.invoke('get-embedded-audio-artwork', filePath),
+
+    // ------------------------------
     // PICTURE 削除版 FLAC を取得
     // ------------------------------
     getPlayableFlac:        (filePath) => ipcRenderer.invoke('getPlayableFlac', filePath),
-
     // ------------------------------
     //    PPTX to MP4変換関連
     // ------------------------------
