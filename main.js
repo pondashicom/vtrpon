@@ -1355,6 +1355,25 @@ ipcMain.handle('get-metadata', async (event, filePath) => {
     });
 });
 
+// 音声コーデック取得
+ipcMain.handle('get-audio-codec', async (event, filePath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(filePath, (err, metadata) => {
+            if (err) {
+                console.error(`[main.js]Error getting audio codec for ${filePath}:`, err);
+                reject(err);
+                return;
+            }
+
+            const audioStream = Array.isArray(metadata.streams)
+                ? metadata.streams.find(stream => stream.codec_type === 'audio')
+                : null;
+
+            resolve(audioStream && audioStream.codec_name ? audioStream.codec_name : '');
+        });
+    });
+});
+
 // 波形サムネイル生成
 ipcMain.handle('generate-waveform-thumbnail', async (event, filePath) => {
     return new Promise((resolve, reject) => {

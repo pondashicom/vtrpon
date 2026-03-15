@@ -224,6 +224,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getEmbeddedAudioArtwork: (filePath) => ipcRenderer.invoke('get-embedded-audio-artwork', filePath),
 
     // ------------------------------
+    // 音声コーデック取得
+    // ------------------------------
+    getAudioCodec: (filePath) => ipcRenderer.invoke('get-audio-codec', filePath),
+
+    // ------------------------------
     // PICTURE 削除版 FLAC を取得
     // ------------------------------
     getPlayableFlac:        (filePath) => ipcRenderer.invoke('getPlayableFlac', filePath),
