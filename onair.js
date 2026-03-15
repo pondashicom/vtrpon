@@ -25,7 +25,6 @@ let fadeOutInProgressItem = false;
 let fadeInInProgressItem = false;
 let isOffAirProcessing = false;
 let onairPreFtbStarted = false;
-let onairFtbLocked = false;
 let onairSeamlessGuardActive = false; 
 let onairOverlayForceBlack = false;
 let onairSuppressFadeUntilPlaying = false;
@@ -1161,9 +1160,6 @@ function onairReset() {
         clearTimeout(ftbOffAirTimeout);
         ftbOffAirTimeout = null;
     }
-
-    // FTB再入ロック解除
-    onairFtbLocked = false;
 
     // 残り時間タイマーリセット
     onairResetRemainingTimer(elements);
@@ -2815,7 +2811,6 @@ function onairSetupSeekBarHandlers(elements) {
 let playbackSpeedAnimationFrame = null;
 let isPlaybackSpeedDragging = false;
 let isPlaybackSpeedFixed = false;
-const PLAYBACK_SPEED_RETURN_DURATION = 500;
 
 function setupPlaybackSpeedController() {
     logOpe('[onair.js] setupPlaybackSpeedController invoked');
