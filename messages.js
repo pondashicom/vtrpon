@@ -55,7 +55,8 @@ const messages = {
     "atem.autoSwitchCommandSent":    "ATEM切替コマンドを自動で送信しました。",
     "atem.connected":                "ATEMに接続されました。",
     "atem.disconnected":             "ATEMの接続が切断されました。",
-    "atem.autoOnAirTriggered":       "ATEM入力切替により自動でオンエアが開始されました。"
+    "atem.autoOnAirTriggered":       "ATEM入力切替により自動でオンエアが開始されました。",
+    "alac-converted-to-aac":         "ALACコーデックは非対応のため、AACコーデックに変換して登録しました。"
   },
   "en": {
     "monitoring-failed": "PFL: Monitoring failed to start.",
@@ -107,7 +108,8 @@ const messages = {
     "atem.autoSwitchCommandSent":  "ATEM switch command sent automatically.",
     "atem.connected":              "ATEM connected.",
     "atem.disconnected":           "ATEM disconnected.",
-    "atem.autoOnAirTriggered":     "Automatically triggered OnAir by ATEM input switch."
+    "atem.autoOnAirTriggered":     "Automatically triggered OnAir by ATEM input switch.",
+    "alac-converted-to-aac":       "ALAC is not supported, so it was converted to AAC and added to the playlist."
   }
 };
 

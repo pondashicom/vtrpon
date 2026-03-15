@@ -68,11 +68,11 @@ async function convertAlacToAac(inputPath) {
         const targetIndex = updatedPlaylist.findIndex(item => item.path === outputFilePath);
 
         if (targetIndex !== -1) {
-            updatedPlaylist[targetIndex].name = window.electronAPI.path.basename(outputFilePath);
-            updatedPlaylist[targetIndex].thumbnail = await generateThumbnail(outputFilePath);
-            updatedPlaylist[targetIndex].mediaOffline = false;
+            currentPlaylist[targetIndex].path = outputFilePath;
+            currentPlaylist[targetIndex].name = window.electronAPI.path.basename(outputFilePath);
+            currentPlaylist[targetIndex].thumbnail = await generateThumbnail(outputFilePath);
 
-            await stateControl.setPlaylistState(updatedPlaylist);
+            await stateControl.setPlaylistState(currentPlaylist);
             await updatePlaylistUI();
 
             try {
@@ -82,6 +82,8 @@ async function convertAlacToAac(inputPath) {
             } catch (e) {
                 logInfo('[alactoaac.js] Auto-save after ALAC conversion update failed (ignored):', e);
             }
+
+            showMessage(getMessage('alac-converted-to-aac'), 5000, 'info');
         }
 
         return outputFilePath;
