@@ -644,20 +644,6 @@ function onairInitialize() {
 
 // 前フレーム保持開始
 function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
-    // フェードレイヤー確認
-    if (respectBlackHold) {
-        const els = onairGetElements();
-        const fc = els?.onairFadeCanvas;
-        if (fc) {
-            const cs = window.getComputedStyle(fc);
-            const fadeVisible = cs.visibility !== 'hidden' && parseFloat(cs.opacity || '0') > 0.01;
-            if (fadeVisible) {
-                logInfo('[onair.js] Overlay capture skipped due to visible fade layer.');
-                return;
-            }
-        }
-    }
-
     // 要素確認
     const els = onairGetElements();
     const videoElement = els?.onairVideoElement;
@@ -731,6 +717,20 @@ function captureLastFrameAndHoldUntilNextReadyOnAir(respectBlackHold) {
                 ctx.drawImage(videoElement, dx, dy, dw, dh);
             } else {
                 ctx.drawImage(videoElement, 0, 0, overlayCanvas.width, overlayCanvas.height);
+            }
+
+            if (respectBlackHold && els?.onairFadeCanvas) {
+                const fadeStyle = window.getComputedStyle(els.onairFadeCanvas);
+                const fadeVisible = fadeStyle.visibility !== 'hidden' && fadeStyle.display !== 'none';
+                const fadeOpacity = Math.max(0, Math.min(1, parseFloat(fadeStyle.opacity || '0')));
+
+                if (fadeVisible && fadeOpacity > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha = fadeOpacity;
+                    ctx.fillStyle = fadeStyle.backgroundColor || overlayBgColor;
+                    ctx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                    ctx.restore();
+                }
             }
 
             ctx.restore();
@@ -822,7 +822,6 @@ function onairCancelSeamlessOverlay(reason) {
 
     if (reason) logInfo('[onair.js] Seamless overlay cancelled:', reason);
 }
-
 
 // -----------------------------------------------
 // オンエア・オフエア情報受信
