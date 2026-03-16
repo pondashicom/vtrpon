@@ -42,9 +42,13 @@ let onairPendingCurrentEndMode = null;
 const ONAIR_FTB_SET_VOLUME_EPSILON = 0.01;
 const ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON = 0.005;
 let onairLastSentFullscreenGammaVolumeForFtb = null;
+let onairManualButtonFadeSeq = 0;
+let onairManualButtonFadeMode = null;
+let onairManualPauseFadeResumePending = false;
+let onairManualPauseFadeResumeSec = 0;
+let onairManualPauseFadeResumeItemId = null;
 const ONAIR_LAYER_Z_PRE_FTB_BLACK = 8000;
 const ONAIR_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
-
 
 // -----------------------------------------
 // Playlist / ONAIR 設定読み込み
@@ -1096,6 +1100,12 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
         return;
     }
 
+    onairManualButtonFadeSeq += 1;
+    onairManualButtonFadeMode = null;
+    onairManualPauseFadeResumePending = false;
+    onairManualPauseFadeResumeSec = 0;
+    onairManualPauseFadeResumeItemId = null;
+
     // 遷移計画生成
     const transitionPlan = onairBuildTransitionPlan(itemId, itemData);
     onairPendingTransitionSource = null;
@@ -1177,6 +1187,12 @@ function onairReset() {
     onairInitializeSeekBar(elements);
     onairInitializeStatusDisplays(elements);
     onairInitializeFadeCanvas(elements);
+
+    onairManualButtonFadeSeq += 1;
+    onairManualButtonFadeMode = null;
+    onairManualPauseFadeResumePending = false;
+    onairManualPauseFadeResumeSec = 0;
+    onairManualPauseFadeResumeItemId = null;
 
     // 音量スライダー初期化
     onairInitializeVolumeSlider(elements);
@@ -2589,12 +2605,49 @@ function onairHandleEndModeNext() {
 // 再生、一時停止、オフエアボタン
 // -------------------------------
 
+// 手動ボタン用フェード秒数を取得する関数
+function onairGetManualButtonFadeSec(inputId, fallbackSec = 1.0) {
+    const input = document.getElementById(inputId);
+    const value = Number(input ? input.value : fallbackSec);
+    if (!Number.isFinite(value) || value < 0) {
+        return fallbackSec;
+    }
+    return value;
+}
+
+// 手動ボタン用フェード有効状態を取得する関数
+function onairIsManualButtonFadeEnabled(inputId) {
+    const input = document.getElementById(inputId);
+    return !!(input && input.checked === true);
+}
+
+// 手動PAUSE復帰フェード状態をクリアする関数
+function onairClearManualPauseFadeResumeState() {
+    onairManualPauseFadeResumePending = false;
+    onairManualPauseFadeResumeSec = 0;
+    onairManualPauseFadeResumeItemId = null;
+}
+
 // 再生ボタン
 function onairHandlePlayButton() {
     logOpe('[onair.js] Play button invoked');
     if (!onairNowOnAir) {
         logDebug('[onair.js] Play button clicked, but On-Air is not active.');
         return;
+    }
+
+    const currentItemId = onairCurrentState?.itemId || null;
+    const resumeWithManualPauseFade =
+        (onairManualPauseFadeResumePending === true) &&
+        (onairManualPauseFadeResumeItemId === currentItemId);
+    const resumeFadeSec = onairManualPauseFadeResumeSec;
+
+    if (resumeWithManualPauseFade) {
+        onairManualButtonFadeSeq += 1;
+        onairManualButtonFadeMode = 'pause-fadein';
+        onairClearManualPauseFadeResumeState();
+    } else {
+        onairManualButtonFadeMode = null;
     }
 
     const elements = onairGetElements();
@@ -2632,7 +2685,6 @@ function onairHandlePlayButton() {
         } catch (e) {
             logInfo(`[onair.js] Failed to delegate start playback: ${e?.message || e}`);
         }
-        // fullscreen 同期
         try {
             window.electronAPI.sendControlToFullscreen({
                 command: 'seek',
@@ -2653,7 +2705,6 @@ function onairHandlePlayButton() {
         Math.abs(onairVideoElement.currentTime - (onairCurrentState.outPoint || onairVideoElement.duration)) < (0.05 * onairVideoElement.playbackRate)) {
         logDebug('[onair.js] Short file detected: resetting video element.');
         onairVideoElement.load();
-        // IN点シーク
         onairSeekToInPoint(onairVideoElement, onairCurrentState.inPoint);
         logDebug(`[onair.js] For short file, seeked to IN point: ${onairCurrentState.inPoint}s`);
         window.electronAPI.sendControlToFullscreen({
@@ -2664,7 +2715,6 @@ function onairHandlePlayButton() {
     }
 
     else if (Math.abs(onairVideoElement.currentTime - (onairCurrentState.outPoint || onairVideoElement.duration)) < 0.05) {
-        // 通常ファイルIN点シーク
         onairSeekToInPoint(onairVideoElement, onairCurrentState.inPoint);
         logDebug(`[onair.js] Play button pressed: Current time is at OUT point, seeking to IN point: ${onairCurrentState.inPoint}s`);
         window.electronAPI.sendControlToFullscreen({
@@ -2682,9 +2732,20 @@ function onairHandlePlayButton() {
             onairStartRemainingTimer(elements, onairCurrentState);
             logOpe('[onair.js] Playback started.');
             window.electronAPI.sendControlToFullscreen({ command: 'play' });
+
+            if (resumeWithManualPauseFade) {
+                onairFadeFromBlack(resumeFadeSec);
+                window.electronAPI.sendControlToFullscreen({
+                    command: 'fade-from-black',
+                    value: { duration: resumeFadeSec, fillKeyMode: isFillKeyMode }
+                });
+            }
+
+            onairManualButtonFadeMode = null;
         })
         .catch(error => {
             logInfo(`[onair.js] Playback failed: ${error.message}`);
+            onairManualButtonFadeMode = null;
         });
 
     onairRepeatFlag = false;
@@ -2699,22 +2760,24 @@ function onairHandlePauseButton() {
     }
 
     const elements = onairGetElements();
-    const { onairVideoElement } = elements;
+    const { onairVideoElement, onairFadeCanvas } = elements;
 
     if (!onairVideoElement) {
         logInfo('[onair.js] Video element not found.');
         return;
     }
 
-    // 再生停止
-    onairVideoElement.pause();
-    onairIsPlaying = false;
-    onairFtbToggleShouldKeepPlaying = false;
-    onairUpdatePlayPauseButtons(elements); 
-    onairStopRemainingTimer(); 
-    logOpe('[onair.js] Playback paused.');
-    resetOnAirVolumeMeter();
-    lastVolumeUpdateTime = null;
+    if (onairManualButtonFadeMode === 'pause-fadeout' || onairManualButtonFadeMode === 'offair-fadeout') {
+        logDebug('[onair.js] Pause button ignored during manual button fade.');
+        return;
+    }
+
+    if (onairManualPauseFadeResumePending === true &&
+        onairManualPauseFadeResumeItemId === (onairCurrentState?.itemId || null) &&
+        !onairIsPlaying) {
+        logDebug('[onair.js] Pause button ignored: already paused after manual fade.');
+        return;
+    }
 
     // フェード中即時停止
     if (fadeInInProgressMain || fadeOutInProgressMain || fadeInInProgressItem || fadeOutInProgressItem) {
@@ -2726,8 +2789,57 @@ function onairHandlePauseButton() {
         fadeOutInProgressItem = false;
     }
 
-    // フルスクリーン通知
-    window.electronAPI.sendControlToFullscreen({ command: 'pause' });
+    const pauseFadeEnabled = onairIsManualButtonFadeEnabled('pauseFadeEnabled');
+    const pauseFadeSec = onairGetManualButtonFadeSec('pauseFadeSec', 1.0);
+
+    if (!pauseFadeEnabled || !onairFadeCanvas) {
+        onairClearManualPauseFadeResumeState();
+        onairManualButtonFadeMode = null;
+
+        onairVideoElement.pause();
+        onairIsPlaying = false;
+        onairFtbToggleShouldKeepPlaying = false;
+        onairUpdatePlayPauseButtons(elements); 
+        onairStopRemainingTimer(); 
+        logOpe('[onair.js] Playback paused.');
+        resetOnAirVolumeMeter();
+        lastVolumeUpdateTime = null;
+
+        window.electronAPI.sendControlToFullscreen({ command: 'pause' });
+        return;
+    }
+
+    const fadeSeq = ++onairManualButtonFadeSeq;
+    onairManualButtonFadeMode = 'pause-fadeout';
+    onairClearManualPauseFadeResumeState();
+
+    window.electronAPI.sendControlToFullscreen({
+        command: 'start-pre-ftb',
+        value: { duration: pauseFadeSec, fillKeyMode: isFillKeyMode }
+    });
+    onairFadeToBlack(onairFadeCanvas, pauseFadeSec);
+
+    setTimeout(() => {
+        if (fadeSeq !== onairManualButtonFadeSeq) {
+            return;
+        }
+
+        onairVideoElement.pause();
+        onairIsPlaying = false;
+        onairFtbToggleShouldKeepPlaying = false;
+        onairUpdatePlayPauseButtons(elements); 
+        onairStopRemainingTimer(); 
+        logOpe('[onair.js] Playback paused with manual fade.');
+        resetOnAirVolumeMeter();
+        lastVolumeUpdateTime = null;
+
+        onairManualPauseFadeResumePending = true;
+        onairManualPauseFadeResumeSec = pauseFadeSec;
+        onairManualPauseFadeResumeItemId = onairCurrentState?.itemId || null;
+        onairManualButtonFadeMode = null;
+
+        window.electronAPI.sendControlToFullscreen({ command: 'pause' });
+    }, Math.max(0, pauseFadeSec) * 1000);
 }
 
 // オフエアボタン
@@ -2737,47 +2849,89 @@ function onairHandleOffAirButton() {
         logDebug('[onair.js] Already in off-air state or processing; skipping new off-air processing.');
         return;
     }
-    isOffAirProcessing = true;
-    logInfo('[onair.js] Executing off-air processing.');
-    onairNowOnAir = false;
-    window.onairWasOffAir = true;
 
-    // FTBフェードを中断
-    try {
-        window.electronAPI.sendControlToFullscreen({ command: 'cancel-fadeout' });
-    } catch (_) {
-        // ignore
-    }
+    const executeOffAir = () => {
+        isOffAirProcessing = true;
+        logInfo('[onair.js] Executing off-air processing.');
+        onairNowOnAir = false;
+        window.onairWasOffAir = true;
+        onairClearManualPauseFadeResumeState();
+        onairManualButtonFadeMode = null;
 
-    if (onairFtbToggleMasterFadeRaf !== null) {
-        cancelAnimationFrame(onairFtbToggleMasterFadeRaf);
-        onairFtbToggleMasterFadeRaf = null;
-    }
-    if (onairFtbToggleRaf !== null) {
-        cancelAnimationFrame(onairFtbToggleRaf);
-        onairFtbToggleRaf = null;
-    }
+        // FTBフェードを中断
+        try {
+            window.electronAPI.sendControlToFullscreen({ command: 'cancel-fadeout' });
+        } catch (_) {
+            // ignore
+        }
 
-    if (onairFtbToggleHoldActive) {
-        onairFtbToggleMasterVisualGain = 0;
-        onairSetFtbButtonRecordingBlink(true);
-        onairSetFtbToggleHoldVisual(true, 0);
-    } else {
-        onairFtbToggleMasterVisualGain = 1;
-        onairSetFtbButtonRecordingBlink(false);
-        onairSetFtbToggleHoldVisual(false, 0);
-    }
+        if (onairFtbToggleMasterFadeRaf !== null) {
+            cancelAnimationFrame(onairFtbToggleMasterFadeRaf);
+            onairFtbToggleMasterFadeRaf = null;
+        }
+        if (onairFtbToggleRaf !== null) {
+            cancelAnimationFrame(onairFtbToggleRaf);
+            onairFtbToggleRaf = null;
+        }
 
-    onairReset();
+        if (onairFtbToggleHoldActive) {
+            onairFtbToggleMasterVisualGain = 0;
+            onairSetFtbButtonRecordingBlink(true);
+            onairSetFtbToggleHoldVisual(true, 0);
+        } else {
+            onairFtbToggleMasterVisualGain = 1;
+            onairSetFtbButtonRecordingBlink(false);
+            onairSetFtbToggleHoldVisual(false, 0);
+        }
+
+        onairReset();
+        const elements = onairGetElements();
+        onairInitializeVolumeSlider(elements, 100);
+        window.electronAPI.sendControlToFullscreen({ command: 'offAir' });
+        window.electronAPI.stateControl.resetOnAirState();
+        logDebug('[onair.js] resetOnAirState executed.');
+        window.electronAPI.sendOffAirEvent();
+        logDebug('[onair.js] sendOffAirEvent executed.');
+        isOffAirProcessing = false;
+        isOffAir = true;
+    };
+
     const elements = onairGetElements();
-    onairInitializeVolumeSlider(elements, 100);
-    window.electronAPI.sendControlToFullscreen({ command: 'offAir' });
-    window.electronAPI.stateControl.resetOnAirState();
-    logDebug('[onair.js] resetOnAirState executed.');
-    window.electronAPI.sendOffAirEvent();
-    logDebug('[onair.js] sendOffAirEvent executed.');
-    isOffAirProcessing = false;
-    isOffAir = true;
+    const { onairFadeCanvas } = elements;
+    const offAirFadeEnabled = onairIsManualButtonFadeEnabled('offAirFadeEnabled');
+    const offAirFadeSec = onairGetManualButtonFadeSec('offAirFadeSec', 1.0);
+    const alreadyBlackByManualPause =
+        onairManualPauseFadeResumePending === true &&
+        onairManualPauseFadeResumeItemId === (onairCurrentState?.itemId || null) &&
+        !onairIsPlaying;
+
+    if (onairManualButtonFadeMode === 'pause-fadeout' || onairManualButtonFadeMode === 'offair-fadeout') {
+        logDebug('[onair.js] OffAir button ignored during manual button fade.');
+        return;
+    }
+
+    if (!offAirFadeEnabled || !onairFadeCanvas || alreadyBlackByManualPause) {
+        onairManualButtonFadeSeq += 1;
+        executeOffAir();
+        return;
+    }
+
+    const fadeSeq = ++onairManualButtonFadeSeq;
+    onairManualButtonFadeMode = 'offair-fadeout';
+    onairClearManualPauseFadeResumeState();
+
+    window.electronAPI.sendControlToFullscreen({
+        command: 'start-pre-ftb',
+        value: { duration: offAirFadeSec, fillKeyMode: isFillKeyMode }
+    });
+    onairFadeToBlack(onairFadeCanvas, offAirFadeSec);
+
+    setTimeout(() => {
+        if (fadeSeq !== onairManualButtonFadeSeq) {
+            return;
+        }
+        executeOffAir();
+    }, Math.max(0, offAirFadeSec) * 1000);
 }
 
 // イベントリスナー
