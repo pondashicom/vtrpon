@@ -2734,11 +2734,13 @@ function onairHandlePlayButton() {
         logDebug(`[onair.js] IN point seek command sent to fullscreen: ${onairCurrentState.inPoint}s`);
     }
 
+    // ボタン色は押下時点で先に反映
+    onairIsPlaying = true;
+    onairUpdatePlayPauseButtons(elements);
+
     // 再生開始
     onairVideoElement.play()
         .then(() => {
-            onairIsPlaying = true;
-            onairUpdatePlayPauseButtons(elements);
             onairStartRemainingTimer(elements, onairCurrentState);
             logOpe('[onair.js] Playback started.');
             window.electronAPI.sendControlToFullscreen({ command: 'play' });
@@ -2754,6 +2756,8 @@ function onairHandlePlayButton() {
             onairManualButtonFadeMode = null;
         })
         .catch(error => {
+            onairIsPlaying = false;
+            onairUpdatePlayPauseButtons(elements);
             logInfo(`[onair.js] Playback failed: ${error.message}`);
             onairManualButtonFadeMode = null;
         });
@@ -2823,6 +2827,11 @@ function onairHandlePauseButton() {
     onairManualButtonFadeMode = 'pause-fadeout';
     onairClearManualPauseFadeResumeState();
 
+    // ボタン色は押下時点で先に反映
+    onairIsPlaying = false;
+    onairFtbToggleShouldKeepPlaying = false;
+    onairUpdatePlayPauseButtons(elements);
+
     window.electronAPI.sendControlToFullscreen({
         command: 'start-pre-ftb',
         value: { duration: pauseFadeSec, fillKeyMode: isFillKeyMode }
@@ -2835,9 +2844,6 @@ function onairHandlePauseButton() {
         }
 
         onairVideoElement.pause();
-        onairIsPlaying = false;
-        onairFtbToggleShouldKeepPlaying = false;
-        onairUpdatePlayPauseButtons(elements); 
         onairStopRemainingTimer(); 
         logOpe('[onair.js] Playback paused with manual fade.');
         resetOnAirVolumeMeter();
