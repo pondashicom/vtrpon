@@ -373,15 +373,42 @@
                 </div>
             </div>
 
+            <div id="manual-fade-area" class="control-area manual-fade-area">
+                <div class="manual-fade-grid">
+                    <div class="manual-fade-slot">
+                        <label class="manual-fade-check">
+                            <input type="checkbox" id="offAirFadeEnabled">
+                            <span>FADE</span>
+                        </label>
+                        <input type="number" id="offAirFadeSec" min="0" step="0.1" value="1.0" class="inline-rate-input" aria-label="OFF AIR Fade Duration">
+                    </div>
+
+                    <div class="manual-fade-slot">
+                        <div class="manual-fade-spacer"></div>
+                        <input type="number" id="ftbButtonFadeSec" min="0" step="0.1" value="1" class="inline-rate-input" aria-label="FTB Fade Duration">
+                    </div>
+
+                    <div class="manual-fade-slot">
+                        <label class="manual-fade-check">
+                            <input type="checkbox" id="pauseFadeEnabled">
+                            <span>FADE</span>
+                        </label>
+                        <input type="number" id="pauseFadeSec" min="0" step="0.1" value="1.0" class="inline-rate-input" aria-label="PAUSE Fade Duration">
+                    </div>
+
+                    <div class="manual-fade-slot manual-fade-slot-empty"></div>
+                </div>
+            </div>
+
             <div id="important-button-area" class="important-button-area">
                 <div class="controls important-controls">
                     <button id="off-air-button" class="button important-button button-gray" data-tooltip-id="off-air-button" data-label-id="off-air-button"></button>
                     <button id="ftb-off-button" class="button important-button button-gray" data-tooltip-id="ftb-off-button" data-label-id="ftb-off-button"></button>
-                    <input type="number" id="ftbButtonFadeSec" min="0" step="0.1" value="1" class="inline-rate-input" aria-label="FTB Fade Duration">
                     <button id="on-air-pause-button" class="button important-button button-gray" data-tooltip-id="on-air-pause-button" data-label-id="on-air-pause-button"></button>
                     <button id="on-air-play-button" class="button important-button button-gray" data-tooltip-id="on-air-play-button" data-label-id="on-air-play-button"></button>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 

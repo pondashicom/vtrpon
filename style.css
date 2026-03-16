@@ -971,6 +971,56 @@ html {
         0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
 }
 
+.manual-fade-area {
+    margin-top: 0.375rem;
+    justify-content: center;
+    min-height: 3.1rem;
+    padding: 0.375rem 0.5rem;
+    box-sizing: border-box;
+}
+
+.manual-fade-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    justify-items: center;
+}
+
+.manual-fade-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-self: center;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.manual-fade-slot-empty {
+    pointer-events: none;
+}
+
+.manual-fade-spacer {
+    height: 0.875rem;
+}
+
+.manual-fade-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: #bbb;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.manual-fade-check input[type="checkbox"] {
+    margin: 0;
+    width: 0.875rem;
+    height: 0.875rem;
+    accent-color: rgb(102, 205, 102);
+}
+
 .file-button-area p,
 .playlistsave-area p,
 .important-button-area p,
@@ -1763,7 +1813,7 @@ input[type="range"].master-slider::-webkit-slider-thumb {
 /* ------------------ */
 
 /* 入力フィールド */
-#fadeInDuration, #startFadeInSec, #ftbRate, #fioRate, #itemFioRate, #mainFioRate, #repeatCount, #ftbButtonFadeSec, #dskFadeSec  {
+#fadeInDuration, #startFadeInSec, #ftbRate, #fioRate, #itemFioRate, #mainFioRate, #repeatCount, #ftbButtonFadeSec, #offAirFadeSec, #pauseFadeSec, #dskFadeSec  {
     width: 4rem;
     height: 1.6rem;
     background-color: #2e2e2e;
@@ -1778,7 +1828,6 @@ input[type="range"].master-slider::-webkit-slider-thumb {
     cursor: text;
     -moz-appearance: textfield;
 }
-
 /* ディゾルブチェックボックス */
 #pptxDissolve {
     width: 1rem;
@@ -1843,6 +1892,8 @@ input#repeatCount::-webkit-input-placeholder {
 #ftbRate:focus,
 #fioRate:focus,
 #ftbButtonFadeSec:focus,
+#offAirFadeSec:focus,
+#pauseFadeSec:focus,
 #dskFadeSec:focus {
     outline: none;
     border: 0.0625rem solid #007BFF;
@@ -1873,6 +1924,22 @@ input#repeatCount::-webkit-input-placeholder {
 .important-controls,
 .dsk-controls {
     flex-wrap: wrap;
+}
+
+.important-controls {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: center;
+    justify-items: center;
+    gap: 0;
+}
+
+.important-controls .important-button,
+.important-controls .important-button-red,
+.important-controls .important-button-orange,
+.important-controls .important-button-blue {
+    margin: 0;
+    justify-self: center;
 }
 
 .inline-rate-label {
