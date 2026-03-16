@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.5.9
+//     ver 2.6.0
 // -----------------------
 
 const labels = {
@@ -12,7 +12,7 @@ const labels = {
     "menu-export-playlist": "プレイリストエクスポート",
     "menu-import-playlist": "プレイリストインポート",
     "menu-device-settings": "デバイス設定",
-    "menu-playlist-onair-settings": "Playlist / Onair 設定",
+    "menu-playlist-onair-settings": "Playlist設定",
     "menu-recording-settings": "録画設定",
     "menu-language": "言語",
     "menu-exit": "終了",
@@ -235,7 +235,7 @@ const labels = {
     "menu-export-playlist": "Export Playlist",
     "menu-import-playlist": "Import Playlist",
     "menu-device-settings": "Device Settings",
-    "menu-playlist-onair-settings": "Playlist / ONAIR Settings",
+    "menu-playlist-onair-settings": "Playlist Settings",
     "menu-recording-settings": "Recording Settings",
     "menu-language": "Language",
     "menu-exit": "Exit",
