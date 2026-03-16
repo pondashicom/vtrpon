@@ -1,5 +1,6 @@
 ﻿// ------------------------------
 //  playlistonairsettings.js
+//  ver 2.6.0
 // ------------------------------
 
 // デフォルト設定
@@ -37,10 +38,8 @@ function getLabel(key, fallback) {
 // ラベルを反映する関数
 function applyLabels() {
     document.getElementById('playlistSectionTitle').textContent = getLabel('playlist-onair-section-playlist', 'PLAYLIST');
-    document.getElementById('onairSectionTitle').textContent = getLabel('playlist-onair-section-onair', 'ONAIR');
     document.getElementById('preferAudioAlbumArtLabel').textContent = getLabel('playlist-onair-prefer-album-art-label', 'Prefer album art for audio thumbnails');
     document.getElementById('autoSelectNextAfterOffAirLabel').textContent = getLabel('playlist-onair-auto-select-next-label', 'Auto-select next item after Off-Air');
-    document.getElementById('disableFtbButtonLabel').textContent = getLabel('playlist-onair-disable-ftb-button-label', 'Disable FTB button');
     document.getElementById('restoreOnStartupLabel').textContent = getLabel('playlist-onair-restore-on-startup-label', 'Restore on next startup');
     document.getElementById('okButton').textContent = getLabel('playlist-onair-ok-button', 'OK');
 }
@@ -56,7 +55,6 @@ function applySettingsToDom(settings) {
 
     document.getElementById('preferAudioAlbumArt').checked = !!merged.preferAudioAlbumArt;
     document.getElementById('autoSelectNextAfterOffAir').checked = !!merged.autoSelectNextAfterOffAir;
-    document.getElementById('disableFtbButton').checked = !!merged.disableFtbButton;
     document.getElementById('restoreOnStartup').checked = !!merged.restoreOnStartup;
 }
 
@@ -66,7 +64,6 @@ function saveSettings() {
         ...currentPlaylistOnAirSettings,
         preferAudioAlbumArt: document.getElementById('preferAudioAlbumArt').checked,
         autoSelectNextAfterOffAir: document.getElementById('autoSelectNextAfterOffAir').checked,
-        disableFtbButton: document.getElementById('disableFtbButton').checked,
         restoreOnStartup: document.getElementById('restoreOnStartup').checked
     };
 

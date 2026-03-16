@@ -70,6 +70,7 @@ function onairGetPlaylistOnAirSettings() {
 function onairApplyPlaylistOnAirSettings() {
     const settings = onairGetPlaylistOnAirSettings();
     const ftbButton = document.getElementById('ftb-off-button');
+    const disableFtbButtonCheckbox = document.getElementById('disableFtbButton');
     const ftbButtonFadeSecInput = document.getElementById('ftbButtonFadeSec');
     const dskFadeSecInput = document.getElementById('dskFadeSec');
 
@@ -77,6 +78,10 @@ function onairApplyPlaylistOnAirSettings() {
         ftbButton.disabled = settings.disableFtbButton === true;
         ftbButton.style.pointerEvents = settings.disableFtbButton === true ? 'none' : '';
         ftbButton.style.opacity = settings.disableFtbButton === true ? '0.45' : '';
+    }
+
+    if (disableFtbButtonCheckbox) {
+        disableFtbButtonCheckbox.checked = settings.disableFtbButton === true;
     }
 
     if (ftbButtonFadeSecInput) {
@@ -103,19 +108,22 @@ async function onairLoadPlaylistOnAirSettings() {
     onairApplyPlaylistOnAirSettings();
 }
 
-// Playlist / ONAIR 秒数設定を保存する関数
+// Playlist / ONAIR 設定を保存する関数
 function onairSavePlaylistOnAirTimingSettings() {
+    const disableFtbButtonCheckbox = document.getElementById('disableFtbButton');
     const ftbButtonFadeSecInput = document.getElementById('ftbButtonFadeSec');
     const dskFadeSecInput = document.getElementById('dskFadeSec');
 
     const nextSettings = {
         ...onairGetPlaylistOnAirSettings(),
+        disableFtbButton: disableFtbButtonCheckbox ? disableFtbButtonCheckbox.checked === true : false,
         ftbButtonFadeSec: Math.max(0, Number(ftbButtonFadeSecInput ? ftbButtonFadeSecInput.value : 1) || 1),
         dskFadeSec: Math.max(0, Number(dskFadeSecInput ? dskFadeSecInput.value : 1) || 1)
     };
 
     onairPlaylistOnAirSettings = nextSettings;
     window.electronAPI.setPlaylistOnAirSettings(nextSettings);
+    onairApplyPlaylistOnAirSettings();
 }
 
 // -----------------------
@@ -159,8 +167,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     onairLoadPlaylistOnAirSettings();
 
+    const disableFtbButtonCheckbox = document.getElementById('disableFtbButton');
     const ftbButtonFadeSecInput = document.getElementById('ftbButtonFadeSec');
     const dskFadeSecInput = document.getElementById('dskFadeSec');
+
+    if (disableFtbButtonCheckbox) {
+        disableFtbButtonCheckbox.addEventListener('change', onairSavePlaylistOnAirTimingSettings);
+    }
 
     if (ftbButtonFadeSecInput) {
         ftbButtonFadeSecInput.addEventListener('change', onairSavePlaylistOnAirTimingSettings);

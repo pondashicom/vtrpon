@@ -1888,6 +1888,46 @@ input#repeatCount::-webkit-input-placeholder {
 }
 
 /* -------------------- */
+/*   FTB Settings枠     */
+/* -------------------- */
+
+.ftb-settings-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.ftb-settings-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.ftb-settings-check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: #bbb;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.ftb-settings-check-row input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: rgb(102, 205, 102);
+}
+
+.ftb-settings-rate-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* -------------------- */
 /*  メディアオフライン  */
 /* -------------------- */
 
