@@ -2320,6 +2320,16 @@ function handleGlobalEndedEvent(videoElement) {
 // エンドモード
 // -----------------------
 function onairHandleEndMode() {
+    if (
+        isOffAir === true ||
+        isOffAirProcessing === true ||
+        onairNowOnAir !== true ||
+        onairManualButtonFadeMode === 'offair-fadeout'
+    ) {
+        logDebug('[onair.js] End mode ignored because Off-Air is active or pending.');
+        return;
+    }
+
     const endMode = onairCurrentState?.endMode || 'PAUSE';
 
     // エンドモード

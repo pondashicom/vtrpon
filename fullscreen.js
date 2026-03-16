@@ -64,6 +64,21 @@ function initializeFullscreenArea(blackHoldMode = null) {
     seamlessGuardActive = false;
     overlayForceBlack = false;
 
+    // 保留中のEndMode監視停止
+    fullscreenPendingEndMode = null;
+    fullscreenStopPendingEndModeWatcher();
+
+    // Pre-FTB状態リセット
+    preFtbActive = false;
+    if (preFtbRaf) {
+        cancelAnimationFrame(preFtbRaf);
+        preFtbRaf = null;
+    }
+    preFtbStartTime = null;
+    preFtbDuration = 0;
+    overlaySuppressedByPreFTB = false;
+    clearTransitionBlackHold();
+
     // フェードインアニメーション状態リセット
     if (fullscreenFadeFromBlackRaf !== null) {
         cancelAnimationFrame(fullscreenFadeFromBlackRaf);
@@ -2163,6 +2178,10 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 break;
             case 'offAir':
                 logInfo('[fullscreen.js]  Received offAir command.');
+                fullscreenPendingEndMode = null;
+                fullscreenStopPendingEndModeWatcher();
+                cancelPreFTB();
+                cancelFadeOut();
                 initializeFullscreenArea(null);
                 stopMonitoringPlayback();
                 stopVolumeMeasurement();
