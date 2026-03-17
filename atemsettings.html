@@ -87,17 +87,19 @@
       <input type="number" id="atem-delay" min="-9990" max="9990" step="10" />
     </div>
 
-    <div class="field-col">
-      <label for="restoreOnStartup">
-        <input type="checkbox" id="restoreOnStartup" />
-        <span data-label-id="atem-restore-on-startup-label">Restore on next startup</span>
-      </label>
-    </div>
   </div>
-    <div class="modal-button-row modal-button-row-double">
-      <button id="save-btn" data-label-id="atem-save-button">Save</button>
-      <button id="close-btn" data-label-id="atem-cancel-button">Cancel</button>
-    </div>
+
+  <div class="settings-check-row settings-check-row-center">
+    <input type="checkbox" id="restoreOnStartup" />
+    <label for="restoreOnStartup">
+      <span data-label-id="atem-restore-on-startup-label">Restore on next startup</span>
+    </label>
+  </div>
+
+  <div class="modal-button-row modal-button-row-double">
+    <button id="save-btn" data-label-id="atem-save-button">Save</button>
+    <button id="close-btn" data-label-id="atem-cancel-button">Cancel</button>
+  </div>
   <script src="atemsettings.js"></script>
 </body>
 </html>
