@@ -37,9 +37,13 @@ function getLabel(key, fallback) {
 
 // ラベルを反映する関数
 function applyLabels() {
+    document.title = getLabel('playlist-onair-settings-title', 'Playlist / Onair Settings');
     document.getElementById('playlistSectionTitle').textContent = getLabel('playlist-onair-section-playlist', 'PLAYLIST');
     document.getElementById('preferAudioAlbumArtLabel').textContent = getLabel('playlist-onair-prefer-album-art-label', 'Prefer album art for audio thumbnails');
     document.getElementById('autoSelectNextAfterOffAirLabel').textContent = getLabel('playlist-onair-auto-select-next-label', 'Auto-select next item after Off-Air');
+    document.getElementById('onairSectionTitle').textContent = getLabel('playlist-onair-section-onair', 'ONAIR');
+    document.getElementById('ftbButtonFadeSecLabel').textContent = getLabel('playlist-onair-ftb-fade-label', 'FTB button fade duration');
+    document.getElementById('disableFtbButtonLabel').textContent = getLabel('playlist-onair-disable-ftb-button-label', 'Disable FTB button');
     document.getElementById('restoreOnStartupLabel').textContent = getLabel('playlist-onair-restore-on-startup-label', 'Restore on next startup');
     document.getElementById('okButton').textContent = getLabel('playlist-onair-ok-button', 'OK');
 }
@@ -55,6 +59,8 @@ function applySettingsToDom(settings) {
 
     document.getElementById('preferAudioAlbumArt').checked = !!merged.preferAudioAlbumArt;
     document.getElementById('autoSelectNextAfterOffAir').checked = !!merged.autoSelectNextAfterOffAir;
+    document.getElementById('ftbButtonFadeSec').value = merged.ftbButtonFadeSec;
+    document.getElementById('disableFtbButton').checked = !!merged.disableFtbButton;
     document.getElementById('restoreOnStartup').checked = !!merged.restoreOnStartup;
 }
 
@@ -64,6 +70,8 @@ function saveSettings() {
         ...currentPlaylistOnAirSettings,
         preferAudioAlbumArt: document.getElementById('preferAudioAlbumArt').checked,
         autoSelectNextAfterOffAir: document.getElementById('autoSelectNextAfterOffAir').checked,
+        ftbButtonFadeSec: Math.max(0, Number(document.getElementById('ftbButtonFadeSec').value) || 0),
+        disableFtbButton: document.getElementById('disableFtbButton').checked,
         restoreOnStartup: document.getElementById('restoreOnStartup').checked
     };
 
