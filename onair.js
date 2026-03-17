@@ -1,6 +1,6 @@
 // -----------------------
 //     onair.js
-//     ver 2.6.0
+//     ver 2.6.1
 // -----------------------
 
 // -----------------------
@@ -1141,6 +1141,7 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
             }
         } catch (_) {}
 
+        onairSuppressFullscreenVolumePushOnceOnReset = true;
         logDebug('[onair.js] An item is currently on-air. Resetting before loading the new one.');
         onairReset();
     }
