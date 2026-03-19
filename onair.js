@@ -680,6 +680,19 @@ function onairInitialize() {
         logDebug(`[onair.js] OnAir Initial modal state: ${isOnAirModalActive}`);
     });
 
+    window.electronAPI.getScreenLockState().then((state) => {
+        isOnAirScreenLocked = !!state?.locked;
+        logDebug(`[onair.js] OnAir initial screen lock state: ${isOnAirScreenLocked}`);
+    });
+
+    if (!onairScreenLockListenerRegistered) {
+        window.electronAPI.onScreenLockStateChange((event, { locked }) => {
+            isOnAirScreenLocked = !!locked;
+            logDebug(`[onair.js] OnAir screen lock state changed: ${isOnAirScreenLocked}`);
+        });
+        onairScreenLockListenerRegistered = true;
+    }
+
     // FillKeyモード反映
     updateFillKeyModeState();
 
@@ -5183,10 +5196,16 @@ window.addEventListener('beforeunload', () => {
 
 // モーダル状態
 let isOnAirModalActive = false;
+let isOnAirScreenLocked = false;
 
 // モーダル状態ログ
 let lastLoggedOnAirModalState = null;
 let onairModalListenerRegistered = false;
+let onairScreenLockListenerRegistered = false;
+
+function isOnAirInputBlocked() {
+    return isOnAirModalActive || isOnAirScreenLocked;
+}
 
 // 音量フェード補助
 function animateSliderTo(slider, targetValue, {
@@ -5413,9 +5432,9 @@ function triggerOnAirMouseDown(buttonId) {
 // ショートカット処理
 function handleShortcut(action) {
 
-    // モーダル中は無効
-    if (isOnAirModalActive) {
-        logDebug('[onair.js] Shortcut ignored because OnAir modal is active.');
+    // モーダル中とスクリーンロック中は無効
+    if (isOnAirInputBlocked()) {
+        logDebug(`[onair.js] Shortcut ignored because input is blocked. modal=${isOnAirModalActive}, locked=${isOnAirScreenLocked}`);
         return;
     }
 

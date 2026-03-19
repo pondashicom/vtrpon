@@ -32,6 +32,8 @@ let powerSaveBlockerId;
 let isRecordingSaving = false;
 let shouldQuitAfterSave = false;
 let ignoreAtemEvent = false;
+let isModalActive = false;
+let isScreenLocked = false;
 
 // ---------------------------------
 // ffmpeg/ffprobe
@@ -725,6 +727,14 @@ function buildMenuTemplate(labels) {
           accelerator: `${opt}+W`,
           click: () => {
             moveFullscreenToNextDisplay();
+          }
+        },
+        {
+          label: labels["menu-screen-lock"],
+          type: 'checkbox',
+          checked: isScreenLocked,
+          click: (menuItem) => {
+            setScreenLockState(menuItem.checked);
           }
         },
         {
@@ -2401,10 +2411,6 @@ function createAtemSettingsWindow() {
 // ショートカットキー登録
 // --------------------------------
 
-// モーダル状態フラグ
-let isModalActive = false;
-let isScreenLocked = false;
-
 function shouldEnableGlobalShortcuts() {
     return !isModalActive && !isScreenLocked;
 }
@@ -2434,6 +2440,19 @@ function refreshShortcutRegistration() {
     console.log(`[main.js] Global shortcuts remain disabled (modal=${isModalActive}, locked=${isScreenLocked})`);
 }
 
+function setScreenLockState(locked) {
+    const nextLocked = !!locked;
+    if (isScreenLocked === nextLocked) {
+        return;
+    }
+
+    isScreenLocked = nextLocked;
+    console.log(`[main.js] Screen lock is now ${isScreenLocked ? 'ON' : 'OFF'}`);
+    refreshShortcutRegistration();
+    broadcastScreenLockState();
+    rebuildMenu();
+}
+
 // ショートカットを無効化・再登録
 ipcMain.on('update-modal-state', (event, { isActive }) => {
     isModalActive = isActive;
@@ -2447,15 +2466,7 @@ ipcMain.handle('get-modal-state', () => {
 });
 
 ipcMain.on('set-screen-lock-state', (event, { locked }) => {
-    const nextLocked = !!locked;
-    if (isScreenLocked === nextLocked) {
-        return;
-    }
-
-    isScreenLocked = nextLocked;
-    console.log(`[main.js] Screen lock is now ${isScreenLocked ? 'ON' : 'OFF'}`);
-    refreshShortcutRegistration();
-    broadcastScreenLockState();
+    setScreenLockState(locked);
 });
 
 ipcMain.handle('get-screen-lock-state', () => {

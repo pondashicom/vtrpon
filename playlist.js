@@ -5763,6 +5763,7 @@ if (dskPlayButton) {
 
 // モーダル初期値設定
 let isModalActive = false;
+let isScreenLocked = false;
 
 // Enterキーリスナー参照保持（リーク防止用）
 let nameInputKeydownHandler = null;
@@ -5784,10 +5785,24 @@ window.electronAPI.getModalState().then((state) => {
     logInfo(`[playlist.js] Modal state initialized: ${isModalActive}`);
 });
 
+window.electronAPI.getScreenLockState().then((state) => {
+    isScreenLocked = !!state?.locked;
+    logInfo(`[playlist.js] Screen lock state initialized: ${isScreenLocked}`);
+});
+
 // モーダル状態変更監視
 window.electronAPI.onModalStateChange((event, { isActive }) => {
     isModalActive = isActive;
 });
+
+window.electronAPI.onScreenLockStateChange((event, { locked }) => {
+    isScreenLocked = !!locked;
+    logInfo(`[playlist.js] Screen lock state changed: ${isScreenLocked}`);
+});
+
+function isPlaylistInputBlocked() {
+    return isModalActive || isScreenLocked;
+}
 
 // モーダル表示
 function showModal() {
@@ -6999,8 +7014,11 @@ function handlePlaylistShortcut(action) {
 
 // キーボードショートカット設定
 document.addEventListener('keydown', (event) => {
-    if (isModalActive) {
-        return; // モーダルが開いている場合はショートカットを無視
+    if (isPlaylistInputBlocked()) {
+        if (isScreenLocked) {
+            logDebug('[playlist.js] Keydown ignored because screen lock is active.');
+        }
+        return; // モーダルまたはスクリーンロック中はショートカットを無視
     }
 
     const keyLower = event.key.toLowerCase();
@@ -7120,9 +7138,9 @@ document.addEventListener('keydown', (event) => {
 window.electronAPI.onShortcutTrigger((event, shortcut) => {
     logInfo(`[playlist.js] Shortcut triggered: ${shortcut}`);
 
-    if (isModalActive) {
-        logDebug('[playlist.js] Shortcut ignored due to active modal.');
-        return; // モーダルがアクティブな場合は処理をスキップ
+    if (isPlaylistInputBlocked()) {
+        logDebug(`[playlist.js] Shortcut ignored due to blocked state. modal=${isModalActive}, locked=${isScreenLocked}`);
+        return; // モーダルまたはスクリーンロックがアクティブな場合は処理をスキップ
     }
 
     if (shortcut === 'Shift+Enter') {
@@ -7238,8 +7256,8 @@ let copiedItemState = null;
 
 // 矢印キーで選択を移動
 function changePlaylistSelection(direction) {
-    if (isModalActive) {
-        return; // モーダルが開いている場合はショートカットを無視
+    if (isPlaylistInputBlocked()) {
+        return; // モーダルまたはスクリーンロック中はショートカットを無視
     }
 
     const items = Array.from(document.querySelectorAll('.playlist-item'));
