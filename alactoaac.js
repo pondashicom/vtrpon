@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     alactoaac.js
-//     ver 2.6.0
+//     ver 2.6.1
 // -----------------------
 
 // ALAC M4A を AAC M4A に変換する関数
@@ -38,13 +38,24 @@ async function convertAlacToAac(inputPath) {
         ctx.fillText('Converting...', canvas.width / 2, canvas.height / 2);;
         
         const tempPlaylistItem = {
+            playlistItem_id: `${Date.now()}-${Math.random()}`,
             path: outputFilePath,
             name: window.electronAPI.path.basename(outputFilePath),
+            resolution: 'Audio File',
+            duration: 'Unknown',
+            creationDate: 'Unknown',
+            inPoint: "00:00:00:00",
+            outPoint: "00:00:00:00",
+            startMode: "PAUSE",
+            endMode: "PAUSE",
+            defaultVolume: 100,
             thumbnail: canvas.toDataURL('image/png'),
             selectionState: "unselected",
             editingState: null,
             onAirState: null,
-            mediaOffline: false
+            mediaOffline: false,
+            isAudioFile: true,
+            type: 'M4A'
         };
 
         const currentPlaylist = await stateControl.getPlaylistState();
@@ -68,9 +79,24 @@ async function convertAlacToAac(inputPath) {
         const targetIndex = updatedPlaylist.findIndex(item => item.path === outputFilePath);
 
         if (targetIndex !== -1) {
+            const metadata = await getMetadata(outputFilePath);
+
             currentPlaylist[targetIndex].path = outputFilePath;
             currentPlaylist[targetIndex].name = window.electronAPI.path.basename(outputFilePath);
+            currentPlaylist[targetIndex].resolution = metadata.resolution || 'Audio File';
+            currentPlaylist[targetIndex].duration = metadata.duration || 'Unknown';
+            currentPlaylist[targetIndex].creationDate = metadata.creationDate || 'Unknown';
+            currentPlaylist[targetIndex].inPoint = "00:00:00:00";
+            currentPlaylist[targetIndex].outPoint = metadata.duration || "00:00:00:00";
+            currentPlaylist[targetIndex].startMode = currentPlaylist[targetIndex].startMode || "PAUSE";
+            currentPlaylist[targetIndex].endMode = currentPlaylist[targetIndex].endMode || "PAUSE";
+            currentPlaylist[targetIndex].defaultVolume =
+                typeof currentPlaylist[targetIndex].defaultVolume === 'number'
+                    ? currentPlaylist[targetIndex].defaultVolume
+                    : 100;
             currentPlaylist[targetIndex].thumbnail = await generateThumbnail(outputFilePath);
+            currentPlaylist[targetIndex].isAudioFile = true;
+            currentPlaylist[targetIndex].type = 'M4A';
 
             await stateControl.setPlaylistState(currentPlaylist);
             await updatePlaylistUI();
