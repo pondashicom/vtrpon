@@ -2403,23 +2403,42 @@ function createAtemSettingsWindow() {
 
 // モーダル状態フラグ
 let isModalActive = false;
+let isScreenLocked = false;
+
+function shouldEnableGlobalShortcuts() {
+    return !isModalActive && !isScreenLocked;
+}
+
+function broadcastScreenLockState() {
+    BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('screen-lock-state-change', { locked: isScreenLocked });
+    });
+}
+
+function broadcastModalState() {
+    BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('modal-state-change', { isActive: isModalActive });
+    });
+}
+
+// モーダルとスクリーンロックの両方を見て再登録可否を決める。
+function refreshShortcutRegistration() {
+    globalShortcut.unregisterAll();
+
+    if (shouldEnableGlobalShortcuts()) {
+        registerShortcuts();
+        console.log('[main.js] Global shortcuts registered');
+        return;
+    }
+
+    console.log(`[main.js] Global shortcuts remain disabled (modal=${isModalActive}, locked=${isScreenLocked})`);
+}
 
 // ショートカットを無効化・再登録
 ipcMain.on('update-modal-state', (event, { isActive }) => {
     isModalActive = isActive;
-
-    if (isModalActive) {
-        globalShortcut.unregisterAll();
-        console.log("[main.js] Modal is active, shortcuts unregistered");
-    } else {
-        registerShortcuts();
-        console.log("[main.js] Modal is inactive, shortcuts re-registered");
-    }
-
-    // モーダル状態変更通知
-    BrowserWindow.getAllWindows().forEach(win => {
-        win.webContents.send('modal-state-change', { isActive });
-    });
+    refreshShortcutRegistration();
+    broadcastModalState();
 });
 
 // 現在のモーダル状態取得
@@ -2427,11 +2446,25 @@ ipcMain.handle('get-modal-state', () => {
     return { isActive: isModalActive };
 });
 
+ipcMain.on('set-screen-lock-state', (event, { locked }) => {
+    const nextLocked = !!locked;
+    if (isScreenLocked === nextLocked) {
+        return;
+    }
+
+    isScreenLocked = nextLocked;
+    console.log(`[main.js] Screen lock is now ${isScreenLocked ? 'ON' : 'OFF'}`);
+    refreshShortcutRegistration();
+    broadcastScreenLockState();
+});
+
+ipcMain.handle('get-screen-lock-state', () => {
+    return { locked: isScreenLocked };
+});
+
 // グローバルショートカット登録
 app.on('browser-window-focus', () => {
-    if (!isModalActive) {
-        registerShortcuts();
-    }
+    refreshShortcutRegistration();
 });
 
 // ショートカット登録

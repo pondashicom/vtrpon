@@ -169,6 +169,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 現在のモーダル状態を取得する関数
     getModalState: () => ipcRenderer.invoke('get-modal-state'),
 
+    // ----------------------------
+    //  スクリーンロック管理
+    // ----------------------------
+
+    // 現在のスクリーンロック状態を取得する関数
+    getScreenLockState: () => ipcRenderer.invoke('get-screen-lock-state'),
+
+    // スクリーンロック状態を更新する関数
+    setScreenLockState: (locked) => ipcRenderer.send('set-screen-lock-state', { locked }),
+
+    // スクリーンロック状態の変更を監視する関数
+    onScreenLockStateChange: (callback) => ipcRenderer.on('screen-lock-state-change', callback),
+
     // ---------------------------------------
     // プレイリストのインポート・エクスポート
     // ---------------------------------------
