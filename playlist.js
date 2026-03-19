@@ -5860,27 +5860,6 @@ function syncScreenLockUiState() {
     document.body.classList.toggle('screen-locked', isScreenLocked);
     updateScreenLockBanner();
 
-    const interactiveElements = document.querySelectorAll(
-        '#listedit-section button, #listedit-section input, #listedit-section select, ' +
-        '#playlist-section button, #playlist-section input, #playlist-section select, ' +
-        '#on-air-section button, #on-air-section input, #on-air-section select'
-    );
-
-    interactiveElements.forEach((element) => {
-        if (isScreenLocked) {
-            if (!Object.prototype.hasOwnProperty.call(element.dataset, 'screenLockPrevDisabled')) {
-                element.dataset.screenLockPrevDisabled = element.disabled ? 'true' : 'false';
-            }
-            element.disabled = true;
-            return;
-        }
-
-        if (Object.prototype.hasOwnProperty.call(element.dataset, 'screenLockPrevDisabled')) {
-            element.disabled = element.dataset.screenLockPrevDisabled === 'true';
-            delete element.dataset.screenLockPrevDisabled;
-        }
-    });
-
     const activeElement = document.activeElement;
     if (isScreenLocked && activeElement && typeof activeElement.blur === 'function') {
         activeElement.blur();
@@ -5896,29 +5875,6 @@ if (window.electronAPI && typeof window.electronAPI.onLanguageChanged === 'funct
 
 function isScreenLockBypassKeyEvent(event) {
     return event.key === 'Escape' && event.shiftKey;
-}
-
-function shouldBlockScreenLockInteraction(eventTarget) {
-    if (!eventTarget || !isScreenLocked) {
-        return false;
-    }
-
-    if (!(eventTarget instanceof Element)) {
-        return false;
-    }
-
-    return !!eventTarget.closest('#listedit-section, #playlist-section, #on-air-section');
-}
-
-function handleScreenLockPointerBlock(event) {
-    if (!shouldBlockScreenLockInteraction(event.target)) {
-        return;
-    }
-
-    showScreenLockBlockedNotice();
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    event.stopPropagation();
 }
 
 function handleScreenLockKeyBlock(event) {
@@ -6039,15 +5995,33 @@ function handleScreenLockUnlockKeyup(event) {
     }
 }
 
-document.addEventListener('mousedown', handleScreenLockPointerBlock, true);
-document.addEventListener('pointerdown', handleScreenLockPointerBlock, true);
-document.addEventListener('click', handleScreenLockPointerBlock, true);
-document.addEventListener('dblclick', handleScreenLockPointerBlock, true);
-document.addEventListener('contextmenu', handleScreenLockPointerBlock, true);
-document.addEventListener('dragstart', handleScreenLockPointerBlock, true);
-document.addEventListener('drop', handleScreenLockPointerBlock, true);
-document.addEventListener('input', handleScreenLockPointerBlock, true);
-document.addEventListener('change', handleScreenLockPointerBlock, true);
+function setupScreenLockOverlays() {
+    const overlay = document.getElementById('screen-lock-overlay');
+    if (!overlay) {
+        return;
+    }
+
+    const blockPointerEvent = (event) => {
+        if (!isScreenLocked) {
+            return;
+        }
+
+        showScreenLockBlockedNotice();
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+    };
+
+    overlay.addEventListener('mousedown', blockPointerEvent);
+    overlay.addEventListener('pointerdown', blockPointerEvent);
+    overlay.addEventListener('click', blockPointerEvent);
+    overlay.addEventListener('dblclick', blockPointerEvent);
+    overlay.addEventListener('contextmenu', blockPointerEvent);
+    overlay.addEventListener('dragstart', blockPointerEvent);
+    overlay.addEventListener('drop', blockPointerEvent);
+}
+
+setupScreenLockOverlays();
 document.addEventListener('keydown', handleScreenLockUnlockKeydown, true);
 document.addEventListener('keyup', handleScreenLockUnlockKeyup, true);
 document.addEventListener('keydown', handleScreenLockKeyBlock, true);
