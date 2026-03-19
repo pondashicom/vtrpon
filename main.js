@@ -731,10 +731,10 @@ function buildMenuTemplate(labels) {
         },
         {
           label: labels["menu-screen-lock"],
-          type: 'checkbox',
-          checked: isScreenLocked,
-          click: (menuItem) => {
-            setScreenLockState(menuItem.checked);
+          type: 'normal',
+          enabled: !isScreenLocked,
+          click: () => {
+            setScreenLockState(true);
           }
         },
         {
@@ -1238,6 +1238,10 @@ app.whenReady().then(async () => {
 
 // デバイス設定ウインドウ生成
 function createDeviceSettingsWindow() {
+    if (!canOpenSettingsWindow('device settings window')) {
+        return;
+    }
+
     deviceSettingsWindow = new BrowserWindow({
         width: 500,
         height: 650,
@@ -1261,6 +1265,10 @@ function createDeviceSettingsWindow() {
 
 // Playlist / ONAIR 設定ウインドウ生成
 function createPlaylistOnAirSettingsWindow() {
+    if (!canOpenSettingsWindow('playlist/onair settings window')) {
+        return;
+    }
+
     if (playlistOnAirSettingsWindow) {
         playlistOnAirSettingsWindow.focus();
         return;
@@ -2068,6 +2076,10 @@ ipcMain.on('dsk-command', (event, dskCommandData) => {
 
 // 録画設定ウインドウ生成
 function createRecordingSettingsWindow() {
+  if (!canOpenSettingsWindow('recording settings window')) {
+    return;
+  }
+
   recordingSettingsWindow = new BrowserWindow({
     width: 500,
     height: 420,
@@ -2382,6 +2394,10 @@ async function reliableAtemSwitch(atem, input) {
 
 // ATEM 設定ウインドウ
 function createAtemSettingsWindow() {
+    if (!canOpenSettingsWindow('ATEM settings window')) {
+        return;
+    }
+
     if (atemSettingsWindow) {
         atemSettingsWindow.focus();
         return;
@@ -2406,6 +2422,15 @@ function createAtemSettingsWindow() {
         atemSettingsWindow = null;
     });
 }
+
+ipcMain.on('open-atem-settings', () => {
+    if (!atemSettingsWindow) {
+        createAtemSettingsWindow();
+        return;
+    }
+
+    atemSettingsWindow.focus();
+});
 
 // --------------------------------
 // ショートカットキー登録
@@ -2451,6 +2476,15 @@ function setScreenLockState(locked) {
     refreshShortcutRegistration();
     broadcastScreenLockState();
     rebuildMenu();
+}
+
+function canOpenSettingsWindow(windowName) {
+    if (!isScreenLocked) {
+        return true;
+    }
+
+    console.log(`[main.js] Prevented opening ${windowName} while screen lock is active.`);
+    return false;
 }
 
 // ショートカットを無効化・再登録

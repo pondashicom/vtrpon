@@ -22,6 +22,10 @@ body {
     align-items: center;
 }
 
+.hidden {
+    display: none !important;
+}
+
 /* ------------------ */
 /*   レイアウト設定   */
 /* ------------------ */
@@ -69,6 +73,127 @@ body {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
+}
+
+
+/* ------------------ */
+/*     スクリーンロック   */
+/* ------------------ */
+
+body.screen-locked {
+    background-color: #222;
+}
+
+body.screen-locked .section {
+    box-shadow: inset 0 0 0 1px rgba(255, 204, 0, 0.22);
+}
+
+body.screen-locked #listedit-section button,
+body.screen-locked #playlist-section button,
+body.screen-locked #on-air-section button,
+body.screen-locked #listedit-section input,
+body.screen-locked #playlist-section input,
+body.screen-locked #on-air-section input,
+body.screen-locked #listedit-section select,
+body.screen-locked #playlist-section select,
+body.screen-locked #on-air-section select {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+body.screen-locked .playlist-item {
+    opacity: 0.72;
+}
+
+.screen-lock-banner {
+    position: fixed;
+    top: 2.4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20000;
+    overflow: hidden;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+    padding: 0.65rem 1.05rem 0.65rem;
+    border: 1px solid rgba(255, 196, 64, 0.42);
+    border-radius: 0.6rem;
+    background:
+        linear-gradient(180deg, rgba(255, 213, 79, 0.08), rgba(255, 213, 79, 0) 38%),
+        linear-gradient(180deg, rgba(28, 28, 28, 0.96), rgba(14, 14, 14, 0.96));
+    color: #ffd76a;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+        0 0.6rem 1.8rem rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(10px);
+    font-size: 0.88rem;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    width: min(27rem, 72vw);
+}
+
+.screen-lock-banner-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.18rem;
+    width: 100%;
+    text-align: center;
+}
+
+.screen-lock-banner-title {
+    display: block;
+    font-size: 0.92rem;
+    line-height: 1.05;
+    color: #ffe08a;
+    text-shadow: 0 0 0.4rem rgba(255, 194, 58, 0.12);
+}
+
+.screen-lock-banner-hint {
+    display: block;
+    min-height: 1.2em;
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: rgba(255, 226, 148, 0.76);
+}
+
+.screen-lock-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0.32rem;
+    border-radius: 0 0 0.6rem 0.6rem;
+    overflow: hidden;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.screen-lock-progress-bar {
+    width: 0%;
+    height: 100%;
+    border-radius: 0 0 0.6rem 0.6rem;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 45%),
+        linear-gradient(90deg, #ffdd67, #ffb11f 52%, #ff8b17);
+    box-shadow: 0 0 0.75rem rgba(255, 176, 31, 0.28);
+    opacity: 0;
+    transition: width 90ms linear, opacity 120ms ease;
+}
+
+.screen-lock-progress.is-active {
+    background: rgba(255, 255, 255, 0.08);
+    opacity: 1;
+}
+
+.screen-lock-progress.is-active .screen-lock-progress-bar {
+    opacity: 1;
 }
 
 /* ---------------------------- */

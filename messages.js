@@ -56,7 +56,13 @@ const messages = {
     "atem.connected":                "ATEMに接続されました。",
     "atem.disconnected":             "ATEMの接続が切断されました。",
     "atem.autoOnAirTriggered":       "ATEM入力切替により自動でオンエアが開始されました。",
-    "alac-converted-to-aac":         "ALACコーデックは非対応のため、AACコーデックに変換して登録しました。"
+    "alac-converted-to-aac":         "ALACコーデックは非対応のため、AACコーデックに変換して登録しました。",
+    "screen-lock-title": "スクリーンロック中",
+    "screen-lock-hint": "解除: Shift + Esc を 2 秒長押し",
+    "screen-lock-unlocking": "解除中",
+    "screen-lock-enabled": "スクリーンロックを有効にしました。",
+    "screen-lock-disabled": "スクリーンロックを解除しました。",
+    "screen-lock-blocked": "スクリーンロック中です。"
   },
   "en": {
     "monitoring-failed": "PFL: Monitoring failed to start.",
@@ -109,7 +115,13 @@ const messages = {
     "atem.connected":              "ATEM connected.",
     "atem.disconnected":           "ATEM disconnected.",
     "atem.autoOnAirTriggered":     "Automatically triggered OnAir by ATEM input switch.",
-    "alac-converted-to-aac":       "ALAC is not supported, so it was converted to AAC and added to the playlist."
+    "alac-converted-to-aac":       "ALAC is not supported, so it was converted to AAC and added to the playlist.",
+    "screen-lock-title": "Screen Locked",
+    "screen-lock-hint": "Unlock: hold Shift + Esc for 2 seconds",
+    "screen-lock-unlocking": "Unlocking",
+    "screen-lock-enabled": "Screen lock enabled.",
+    "screen-lock-disabled": "Screen lock disabled.",
+    "screen-lock-blocked": "Screen is locked."
   }
 };
 

@@ -5764,6 +5764,13 @@ if (dskPlayButton) {
 // モーダル初期値設定
 let isModalActive = false;
 let isScreenLocked = false;
+let screenLockNoticeLastShownAt = 0;
+let screenLockUnlockStartAt = 0;
+let screenLockUnlockTimerId = null;
+let screenLockUnlockIntervalId = null;
+
+const SCREEN_LOCK_UNLOCK_HOLD_MS = 2000;
+const SCREEN_LOCK_NOTICE_THROTTLE_MS = 1500;
 
 // Enterキーリスナー参照保持（リーク防止用）
 let nameInputKeydownHandler = null;
@@ -5788,6 +5795,8 @@ window.electronAPI.getModalState().then((state) => {
 window.electronAPI.getScreenLockState().then((state) => {
     isScreenLocked = !!state?.locked;
     logInfo(`[playlist.js] Screen lock state initialized: ${isScreenLocked}`);
+    syncScreenLockUiState();
+    stopScreenLockUnlockHold();
 });
 
 // モーダル状態変更監視
@@ -5796,13 +5805,255 @@ window.electronAPI.onModalStateChange((event, { isActive }) => {
 });
 
 window.electronAPI.onScreenLockStateChange((event, { locked }) => {
-    isScreenLocked = !!locked;
+    const nextLocked = !!locked;
+    const prevLocked = isScreenLocked;
+    isScreenLocked = nextLocked;
     logInfo(`[playlist.js] Screen lock state changed: ${isScreenLocked}`);
+    stopScreenLockUnlockHold();
+    syncScreenLockUiState();
+
+    if (prevLocked !== nextLocked) {
+        showMessage(
+            getMessage(nextLocked ? 'screen-lock-enabled' : 'screen-lock-disabled'),
+            2000,
+            'info'
+        );
+    }
 });
 
 function isPlaylistInputBlocked() {
     return isModalActive || isScreenLocked;
 }
+
+function getScreenLockUnlockingText(progressPercent) {
+    const prefix = getMessage('screen-lock-unlocking');
+    return `${prefix}... ${progressPercent}%`;
+}
+
+function updateScreenLockBanner() {
+    const banner = document.getElementById('screen-lock-banner');
+    if (!banner) {
+        return;
+    }
+
+    banner.classList.toggle('hidden', !isScreenLocked);
+
+    const hint = banner.querySelector('.screen-lock-banner-hint');
+    const title = banner.querySelector('.screen-lock-banner-title');
+    const progress = document.getElementById('screen-lock-progress');
+    const progressBar = document.getElementById('screen-lock-progress-bar');
+    if (title) {
+        title.textContent = getMessage('screen-lock-title');
+    }
+    if (hint && !screenLockUnlockStartAt) {
+        hint.textContent = getMessage('screen-lock-hint');
+    }
+    if (progress) {
+        progress.classList.toggle('is-active', !!screenLockUnlockStartAt);
+    }
+    if (progressBar && !screenLockUnlockStartAt) {
+        progressBar.style.width = '0%';
+    }
+}
+
+function syncScreenLockUiState() {
+    document.body.classList.toggle('screen-locked', isScreenLocked);
+    updateScreenLockBanner();
+
+    const interactiveElements = document.querySelectorAll(
+        '#listedit-section button, #listedit-section input, #listedit-section select, ' +
+        '#playlist-section button, #playlist-section input, #playlist-section select, ' +
+        '#on-air-section button, #on-air-section input, #on-air-section select'
+    );
+
+    interactiveElements.forEach((element) => {
+        if (isScreenLocked) {
+            if (!Object.prototype.hasOwnProperty.call(element.dataset, 'screenLockPrevDisabled')) {
+                element.dataset.screenLockPrevDisabled = element.disabled ? 'true' : 'false';
+            }
+            element.disabled = true;
+            return;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(element.dataset, 'screenLockPrevDisabled')) {
+            element.disabled = element.dataset.screenLockPrevDisabled === 'true';
+            delete element.dataset.screenLockPrevDisabled;
+        }
+    });
+
+    const activeElement = document.activeElement;
+    if (isScreenLocked && activeElement && typeof activeElement.blur === 'function') {
+        activeElement.blur();
+    }
+}
+
+if (window.electronAPI && typeof window.electronAPI.onLanguageChanged === 'function') {
+    window.electronAPI.onLanguageChanged(() => {
+        updateScreenLockBanner();
+        updateScreenLockUnlockBannerProgress();
+    });
+}
+
+function isScreenLockBypassKeyEvent(event) {
+    return event.key === 'Escape' && event.shiftKey;
+}
+
+function shouldBlockScreenLockInteraction(eventTarget) {
+    if (!eventTarget || !isScreenLocked) {
+        return false;
+    }
+
+    if (!(eventTarget instanceof Element)) {
+        return false;
+    }
+
+    return !!eventTarget.closest('#listedit-section, #playlist-section, #on-air-section');
+}
+
+function handleScreenLockPointerBlock(event) {
+    if (!shouldBlockScreenLockInteraction(event.target)) {
+        return;
+    }
+
+    showScreenLockBlockedNotice();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+}
+
+function handleScreenLockKeyBlock(event) {
+    if (!isScreenLocked || isScreenLockBypassKeyEvent(event)) {
+        return;
+    }
+
+    showScreenLockBlockedNotice();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+}
+
+function showScreenLockBlockedNotice() {
+    const now = Date.now();
+    if ((now - screenLockNoticeLastShownAt) < SCREEN_LOCK_NOTICE_THROTTLE_MS) {
+        return;
+    }
+
+    screenLockNoticeLastShownAt = now;
+    showMessage(getMessage('screen-lock-blocked'), 1500, 'info');
+}
+
+function updateScreenLockUnlockBannerProgress() {
+    const banner = document.getElementById('screen-lock-banner');
+    if (!banner) {
+        return;
+    }
+
+    const hint = banner.querySelector('.screen-lock-banner-hint');
+    const progress = document.getElementById('screen-lock-progress');
+    const progressBar = document.getElementById('screen-lock-progress-bar');
+    if (!hint) {
+        return;
+    }
+
+    if (!screenLockUnlockStartAt) {
+        hint.textContent = getMessage('screen-lock-hint');
+        if (progress) {
+            progress.classList.remove('is-active');
+        }
+        if (progressBar) {
+            progressBar.style.width = '0%';
+        }
+        return;
+    }
+
+    const elapsed = Math.max(0, Date.now() - screenLockUnlockStartAt);
+    const progressPercent = Math.min(100, Math.round((elapsed / SCREEN_LOCK_UNLOCK_HOLD_MS) * 100));
+    hint.textContent = getScreenLockUnlockingText(progressPercent);
+    if (progress) {
+        progress.classList.add('is-active');
+    }
+    if (progressBar) {
+        progressBar.style.width = `${progressPercent}%`;
+    }
+}
+
+function stopScreenLockUnlockHold(resetBanner = true) {
+    if (screenLockUnlockTimerId) {
+        clearTimeout(screenLockUnlockTimerId);
+        screenLockUnlockTimerId = null;
+    }
+    if (screenLockUnlockIntervalId) {
+        clearInterval(screenLockUnlockIntervalId);
+        screenLockUnlockIntervalId = null;
+    }
+
+    screenLockUnlockStartAt = 0;
+
+    if (resetBanner) {
+        updateScreenLockUnlockBannerProgress();
+    }
+}
+
+function completeScreenLockUnlock() {
+    stopScreenLockUnlockHold(false);
+    window.electronAPI.setScreenLockState(false);
+}
+
+function startScreenLockUnlockHold() {
+    if (!isScreenLocked || screenLockUnlockStartAt) {
+        return;
+    }
+
+    screenLockUnlockStartAt = Date.now();
+    updateScreenLockUnlockBannerProgress();
+
+    screenLockUnlockIntervalId = setInterval(() => {
+        updateScreenLockUnlockBannerProgress();
+    }, 100);
+
+    screenLockUnlockTimerId = setTimeout(() => {
+        completeScreenLockUnlock();
+    }, SCREEN_LOCK_UNLOCK_HOLD_MS);
+}
+
+function handleScreenLockUnlockKeydown(event) {
+    if (!isScreenLocked) {
+        return;
+    }
+
+    if (event.key === 'Escape' && event.shiftKey) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+        startScreenLockUnlockHold();
+    }
+}
+
+function handleScreenLockUnlockKeyup(event) {
+    if (!isScreenLocked) {
+        return;
+    }
+
+    if (event.key === 'Escape' || event.key === 'Shift') {
+        stopScreenLockUnlockHold();
+    }
+}
+
+document.addEventListener('mousedown', handleScreenLockPointerBlock, true);
+document.addEventListener('pointerdown', handleScreenLockPointerBlock, true);
+document.addEventListener('click', handleScreenLockPointerBlock, true);
+document.addEventListener('dblclick', handleScreenLockPointerBlock, true);
+document.addEventListener('contextmenu', handleScreenLockPointerBlock, true);
+document.addEventListener('dragstart', handleScreenLockPointerBlock, true);
+document.addEventListener('drop', handleScreenLockPointerBlock, true);
+document.addEventListener('input', handleScreenLockPointerBlock, true);
+document.addEventListener('change', handleScreenLockPointerBlock, true);
+document.addEventListener('keydown', handleScreenLockUnlockKeydown, true);
+document.addEventListener('keyup', handleScreenLockUnlockKeyup, true);
+document.addEventListener('keydown', handleScreenLockKeyBlock, true);
+window.addEventListener('blur', () => {
+    stopScreenLockUnlockHold();
+});
 
 // モーダル表示
 function showModal() {

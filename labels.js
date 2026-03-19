@@ -80,6 +80,9 @@ const labels = {
     "menu-tools-generate-gray": "グレースケール",
     "menu-tools-generate-pink": "ピンクノイズ",
     "menu-tools-generate-1khz-tone": "1kHzテストトーン",
+    "screen-lock-banner-title": "スクリーンロック中",
+    "screen-lock-banner-hint": "解除: Shift + Esc を 2 秒長押し",
+    "screen-lock-banner-unlocking": "解除中",
 
     // エリアタイトル
     "edit-title": "編集",
@@ -304,6 +307,9 @@ const labels = {
     "menu-tools-generate-gray": "Grayscale",
     "menu-tools-generate-pink": "Pink noise",
     "menu-tools-generate-1khz-tone": "1kHz test tone",
+    "screen-lock-banner-title": "Screen Locked",
+    "screen-lock-banner-hint": "Unlock: hold Shift + Esc for 2 seconds",
+    "screen-lock-banner-unlocking": "Unlocking",
 
     "edit-title": "EDIT",
     "playlist-title": "PLAYLIST",
