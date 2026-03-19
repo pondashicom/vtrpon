@@ -2259,16 +2259,6 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     }
                     fullscreenFtbToggleAudioAnimSeq += 1;
 
-                    if (!active && fullscreenFtbToggleShouldKeepPlaying && fullscreenVideoElement && fullscreenVideoElement.paused) {
-                        try {
-                            const p = fullscreenVideoElement.play();
-                            if (p && typeof p.catch === 'function') {
-                                p.catch(() => {});
-                            }
-                        } catch (_) {
-                            // ignore
-                        }
-                    }
                     if (!active) {
                         fullscreenFtbTogglePendingVolume = null;
                     }
