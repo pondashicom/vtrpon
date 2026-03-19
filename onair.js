@@ -2065,17 +2065,6 @@ function onairStartPlayback(itemData) {
                 onairUpdatePlayPauseButtons(elements);
                 onairStartRemainingTimer(elements, itemData);
                 logOpe('[onair.js] Playback started via PLAY start mode.');
-
-                try {
-                    window.electronAPI.sendControlToFullscreen({ command: 'play' });
-                } catch (_) {}
-
-                try {
-                    window.electronAPI.sendControlToFullscreen({
-                        command: 'fade-from-black',
-                        value: { duration: 0.05, fillKeyMode: isFillKeyMode }
-                    });
-                } catch (_) {}
             })
             .catch(error => {
                 onairIsPlaying = false;

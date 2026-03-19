@@ -501,6 +501,17 @@ function cleanupBeforeSourceApply() {
     // フェードアウト中断
     cancelFadeOut();
     const videoElement = document.getElementById('fullscreen-video');
+    const hiddenAudio = document.getElementById('fullscreen-hidden-audio');
+
+    if (hiddenAudio) {
+        try {
+            hiddenAudio.pause();
+        } catch (_e) {}
+
+        try {
+            hiddenAudio.srcObject = null;
+        } catch (_e) {}
+    }
 
     if (videoElement) {
         // 再生停止
@@ -1738,7 +1749,6 @@ function handleStartMode() {
                 logInfo('[fullscreen.js] Playback started with FADEIN effect.');
             } else {
                 logInfo('[fullscreen.js] Playback started successfully.');
-                window.electronAPI.sendControlToFullscreen({ command: 'play' });
             }
 
             // メーター開始
