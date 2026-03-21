@@ -36,12 +36,12 @@ let onairFtbToggleShouldKeepPlaying = false;
 let onairFtbToggleMasterFadeRaf = null;
 let onairFtbToggleMasterFadeAnimSeq = 0;
 let onairFtbToggleMasterRestoreValue = null;
-let onairSuppressFullscreenVolumePushOnceOnReset = false;
 let onairPendingTransitionSource = null;
 let onairPendingCurrentEndMode = null;
 const ONAIR_FTB_SET_VOLUME_EPSILON = 0.01;
 const ONAIR_FTB_SET_VOLUME_ENDPOINT_SNAP_EPSILON = 0.005;
 let onairLastSentFullscreenGammaVolumeForFtb = null;
+let onairSuppressFullscreenVolumeSync = false;
 const ONAIR_LAYER_Z_PRE_FTB_BLACK = 8000;
 const ONAIR_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
 
@@ -482,7 +482,7 @@ function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
     onairItemVolumeSlider.value = defaultItemVolume;
     onairItemVolumeValueDisplay.textContent = `${defaultItemVolume}%`;
     onairItemVolumeSlider.style.setProperty('--value', `${defaultItemVolume}%`);
-    const useFtbVisualGain = onairFtbToggleHoldActive || (onairFtbToggleMasterFadeRaf !== null);
+    const useFtbVisualGain = onairFtbToggleHoldActive;
     const effectiveVisualGain = useFtbVisualGain
         ? (Number(onairFtbToggleMasterVisualGain) || 0)
         : 1;
@@ -499,19 +499,19 @@ function onairInitializeVolumeSlider(elements, forcedDefaultVolume) {
 
     // 最終出力音量算出
     const finalVolume = (defaultItemVolume / 100) * (masterDisplayValue / 100);
-    if (onairSuppressFullscreenVolumePushOnceOnReset) {
-        onairSuppressFullscreenVolumePushOnceOnReset = false;
-        logDebug('[onair.js] Suppressed one fullscreen set-volume during reset (NEXT transition).');
-    } else {
+    if (!onairSuppressFullscreenVolumeSync) {
         window.electronAPI.sendControlToFullscreen({
             command: 'set-volume',
             value: Math.pow(finalVolume, 2.2)
         });
+    } else {
+        logInfo(
+            `[onair.js] Volume slider init skipped fullscreen sync during reset: item=${defaultItemVolume}%, master=${masterDisplayValue}%, finalGamma=${Math.pow(finalVolume, 2.2).toFixed(4)}`
+        );
     }
 
     logDebug(`[onair.js] Item volume slider initialized to ${defaultItemVolume}% and Master volume slider initialized to ${onairMasterVolume}%`);
 }
-
 // シークバー初期化
 function onairInitializeSeekBar(elements) {
     const { onairProgressSlider, onairStartTimeDisplay, onairEndTimeDisplay, onairVideoElement } = elements;
@@ -1141,7 +1141,6 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
             }
         } catch (_) {}
 
-        onairSuppressFullscreenVolumePushOnceOnReset = true;
         logDebug('[onair.js] An item is currently on-air. Resetting before loading the new one.');
         onairReset();
     }
@@ -1153,6 +1152,11 @@ window.electronAPI.onReceiveOnAirData((itemId) => {
 
     // nowonairフラグ管理
     onairNowOnAir = true;
+
+    // フルスクリーン送信前の明示クリア
+    if (transitionPlan.shouldResetCurrentOnAir) {
+        window.electronAPI.sendControlToFullscreen({ command: 'clear-current-source' });
+    }
 
     // フルスクリーン送信
     onairSendToFullscreen(itemData, transitionPlan);
@@ -1178,6 +1182,10 @@ function onairReset() {
         // ignore
     }
 
+    logInfo(
+        `[onair.js] onairReset start: currentPath="${onairCurrentState?.path || ''}", currentName="${onairCurrentState?.name || ''}", mainFadeOut=${fadeOutInProgressMain}, mainFadeIn=${fadeInInProgressMain}, itemFadeOut=${fadeOutInProgressItem}, itemFadeIn=${fadeInInProgressItem}, ftbHold=${onairFtbToggleHoldActive}, masterBase=${onairMasterBaseVolume}, masterVisual=${onairMasterVolume}, keepPlaying=${onairFtbToggleShouldKeepPlaying}`
+    );
+
     // 前アイテム状態クリア
     onairCurrentState = null;
 
@@ -1193,7 +1201,12 @@ function onairReset() {
     onairInitializeFadeCanvas(elements);
 
     // 音量スライダー初期化
-    onairInitializeVolumeSlider(elements);
+    onairSuppressFullscreenVolumeSync = true;
+    try {
+        onairInitializeVolumeSlider(elements);
+    } finally {
+        onairSuppressFullscreenVolumeSync = false;
+    }
 
     // 状態フラグリセット
     onairNowOnAir = false;
@@ -1368,31 +1381,23 @@ async function onairSendToFullscreen(itemData, transitionPlan = null) {
         // 新規アイテムは規定音量を使用
         const itemVal = itemData.defaultVolume !== undefined ? itemData.defaultVolume : 100;
 
-        // 通常時は現在のマスター表示値
+        // 送出時は表示途中値ではなく保持値を使う
         let masterVal;
+        const baseVal = (onairMasterBaseVolume !== undefined && onairMasterBaseVolume !== null && !isNaN(Number(onairMasterBaseVolume)))
+            ? Number(onairMasterBaseVolume)
+            : 100;
+
         if (onairFtbToggleHoldActive) {
-            const restoreVal = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
-                ? Number(onairFtbToggleMasterRestoreValue)
-                : null;
-
-            const baseVal = (onairMasterBaseVolume !== undefined && onairMasterBaseVolume !== null && !isNaN(Number(onairMasterBaseVolume)))
-                ? Number(onairMasterBaseVolume)
-                : null;
-
-            const currentVal = (onairMasterVolume !== undefined && onairMasterVolume !== null && !isNaN(Number(onairMasterVolume)))
-                ? Number(onairMasterVolume)
-                : 100;
-
-            masterVal = restoreVal !== null ? restoreVal
-                : (baseVal !== null ? baseVal : currentVal);
+            masterVal = 0;
         } else {
-            masterVal = (onairMasterVolume !== undefined && onairMasterVolume !== null) ? onairMasterVolume : 100;
+            masterVal = baseVal;
         }
 
         masterVal = Math.max(0, Math.min(100, Number(masterVal) || 0));
 
         const combinedVolume = (itemVal / 100) * (masterVal / 100);
         const finalVolume = Math.pow(combinedVolume, 2.2);
+        const fullscreenInitialVolume = onairFtbToggleHoldActive ? 0 : finalVolume;
         const fullscreenStartMode = onairResolveIncomingStartMode(itemData);
 
         const fullscreenData = {
@@ -1401,7 +1406,7 @@ async function onairSendToFullscreen(itemData, transitionPlan = null) {
             path: itemData.path || '',
             startMode: fullscreenStartMode,
             endMode: itemData.endMode || 'PAUSE',
-            volume: finalVolume,
+            volume: fullscreenInitialVolume,
             inPoint: itemData.inPoint,
             outPoint: itemData.outPoint,
             ftbRate: itemData.ftbRate,
@@ -1427,6 +1432,10 @@ async function onairSendToFullscreen(itemData, transitionPlan = null) {
                 transitionSource: transitionPlan.transitionSource
             } : null
         };
+
+        logInfo(
+            `[onair.js] SendToFullscreen: name="${itemData.name || ''}", path="${itemData.path || ''}", startMode=${fullscreenStartMode}, endMode=${itemData.endMode || 'PAUSE'}, itemDefault=${itemVal}%, masterBase=${baseVal}%, masterSend=${masterVal}%, combinedLinear=${combinedVolume.toFixed(4)}, finalGamma=${fullscreenInitialVolume.toFixed(4)}, ftbHold=${onairFtbToggleHoldActive}, mainFadeOut=${fadeOutInProgressMain}, mainFadeIn=${fadeInInProgressMain}, itemFadeOut=${fadeOutInProgressItem}, itemFadeIn=${fadeInInProgressItem}`
+        );
 
         logDebug('[onair.js] Sending video data to fullscreen:', fullscreenData);
         window.electronAPI.sendToFullscreenViaMain(fullscreenData);
@@ -2459,7 +2468,6 @@ function onairHandleEndModeRepeat() {
     if (typeof stopMainFade === 'function') {
         stopMainFade();
     }
-    onairSuppressFullscreenVolumePushOnceOnReset = true;
 
     // 残存オーバーレイクリア
     onairCancelSeamlessOverlay('before-REPEAT');
@@ -2499,6 +2507,10 @@ function onairHandleEndModeRepeat() {
     onairCurrentState = repeatItemData;
     onairRepeatFlag = true;
     window.onairPreserveSpeed = true;
+
+    if (transitionPlan.shouldResetCurrentOnAir) {
+        window.electronAPI.sendControlToFullscreen({ command: 'clear-current-source' });
+    }
 
     onairSendToFullscreen(repeatItemData, transitionPlan);
 
@@ -2562,7 +2574,6 @@ function onairHandleEndModeNext() {
     if (typeof stopMainFade === 'function') {
         stopMainFade();
     }
-    onairSuppressFullscreenVolumePushOnceOnReset = true;
 
     // 残存オーバーレイクリア
     onairCancelSeamlessOverlay('before-NEXT');
@@ -2629,25 +2640,12 @@ function onairHandlePlayButton() {
     const isFtbStopAtOut = (!onairIsPlaying) && nearOut && ftbEnabled && isBlackOverlay;
 
     if (isFtbStopAtOut) {
-        logDebug('[onair.js] Resuming from FTB stop at OUT: delegate to onairStartPlayback() for full reapply.');
+        logDebug('[onair.js] Resuming from FTB stop at OUT: delegate to onairStartPlayback() only.');
         try {
             onairStartPlayback(onairCurrentState);
         } catch (e) {
             logInfo(`[onair.js] Failed to delegate start playback: ${e?.message || e}`);
         }
-        // fullscreen 同期
-        try {
-            window.electronAPI.sendControlToFullscreen({
-                command: 'seek',
-                value: onairCurrentState.inPoint || 0
-            });
-            setTimeout(() => {
-                window.electronAPI.sendControlToFullscreen({
-                    command: 'play',
-                    value: { force: true, reason: 'RESUME_FROM_FTB' }
-                });
-            }, 0);
-        } catch (_) {}
         return;
     }
 
@@ -3336,8 +3334,8 @@ function onairSetupVolumeSliderHandler(elements) {
 
         // 手動操作時
         if (onairFtbToggleMasterFadeRaf === null) {
-            onairMasterBaseVolume = masterVal;
             if (!onairFtbToggleHoldActive) {
+                onairMasterBaseVolume = masterVal;
                 onairFtbToggleMasterVisualGain = 1;
             }
         }
@@ -3366,7 +3364,6 @@ function onairSetupVolumeSliderHandler(elements) {
 // 音声フェードイン・フェードアウト
 // ------------------------------
 
-// メインフェードアウト
 function audioFadeOut(duration) {
 
     // 多重開始防止
@@ -3377,6 +3374,10 @@ function audioFadeOut(duration) {
     let startTime = null;
     let currentValue = masterSlider.value;
     let targetValue = 0; 
+
+    logInfo(
+        `[onair.js] Main fade-out start: duration=${duration}, startValue=${currentValue}, itemSlider=${document.getElementById('on-air-item-volume-slider')?.value}, currentPath="${onairCurrentState?.path || ''}", currentName="${onairCurrentState?.name || ''}"`
+    );
 
     // スライダー反映
     function setSliderValue(value) {
@@ -3395,19 +3396,33 @@ function audioFadeOut(duration) {
         const itemVal = parseInt(document.getElementById('on-air-item-volume-slider').value, 10);
         const masterVal = parseInt(masterSlider.value, 10);
         const finalVolume = (itemVal / 100) * (masterVal / 100);
+        const finalGamma = Math.pow(finalVolume, 2.2);
         window.electronAPI.sendControlToFullscreen({
             command: 'set-volume',
-            value: Math.pow(finalVolume, 2.2)
+            value: finalGamma
         });
+
+        if (roundedValue === 0 || roundedValue === 100 || roundedValue <= 5) {
+            logInfo(
+                `[onair.js] Main fade-out set-volume: item=${itemVal}%, master=${masterVal}%, finalLinear=${finalVolume.toFixed(4)}, finalGamma=${finalGamma.toFixed(4)}, currentPath="${onairCurrentState?.path || ''}"`
+            );
+        }
     }
 
     // フェード更新
     function fadeStep(timestamp) {
-        if (!startTime) startTime = timestamp;
+        if (!fadeOutInProgressMain) {
+            logInfo('[onair.js] Main fade-out aborted before completion');
+            return;
+        }
+
+        if (startTime === null) {
+            startTime = timestamp;
+            requestAnimationFrame(fadeStep);
+            return;
+        }
+
         const elapsed = timestamp - startTime;
-
-        if (!fadeOutInProgressMain) return;
-
         const newValue = Math.max(targetValue, currentValue - (elapsed / (duration * 1000)) * currentValue);
 
         setSliderValue(newValue);
@@ -3419,6 +3434,7 @@ function audioFadeOut(duration) {
             setSliderValue(targetValue);
             onairMasterVolume = targetValue;
             fadeOutInProgressMain = false;
+            logInfo('[onair.js] Main fade-out completed');
             stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
         }
     }
@@ -3501,6 +3517,10 @@ function audioFadeOutItem(duration) {
     let currentValue = itemSlider.value;
     let targetValue = 0;
 
+    logInfo(
+        `[onair.js] Item fade-out start: duration=${duration}, startValue=${currentValue}, masterSlider=${document.getElementById('on-air-master-volume-slider')?.value}, currentPath="${onairCurrentState?.path || ''}", currentName="${onairCurrentState?.name || ''}"`
+    );
+
     // スライダー反映
     function setSliderValue(value) {
         itemSlider.value = value;
@@ -3511,23 +3531,37 @@ function audioFadeOutItem(duration) {
 
         const masterVal = parseInt(document.getElementById('on-air-master-volume-slider').value, 10);
         const finalVolume = (roundedValue / 100) * (masterVal / 100);
+        const finalGamma = Math.pow(finalVolume, 2.2);
         window.electronAPI.sendControlToFullscreen({
             command: 'set-volume',
-            value: Math.pow(finalVolume, 2.2)
+            value: finalGamma
         });
         const videoElement = document.getElementById('on-air-video');
         if (videoElement) {
             videoElement.volume = finalVolume;
         }
+
+        if (roundedValue === 0 || roundedValue === 100 || roundedValue <= 5) {
+            logInfo(
+                `[onair.js] Item fade-out set-volume: item=${roundedValue}%, master=${masterVal}%, finalLinear=${finalVolume.toFixed(4)}, finalGamma=${finalGamma.toFixed(4)}, currentPath="${onairCurrentState?.path || ''}"`
+            );
+        }
     }
 
     // フェード更新
     function fadeStep(timestamp) {
-        if (!startTime) startTime = timestamp;
+        if (!fadeOutInProgressItem) {
+            logInfo('[onair.js] Item fade-out aborted before completion');
+            return;
+        }
+
+        if (startTime === null) {
+            startTime = timestamp;
+            requestAnimationFrame(fadeStep);
+            return;
+        }
+
         const elapsed = timestamp - startTime;
-
-        if (!fadeOutInProgressItem) return;
-
         const newValue = Math.max(targetValue, currentValue - (elapsed / (duration * 1000)) * currentValue);
         setSliderValue(newValue);
 
@@ -3537,6 +3571,7 @@ function audioFadeOutItem(duration) {
             // 終了処理
             setSliderValue(targetValue);
             fadeOutInProgressItem = false;
+            logInfo('[onair.js] Item fade-out completed');
             stopFadeButtonBlink(document.getElementById('on-air-item-fo-button'));
         }
     }
@@ -4514,29 +4549,13 @@ function onairHandleFTBButton() {
     if (nextActive) {
         onairFtbToggleShouldKeepPlaying = !!(elements.onairVideoElement && !elements.onairVideoElement.paused);
 
-        const currentMasterValue = masterSlider
-            ? Math.max(0, Math.min(100, Number(masterSlider.value) || 0))
-            : 100;
+        const baseMasterValue = (onairMasterBaseVolume !== undefined && onairMasterBaseVolume !== null && !isNaN(Number(onairMasterBaseVolume)))
+            ? Math.max(0, Math.min(100, Number(onairMasterBaseVolume) || 0))
+            : (masterSlider
+                ? Math.max(0, Math.min(100, Number(masterSlider.value) || 0))
+                : 100);
 
-        const hasRestoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue));
-        const restoreValue = hasRestoreValue
-            ? Math.max(0, Math.min(100, Number(onairFtbToggleMasterRestoreValue) || 0))
-            : null;
-
-        const isFtbMasterFadeRunning = (onairFtbToggleMasterFadeRaf !== null);
-        const isLikelyReFadeOutDuringRestore =
-            isFtbMasterFadeRunning &&
-            hasRestoreValue &&
-            currentMasterValue < restoreValue;
-
-        if (!isLikelyReFadeOutDuringRestore) {
-            const preservedRestoreValue = hasRestoreValue
-                ? Math.max(restoreValue, currentMasterValue)
-                : currentMasterValue;
-
-            onairFtbToggleMasterRestoreValue = preservedRestoreValue;
-            onairMasterBaseVolume = preservedRestoreValue;
-        }
+        onairFtbToggleMasterRestoreValue = baseMasterValue;
     }
 
     // トグル状態を保存
@@ -4550,19 +4569,10 @@ function onairHandleFTBButton() {
     if (nextActive) {
         onairAnimateMasterFaderForFtb(0, fadeSec);
     } else {
-        const currentMasterValue = masterSlider
-            ? Math.max(0, Math.min(100, Number(masterSlider.value) || 0))
-            : 0;
-
-        const savedRestoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
+        const restoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
             ? Math.max(0, Math.min(100, Number(onairFtbToggleMasterRestoreValue) || 0))
             : 0;
 
-        const baseRestoreValue = Math.max(0, Math.min(100, Number(onairMasterBaseVolume) || 0));
-        const restoreValue = Math.max(savedRestoreValue, baseRestoreValue, currentMasterValue, 0);
-
-        onairFtbToggleMasterRestoreValue = restoreValue;
-        onairMasterBaseVolume = restoreValue;
         onairAnimateMasterFaderForFtb(restoreValue, fadeSec);
     }
 

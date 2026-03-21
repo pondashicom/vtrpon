@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     fullscreen.js
-//     ver 2.6.0
+//     ver 2.6.1
 // -----------------------
 
 // -----------------------
@@ -38,7 +38,6 @@ let fullscreenFtbToggleVisualAnimSeq = 0;
 let fullscreenFtbToggleShouldKeepPlaying = false;
 let fullscreenFtbToggleAudioRaf = null;
 let fullscreenFtbToggleAudioAnimSeq = 0;
-let fullscreenFtbTogglePendingVolume = null;
 let fullscreenFtbToggleTransitionUntilMs = 0;
 const FULLSCREEN_SET_VOLUME_EPSILON = 0.01;
 const FULLSCREEN_SET_VOLUME_ENDPOINT_SNAP_EPSILON = 0.005;
@@ -84,7 +83,6 @@ function initializeFullscreenArea(blackHoldMode = null) {
     fullscreenFtbToggleVisualAnimSeq += 1;
     fullscreenFtbToggleHoldActive = false;
     fullscreenFtbToggleShouldKeepPlaying = false;
-    fullscreenFtbTogglePendingVolume = null;
     fullscreenFtbToggleTransitionUntilMs = 0;
     fullscreenLastControlAppliedVolume = null;
 
@@ -479,7 +477,6 @@ window.electronAPI.onReceiveFullscreenData((itemData) => {
         if (applySeq !== fullscreenApplySeq) return;
 
         fullscreenApplyRafId = null;
-        cleanupBeforeSourceApply();
         handleOnAirData(itemData);
     });
 });
@@ -1502,18 +1499,21 @@ function setupVideoPlayer() {
         }
 
         if (shouldForceMuteByFtbForInitVolume) {
-            fullscreenFtbTogglePendingVolume = initialVolume;
             fullscreenLastControlAppliedVolume = 0;
         }
 
-        logInfo(`[fullscreen.js] Fullscreen video started with default volume: ${appliedInitialVolume}`);
+        logInfo(
+            `[fullscreen.js] Fullscreen video started: path="${globalState.path || ''}", appliedInitialVolume=${appliedInitialVolume}, rawInitialVolume=${initialVolume}, ftbHold=${fullscreenFtbToggleHoldActive}, ftbTransitionActive=${isFtbToggleTransitionActiveForInitVolume}, keepPlaying=${fullscreenFtbToggleShouldKeepPlaying}`
+        );
     }, { once: true });
 
     logInfo('[fullscreen.js] Video player initialized with the following settings:');
     logDebug(`[fullscreen.js] Path: ${globalState.path}`);
     logDebug(`[fullscreen.js] IN Point: ${globalState.inPoint}`);
     logDebug(`[fullscreen.js] Default Volume: ${globalState.defaultVolume}`);
-    logDebug(`[fullscreen.js] Initial Volume Applied: ${initialVolume}`);
+    logDebug(
+        `[fullscreen.js] Initial Volume Applied: raw=${initialVolume}, path="${globalState.path}", startMode=${globalState.startMode}, endMode=${globalState.endMode}, ftbHold=${fullscreenFtbToggleHoldActive}, transitionUntilMs=${fullscreenFtbToggleTransitionUntilMs || 0}`
+    );
 }
 
 // ローカルファイルパスを安全なファイルURLに変換する関数
@@ -1596,12 +1596,11 @@ async function setupUVCDevice() {
         }
 
         if (shouldForceMuteByFtbForUvcInitVolume) {
-            fullscreenFtbTogglePendingVolume = initialVolume;
             fullscreenLastControlAppliedVolume = 0;
         }
         const maxStreamGain = 1.0;
         initialVolume = Math.max(0.0, Math.min(maxStreamGain, initialVolume));
-        videoElement.volume = initialVolume;
+        videoElement.volume = Math.max(0.0, Math.min(maxStreamGain, appliedUvcInitialVolume));
 
         // 既存再生ソース解除
         try {
@@ -2088,6 +2087,13 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
 
         // コマンド分岐
         switch (command) {
+            case 'clear-current-source':
+                logInfo(
+                    `[fullscreen.js] clear-current-source: currentPath="${globalState.path || ''}", videoCurrentTime=${fullscreenVideoElement.currentTime}, paused=${fullscreenVideoElement.paused}, lastControlVolume=${fullscreenLastControlAppliedVolume}, ftbHold=${fullscreenFtbToggleHoldActive}, keepPlaying=${fullscreenFtbToggleShouldKeepPlaying}`
+                );
+                cleanupBeforeSourceApply();
+                break;
+
             // 再生制御
             case 'play':
                 fullscreenVideoElement.play();
@@ -2139,7 +2145,6 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                         fullscreenLastControlAppliedVolume !== null &&
                         Math.abs(clamped - fullscreenLastControlAppliedVolume) < FULLSCREEN_SET_VOLUME_EPSILON
                     ) {
-                        fullscreenFtbTogglePendingVolume = null;
                         break;
                     }
 
@@ -2154,8 +2159,11 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                         fullscreenGainNode.gain.setValueAtTime(clamped, t);
                     }
 
+                    logInfo(
+                        `[fullscreen.js] set-volume applied: path="${globalState.path || ''}", requested=${Number(value).toFixed(4)}, applied=${clamped.toFixed(4)}, previous=${fullscreenLastControlAppliedVolume === null ? 'null' : fullscreenLastControlAppliedVolume.toFixed(4)}, paused=${fullscreenVideoElement.paused}, currentTime=${fullscreenVideoElement.currentTime.toFixed(3)}, ftbHold=${fullscreenFtbToggleHoldActive}, keepPlaying=${fullscreenFtbToggleShouldKeepPlaying}`
+                    );
+
                     fullscreenLastControlAppliedVolume = clamped;
-                    fullscreenFtbTogglePendingVolume = null;
                 } else {
                     logInfo(`[fullscreen.js] Invalid volume value: ${value}. Must be between 0 and 1.`);
                 }
@@ -2240,9 +2248,6 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     const fk = !!(value && value.fillKeyMode);
                     const fkColor = (value && typeof value.fillKeyColor === 'string') ? value.fillKeyColor : '';
                     const keepPlaying = !!(value && value.keepPlaying);
-                    const audioTargetLinear = (value && typeof value.audioTargetLinear === 'number')
-                        ? value.audioTargetLinear
-                        : (active ? 0 : 1);
 
                     fullscreenFtbToggleShouldKeepPlaying = keepPlaying;
 
@@ -2250,7 +2255,7 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     fullscreenLastControlAppliedVolume = null;
 
                     fullscreenFtbToggleTransitionUntilMs = performance.now() + (Math.max(0, Number(dur) || 0) * 1000) + 50;
-                    logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}, audioTargetLinear=${audioTargetLinear}`);
+                    logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}`);
                     setFullscreenFtbToggleHoldVisual(active, dur, fk, fkColor);
 
                     if (fullscreenFtbToggleAudioRaf !== null) {
@@ -2258,13 +2263,8 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                         fullscreenFtbToggleAudioRaf = null;
                     }
                     fullscreenFtbToggleAudioAnimSeq += 1;
-
-                    if (!active) {
-                        fullscreenFtbTogglePendingVolume = null;
-                    }
                 }
                 break;
-
 
             // pre-FTB制御
             case 'start-pre-ftb':
@@ -2784,28 +2784,6 @@ function setupFullscreenAudio(videoElement) {
                     clearTimeout(fullscreenLingerTimerId);
                     fullscreenLingerTimerId = null;
                 }
-                const ctx = FullscreenAudioManager.getContext();
-                if (fullscreenGainNode) {
-                    const nowMs = performance.now();
-                    const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
-
-                    // ゲイン復元
-                    if (!fullscreenFtbToggleHoldActive && !isFtbToggleTransitionActive) {
-                        const t = ctx.currentTime;
-                        const rawGain = (typeof globalState.volume === 'number')
-                            ? globalState.volume
-                            : (globalState?.defaultVolume ?? 100) / 100;
-
-                        const maxGain = (fullscreenSourceKind === 'stream') ? 0.5 : 4.0;
-                        const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
-
-                        fullscreenGainNode.gain.cancelScheduledValues(t);
-                        fullscreenGainNode.gain.setValueAtTime(0.0001, t);
-                        fullscreenGainNode.gain.linearRampToValueAtTime(targetGain, t + 0.03);
-                    } else {
-                        logDebug('[fullscreen.js] resumeMeasure skipped gain restore due to FTB toggle hold/transition.');
-                    }
-                }
             } catch (_e) {}
 
             // メーター再開
@@ -2909,30 +2887,6 @@ function startVolumeMeasurement(updateInterval = 60) {
     isVolumeMeasurementActive = true;
     logDebug('[fullscreen.js] Volume measurement loop started.');
 
-    // ゲイン復元
-    try {
-        const nowMs = performance.now();
-        const isFtbToggleTransitionActive = nowMs < (fullscreenFtbToggleTransitionUntilMs || 0);
-
-        if (!fullscreenFtbToggleHoldActive && !isFtbToggleTransitionActive) {
-            const t = audioContext.currentTime;
-            const rawGain = (typeof globalState.volume === 'number')
-                ? globalState.volume
-                : (globalState.defaultVolume ?? 100) / 100;
-
-            // ゲイン上限決定
-            const maxGain = (fullscreenSourceKind === 'stream') ? 1.0 : 4.0;
-            const targetGain = Math.max(0.001, Math.min(maxGain, rawGain));
-
-            if (fullscreenGainNode) {
-                fullscreenGainNode.gain.cancelScheduledValues(t);
-                fullscreenGainNode.gain.setValueAtTime(targetGain, t);
-            }
-        } else {
-            logDebug('[fullscreen.js] startVolumeMeasurement skipped gain restore due to FTB toggle hold/transition.');
-        }
-    } catch (_e) {}
-
     // analyser設定
     try { fullscreenAnalyserL.fftSize = 2048; } catch (_e) {}
     try { fullscreenAnalyserR.fftSize = 2048; } catch (_e) {}
@@ -3020,17 +2974,7 @@ function stopVolumeMeasurement(lingerMs = 200) {
     }
     if (!isVolumeMeasurementActive) return;
 
-    const ctx = FullscreenAudioManager.getContext();
-    try {
-        // ゲイン減衰
-        if (fullscreenGainNode) {
-            const t = ctx.currentTime;
-            fullscreenGainNode.gain.cancelScheduledValues(t);
-            fullscreenGainNode.gain.linearRampToValueAtTime(0.0001, t + Math.min(lingerMs, 300) / 1000);
-        }
-    } catch (_e) {}
-
-    // 停止タイマー開始
+    // 音量メーター停止は実音声gainを変更しない
     fullscreenLingerTimerId = setTimeout(() => {
         fullscreenLingerTimerId = null;
         isVolumeMeasurementActive = false;
