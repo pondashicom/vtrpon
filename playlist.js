@@ -5764,6 +5764,8 @@ if (dskPlayButton) {
 // モーダル初期値設定
 let isModalActive = false;
 let isScreenLocked = false;
+let screenLockBackgroundSettings = getDefaultScreenLockBackgroundSettings();
+let screenLockBackgroundImageLoadErrorPath = '';
 let screenLockNoticeLastShownAt = 0;
 let screenLockUnlockStartAt = 0;
 let screenLockUnlockTimerId = null;
@@ -5774,6 +5776,37 @@ let isScreenLockBannerIdle = false;
 const SCREEN_LOCK_UNLOCK_HOLD_MS = 2000;
 const SCREEN_LOCK_NOTICE_THROTTLE_MS = 1500;
 const SCREEN_LOCK_BANNER_IDLE_MS = 3000;
+
+function getDefaultScreenLockBackgroundSettings() {
+    return {
+        enabled: false,
+        assetPath: '',
+        originalFileName: '',
+        updatedAt: ''
+    };
+}
+
+function normalizeScreenLockBackgroundSettings(settings = {}) {
+    const defaults = getDefaultScreenLockBackgroundSettings();
+    const assetPath = typeof settings.assetPath === 'string' ? settings.assetPath : defaults.assetPath;
+
+    return {
+        enabled: settings.enabled === true && assetPath.trim() !== '',
+        assetPath,
+        originalFileName: typeof settings.originalFileName === 'string' ? settings.originalFileName : defaults.originalFileName,
+        updatedAt: typeof settings.updatedAt === 'string' ? settings.updatedAt : defaults.updatedAt
+    };
+}
+
+function toSafeScreenLockBackgroundUrl(assetPath) {
+    if (typeof assetPath !== 'string' || assetPath.trim() === '') {
+        return '';
+    }
+
+    const normalizedPath = assetPath.replace(/\\/g, '/');
+    const prefixedPath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
+    return encodeURI(`file://${prefixedPath}`);
+}
 
 // Enterキーリスナー参照保持（リーク防止用）
 let nameInputKeydownHandler = null;
@@ -5802,6 +5835,16 @@ window.electronAPI.getScreenLockState().then((state) => {
     stopScreenLockUnlockHold();
 });
 
+window.electronAPI.getScreenLockBackgroundSettings().then((settings) => {
+    screenLockBackgroundSettings = normalizeScreenLockBackgroundSettings(settings);
+    logInfo('[playlist.js] Screen lock background settings initialized:', screenLockBackgroundSettings);
+    syncScreenLockBackgroundUiState();
+}).catch((error) => {
+    screenLockBackgroundSettings = getDefaultScreenLockBackgroundSettings();
+    logInfo('[playlist.js] Failed to initialize screen lock background settings:', error);
+    syncScreenLockBackgroundUiState();
+});
+
 // モーダル状態変更監視
 window.electronAPI.onModalStateChange((event, { isActive }) => {
     isModalActive = isActive;
@@ -5823,6 +5866,14 @@ window.electronAPI.onScreenLockStateChange((event, { locked }) => {
         );
     }
 });
+
+if (window.electronAPI.onScreenLockBackgroundSettingsChanged) {
+    window.electronAPI.onScreenLockBackgroundSettingsChanged((settings) => {
+        screenLockBackgroundSettings = normalizeScreenLockBackgroundSettings(settings);
+        logInfo('[playlist.js] Screen lock background settings changed:', screenLockBackgroundSettings);
+        syncScreenLockBackgroundUiState();
+    });
+}
 
 function isPlaylistInputBlocked() {
     return isModalActive || isScreenLocked;

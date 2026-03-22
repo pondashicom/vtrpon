@@ -182,6 +182,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // スクリーンロック状態の変更を監視する関数
     onScreenLockStateChange: (callback) => ipcRenderer.on('screen-lock-state-change', callback),
 
+    // スクリーンロック背景画像設定を取得する関数
+    getScreenLockBackgroundSettings: () => ipcRenderer.invoke('get-screen-lock-background-settings'),
+
+    // スクリーンロック背景画像を選択する関数
+    selectScreenLockBackgroundImage: () => ipcRenderer.invoke('select-screen-lock-background-image'),
+
+    // スクリーンロック背景画像をクリアする関数
+    clearScreenLockBackgroundImage: () => ipcRenderer.invoke('clear-screen-lock-background-image'),
+
+    // スクリーンロック背景画像設定の変更を監視する関数
+    onScreenLockBackgroundSettingsChanged: (callback) =>
+        ipcRenderer.on('screen-lock-background-settings-changed', (event, settings) => callback(settings)),
+
     // ---------------------------------------
     // プレイリストのインポート・エクスポート
     // ---------------------------------------
