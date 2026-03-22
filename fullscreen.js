@@ -776,6 +776,13 @@ function executeIncomingBridgeMode(incomingBridgeMode) {
     }
 
     if (incomingBridgeMode === 'BLACK') {
+        if (fullscreenFtbToggleHoldActive) {
+            clearVisualBridgeOverlay();
+            clearTransitionBlackHold();
+            logInfo('[fullscreen.js] Incoming BLACK bridge skipped because FTB hold is already active.');
+            return;
+        }
+
         beginTransitionBlackHold();
         return;
     }
@@ -2248,6 +2255,9 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     const fk = !!(value && value.fillKeyMode);
                     const fkColor = (value && typeof value.fillKeyColor === 'string') ? value.fillKeyColor : '';
                     const keepPlaying = !!(value && value.keepPlaying);
+                    const audioTargetLinear = (value && typeof value.audioTargetLinear === 'number')
+                        ? Math.max(0, Math.min(1, Number(value.audioTargetLinear) || 0))
+                        : (active ? 0 : 1);
 
                     fullscreenFtbToggleShouldKeepPlaying = keepPlaying;
 
@@ -2255,14 +2265,9 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                     fullscreenLastControlAppliedVolume = null;
 
                     fullscreenFtbToggleTransitionUntilMs = performance.now() + (Math.max(0, Number(dur) || 0) * 1000) + 50;
-                    logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}`);
+                    logInfo(`[fullscreen.js] ftb-toggle-hold: active=${active}, duration=${dur}s, fillKeyMode=${fk}, keepPlaying=${keepPlaying}, audioTargetLinear=${audioTargetLinear}`);
                     setFullscreenFtbToggleHoldVisual(active, dur, fk, fkColor);
-
-                    if (fullscreenFtbToggleAudioRaf !== null) {
-                        cancelAnimationFrame(fullscreenFtbToggleAudioRaf);
-                        fullscreenFtbToggleAudioRaf = null;
-                    }
-                    fullscreenFtbToggleAudioAnimSeq += 1;
+                    fullscreenAnimateFtbToggleAudioTo(audioTargetLinear, dur);
                 }
                 break;
 

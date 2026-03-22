@@ -953,7 +953,10 @@ function onairBuildTransitionPlan(itemId, itemData) {
         currentPath,
         currentEndMode,
         currentIsUvc,
-        currentFtbActive: !!(onairCurrentState && onairCurrentState.ftbEnabled === true),
+        currentFtbActive: !!(
+            onairFtbToggleHoldActive ||
+            (onairCurrentState && onairCurrentState.ftbEnabled === true)
+        ),
         nextPath,
         nextStartMode,
         nextEndMode,
@@ -1007,6 +1010,13 @@ function onairResolveBridgeMode(transitionPlan) {
 
     // manual遷移
     if (isManual) {
+        if (currentFtbActive) {
+            return {
+                bridgeMode: 'BLACK',
+                transitionSource: 'manual'
+            };
+        }
+
         if (nextStartMode === 'PAUSE') {
             return {
                 bridgeMode: 'OVERLAY',
@@ -4859,16 +4869,19 @@ function onairSyncCombinedVolumeFromSlidersForFtb() {
     const isEndpoint = (gammaVolume === 0 || gammaVolume === 1);
 
     // Fullscreen送信
-    if (
-        isEndpoint ||
-        onairLastSentFullscreenGammaVolumeForFtb === null ||
-        Math.abs(gammaVolume - onairLastSentFullscreenGammaVolumeForFtb) >= ONAIR_FTB_SET_VOLUME_EPSILON
-    ) {
-        window.electronAPI.sendControlToFullscreen({
-            command: 'set-volume',
-            value: gammaVolume
-        });
-        onairLastSentFullscreenGammaVolumeForFtb = gammaVolume;
+    // FTB専用マスターフェード中は、Fullscreen側のローカル音声フェードを優先する
+    if (onairFtbToggleMasterFadeRaf === null) {
+        if (
+            isEndpoint ||
+            onairLastSentFullscreenGammaVolumeForFtb === null ||
+            Math.abs(gammaVolume - onairLastSentFullscreenGammaVolumeForFtb) >= ONAIR_FTB_SET_VOLUME_EPSILON
+        ) {
+            window.electronAPI.sendControlToFullscreen({
+                command: 'set-volume',
+                value: gammaVolume
+            });
+            onairLastSentFullscreenGammaVolumeForFtb = gammaVolume;
+        }
     }
 
     // プレビュー反映
