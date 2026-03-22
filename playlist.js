@@ -5836,11 +5836,8 @@ function updateScreenLockBanner() {
         return;
     }
 
-    banner.classList.toggle('hidden', !isScreenLocked);
-
-    const hint = banner.querySelector('.screen-lock-banner-hint');
-    const title = banner.querySelector('.screen-lock-banner-title');
-    const progress = document.getElementById('screen-lock-progress');
+    const hint = document.getElementById('screen-lock-banner-hint');
+    const title = document.getElementById('screen-lock-banner-title');
     const progressBar = document.getElementById('screen-lock-progress-bar');
     if (title) {
         title.textContent = getMessage('screen-lock-title');
@@ -5848,11 +5845,8 @@ function updateScreenLockBanner() {
     if (hint && !screenLockUnlockStartAt) {
         hint.textContent = getMessage('screen-lock-hint');
     }
-    if (progress) {
-        progress.classList.toggle('is-active', !!screenLockUnlockStartAt);
-    }
-    if (progressBar && !screenLockUnlockStartAt) {
-        progressBar.style.width = '0%';
+    if (banner && progressBar && !screenLockUnlockStartAt) {
+        banner.style.setProperty('--screen-lock-progress', '0%');
     }
 }
 
@@ -5904,33 +5898,21 @@ function updateScreenLockUnlockBannerProgress() {
         return;
     }
 
-    const hint = banner.querySelector('.screen-lock-banner-hint');
-    const progress = document.getElementById('screen-lock-progress');
-    const progressBar = document.getElementById('screen-lock-progress-bar');
+    const hint = document.getElementById('screen-lock-banner-hint');
     if (!hint) {
         return;
     }
 
     if (!screenLockUnlockStartAt) {
         hint.textContent = getMessage('screen-lock-hint');
-        if (progress) {
-            progress.classList.remove('is-active');
-        }
-        if (progressBar) {
-            progressBar.style.width = '0%';
-        }
+        banner.style.setProperty('--screen-lock-progress', '0%');
         return;
     }
 
     const elapsed = Math.max(0, Date.now() - screenLockUnlockStartAt);
     const progressPercent = Math.min(100, Math.round((elapsed / SCREEN_LOCK_UNLOCK_HOLD_MS) * 100));
     hint.textContent = getScreenLockUnlockingText(progressPercent);
-    if (progress) {
-        progress.classList.add('is-active');
-    }
-    if (progressBar) {
-        progressBar.style.width = `${progressPercent}%`;
-    }
+    banner.style.setProperty('--screen-lock-progress', `${progressPercent}%`);
 }
 
 function stopScreenLockUnlockHold(resetBanner = true) {

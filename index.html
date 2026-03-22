@@ -28,18 +28,16 @@
     <script src="renderer.js" defer></script>
 </head>
 <body>
-    <div id="screen-lock-banner" class="screen-lock-banner hidden">
+    <div id="screen-lock-banner" class="screen-lock-banner">
         <div class="screen-lock-banner-text">
-            <span class="screen-lock-banner-title">Screen Locked</span>
-            <span class="screen-lock-banner-hint"></span>
+            <span id="screen-lock-banner-title" class="screen-lock-banner-title">Screen Locked</span>
+            <span id="screen-lock-banner-hint" class="screen-lock-banner-hint"></span>
         </div>
-        <div class="screen-lock-progress" id="screen-lock-progress">
+        <div class="screen-lock-progress">
             <div class="screen-lock-progress-bar" id="screen-lock-progress-bar"></div>
         </div>
     </div>
-    <div id="screen-lock-overlay-layer" class="screen-lock-overlay-layer">
-        <div class="screen-lock-overlay" id="screen-lock-overlay"></div>
-    </div>
+    <div id="screen-lock-overlay" class="screen-lock-overlay"></div>
     <div class="grid-container">
         <!-- エディットエリア -->
         <div id="listedit-section" class="section listedit">
