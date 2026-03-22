@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     labels.js
-//     ver 2.6.0
+//     ver 2.6.1
 // -----------------------
 
 const labels = {
@@ -66,6 +66,7 @@ const labels = {
     "menu-move-fullscreen": "フルスクリーン移動",
     "menu-tools": "ツール",
     "menu-tools-atem-connection": "ATEM連携",
+    "menu-tools-operator-monitor-output": "オペレーターモニター出力",
     "menu-help": "ヘルプ",
     "menu-about": "バージョン情報",
     "menu-check-update": "アップデートの確認",
@@ -289,6 +290,7 @@ const labels = {
     "menu-move-fullscreen": "Move Fullscreen Window",
     "menu-tools": "Tools",
     "menu-tools-atem-connection": "ATEM Connection",
+    "menu-tools-operator-monitor-output": "Operator Monitor Output",
     "menu-help": "Help",
     "menu-about": "About",
     "menu-check-update": "Check Update",

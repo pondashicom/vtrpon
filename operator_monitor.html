@@ -1,0 +1,72 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operator Monitor Output</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+
+        body {
+            position: relative;
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        #operator-monitor-video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
+            background: #000;
+        }
+
+        #operator-monitor-osd {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 10;
+            padding: 6px 10px;
+            background: rgba(0, 0, 0, 0.35);
+            color: #ffffff;
+            font-size: 14px;
+            line-height: 1.4;
+            white-space: nowrap;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        #operator-monitor-waiting {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 20px;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <video id="operator-monitor-video" autoplay muted playsinline></video>
+
+    <div id="operator-monitor-osd">
+        <div>FILENAME : <span id="operator-monitor-filename">No file loaded</span></div>
+        <div>REMAIN : <span id="operator-monitor-remain">00:00:00:00</span> ( DUR : <span id="operator-monitor-duration">00:00:00:00</span>)</div>
+        <div>START MODE : <span id="operator-monitor-startmode">-</span></div>
+        <div>ENDMODE : <span id="operator-monitor-endmode">-</span></div>
+    </div>
+
+    <div id="operator-monitor-waiting">Waiting for Operator Monitor stream...</div>
+
+    <script src="operator_monitor.js"></script>
+</body>
+</html>

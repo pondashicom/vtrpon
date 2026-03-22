@@ -44,6 +44,15 @@ let onairLastSentFullscreenGammaVolumeForFtb = null;
 let onairSuppressFullscreenVolumeSync = false;
 const ONAIR_LAYER_Z_PRE_FTB_BLACK = 8000;
 const ONAIR_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
+let onairOperatorMonitorWindow = null;
+let onairOperatorMonitorLoopRaf = null;
+let onairOperatorMonitorStateInterval = null;
+let onairOperatorMonitorCanvas = null;
+let onairOperatorMonitorCtx = null;
+let onairOperatorMonitorStream = null;
+const ONAIR_OPERATOR_MONITOR_WIDTH = 1920;
+const ONAIR_OPERATOR_MONITOR_HEIGHT = 1080;
+const ONAIR_OPERATOR_MONITOR_FPS = 30;
 
 
 // -----------------------------------------
@@ -386,6 +395,379 @@ function initializeOverlayCanvasOnAir() {
     } catch (_) {}
 
     return canvas;
+}
+
+// Operator Monitor 出力canvasを初期化する関数
+function onairEnsureOperatorMonitorCanvas() {
+    if (onairOperatorMonitorCanvas && onairOperatorMonitorCtx) {
+        return onairOperatorMonitorCanvas;
+    }
+
+    let canvas = document.getElementById('onair-operator-monitor-canvas');
+    if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.id = 'onair-operator-monitor-canvas';
+        canvas.style.display = 'none';
+        document.body.appendChild(canvas);
+    }
+
+    canvas.width = ONAIR_OPERATOR_MONITOR_WIDTH;
+    canvas.height = ONAIR_OPERATOR_MONITOR_HEIGHT;
+
+    onairOperatorMonitorCanvas = canvas;
+    onairOperatorMonitorCtx = canvas.getContext('2d', {
+        alpha: false,
+        desynchronized: true
+    });
+
+    return onairOperatorMonitorCanvas;
+}
+
+// 既存の OnAir DSK オーバーレイを Operator Monitor 出力へ描画する関数
+function onairDrawExistingDskOverlayToOperatorMonitor(ctx, outputCanvas) {
+    const dskOverlay = document.getElementById('onair-dsk-overlay');
+    const dskVideo = dskOverlay ? dskOverlay.querySelector('video') : null;
+    const onAirVideo = document.getElementById('on-air-video');
+
+    if (!ctx || !outputCanvas || !dskOverlay || !dskVideo || !onAirVideo) {
+        return;
+    }
+
+    const overlayStyle = window.getComputedStyle(dskOverlay);
+    if (!overlayStyle || overlayStyle.display === 'none' || overlayStyle.visibility === 'hidden') {
+        return;
+    }
+
+    const overlayOpacity = Math.max(0, Math.min(1, parseFloat(overlayStyle.opacity || '0') || 0));
+    if (overlayOpacity <= 0.001) {
+        return;
+    }
+
+    if (!(dskVideo.readyState >= 2 && dskVideo.videoWidth > 0 && dskVideo.videoHeight > 0)) {
+        return;
+    }
+
+    const videoRect = onAirVideo.getBoundingClientRect();
+    const overlayRect = dskOverlay.getBoundingClientRect();
+
+    if (!videoRect || !overlayRect || videoRect.width <= 0 || videoRect.height <= 0) {
+        return;
+    }
+
+    const dx = Math.round(((overlayRect.left - videoRect.left) / videoRect.width) * outputCanvas.width);
+    const dy = Math.round(((overlayRect.top - videoRect.top) / videoRect.height) * outputCanvas.height);
+    const dw = Math.round((overlayRect.width / videoRect.width) * outputCanvas.width);
+    const dh = Math.round((overlayRect.height / videoRect.height) * outputCanvas.height);
+
+    if (dw <= 0 || dh <= 0) {
+        return;
+    }
+
+    try {
+        ctx.save();
+        ctx.globalAlpha = overlayOpacity;
+        ctx.drawImage(dskVideo, dx, dy, dw, dh);
+        ctx.restore();
+    } catch (_) {}
+}
+
+// Operator Monitor 出力に現在フレームを描画する関数
+function onairRenderOperatorMonitorFrame() {
+    const canvas = onairEnsureOperatorMonitorCanvas();
+    const ctx = onairOperatorMonitorCtx;
+    const els = onairGetElements();
+    const videoElement = els?.onairVideoElement;
+    const fadeCanvas = els?.onairFadeCanvas;
+    const overlayCanvas = document.getElementById('onair-overlay-canvas');
+    const ftbToggleLayer = document.getElementById('onair-ftb-toggle-layer');
+
+    if (!canvas || !ctx) {
+        return;
+    }
+
+    ctx.save();
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (!onairNowOnAir && !onairCurrentState) {
+        ctx.restore();
+        return;
+    }
+
+    if (videoElement && videoElement.readyState >= 2 && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+        const srcW = videoElement.videoWidth;
+        const srcH = videoElement.videoHeight;
+        const srcAspect = srcW / srcH;
+        const dstAspect = canvas.width / canvas.height;
+
+        let drawW;
+        let drawH;
+        let drawX;
+        let drawY;
+
+        if (srcAspect > dstAspect) {
+            drawW = canvas.width;
+            drawH = Math.round(drawW / srcAspect);
+            drawX = 0;
+            drawY = Math.round((canvas.height - drawH) / 2);
+        } else {
+            drawH = canvas.height;
+            drawW = Math.round(drawH * srcAspect);
+            drawX = Math.round((canvas.width - drawW) / 2);
+            drawY = 0;
+        }
+
+        try {
+            ctx.drawImage(videoElement, drawX, drawY, drawW, drawH);
+        } catch (_) {}
+    }
+
+    if (overlayCanvas) {
+        const overlayStyle = window.getComputedStyle(overlayCanvas);
+        const overlayVisible = overlayStyle.visibility !== 'hidden' && overlayStyle.display !== 'none';
+        const overlayOpacity = Math.max(0, Math.min(1, parseFloat(overlayStyle.opacity || '0') || 0));
+
+        if (overlayVisible && overlayOpacity > 0.001) {
+            ctx.save();
+            ctx.globalAlpha = overlayOpacity;
+            try {
+                ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
+            } catch (_) {}
+            ctx.restore();
+        }
+    }
+
+    onairDrawExistingDskOverlayToOperatorMonitor(ctx, canvas);
+
+    if (fadeCanvas) {
+        const fadeStyle = window.getComputedStyle(fadeCanvas);
+        const fadeVisible = fadeStyle.visibility !== 'hidden' && fadeStyle.display !== 'none';
+        const fadeOpacity = Math.max(0, Math.min(1, parseFloat(fadeStyle.opacity || '0') || 0));
+
+        if (fadeVisible && fadeOpacity > 0.001) {
+            ctx.save();
+            ctx.globalAlpha = fadeOpacity;
+            ctx.fillStyle = fadeStyle.backgroundColor || 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+        }
+    }
+
+    if (ftbToggleLayer) {
+        const ftbStyle = window.getComputedStyle(ftbToggleLayer);
+        const ftbVisible = ftbStyle.visibility !== 'hidden' && ftbStyle.display !== 'none';
+        const ftbOpacity = Math.max(0, Math.min(1, parseFloat(ftbStyle.opacity || '0') || 0));
+
+        if (ftbVisible && ftbOpacity > 0.001) {
+            ctx.save();
+            ctx.globalAlpha = ftbOpacity;
+            ctx.fillStyle = ftbStyle.backgroundColor || 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+        }
+    }
+
+    ctx.restore();
+}
+
+// Operator Monitor 出力streamを取得する関数
+function onairEnsureOperatorMonitorStream() {
+    const canvas = onairEnsureOperatorMonitorCanvas();
+    if (!canvas) {
+        return null;
+    }
+
+    if (onairOperatorMonitorStream) {
+        return onairOperatorMonitorStream;
+    }
+
+    if (typeof canvas.captureStream !== 'function') {
+        logInfo('[onair.js] captureStream is not available on operator monitor canvas.');
+        return null;
+    }
+
+    onairOperatorMonitorStream = canvas.captureStream(ONAIR_OPERATOR_MONITOR_FPS);
+    return onairOperatorMonitorStream;
+}
+
+// Operator Monitor 表示状態を取得する関数
+function onairGetOperatorMonitorState() {
+    const elements = onairGetElements();
+    const fileNameText = (elements.onairFileNameDisplay && elements.onairFileNameDisplay.textContent)
+        ? elements.onairFileNameDisplay.textContent
+        : 'No file loaded';
+    const remainText = (elements.onairRemainTimeDisplay && elements.onairRemainTimeDisplay.textContent)
+        ? elements.onairRemainTimeDisplay.textContent
+        : '00:00:00:00';
+
+    let durationText = '00:00:00:00';
+    if (onairCurrentState) {
+        if (onairIsUvcItemData(onairCurrentState)) {
+            durationText = 'LIVE';
+        } else {
+            const durationSec = Math.max(0, (Number(onairCurrentState.outPoint) || 0) - (Number(onairCurrentState.inPoint) || 0));
+            durationText = onairFormatTime(durationSec);
+        }
+    }
+
+    const startModeText = onairCurrentState
+        ? String(onairCurrentState.startMode || 'PAUSE').toUpperCase()
+        : '';
+
+    let endModeText = '';
+    if (elements.onairEndModeDisplay && elements.onairEndModeDisplay.textContent) {
+        endModeText = String(elements.onairEndModeDisplay.textContent)
+            .replace(/^ENDMODE:\s*/i, '')
+            .trim();
+    }
+    if (endModeText === 'ENDMODE') {
+        endModeText = '';
+    }
+
+    return {
+        fileName: fileNameText,
+        remain: remainText,
+        duration: durationText,
+        startMode: startModeText,
+        endMode: endModeText
+    };
+}
+
+// Operator Monitor 子窓へ stream を接続する関数
+function onairAttachOperatorMonitorStream() {
+    if (!onairOperatorMonitorWindow || onairOperatorMonitorWindow.closed) {
+        return false;
+    }
+
+    const stream = onairEnsureOperatorMonitorStream();
+    if (!stream) {
+        return false;
+    }
+
+    try {
+        if (typeof onairOperatorMonitorWindow.setOperatorMonitorStream === 'function') {
+            onairOperatorMonitorWindow.setOperatorMonitorStream(stream);
+            return true;
+        }
+    } catch (_) {}
+
+    return false;
+}
+
+// Operator Monitor 子窓へ状態を送る関数
+function onairPushOperatorMonitorState() {
+    if (!onairOperatorMonitorWindow || onairOperatorMonitorWindow.closed) {
+        return false;
+    }
+
+    try {
+        if (typeof onairOperatorMonitorWindow.setOperatorMonitorState === 'function') {
+            onairOperatorMonitorWindow.setOperatorMonitorState(onairGetOperatorMonitorState());
+            return true;
+        }
+    } catch (_) {}
+
+    return false;
+}
+
+// Operator Monitor 出力を開始する関数
+function onairOpenOperatorMonitorOutput() {
+    if (onairOperatorMonitorWindow && !onairOperatorMonitorWindow.closed) {
+        onairOperatorMonitorWindow.focus();
+        onairAttachOperatorMonitorStream();
+        onairPushOperatorMonitorState();
+        return;
+    }
+
+    const operatorMonitorUrl = new URL('operator_monitor.html', window.location.href).toString();
+    onairOperatorMonitorWindow = window.open(
+        operatorMonitorUrl,
+        'vtrpon-operator-monitor-output',
+        'popup=yes,resizable=yes,width=480,height=270'
+    );
+
+    if (!onairOperatorMonitorWindow) {
+        logInfo('[onair.js] Failed to open operator monitor output window.');
+        return;
+    }
+
+    try {
+        onairOperatorMonitorWindow.resizeTo(480, 270);
+    } catch (_) {}
+
+    if (onairOperatorMonitorLoopRaf === null) {
+        const renderStep = () => {
+            if (!onairOperatorMonitorWindow || onairOperatorMonitorWindow.closed) {
+                onairCloseOperatorMonitorOutput();
+                return;
+            }
+
+            onairRenderOperatorMonitorFrame();
+            onairOperatorMonitorLoopRaf = requestAnimationFrame(renderStep);
+        };
+
+        onairOperatorMonitorLoopRaf = requestAnimationFrame(renderStep);
+    }
+
+    if (onairOperatorMonitorStateInterval === null) {
+        onairOperatorMonitorStateInterval = setInterval(() => {
+            if (!onairOperatorMonitorWindow || onairOperatorMonitorWindow.closed) {
+                onairCloseOperatorMonitorOutput();
+                return;
+            }
+
+            onairPushOperatorMonitorState();
+        }, 100);
+    }
+
+    const tryAttach = () => {
+        if (!onairOperatorMonitorWindow || onairOperatorMonitorWindow.closed) {
+            return;
+        }
+
+        const streamReady = onairAttachOperatorMonitorStream();
+        const stateReady = onairPushOperatorMonitorState();
+
+        if (!streamReady || !stateReady) {
+            setTimeout(tryAttach, 100);
+        }
+    };
+
+    tryAttach();
+}
+
+// Operator Monitor 出力を停止する関数
+function onairCloseOperatorMonitorOutput() {
+    if (onairOperatorMonitorWindow && !onairOperatorMonitorWindow.closed) {
+        onairOperatorMonitorWindow.close();
+    }
+    onairOperatorMonitorWindow = null;
+
+    if (onairOperatorMonitorLoopRaf !== null) {
+        cancelAnimationFrame(onairOperatorMonitorLoopRaf);
+        onairOperatorMonitorLoopRaf = null;
+    }
+
+    if (onairOperatorMonitorStateInterval !== null) {
+        clearInterval(onairOperatorMonitorStateInterval);
+        onairOperatorMonitorStateInterval = null;
+    }
+
+    if (onairOperatorMonitorStream) {
+        try {
+            onairOperatorMonitorStream.getTracks().forEach(track => track.stop());
+        } catch (_) {}
+        onairOperatorMonitorStream = null;
+    }
+}
+
+// Operator Monitor 出力をトグルする関数
+function onairToggleOperatorMonitorOutput() {
+    if (onairOperatorMonitorWindow && !onairOperatorMonitorWindow.closed) {
+        onairCloseOperatorMonitorOutput();
+    } else {
+        onairOpenOperatorMonitorOutput();
+    }
 }
 
 // ビデオ要素初期化
@@ -3965,6 +4347,7 @@ function handleStartModeUpdate(newStartMode, { source } = {}) {
     if (!onairCurrentState) return;
     const mode = (newStartMode || 'PAUSE').toUpperCase();
     onairCurrentState.startMode = mode;
+    onairPushOperatorMonitorState();
     logDebug(`[onair.js] startMode updated to: ${mode} (source=${source || 'unknown'})`);
 }
 
@@ -4046,6 +4429,7 @@ function updateEndModeDisplayLabel() {
     }
 
     onairEndModeDisplay.textContent = `ENDMODE: ${label}`;
+    onairPushOperatorMonitorState();
 }
 
 // FTB有効フラグ更新
@@ -4768,6 +5152,19 @@ window.electronAPI.ipcRenderer.on('clear-modes', (event, newFillKeyMode) => {
     window.electronAPI.sendControlToFullscreen({ command: 'set-fillkey-bg', value: '' });
     logDebug('[onair.js] FillKey mode has been updated to:', isFillKeyMode);
 });
+
+// Operator Monitor 出力トグル受信
+window.electronAPI.ipcRenderer.on('toggle-operator-monitor-output', () => {
+    onairToggleOperatorMonitorOutput();
+});
+
+window.addEventListener('beforeunload', () => {
+    onairCloseOperatorMonitorOutput();
+});
+
+// -----------------------
+// ショートカットキー管理
+// -----------------------
 
 // -----------------------
 // ショートカットキー管理
