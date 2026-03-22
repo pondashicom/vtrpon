@@ -3,6 +3,65 @@
 //     ver 2.6.1
 // -----------------------
 
+// タイムコード文字列を秒へ変換する関数
+function parseOperatorMonitorTimecodeToSeconds(timecode) {
+    if (typeof timecode !== 'string') {
+        return null;
+    }
+
+    const trimmed = timecode.trim().toUpperCase();
+    if (!trimmed || trimmed === 'LIVE') {
+        return null;
+    }
+
+    const parts = trimmed.split(':');
+    if (parts.length !== 4) {
+        return null;
+    }
+
+    const hh = Number(parts[0]);
+    const mm = Number(parts[1]);
+    const ss = Number(parts[2]);
+    const ff = Number(parts[3]);
+
+    if ([hh, mm, ss, ff].some(v => Number.isNaN(v))) {
+        return null;
+    }
+
+    return (hh * 3600) + (mm * 60) + ss + (ff / 30);
+}
+
+// REMAIN の表示色を更新する関数
+function updateOperatorMonitorRemainColor(remainText, durationText) {
+    const remainElement = document.getElementById('operator-monitor-remain');
+    if (!remainElement) {
+        return;
+    }
+
+    const normalizedRemain = typeof remainText === 'string' ? remainText.trim().toUpperCase() : '';
+    const normalizedDuration = typeof durationText === 'string' ? durationText.trim().toUpperCase() : '';
+
+    if (normalizedRemain === 'LIVE' || normalizedDuration === 'LIVE') {
+        remainElement.style.color = 'green';
+        return;
+    }
+
+    const remainSeconds = parseOperatorMonitorTimecodeToSeconds(normalizedRemain);
+    const durationSeconds = parseOperatorMonitorTimecodeToSeconds(normalizedDuration);
+
+    // 尺そのものが5秒以下の素材は、最初から最後まで赤固定にする
+    if (durationSeconds !== null && durationSeconds <= 5) {
+        remainElement.style.color = 'red';
+        return;
+    }
+
+    if (remainSeconds !== null && remainSeconds <= 5) {
+        remainElement.style.color = 'red';
+    } else {
+        remainElement.style.color = 'orange';
+    }
+}
+
 // 状態表示を更新する関数
 function setOperatorMonitorState(state) {
     const fileNameElement = document.getElementById('operator-monitor-filename');
@@ -15,14 +74,17 @@ function setOperatorMonitorState(state) {
         return;
     }
 
+    const remainText = state.remain || '00:00:00:00';
+    const durationText = state.duration || '00:00:00:00';
+
     if (fileNameElement) {
         fileNameElement.textContent = state.fileName || 'No file loaded';
     }
     if (remainElement) {
-        remainElement.textContent = state.remain || '00:00:00:00';
+        remainElement.textContent = remainText;
     }
     if (durationElement) {
-        durationElement.textContent = state.duration || '00:00:00:00';
+        durationElement.textContent = durationText;
     }
     if (startModeElement) {
         startModeElement.textContent = state.startMode || '-';
@@ -30,6 +92,8 @@ function setOperatorMonitorState(state) {
     if (endModeElement) {
         endModeElement.textContent = state.endMode || '-';
     }
+
+    updateOperatorMonitorRemainColor(remainText, durationText);
 }
 
 // PGM stream を設定する関数

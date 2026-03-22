@@ -42,6 +42,11 @@
             user-select: none;
         }
 
+        #operator-monitor-remain {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
         #operator-monitor-waiting {
             position: absolute;
             inset: 0;
@@ -59,14 +64,15 @@
     <video id="operator-monitor-video" autoplay muted playsinline></video>
 
     <div id="operator-monitor-osd">
-        <div>FILENAME : <span id="operator-monitor-filename">No file loaded</span></div>
         <div>REMAIN : <span id="operator-monitor-remain">00:00:00:00</span> ( DUR : <span id="operator-monitor-duration">00:00:00:00</span>)</div>
         <div>START MODE : <span id="operator-monitor-startmode">-</span></div>
         <div>ENDMODE : <span id="operator-monitor-endmode">-</span></div>
+        <div>CLOCK : <span id="footer-clock">00:00:00</span></div>
     </div>
 
     <div id="operator-monitor-waiting">Waiting for Operator Monitor stream...</div>
 
     <script src="operator_monitor.js"></script>
+    <script src="clock.js"></script>
 </body>
 </html>
