@@ -88,10 +88,15 @@ body {
     visibility: hidden;
     pointer-events: none;
     background-color: #181818;
-    background-position: center center;
-    background-repeat: no-repeat;
-    background-size: cover;
     transition: opacity 120ms ease;
+}
+
+.screen-lock-background-image {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: center center;
 }
 
 .screen-lock-overlay {
@@ -172,6 +177,11 @@ body {
 .screen-locked.screen-lock-background-enabled .screen-lock-background-layer {
     opacity: 1;
     visibility: visible;
+}
+
+.screen-lock-background-layer.screen-lock-background-error {
+    opacity: 0;
+    visibility: hidden;
 }
 
 .screen-locked .screen-lock-banner {

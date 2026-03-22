@@ -23,9 +23,13 @@ const statecontrol = require('./statecontrol.js');
 const fixWebmDuration = require('fix-webm-duration');
 const { Atem } = require('atem-connection');
 const { exec } = require('child_process');
+const {
+    getDefaultScreenLockBackgroundSettings,
+    normalizeScreenLockBackgroundSettings
+} = require('./screenLockBackgroundSettingsUtils');
 
 // グローバル変数
-let mainWindow, fullscreenWindow, deviceSettingsWindow, playlistOnAirSettingsWindow, recordingSettingsWindow, atemSettingsWindow;
+let mainWindow, fullscreenWindow, deviceSettingsWindow, playlistOnAirSettingsWindow, recordingSettingsWindow, atemSettingsWindow, screenLockBackgroundSettingsWindow;
 let isDebugMode = false;
 let playlistState = [];
 let powerSaveBlockerId;
@@ -38,7 +42,10 @@ let screenLockBackgroundSettings;
 
 const SCREEN_LOCK_BACKGROUND_DIRNAME = 'screen-lock-background';
 const SCREEN_LOCK_BACKGROUND_BASENAME = 'background-image';
-const ALLOWED_SCREEN_LOCK_BACKGROUND_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const SCREEN_LOCK_BACKGROUND_FILE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
+const ALLOWED_SCREEN_LOCK_BACKGROUND_EXTENSIONS = new Set(
+    SCREEN_LOCK_BACKGROUND_FILE_EXTENSIONS.map((extension) => `.${extension}`)
+);
 const MAX_SCREEN_LOCK_BACKGROUND_FILE_SIZE = 20 * 1024 * 1024;
 
 // ---------------------------------
@@ -139,26 +146,6 @@ function normalizePlaylistOnAirSettings(settings = {}) {
         ftbButtonFadeSec: Math.max(0, Number(settings.ftbButtonFadeSec ?? defaults.ftbButtonFadeSec) || defaults.ftbButtonFadeSec),
         dskFadeSec: Math.max(0, Number(settings.dskFadeSec ?? defaults.dskFadeSec) || defaults.dskFadeSec),
         restoreOnStartup: settings.restoreOnStartup === true
-    };
-}
-
-function getDefaultScreenLockBackgroundSettings() {
-    return {
-        enabled: false,
-        assetPath: '',
-        originalFileName: '',
-        updatedAt: ''
-    };
-}
-
-function normalizeScreenLockBackgroundSettings(settings = {}) {
-    const defaults = getDefaultScreenLockBackgroundSettings();
-
-    return {
-        enabled: settings.enabled === true && typeof settings.assetPath === 'string' && settings.assetPath.trim() !== '',
-        assetPath: typeof settings.assetPath === 'string' ? settings.assetPath : defaults.assetPath,
-        originalFileName: typeof settings.originalFileName === 'string' ? settings.originalFileName : defaults.originalFileName,
-        updatedAt: typeof settings.updatedAt === 'string' ? settings.updatedAt : defaults.updatedAt
     };
 }
 
@@ -283,6 +270,7 @@ function updateScreenLockBackgroundSettings(settings, logReason) {
         updatedAt: normalized.updatedAt
     });
     broadcastScreenLockBackgroundSettings();
+    rebuildMenu();
     return normalized;
 }
 
@@ -309,11 +297,94 @@ function validateScreenLockBackgroundImage(filePath) {
     }
 
     const image = nativeImage.createFromPath(filePath);
-    if (image.isEmpty()) {
+    const { width, height } = image.getSize();
+    if (image.isEmpty() || width <= 0 || height <= 0) {
         return { valid: false, error: 'Selected file could not be loaded as an image' };
     }
 
     return { valid: true };
+}
+
+async function selectScreenLockBackgroundImage() {
+    const dialogOwnerWindow = screenLockBackgroundSettingsWindow && !screenLockBackgroundSettingsWindow.isDestroyed()
+        ? screenLockBackgroundSettingsWindow
+        : mainWindow;
+
+    const result = await dialog.showOpenDialog(dialogOwnerWindow, {
+        title: 'Select Screen Lock Background Image',
+        properties: ['openFile'],
+        filters: [
+            {
+                name: 'Images',
+                extensions: SCREEN_LOCK_BACKGROUND_FILE_EXTENSIONS
+            }
+        ]
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return {
+            success: false,
+            canceled: true,
+            error: null,
+            settings: getScreenLockBackgroundSettings()
+        };
+    }
+
+    const selectedFilePath = result.filePaths[0];
+    const validation = validateScreenLockBackgroundImage(selectedFilePath);
+    if (!validation.valid) {
+        console.warn('[main.js] Screen lock background image validation failed:', validation.error);
+        return {
+            success: false,
+            canceled: false,
+            error: validation.error,
+            settings: getScreenLockBackgroundSettings()
+        };
+    }
+
+    const currentSettings = getScreenLockBackgroundSettings();
+    const storedAssetPath = storeScreenLockBackgroundAsset(selectedFilePath, currentSettings.assetPath);
+    const storedValidation = validateScreenLockBackgroundImage(storedAssetPath);
+    if (!storedValidation.valid) {
+        removeScreenLockBackgroundAsset(storedAssetPath);
+        return {
+            success: false,
+            canceled: false,
+            error: storedValidation.error,
+            settings: getScreenLockBackgroundSettings()
+        };
+    }
+
+    const nextSettings = updateScreenLockBackgroundSettings({
+        enabled: true,
+        assetPath: storedAssetPath,
+        originalFileName: path.basename(selectedFilePath),
+        updatedAt: new Date().toISOString()
+    }, 'select-image');
+
+    return {
+        success: true,
+        canceled: false,
+        error: null,
+        settings: nextSettings
+    };
+}
+
+function clearScreenLockBackgroundImage() {
+    const currentSettings = getScreenLockBackgroundSettings();
+    removeScreenLockBackgroundAsset(currentSettings.assetPath);
+    removeObsoleteScreenLockBackgroundAssets();
+
+    const clearedSettings = updateScreenLockBackgroundSettings(
+        getDefaultScreenLockBackgroundSettings(),
+        'clear-image'
+    );
+
+    return {
+        success: true,
+        error: null,
+        settings: clearedSettings
+    };
 }
 
 // ---------------------------------
@@ -525,6 +596,12 @@ function buildMenuTemplate(labels) {
           label: labels["menu-playlist-onair-settings"],
           click: () => {
             createPlaylistOnAirSettingsWindow();
+          }
+        },
+        {
+          label: labels["menu-screen-lock-background-settings"],
+          click: () => {
+            createScreenLockBackgroundSettingsWindow();
           }
         },
         { type: 'separator' },
@@ -1216,8 +1293,15 @@ function createFullscreenWindow() {
 // registerSafeFileProtocol
 function registerSafeFileProtocol() {
     protocol.registerFileProtocol('safe', (request, callback) => {
-        const url = request.url.replace(/^safe:/, '');
-        callback({ path: path.normalize(url) });
+        const rawPath = request.url.replace(/^safe:/, '');
+
+        try {
+            const decodedPath = decodeURI(rawPath);
+            callback({ path: path.normalize(decodedPath) });
+        } catch (error) {
+            console.warn('[main.js] Failed to decode safe protocol path:', rawPath, error);
+            callback({ error: -324 });
+        }
     });
     console.log('[main.js] Safe file protocol registered.');
 }
@@ -1478,6 +1562,39 @@ function createPlaylistOnAirSettingsWindow() {
     });
 }
 
+function createScreenLockBackgroundSettingsWindow() {
+    if (!canOpenSettingsWindow('screen lock background settings window')) {
+        return;
+    }
+
+    if (screenLockBackgroundSettingsWindow) {
+        screenLockBackgroundSettingsWindow.focus();
+        return;
+    }
+
+    screenLockBackgroundSettingsWindow = new BrowserWindow({
+        width: 520,
+        height: 420,
+        title: 'Screen Lock Background Settings',
+        parent: mainWindow,
+        modal: true,
+        frame: false,
+        resizable: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false
+        }
+    });
+
+    screenLockBackgroundSettingsWindow.loadFile('screenlockbackgroundsettings.html');
+    screenLockBackgroundSettingsWindow.setMenuBarVisibility(false);
+    screenLockBackgroundSettingsWindow.on('closed', () => {
+        screenLockBackgroundSettingsWindow = null;
+    });
+}
+
 // デバイス設定ウインドウを閉じるIPC
 ipcMain.on('close-device-settings', (event) => {
     if (deviceSettingsWindow) {
@@ -1489,6 +1606,12 @@ ipcMain.on('close-device-settings', (event) => {
 ipcMain.on('close-playlist-onair-settings', () => {
     if (playlistOnAirSettingsWindow) {
         playlistOnAirSettingsWindow.close();
+    }
+});
+
+ipcMain.on('close-screen-lock-background-settings', () => {
+    if (screenLockBackgroundSettingsWindow) {
+        screenLockBackgroundSettingsWindow.close();
     }
 });
 
@@ -2694,53 +2817,7 @@ ipcMain.handle('get-screen-lock-background-settings', () => {
 
 ipcMain.handle('select-screen-lock-background-image', async () => {
     try {
-        const result = await dialog.showOpenDialog(mainWindow, {
-            title: 'Select Screen Lock Background Image',
-            properties: ['openFile'],
-            filters: [
-                {
-                    name: 'Images',
-                    extensions: ['png', 'jpg', 'jpeg', 'webp']
-                }
-            ]
-        });
-
-        if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
-            return {
-                success: false,
-                canceled: true,
-                error: null,
-                settings: getScreenLockBackgroundSettings()
-            };
-        }
-
-        const selectedFilePath = result.filePaths[0];
-        const validation = validateScreenLockBackgroundImage(selectedFilePath);
-        if (!validation.valid) {
-            console.warn('[main.js] Screen lock background image validation failed:', validation.error);
-            return {
-                success: false,
-                canceled: false,
-                error: validation.error,
-                settings: getScreenLockBackgroundSettings()
-            };
-        }
-
-        const currentSettings = getScreenLockBackgroundSettings();
-        const storedAssetPath = storeScreenLockBackgroundAsset(selectedFilePath, currentSettings.assetPath);
-        const nextSettings = updateScreenLockBackgroundSettings({
-            enabled: true,
-            assetPath: storedAssetPath,
-            originalFileName: path.basename(selectedFilePath),
-            updatedAt: new Date().toISOString()
-        }, 'select-image');
-
-        return {
-            success: true,
-            canceled: false,
-            error: null,
-            settings: nextSettings
-        };
+        return await selectScreenLockBackgroundImage();
     } catch (error) {
         console.error('[main.js] Failed to select screen lock background image:', error);
         return {
@@ -2754,20 +2831,7 @@ ipcMain.handle('select-screen-lock-background-image', async () => {
 
 ipcMain.handle('clear-screen-lock-background-image', () => {
     try {
-        const currentSettings = getScreenLockBackgroundSettings();
-        removeScreenLockBackgroundAsset(currentSettings.assetPath);
-        removeObsoleteScreenLockBackgroundAssets();
-
-        const clearedSettings = updateScreenLockBackgroundSettings(
-            getDefaultScreenLockBackgroundSettings(),
-            'clear-image'
-        );
-
-        return {
-            success: true,
-            error: null,
-            settings: clearedSettings
-        };
+        return clearScreenLockBackgroundImage();
     } catch (error) {
         console.error('[main.js] Failed to clear screen lock background image:', error);
         return {

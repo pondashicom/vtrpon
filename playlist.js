@@ -189,6 +189,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    setupScreenLockBackgroundImageHandlers();
+
     try {
         const settings = await window.electronAPI.getPlaylistOnAirSettings();
         playlistOnAirSettings = {
@@ -5764,7 +5766,7 @@ if (dskPlayButton) {
 // モーダル初期値設定
 let isModalActive = false;
 let isScreenLocked = false;
-let screenLockBackgroundSettings = getDefaultScreenLockBackgroundSettings();
+let screenLockBackgroundSettings = window.electronAPI.screenLockBackgroundSettings.getDefaultSettings();
 let screenLockBackgroundImageLoadErrorPath = '';
 let screenLockNoticeLastShownAt = 0;
 let screenLockUnlockStartAt = 0;
@@ -5777,27 +5779,6 @@ const SCREEN_LOCK_UNLOCK_HOLD_MS = 2000;
 const SCREEN_LOCK_NOTICE_THROTTLE_MS = 1500;
 const SCREEN_LOCK_BANNER_IDLE_MS = 3000;
 
-function getDefaultScreenLockBackgroundSettings() {
-    return {
-        enabled: false,
-        assetPath: '',
-        originalFileName: '',
-        updatedAt: ''
-    };
-}
-
-function normalizeScreenLockBackgroundSettings(settings = {}) {
-    const defaults = getDefaultScreenLockBackgroundSettings();
-    const assetPath = typeof settings.assetPath === 'string' ? settings.assetPath : defaults.assetPath;
-
-    return {
-        enabled: settings.enabled === true && assetPath.trim() !== '',
-        assetPath,
-        originalFileName: typeof settings.originalFileName === 'string' ? settings.originalFileName : defaults.originalFileName,
-        updatedAt: typeof settings.updatedAt === 'string' ? settings.updatedAt : defaults.updatedAt
-    };
-}
-
 function toSafeScreenLockBackgroundUrl(assetPath) {
     if (typeof assetPath !== 'string' || assetPath.trim() === '') {
         return '';
@@ -5805,6 +5786,44 @@ function toSafeScreenLockBackgroundUrl(assetPath) {
 
     // main process で登録した safe: プロトコル経由に寄せて、renderer から直接 file path を扱わない。
     return `safe:${encodeURI(assetPath)}`;
+}
+
+function handleScreenLockBackgroundImageLoad() {
+    const backgroundLayer = document.getElementById('screen-lock-background-layer');
+    if (!backgroundLayer) {
+        return;
+    }
+
+    screenLockBackgroundImageLoadErrorPath = '';
+    backgroundLayer.classList.remove('screen-lock-background-error');
+}
+
+function handleScreenLockBackgroundImageError() {
+    const backgroundLayer = document.getElementById('screen-lock-background-layer');
+    const backgroundImage = document.getElementById('screen-lock-background-image');
+    if (!backgroundLayer || !backgroundImage) {
+        return;
+    }
+
+    const failedPath = screenLockBackgroundSettings.assetPath || '';
+    screenLockBackgroundImageLoadErrorPath = failedPath;
+    backgroundLayer.classList.add('screen-lock-background-error');
+    backgroundImage.removeAttribute('src');
+    document.body.classList.remove('screen-lock-background-enabled');
+
+    logInfo(`[playlist.js] Failed to load screen lock background image: ${failedPath}`);
+    showMessage(getMessage('screen-lock-background-load-failed'), 3000, 'alert');
+}
+
+function setupScreenLockBackgroundImageHandlers() {
+    const backgroundImage = document.getElementById('screen-lock-background-image');
+    if (!backgroundImage || backgroundImage.dataset.handlersBound === 'true') {
+        return;
+    }
+
+    backgroundImage.addEventListener('load', handleScreenLockBackgroundImageLoad);
+    backgroundImage.addEventListener('error', handleScreenLockBackgroundImageError);
+    backgroundImage.dataset.handlersBound = 'true';
 }
 
 // Enterキーリスナー参照保持（リーク防止用）
@@ -5835,11 +5854,13 @@ window.electronAPI.getScreenLockState().then((state) => {
 });
 
 window.electronAPI.getScreenLockBackgroundSettings().then((settings) => {
-    screenLockBackgroundSettings = normalizeScreenLockBackgroundSettings(settings);
+    screenLockBackgroundSettings = window.electronAPI.screenLockBackgroundSettings.normalizeSettings(settings);
+    screenLockBackgroundImageLoadErrorPath = '';
     logInfo('[playlist.js] Screen lock background settings initialized:', screenLockBackgroundSettings);
     syncScreenLockBackgroundUiState();
 }).catch((error) => {
-    screenLockBackgroundSettings = getDefaultScreenLockBackgroundSettings();
+    screenLockBackgroundSettings = window.electronAPI.screenLockBackgroundSettings.getDefaultSettings();
+    screenLockBackgroundImageLoadErrorPath = '';
     logInfo('[playlist.js] Failed to initialize screen lock background settings:', error);
     syncScreenLockBackgroundUiState();
 });
@@ -5853,6 +5874,9 @@ window.electronAPI.onScreenLockStateChange((event, { locked }) => {
     const nextLocked = !!locked;
     const prevLocked = isScreenLocked;
     isScreenLocked = nextLocked;
+    if (nextLocked && screenLockBackgroundImageLoadErrorPath && screenLockBackgroundImageLoadErrorPath === screenLockBackgroundSettings.assetPath) {
+        screenLockBackgroundImageLoadErrorPath = '';
+    }
     logInfo(`[playlist.js] Screen lock state changed: ${isScreenLocked}`);
     stopScreenLockUnlockHold();
     syncScreenLockUiState();
@@ -5868,7 +5892,11 @@ window.electronAPI.onScreenLockStateChange((event, { locked }) => {
 
 if (window.electronAPI.onScreenLockBackgroundSettingsChanged) {
     window.electronAPI.onScreenLockBackgroundSettingsChanged((settings) => {
-        screenLockBackgroundSettings = normalizeScreenLockBackgroundSettings(settings);
+        const previousAssetPath = screenLockBackgroundSettings.assetPath;
+        screenLockBackgroundSettings = window.electronAPI.screenLockBackgroundSettings.normalizeSettings(settings);
+        if (previousAssetPath !== screenLockBackgroundSettings.assetPath) {
+            screenLockBackgroundImageLoadErrorPath = '';
+        }
         logInfo('[playlist.js] Screen lock background settings changed:', screenLockBackgroundSettings);
         syncScreenLockBackgroundUiState();
     });
@@ -5906,6 +5934,7 @@ function updateScreenLockBanner() {
 function syncScreenLockBackgroundUiState() {
     const overlay = document.getElementById('screen-lock-overlay');
     const backgroundLayer = document.getElementById('screen-lock-background-layer');
+    const backgroundImage = document.getElementById('screen-lock-background-image');
     const hasCustomBackground = screenLockBackgroundSettings.enabled && !!screenLockBackgroundSettings.assetPath;
     const backgroundUrl = hasCustomBackground ? toSafeScreenLockBackgroundUrl(screenLockBackgroundSettings.assetPath) : '';
     const shouldHideBackground = !hasCustomBackground || screenLockBackgroundImageLoadErrorPath === screenLockBackgroundSettings.assetPath;
@@ -5913,14 +5942,16 @@ function syncScreenLockBackgroundUiState() {
     document.body.classList.toggle('screen-lock-background-enabled', hasCustomBackground && !shouldHideBackground);
     document.body.dataset.screenLockBackgroundOriginalFileName = screenLockBackgroundSettings.originalFileName || '';
 
-    if (backgroundLayer) {
+    if (backgroundLayer && backgroundImage) {
         backgroundLayer.dataset.screenLockBackgroundEnabled = hasCustomBackground ? 'true' : 'false';
         if (isScreenLocked && backgroundUrl && !shouldHideBackground) {
             backgroundLayer.classList.remove('screen-lock-background-error');
-            backgroundLayer.style.backgroundImage = `url("${backgroundUrl.replace(/"/g, '%22')}")`;
+            if (backgroundImage.getAttribute('src') !== backgroundUrl) {
+                backgroundImage.setAttribute('src', backgroundUrl);
+            }
         } else {
             backgroundLayer.classList.toggle('screen-lock-background-error', shouldHideBackground && hasCustomBackground);
-            backgroundLayer.style.backgroundImage = '';
+            backgroundImage.removeAttribute('src');
         }
     }
 

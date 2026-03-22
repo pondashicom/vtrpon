@@ -7,6 +7,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
 const { logInfo, logOpe, logDebug, setLogLevel, LOG_LEVELS } = require('./logger');
 const stateControl = require('./statecontrol');
+const screenLockBackgroundSettingsUtils = require('./screenLockBackgroundSettingsUtils');
 
 // ドラッグ＆ドロップイベントのハンドリング
 window.addEventListener('dragover', (e) => {
@@ -194,6 +195,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // スクリーンロック背景画像設定の変更を監視する関数
     onScreenLockBackgroundSettingsChanged: (callback) =>
         ipcRenderer.on('screen-lock-background-settings-changed', (event, settings) => callback(settings)),
+
+    // スクリーンロック背景画像設定ウィンドウを閉じる関数
+    closeScreenLockBackgroundSettings: () => ipcRenderer.send('close-screen-lock-background-settings'),
+    screenLockBackgroundSettings: {
+        getDefaultSettings: () => screenLockBackgroundSettingsUtils.getDefaultScreenLockBackgroundSettings(),
+        normalizeSettings: (settings) => screenLockBackgroundSettingsUtils.normalizeScreenLockBackgroundSettings(settings),
+        getDisplayName: (settings) => screenLockBackgroundSettingsUtils.getScreenLockBackgroundDisplayName(settings),
+    },
 
     // ---------------------------------------
     // プレイリストのインポート・エクスポート
