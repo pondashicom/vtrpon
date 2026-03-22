@@ -5408,10 +5408,10 @@ async function handleNextModePlaylist(currentItemId) {
         const offAirButton = document.getElementById('off-air-button');
         if (offAirButton) {
             offAirButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-            logOpe(`[playlist.js] Off-Airボタン処理を実行しました。（${reason}）`);
+            logOpe(`[playlist.js] Off-Air button handler executed. (${reason})`);
         } else {
             window.electronAPI.sendOffAirEvent();
-            logOpe(`[playlist.js] Off-Air通知を送信しました。（${reason} / fallback）`);
+            logOpe(`[playlist.js] Off-Air notification sent. (${reason} / fallback)`);
         }
     };
 
@@ -5426,7 +5426,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (!sourcePlaylist || !Array.isArray(sourcePlaylist.data) || sourcePlaylist.data.length === 0) {
             logDebug('[playlist.js] Playlist is empty or invalid.');
-            triggerOffAirFromNextFailure('プレイリスト空');
+            triggerOffAirFromNextFailure('playlist empty');
             return;
         }
 
@@ -5593,7 +5593,7 @@ async function handleNextModePlaylist(currentItemId) {
         const availableIndex = findNextAvailableIndex(sortedPlaylist, nextIndex);
         if (availableIndex === -1) {
             logInfo('[playlist.js] No available next item (all items are media offline).');
-            triggerOffAirFromNextFailure('全アイテムがオフライン');
+            triggerOffAirFromNextFailure('all items offline');
             return;
         }
 
