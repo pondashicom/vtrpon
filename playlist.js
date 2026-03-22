@@ -5404,6 +5404,17 @@ function getStoredPlaylistByNumber(storeNumber) {
 }
 
 async function handleNextModePlaylist(currentItemId) {
+    const triggerOffAirFromNextFailure = (reason) => {
+        const offAirButton = document.getElementById('off-air-button');
+        if (offAirButton) {
+            offAirButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            logOpe(`[playlist.js] Off-Airボタン処理を実行しました。（${reason}）`);
+        } else {
+            window.electronAPI.sendOffAirEvent();
+            logOpe(`[playlist.js] Off-Air通知を送信しました。（${reason} / fallback）`);
+        }
+    };
+
     let playlist = await stateControl.getPlaylistState();
 
     // プレイリスト検証
@@ -5415,8 +5426,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (!sourcePlaylist || !Array.isArray(sourcePlaylist.data) || sourcePlaylist.data.length === 0) {
             logDebug('[playlist.js] Playlist is empty or invalid.');
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（プレイリスト空）');
+            triggerOffAirFromNextFailure('プレイリスト空');
             return;
         }
 
@@ -5440,8 +5450,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (!Array.isArray(playlist) || playlist.length === 0) {
             logInfo('[playlist.js] NEXT mode fallback (empty current playlist): Restored playlist is still empty. Sending Off-Air.');
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（NEXT: restored empty）');
+            triggerOffAirFromNextFailure('NEXT: restored empty');
             return;
         }
     }
@@ -5476,8 +5485,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (!sourcePlaylist || !Array.isArray(sourcePlaylist.data) || sourcePlaylist.data.length === 0) {
             logInfo('[playlist.js] NEXT mode fallback: Current On-Air item not found in any stored playlist. Sending Off-Air.');
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（NEXT: stored playlist not found）');
+            triggerOffAirFromNextFailure('NEXT: stored playlist not found');
             return;
         }
 
@@ -5503,8 +5511,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (currentIndex === -1) {
             logInfo('[playlist.js] NEXT mode fallback: Current On-Air item still not found after loading source playlist. Sending Off-Air.');
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（NEXT: resolved playlist mismatch）');
+            triggerOffAirFromNextFailure('NEXT: resolved playlist mismatch');
             return;
         }
 
@@ -5526,8 +5533,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (!Number.isFinite(gotoStoreNumber) || gotoStoreNumber < 1 || gotoStoreNumber > 9 || !gotoItemId) {
             logInfo('[playlist.js] GOTO mode: Destination not configured. Sending Off-Air.');
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: destination not configured）');
+            triggerOffAirFromNextFailure('GOTO: destination not configured');
             return;
         }
 
@@ -5535,8 +5541,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (!targetPlaylist || !Array.isArray(targetPlaylist.data) || targetPlaylist.data.length === 0) {
             logInfo(`[playlist.js] GOTO mode: Stored playlist not found or empty. Sending Off-Air. storeNumber=${gotoStoreNumber}`);
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: stored playlist not found）');
+            triggerOffAirFromNextFailure('GOTO: stored playlist not found');
             return;
         }
 
@@ -5556,8 +5561,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (!nextItem) {
             logInfo('[playlist.js] GOTO mode: Target item not found in stored playlist. Sending Off-Air.');
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: target item not found）');
+            triggerOffAirFromNextFailure('GOTO: target item not found');
             return;
         }
 
@@ -5570,15 +5574,7 @@ async function handleNextModePlaylist(currentItemId) {
 
         if (nextItem.mediaOffline || nextItem.dskActive || isActiveDSKItem) {
             logInfo('[playlist.js] GOTO mode: Target item is not available (media offline, DSK active, or currently on DSK). Triggering Off-Air button.');
-            const offAirButton = document.getElementById('off-air-button');
-            if (offAirButton) {
-                offAirButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-                logOpe('[playlist.js] Off-Airボタン処理を実行しました。（GOTO: target item unavailable）');
-            } else {
-                logInfo('[playlist.js] GOTO mode: Off-Air button not found. Falling back to Off-Air notify.');
-                window.electronAPI.sendOffAirEvent();
-                logOpe('[playlist.js] Off-Air通知を送信しました。（GOTO: target item unavailable / fallback）');
-            }
+            triggerOffAirFromNextFailure('GOTO: target item unavailable');
             return;
         }
 
@@ -5597,8 +5593,7 @@ async function handleNextModePlaylist(currentItemId) {
         const availableIndex = findNextAvailableIndex(sortedPlaylist, nextIndex);
         if (availableIndex === -1) {
             logInfo('[playlist.js] No available next item (all items are media offline).');
-            window.electronAPI.sendOffAirEvent();
-            logOpe('[playlist.js] Off-Air通知を送信しました。（全アイテムがオフライン）');
+            triggerOffAirFromNextFailure('全アイテムがオフライン');
             return;
         }
 
@@ -5611,6 +5606,7 @@ async function handleNextModePlaylist(currentItemId) {
 
     if (!nextItem) {
         logInfo('[playlist.js] No next item available in playlist.');
+        triggerOffAirFromNextFailure('NEXT: next item not found');
         return;
     }
 
