@@ -5803,9 +5803,8 @@ function toSafeScreenLockBackgroundUrl(assetPath) {
         return '';
     }
 
-    const normalizedPath = assetPath.replace(/\\/g, '/');
-    const prefixedPath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
-    return encodeURI(`file://${prefixedPath}`);
+    // main process で登録した safe: プロトコル経由に寄せて、renderer から直接 file path を扱わない。
+    return `safe:${encodeURI(assetPath)}`;
 }
 
 // Enterキーリスナー参照保持（リーク防止用）
@@ -5907,7 +5906,6 @@ function updateScreenLockBanner() {
 function syncScreenLockBackgroundUiState() {
     const overlay = document.getElementById('screen-lock-overlay');
     const backgroundLayer = document.getElementById('screen-lock-background-layer');
-    const backgroundImage = document.getElementById('screen-lock-background-image');
     const hasCustomBackground = screenLockBackgroundSettings.enabled && !!screenLockBackgroundSettings.assetPath;
     const backgroundUrl = hasCustomBackground ? toSafeScreenLockBackgroundUrl(screenLockBackgroundSettings.assetPath) : '';
     const shouldHideBackground = !hasCustomBackground || screenLockBackgroundImageLoadErrorPath === screenLockBackgroundSettings.assetPath;
@@ -5915,16 +5913,14 @@ function syncScreenLockBackgroundUiState() {
     document.body.classList.toggle('screen-lock-background-enabled', hasCustomBackground && !shouldHideBackground);
     document.body.dataset.screenLockBackgroundOriginalFileName = screenLockBackgroundSettings.originalFileName || '';
 
-    if (backgroundLayer && backgroundImage) {
+    if (backgroundLayer) {
         backgroundLayer.dataset.screenLockBackgroundEnabled = hasCustomBackground ? 'true' : 'false';
         if (isScreenLocked && backgroundUrl && !shouldHideBackground) {
             backgroundLayer.classList.remove('screen-lock-background-error');
-            if (backgroundImage.getAttribute('src') !== backgroundUrl) {
-                backgroundImage.setAttribute('src', backgroundUrl);
-            }
+            backgroundLayer.style.backgroundImage = `url("${backgroundUrl.replace(/"/g, '%22')}")`;
         } else {
             backgroundLayer.classList.toggle('screen-lock-background-error', shouldHideBackground && hasCustomBackground);
-            backgroundImage.removeAttribute('src');
+            backgroundLayer.style.backgroundImage = '';
         }
     }
 
