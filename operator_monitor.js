@@ -3,63 +3,49 @@
 //     ver 2.6.1
 // -----------------------
 
-// タイムコード文字列を秒へ変換する関数
-function parseOperatorMonitorTimecodeToSeconds(timecode) {
-    if (typeof timecode !== 'string') {
-        return null;
-    }
+// OSD を実際の映像表示位置に合わせる関数
+function updateOperatorMonitorOsdPosition() {
+    const videoElement = document.getElementById('operator-monitor-video');
+    const osdElement = document.getElementById('operator-monitor-osd');
 
-    const trimmed = timecode.trim().toUpperCase();
-    if (!trimmed || trimmed === 'LIVE') {
-        return null;
-    }
-
-    const parts = trimmed.split(':');
-    if (parts.length !== 4) {
-        return null;
-    }
-
-    const hh = Number(parts[0]);
-    const mm = Number(parts[1]);
-    const ss = Number(parts[2]);
-    const ff = Number(parts[3]);
-
-    if ([hh, mm, ss, ff].some(v => Number.isNaN(v))) {
-        return null;
-    }
-
-    return (hh * 3600) + (mm * 60) + ss + (ff / 30);
-}
-
-// REMAIN の表示色を更新する関数
-function updateOperatorMonitorRemainColor(remainText, durationText) {
-    const remainElement = document.getElementById('operator-monitor-remain');
-    if (!remainElement) {
+    if (!videoElement || !osdElement) {
         return;
     }
 
-    const normalizedRemain = typeof remainText === 'string' ? remainText.trim().toUpperCase() : '';
-    const normalizedDuration = typeof durationText === 'string' ? durationText.trim().toUpperCase() : '';
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const paddingX = 12;
+    const paddingY = 12;
 
-    if (normalizedRemain === 'LIVE' || normalizedDuration === 'LIVE') {
-        remainElement.style.color = 'green';
+    if (viewportWidth <= 0 || viewportHeight <= 0) {
         return;
     }
 
-    const remainSeconds = parseOperatorMonitorTimecodeToSeconds(normalizedRemain);
-    const durationSeconds = parseOperatorMonitorTimecodeToSeconds(normalizedDuration);
+    let displayLeft = 0;
+    let displayTop = 0;
 
-    // 尺そのものが5秒以下の素材は、最初から最後まで赤固定にする
-    if (durationSeconds !== null && durationSeconds <= 5) {
-        remainElement.style.color = 'red';
-        return;
+    if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+        const srcAspect = videoElement.videoWidth / videoElement.videoHeight;
+        const dstAspect = viewportWidth / viewportHeight;
+
+        let displayWidth;
+        let displayHeight;
+
+        if (srcAspect > dstAspect) {
+            displayWidth = viewportWidth;
+            displayHeight = displayWidth / srcAspect;
+            displayLeft = 0;
+            displayTop = (viewportHeight - displayHeight) / 2;
+        } else {
+            displayHeight = viewportHeight;
+            displayWidth = displayHeight * srcAspect;
+            displayLeft = (viewportWidth - displayWidth) / 2;
+            displayTop = 0;
+        }
     }
 
-    if (remainSeconds !== null && remainSeconds <= 5) {
-        remainElement.style.color = 'red';
-    } else {
-        remainElement.style.color = 'orange';
-    }
+    osdElement.style.left = `${Math.round(displayLeft + paddingX)}px`;
+    osdElement.style.top = `${Math.round(displayTop + paddingY)}px`;
 }
 
 // 状態表示を更新する関数
@@ -76,12 +62,14 @@ function setOperatorMonitorState(state) {
 
     const remainText = state.remain || '00:00:00:00';
     const durationText = state.duration || '00:00:00:00';
+    const remainColor = state.remainColor || 'orange';
 
     if (fileNameElement) {
         fileNameElement.textContent = state.fileName || 'No file loaded';
     }
     if (remainElement) {
         remainElement.textContent = remainText;
+        remainElement.style.color = remainColor;
     }
     if (durationElement) {
         durationElement.textContent = durationText;
@@ -93,10 +81,10 @@ function setOperatorMonitorState(state) {
         endModeElement.textContent = state.endMode || '-';
     }
 
-    updateOperatorMonitorRemainColor(remainText, durationText);
+    updateOperatorMonitorOsdPosition();
 }
 
-// PGM stream を設定する関数
+// Operator Monitor の映像 stream を設定する関数
 function setOperatorMonitorStream(stream) {
     const videoElement = document.getElementById('operator-monitor-video');
     const waitingElement = document.getElementById('operator-monitor-waiting');
@@ -119,12 +107,23 @@ function setOperatorMonitorStream(stream) {
     if (waitingElement) {
         waitingElement.style.display = 'none';
     }
+
+    updateOperatorMonitorOsdPosition();
 }
 
 window.setOperatorMonitorState = setOperatorMonitorState;
 window.setOperatorMonitorStream = setOperatorMonitorStream;
 
 document.addEventListener('DOMContentLoaded', () => {
+    const videoElement = document.getElementById('operator-monitor-video');
+
+    if (videoElement) {
+        videoElement.addEventListener('loadedmetadata', updateOperatorMonitorOsdPosition);
+    }
+
+    window.addEventListener('resize', updateOperatorMonitorOsdPosition);
+    document.addEventListener('fullscreenchange', updateOperatorMonitorOsdPosition);
+
     try {
         if (window.opener && typeof window.opener.onairEnsureOperatorMonitorStream === 'function') {
             const stream = window.opener.onairEnsureOperatorMonitorStream();
@@ -142,4 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     } catch (_) {}
+
+    updateOperatorMonitorOsdPosition();
 });

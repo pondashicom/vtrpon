@@ -4750,13 +4750,17 @@ function onairRenderOperatorMonitorFrame() {
     const fadeCanvas = els?.onairFadeCanvas;
     const overlayCanvas = document.getElementById('onair-overlay-canvas');
     const ftbToggleLayer = document.getElementById('onair-ftb-toggle-layer');
+    const fillKeyColorPicker = document.getElementById('fillkey-color-picker');
+    const fillKeySelectedColor = fillKeyColorPicker ? fillKeyColorPicker.value : "#00FF00";
+    const fillKeyEnabled = !!isFillKeyMode || !!(onairCurrentState && onairCurrentState.fillKeyMode === true);
+    const operatorMonitorBgColor = fillKeyEnabled ? (fillKeySelectedColor || "#00FF00") : 'black';
 
     if (!canvas || !ctx) {
         return;
     }
 
     ctx.save();
-    ctx.fillStyle = 'black';
+    ctx.fillStyle = operatorMonitorBgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (!onairNowOnAir && !onairCurrentState) {
@@ -4817,7 +4821,7 @@ function onairRenderOperatorMonitorFrame() {
         if (fadeVisible && fadeOpacity > 0.001) {
             ctx.save();
             ctx.globalAlpha = fadeOpacity;
-            ctx.fillStyle = fadeStyle.backgroundColor || 'black';
+            ctx.fillStyle = fadeStyle.backgroundColor || operatorMonitorBgColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.restore();
         }
@@ -4831,7 +4835,7 @@ function onairRenderOperatorMonitorFrame() {
         if (ftbVisible && ftbOpacity > 0.001) {
             ctx.save();
             ctx.globalAlpha = ftbOpacity;
-            ctx.fillStyle = ftbStyle.backgroundColor || 'black';
+            ctx.fillStyle = ftbStyle.backgroundColor || operatorMonitorBgColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.restore();
         }
@@ -4839,7 +4843,6 @@ function onairRenderOperatorMonitorFrame() {
 
     ctx.restore();
 }
-
 // Operator Monitor 出力stream取得
 function onairEnsureOperatorMonitorStream() {
     const canvas = onairEnsureOperatorMonitorCanvas();
@@ -4869,6 +4872,9 @@ function onairGetOperatorMonitorState() {
     const remainText = (elements.onairRemainTimeDisplay && elements.onairRemainTimeDisplay.textContent)
         ? elements.onairRemainTimeDisplay.textContent
         : '00:00:00:00';
+    const remainColor = (elements.onairRemainTimeDisplay && elements.onairRemainTimeDisplay.style && elements.onairRemainTimeDisplay.style.color)
+        ? elements.onairRemainTimeDisplay.style.color
+        : 'orange';
 
     let durationText = '00:00:00:00';
     if (onairCurrentState) {
@@ -4897,6 +4903,7 @@ function onairGetOperatorMonitorState() {
     return {
         fileName: fileNameText,
         remain: remainText,
+        remainColor: remainColor,
         duration: durationText,
         startMode: startModeText,
         endMode: endModeText
@@ -4962,7 +4969,7 @@ function onairOpenOperatorMonitorOutput() {
     }
 
     try {
-        onairOperatorMonitorWindow.resizeTo(640, 640);
+        onairOperatorMonitorWindow.resizeTo(640, 360);
     } catch (_) {}
 
     if (onairOperatorMonitorLoopRaf === null) {
