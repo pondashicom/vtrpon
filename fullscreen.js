@@ -233,11 +233,15 @@ function initializeFadeCanvas() {
     // フェードキャンバス作成
     const fadeCanvas = document.createElement('div');
     fadeCanvas.id = 'fadeCanvas';
-    fadeCanvas.style.position = 'absolute';
+    fadeCanvas.style.position = 'fixed';
     fadeCanvas.style.top = '0';
     fadeCanvas.style.left = '0';
-    fadeCanvas.style.width = '100vw';
-    fadeCanvas.style.height = '100vh';
+    fadeCanvas.style.right = '0';
+    fadeCanvas.style.bottom = '0';
+    fadeCanvas.style.width = 'auto';
+    fadeCanvas.style.height = 'auto';
+    fadeCanvas.style.margin = '0';
+    fadeCanvas.style.padding = '0';
     fadeCanvas.style.backgroundColor = 'black';
     fadeCanvas.style.opacity = '0';
     // 映像より前、DSKより下の黒レイヤー
@@ -247,7 +251,6 @@ function initializeFadeCanvas() {
     document.body.appendChild(fadeCanvas);
     return fadeCanvas;
 }
-
 
 // ------------------------------------
 // FTB
@@ -841,23 +844,36 @@ function initializeOverlayCanvas() {
     }
 
     // ビューポート固定
+    const viewportWidth = Math.max(
+        1,
+        Math.ceil(document.documentElement.clientWidth || window.innerWidth || 1)
+    );
+    const viewportHeight = Math.max(
+        1,
+        Math.ceil(document.documentElement.clientHeight || window.innerHeight || 1)
+    );
+
     canvas.style.position = 'fixed';
     canvas.style.top = '0';
     canvas.style.left = '0';
-    canvas.style.width = '100vw';
-    canvas.style.height = '100vh';
+    canvas.style.right = '0';
+    canvas.style.bottom = '0';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
     canvas.style.margin = '0';
     canvas.style.padding = '0';
+    canvas.style.display = 'block';
 
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = viewportWidth;
+    canvas.height = viewportHeight;
     // 映像より上、DSKより下
     canvas.style.zIndex = '1500';
 
     canvas.style.pointerEvents = 'none';
-    if (!canvas.style.display) {
+    if (!canvas.dataset.overlayInitialized) {
         canvas.style.display = 'none';
         canvas.style.opacity = '1';
+        canvas.dataset.overlayInitialized = '1';
     }
 
     // drawImage 安全化
@@ -1054,15 +1070,24 @@ function drawCapturedFrameToOverlay(videoElement, overlayCanvas) {
         const vw = Math.max(1, (videoElement.videoWidth | 0));
         const vh = Math.max(1, (videoElement.videoHeight | 0));
         const scale = Math.min(cw / vw, ch / vh);
-        const dw = Math.round(vw * scale);
-        const dh = Math.round(vh * scale);
-        const dx = Math.floor((cw - dw) / 2);
-        const dy = Math.floor((ch - dh) / 2);
+        const dw = vw * scale;
+        const dh = vh * scale;
+        const dx = (cw - dw) / 2;
+        const dy = (ch - dh) / 2;
+        const OVERDRAW_PX = 1;
 
         ctx.save();
         ctx.fillStyle = (isFillKeyMode && fillKeyBgColor) ? fillKeyBgColor : 'black';
         ctx.fillRect(0, 0, cw, ch);
-        ctx.drawImage(videoElement, dx, dy, dw, dh);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(
+            videoElement,
+            dx - OVERDRAW_PX,
+            dy - OVERDRAW_PX,
+            dw + (OVERDRAW_PX * 2),
+            dh + (OVERDRAW_PX * 2)
+        );
 
         const fadeCanvas = document.getElementById('fadeCanvas');
         if (fadeCanvas) {
@@ -1247,7 +1272,7 @@ function startOverlayReleaseMonitoring(videoElement, isCurrentToken, isReadyToRe
 
     // オーバレイ解除予約
     const clearOverlay = (reason) => {
-        const RELEASE_DELAY_MS = 180;
+        const RELEASE_DELAY_MS = 60;
 
         if (overlayClearScheduled) {
             return;
