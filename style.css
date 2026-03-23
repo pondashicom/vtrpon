@@ -77,7 +77,7 @@ body {
 /* ------------------ */
 
 .screen-locked {
-    background-color: #222;
+    background-color: inherit;
 }
 
 .screen-lock-overlay {
@@ -94,69 +94,59 @@ body {
 .screen-lock-banner {
     --screen-lock-progress: 0%;
     position: fixed;
-    top: 1.2rem;
+    bottom: 1.5rem;
     left: 50%;
-    transform: translateX(-50%) translateY(-0.25rem);
+    transform: translateX(-50%) translateY(0.35rem);
     z-index: 20000;
     overflow: hidden;
-    display: inline-flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.45rem;
-    padding: 0.65rem 1.05rem 0.65rem;
-    border: 1px solid rgba(255, 196, 64, 0.42);
-    border-radius: 0.5rem;
-    background: rgba(20, 20, 20, 0.96);
-    color: #f0d48a;
-    font-size: 0.88rem;
-    font-weight: bold;
+    padding: 0.72rem 1.3rem 0.9rem;
+    border: 1px solid rgba(255, 181, 63, 0.28);
+    border-radius: 0.38rem;
+    background: rgba(28, 28, 30, 0.92);
+    color: rgba(255, 214, 140, 0.9);
+    font-size: 0.96rem;
+    letter-spacing: 0.05em;
     pointer-events: none;
-    width: min(27rem, 72vw);
+    width: min(34rem, calc(100vw - 1.2rem));
     opacity: 0;
     visibility: hidden;
-    transition: opacity 120ms ease, transform 120ms ease;
+    transition: opacity 120ms ease-out, transform 120ms ease-out;
 }
 
 .screen-lock-banner-text {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.18rem;
+    justify-content: space-between;
+    white-space: nowrap;
     width: 100%;
-    text-align: center;
 }
 
 .screen-lock-banner-title {
-    line-height: 1.05;
-    color: inherit;
+    font-weight: 650;
 }
 
 .screen-lock-banner-hint {
-    min-height: 1.2em;
-    font-size: 0.76rem;
-    font-weight: 500;
-    color: rgba(240, 212, 138, 0.78);
+    font-weight: 550;
 }
 
 .screen-lock-progress,
 .screen-lock-progress-bar {
-    border-radius: 0 0 0.5rem 0.5rem;
+    border-radius: 0.12rem;
 }
 
 .screen-lock-progress {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: 0.55rem;
+    right: 0.55rem;
     bottom: 0;
-    height: 0.32rem;
+    height: 0.2rem;
     overflow: hidden;
+    background: rgba(255, 181, 63, 0.12);
 }
 
 .screen-lock-progress-bar {
     width: var(--screen-lock-progress);
     height: 100%;
-    background: #ffb11f;
+    background: linear-gradient(90deg, rgba(255, 171, 43, 0.72), rgba(255, 214, 128, 0.98));
     transition: width 90ms linear;
 }
 
@@ -169,6 +159,11 @@ body {
     opacity: 1;
     visibility: visible;
     transform: translateX(-50%) translateY(0);
+}
+
+.screen-locked.screen-lock-banner-idle .screen-lock-banner {
+    opacity: 0;
+    transition: opacity 420ms ease-out, transform 420ms ease-out;
 }
 
 /* ---------------------------- */

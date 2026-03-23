@@ -5768,9 +5768,12 @@ let screenLockNoticeLastShownAt = 0;
 let screenLockUnlockStartAt = 0;
 let screenLockUnlockTimerId = null;
 let screenLockUnlockIntervalId = null;
+let screenLockBannerIdleTimerId = null;
+let isScreenLockBannerIdle = false;
 
 const SCREEN_LOCK_UNLOCK_HOLD_MS = 2000;
 const SCREEN_LOCK_NOTICE_THROTTLE_MS = 1500;
+const SCREEN_LOCK_BANNER_IDLE_MS = 3000;
 
 // Enterキーリスナー参照保持（リーク防止用）
 let nameInputKeydownHandler = null;
@@ -5850,14 +5853,91 @@ function updateScreenLockBanner() {
     }
 }
 
+function syncScreenLockBackgroundUiState() {
+    const overlay = document.getElementById('screen-lock-overlay');
+    const backgroundLayer = document.getElementById('screen-lock-background-layer');
+    const backgroundImage = document.getElementById('screen-lock-background-image');
+    const hasCustomBackground = screenLockBackgroundSettings.enabled && !!screenLockBackgroundSettings.assetPath;
+    const backgroundUrl = hasCustomBackground ? toSafeScreenLockBackgroundUrl(screenLockBackgroundSettings.assetPath) : '';
+    const shouldHideBackground = !hasCustomBackground || screenLockBackgroundImageLoadErrorPath === screenLockBackgroundSettings.assetPath;
+
+    document.body.classList.toggle('screen-lock-background-enabled', hasCustomBackground && !shouldHideBackground);
+    document.body.dataset.screenLockBackgroundOriginalFileName = screenLockBackgroundSettings.originalFileName || '';
+
+    if (backgroundLayer && backgroundImage) {
+        backgroundLayer.dataset.screenLockBackgroundEnabled = hasCustomBackground ? 'true' : 'false';
+        if (isScreenLocked && backgroundUrl && !shouldHideBackground) {
+            backgroundLayer.classList.remove('screen-lock-background-error');
+            if (backgroundImage.getAttribute('src') !== backgroundUrl) {
+                backgroundImage.setAttribute('src', backgroundUrl);
+            }
+        } else {
+            backgroundLayer.classList.toggle('screen-lock-background-error', shouldHideBackground && hasCustomBackground);
+            backgroundImage.removeAttribute('src');
+        }
+    }
+
+    if (!overlay) {
+        return;
+    }
+
+    overlay.dataset.screenLockBackgroundEnabled = hasCustomBackground && !shouldHideBackground ? 'true' : 'false';
+    overlay.dataset.screenLockBackgroundAssetPath = backgroundUrl;
+}
+
+function syncScreenLockBannerIdleState() {
+    document.body.classList.toggle('screen-lock-banner-idle', isScreenLocked && isScreenLockBannerIdle && !screenLockUnlockStartAt);
+}
+
+function clearScreenLockBannerIdleTimer() {
+    if (!screenLockBannerIdleTimerId) {
+        return;
+    }
+
+    clearTimeout(screenLockBannerIdleTimerId);
+    screenLockBannerIdleTimerId = null;
+}
+
+function scheduleScreenLockBannerIdle() {
+    clearScreenLockBannerIdleTimer();
+    if (!isScreenLocked || screenLockUnlockStartAt) {
+        return;
+    }
+
+    screenLockBannerIdleTimerId = setTimeout(() => {
+        isScreenLockBannerIdle = true;
+        syncScreenLockBannerIdleState();
+    }, SCREEN_LOCK_BANNER_IDLE_MS);
+}
+
+function showScreenLockBannerImmediately() {
+    if (!isScreenLocked) {
+        return;
+    }
+
+    isScreenLockBannerIdle = false;
+    syncScreenLockBannerIdleState();
+    scheduleScreenLockBannerIdle();
+}
+
 function syncScreenLockUiState() {
     document.body.classList.toggle('screen-locked', isScreenLocked);
+    syncScreenLockBackgroundUiState();
+    isScreenLockBannerIdle = false;
+    syncScreenLockBannerIdleState();
     updateScreenLockBanner();
 
     const activeElement = document.activeElement;
     if (isScreenLocked && activeElement && typeof activeElement.blur === 'function') {
         activeElement.blur();
     }
+
+    if (isScreenLocked) {
+        scheduleScreenLockBannerIdle();
+        return;
+    }
+
+    clearScreenLockBannerIdleTimer();
 }
 
 if (window.electronAPI && typeof window.electronAPI.onLanguageChanged === 'function') {
@@ -5906,6 +5986,7 @@ function updateScreenLockUnlockBannerProgress() {
     if (!screenLockUnlockStartAt) {
         hint.textContent = getMessage('screen-lock-hint');
         banner.style.setProperty('--screen-lock-progress', '0%');
+        syncScreenLockBannerIdleState();
         return;
     }
 
@@ -5913,6 +5994,7 @@ function updateScreenLockUnlockBannerProgress() {
     const progressPercent = Math.min(100, Math.round((elapsed / SCREEN_LOCK_UNLOCK_HOLD_MS) * 100));
     hint.textContent = getScreenLockUnlockingText(progressPercent);
     banner.style.setProperty('--screen-lock-progress', `${progressPercent}%`);
+    syncScreenLockBannerIdleState();
 }
 
 function stopScreenLockUnlockHold(resetBanner = true) {
@@ -5926,6 +6008,9 @@ function stopScreenLockUnlockHold(resetBanner = true) {
     }
 
     screenLockUnlockStartAt = 0;
+    if (isScreenLocked) {
+        scheduleScreenLockBannerIdle();
+    }
 
     if (resetBanner) {
         updateScreenLockUnlockBannerProgress();
@@ -5942,6 +6027,9 @@ function startScreenLockUnlockHold() {
         return;
     }
 
+    clearScreenLockBannerIdleTimer();
+    isScreenLockBannerIdle = false;
+    syncScreenLockBannerIdleState();
     screenLockUnlockStartAt = Date.now();
     updateScreenLockUnlockBannerProgress();
 
@@ -5959,6 +6047,8 @@ function handleScreenLockUnlockKeydown(event) {
         return;
     }
 
+    showScreenLockBannerImmediately();
+
     if (event.key === 'Escape' && event.shiftKey) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -5972,9 +6062,15 @@ function handleScreenLockUnlockKeyup(event) {
         return;
     }
 
+    showScreenLockBannerImmediately();
+
     if (event.key === 'Escape' || event.key === 'Shift') {
         stopScreenLockUnlockHold();
     }
+}
+
+function handleScreenLockBannerActivity() {
+    showScreenLockBannerImmediately();
 }
 
 function setupScreenLockOverlays() {
@@ -6004,10 +6100,17 @@ function setupScreenLockOverlays() {
 }
 
 setupScreenLockOverlays();
+document.addEventListener('mousemove', handleScreenLockBannerActivity, true);
+document.addEventListener('mousedown', handleScreenLockBannerActivity, true);
+document.addEventListener('click', handleScreenLockBannerActivity, true);
+document.addEventListener('keydown', handleScreenLockBannerActivity, true);
 document.addEventListener('keydown', handleScreenLockUnlockKeydown, true);
 document.addEventListener('keyup', handleScreenLockUnlockKeyup, true);
 document.addEventListener('keydown', handleScreenLockKeyBlock, true);
 window.addEventListener('blur', () => {
+    clearScreenLockBannerIdleTimer();
+    isScreenLockBannerIdle = false;
+    syncScreenLockBannerIdleState();
     stopScreenLockUnlockHold();
 });
 
