@@ -23,9 +23,13 @@ const statecontrol = require('./statecontrol.js');
 const fixWebmDuration = require('fix-webm-duration');
 const { Atem } = require('atem-connection');
 const { exec } = require('child_process');
+const messages = require('./messages');
 const {
+    SCREEN_LOCK_BACKGROUND_IMAGE_FILE_EXTENSIONS,
+    SCREEN_LOCK_BACKGROUND_VIDEO_FILE_EXTENSIONS,
     getDefaultScreenLockBackgroundSettings,
-    normalizeScreenLockBackgroundSettings
+    normalizeScreenLockBackgroundSettings,
+    inferScreenLockBackgroundMediaType
 } = require('./screenLockBackgroundSettingsUtils');
 
 // グローバル変数
@@ -42,7 +46,10 @@ let screenLockBackgroundSettings;
 
 const SCREEN_LOCK_BACKGROUND_DIRNAME = 'screen-lock-background';
 const SCREEN_LOCK_BACKGROUND_BASENAME = 'background-image';
-const SCREEN_LOCK_BACKGROUND_FILE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
+const SCREEN_LOCK_BACKGROUND_FILE_EXTENSIONS = [
+    ...SCREEN_LOCK_BACKGROUND_IMAGE_FILE_EXTENSIONS,
+    ...SCREEN_LOCK_BACKGROUND_VIDEO_FILE_EXTENSIONS
+];
 const ALLOWED_SCREEN_LOCK_BACKGROUND_EXTENSIONS = new Set(
     SCREEN_LOCK_BACKGROUND_FILE_EXTENSIONS.map((extension) => `.${extension}`)
 );
@@ -173,6 +180,10 @@ function isAllowedScreenLockBackgroundExtension(filePath) {
     return ALLOWED_SCREEN_LOCK_BACKGROUND_EXTENSIONS.has(ext);
 }
 
+function getScreenLockBackgroundMediaType(filePath) {
+    return inferScreenLockBackgroundMediaType(filePath);
+}
+
 function getManagedScreenLockBackgroundFileName(filePath) {
     const ext = path.extname(filePath || '').toLowerCase();
     return `${SCREEN_LOCK_BACKGROUND_BASENAME}${ext}`;
@@ -265,6 +276,7 @@ function updateScreenLockBackgroundSettings(settings, logReason) {
     console.log('[main.js] Screen lock background settings updated:', {
         reason: logReason,
         enabled: normalized.enabled,
+        mediaType: normalized.mediaType,
         assetPath: normalized.assetPath,
         originalFileName: normalized.originalFileName,
         updatedAt: normalized.updatedAt
@@ -296,13 +308,22 @@ function validateScreenLockBackgroundImage(filePath) {
         return { valid: false, error: `File size exceeds limit (${MAX_SCREEN_LOCK_BACKGROUND_FILE_SIZE} bytes)` };
     }
 
+    const mediaType = getScreenLockBackgroundMediaType(filePath);
+    if (!mediaType) {
+        return { valid: false, error: 'Unsupported media type' };
+    }
+
+    if (mediaType === 'video') {
+        return { valid: true, mediaType };
+    }
+
     const image = nativeImage.createFromPath(filePath);
     const { width, height } = image.getSize();
     if (image.isEmpty() || width <= 0 || height <= 0) {
         return { valid: false, error: 'Selected file could not be loaded as an image' };
     }
 
-    return { valid: true };
+    return { valid: true, mediaType };
 }
 
 async function selectScreenLockBackgroundImage() {
@@ -311,11 +332,11 @@ async function selectScreenLockBackgroundImage() {
         : mainWindow;
 
     const result = await dialog.showOpenDialog(dialogOwnerWindow, {
-        title: 'Select Screen Lock Background Image',
+        title: 'Select Screen Lock Background Image / Video',
         properties: ['openFile'],
         filters: [
             {
-                name: 'Images',
+                name: 'Images / Videos',
                 extensions: SCREEN_LOCK_BACKGROUND_FILE_EXTENSIONS
             }
         ]
@@ -333,7 +354,7 @@ async function selectScreenLockBackgroundImage() {
     const selectedFilePath = result.filePaths[0];
     const validation = validateScreenLockBackgroundImage(selectedFilePath);
     if (!validation.valid) {
-        console.warn('[main.js] Screen lock background image validation failed:', validation.error);
+        console.warn('[main.js] Screen lock background media validation failed:', validation.error);
         return {
             success: false,
             canceled: false,
@@ -357,6 +378,7 @@ async function selectScreenLockBackgroundImage() {
 
     const nextSettings = updateScreenLockBackgroundSettings({
         enabled: true,
+        mediaType: storedValidation.mediaType,
         assetPath: storedAssetPath,
         originalFileName: path.basename(selectedFilePath),
         updatedAt: new Date().toISOString()
@@ -1290,22 +1312,6 @@ function createFullscreenWindow() {
     });
 }
 
-// registerSafeFileProtocol
-function registerSafeFileProtocol() {
-    protocol.registerFileProtocol('safe', (request, callback) => {
-        const rawPath = request.url.replace(/^safe:/, '');
-
-        try {
-            const decodedPath = decodeURI(rawPath);
-            callback({ path: path.normalize(decodedPath) });
-        } catch (error) {
-            console.warn('[main.js] Failed to decode safe protocol path:', rawPath, error);
-            callback({ error: -324 });
-        }
-    });
-    console.log('[main.js] Safe file protocol registered.');
-}
-
 // ---------------------
 // 起動シーケンス
 // ---------------------
@@ -1424,8 +1430,6 @@ app.whenReady().then(async () => {
     // ウインドウ生成
     createMainWindow();
     createFullscreenWindow();
-
-    registerSafeFileProtocol();
 
     // mac:前面復帰時擬似フルスクリーン再適用
     app.on('activate', () => {
@@ -2819,11 +2823,11 @@ ipcMain.handle('select-screen-lock-background-image', async () => {
     try {
         return await selectScreenLockBackgroundImage();
     } catch (error) {
-        console.error('[main.js] Failed to select screen lock background image:', error);
+        console.error('[main.js] Failed to select screen lock background media:', error);
         return {
             success: false,
             canceled: false,
-            error: error.message || 'Failed to select screen lock background image',
+            error: error.message || 'Failed to select screen lock background media',
             settings: getScreenLockBackgroundSettings()
         };
     }
@@ -2833,10 +2837,10 @@ ipcMain.handle('clear-screen-lock-background-image', () => {
     try {
         return clearScreenLockBackgroundImage();
     } catch (error) {
-        console.error('[main.js] Failed to clear screen lock background image:', error);
+        console.error('[main.js] Failed to clear screen lock background media:', error);
         return {
             success: false,
-            error: error.message || 'Failed to clear screen lock background image',
+            error: error.message || 'Failed to clear screen lock background media',
             settings: getScreenLockBackgroundSettings()
         };
     }

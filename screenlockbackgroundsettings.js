@@ -79,7 +79,7 @@ async function handleSelectButtonClick() {
     const result = await window.electronAPI.selectScreenLockBackgroundImage();
     if (result?.success) {
         applySettingsToDom(result.settings);
-        setFeedbackMessage(getModalMessage('screen-lock-background-selected', 'Screen lock background image saved.'), 'success');
+        setFeedbackMessage(getModalMessage('screen-lock-background-selected', 'Screen lock background media saved.'), 'success');
         return;
     }
 
@@ -89,7 +89,7 @@ async function handleSelectButtonClick() {
 
     const detail = result?.error ? ` ${result.error}` : '';
     setFeedbackMessage(
-        `${getModalMessage('screen-lock-background-select-failed', 'Failed to set the screen lock background image.')}${detail}`,
+        `${getModalMessage('screen-lock-background-select-failed', 'Failed to set the screen lock background media.')}${detail}`,
         'error'
     );
 }
@@ -99,13 +99,13 @@ async function handleClearButtonClick() {
     const result = await window.electronAPI.clearScreenLockBackgroundImage();
     if (result?.success) {
         applySettingsToDom(result.settings);
-        setFeedbackMessage(getModalMessage('screen-lock-background-cleared', 'Screen lock background image cleared.'), 'success');
+        setFeedbackMessage(getModalMessage('screen-lock-background-cleared', 'Screen lock background media cleared.'), 'success');
         return;
     }
 
     const detail = result?.error ? ` ${result.error}` : '';
     setFeedbackMessage(
-        `${getModalMessage('screen-lock-background-clear-failed', 'Failed to clear the screen lock background image.')}${detail}`,
+        `${getModalMessage('screen-lock-background-clear-failed', 'Failed to clear the screen lock background media.')}${detail}`,
         'error'
     );
 }

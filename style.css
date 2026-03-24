@@ -91,12 +91,17 @@ body {
     transition: opacity 120ms ease;
 }
 
-.screen-lock-background-image {
+.screen-lock-background-image,
+.screen-lock-background-video {
     width: 100%;
     height: 100%;
     display: block;
     object-fit: cover;
     object-position: center center;
+}
+
+.screen-lock-background-video {
+    background-color: #181818;
 }
 
 .screen-lock-overlay {

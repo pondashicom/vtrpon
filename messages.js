@@ -63,11 +63,11 @@ const messages = {
     "screen-lock-enabled": "スクリーンロックを有効にしました。",
     "screen-lock-disabled": "スクリーンロックを解除しました。",
     "screen-lock-blocked": "スクリーンロック中です。",
-    "screen-lock-background-selected": "スクリーンロック背景画像を設定しました。",
-    "screen-lock-background-cleared": "スクリーンロック背景画像をクリアしました。",
-    "screen-lock-background-select-failed": "スクリーンロック背景画像の設定に失敗しました。",
-    "screen-lock-background-clear-failed": "スクリーンロック背景画像のクリアに失敗しました。",
-    "screen-lock-background-load-failed": "スクリーンロック背景画像を読み込めませんでした。"
+    "screen-lock-background-selected": "スクリーンロック背景メディアを設定しました。",
+    "screen-lock-background-cleared": "スクリーンロック背景メディアをクリアしました。",
+    "screen-lock-background-select-failed": "スクリーンロック背景メディアの設定に失敗しました。",
+    "screen-lock-background-clear-failed": "スクリーンロック背景メディアのクリアに失敗しました。",
+    "screen-lock-background-load-failed": "スクリーンロック背景メディアを読み込めませんでした。"
   },
   "en": {
     "monitoring-failed": "PFL: Monitoring failed to start.",
@@ -127,11 +127,11 @@ const messages = {
     "screen-lock-enabled": "Screen lock enabled.",
     "screen-lock-disabled": "Screen lock disabled.",
     "screen-lock-blocked": "Screen is locked.",
-    "screen-lock-background-selected": "Screen lock background image saved.",
-    "screen-lock-background-cleared": "Screen lock background image cleared.",
-    "screen-lock-background-select-failed": "Failed to set the screen lock background image.",
-    "screen-lock-background-clear-failed": "Failed to clear the screen lock background image.",
-    "screen-lock-background-load-failed": "Failed to load the screen lock background image."
+    "screen-lock-background-selected": "Screen lock background media saved.",
+    "screen-lock-background-cleared": "Screen lock background media cleared.",
+    "screen-lock-background-select-failed": "Failed to set the screen lock background media.",
+    "screen-lock-background-clear-failed": "Failed to clear the screen lock background media.",
+    "screen-lock-background-load-failed": "Failed to load the screen lock background media."
   }
 };
 

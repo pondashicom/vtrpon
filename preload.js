@@ -5,6 +5,7 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { logInfo, logOpe, logDebug, setLogLevel, LOG_LEVELS } = require('./logger');
 const stateControl = require('./statecontrol');
 const screenLockBackgroundSettingsUtils = require('./screenLockBackgroundSettingsUtils');
@@ -186,10 +187,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // スクリーンロック背景画像設定を取得する関数
     getScreenLockBackgroundSettings: () => ipcRenderer.invoke('get-screen-lock-background-settings'),
 
-    // スクリーンロック背景画像を選択する関数
+    // スクリーンロック背景メディアを選択する関数
     selectScreenLockBackgroundImage: () => ipcRenderer.invoke('select-screen-lock-background-image'),
 
-    // スクリーンロック背景画像をクリアする関数
+    // スクリーンロック背景メディアをクリアする関数
     clearScreenLockBackgroundImage: () => ipcRenderer.invoke('clear-screen-lock-background-image'),
 
     // スクリーンロック背景画像設定の変更を監視する関数
@@ -202,6 +203,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getDefaultSettings: () => screenLockBackgroundSettingsUtils.getDefaultScreenLockBackgroundSettings(),
         normalizeSettings: (settings) => screenLockBackgroundSettingsUtils.normalizeScreenLockBackgroundSettings(settings),
         getDisplayName: (settings) => screenLockBackgroundSettingsUtils.getScreenLockBackgroundDisplayName(settings),
+        toAssetUrl: (assetPath) => {
+            if (typeof assetPath !== 'string' || assetPath.trim() === '') {
+                return '';
+            }
+
+            return pathToFileURL(assetPath).toString();
+        },
     },
 
     // ---------------------------------------
