@@ -23,6 +23,7 @@ const statecontrol = require('./statecontrol.js');
 const fixWebmDuration = require('fix-webm-duration');
 const { Atem } = require('atem-connection');
 const { exec } = require('child_process');
+const messages = require('./messages');
 
 // グローバル変数
 let mainWindow, fullscreenWindow, deviceSettingsWindow, playlistOnAirSettingsWindow, recordingSettingsWindow, atemSettingsWindow;
