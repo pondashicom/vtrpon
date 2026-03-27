@@ -1028,6 +1028,14 @@ function buildMenuTemplate(labels) {
               }
             }
           }
+        },
+        {
+          label: labels["menu-tools-operator-monitor-output"],
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('toggle-operator-monitor-output');
+            }
+          }
         }
       ]
     },
@@ -1039,14 +1047,6 @@ function buildMenuTemplate(labels) {
           click: () => {
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send('sync-time');
-            }
-          }
-        },
-        {
-          label: labels["menu-tools-operator-monitor-output"],
-          click: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('toggle-operator-monitor-output');
             }
           }
         },
