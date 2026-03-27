@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://timeapi.io https://gettimeapi.dev https://worldtimeapi.org; script-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' safe-file: blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://timeapi.io https://gettimeapi.dev https://worldtimeapi.org; script-src 'self' 'unsafe-inline'; img-src 'self' data: file:; media-src 'self' file: blob:;">
     <title>VTR-PON  2</title>
     <link rel="stylesheet" href="style.css">
     <script src="messages.js"></script>
@@ -28,6 +28,20 @@
     <script src="renderer.js" defer></script>
 </head>
 <body>
+    <div id="screen-lock-banner" class="screen-lock-banner">
+        <div class="screen-lock-banner-text">
+            <span id="screen-lock-banner-title" class="screen-lock-banner-title">Screen Locked</span>
+            <span id="screen-lock-banner-hint" class="screen-lock-banner-hint"></span>
+        </div>
+        <div class="screen-lock-progress">
+            <div class="screen-lock-progress-bar" id="screen-lock-progress-bar"></div>
+        </div>
+    </div>
+    <div id="screen-lock-background-layer" class="screen-lock-background-layer">
+        <img id="screen-lock-background-image" class="screen-lock-background-image">
+        <video id="screen-lock-background-video" class="screen-lock-background-video" muted loop playsinline preload="auto"></video>
+    </div>
+    <div id="screen-lock-overlay" class="screen-lock-overlay"></div>
     <div class="grid-container">
         <!-- エディットエリア -->
         <div id="listedit-section" class="section listedit">

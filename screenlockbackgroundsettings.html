@@ -1,0 +1,106 @@
+<!-- screenlockbackgroundsettings.html 2.6.0 -->
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title data-label-id="screen-lock-background-settings-title">Screen Lock Background Settings</title>
+    <link rel="stylesheet" href="modal-common.css">
+    <script src="labels.js"></script>
+    <script src="labelManager.js" defer></script>
+    <script src="messages.js"></script>
+    <script src="messageManager.js" defer></script>
+    <script src="screenlockbackgroundsettings.js" defer></script>
+    <style>
+        .screen-lock-background-description {
+            margin: 0 0 14px;
+            color: #d0d0d0;
+            font-size: 0.86em;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .screen-lock-background-status-box {
+            background-color: #444444;
+            border-radius: 5px;
+            padding: 12px;
+            margin-top: 10px;
+        }
+
+        .screen-lock-background-status-label {
+            margin-top: 0;
+            margin-bottom: 6px;
+            text-align: center;
+        }
+
+        .screen-lock-background-status-value {
+            min-height: 2.8em;
+            color: #ffffff;
+            font-size: 0.9em;
+            line-height: 1.5;
+            word-break: break-word;
+            text-align: center;
+        }
+
+        .screen-lock-background-button-row {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .screen-lock-background-button-row button {
+            margin-top: 0;
+            width: 8rem;
+        }
+
+        .screen-lock-background-message {
+            min-height: 1.5em;
+            margin-top: 12px;
+            text-align: center;
+            font-size: 0.82em;
+            color: #d0d0d0;
+        }
+
+        .screen-lock-background-message.is-error {
+            color: #ff9b9b;
+        }
+
+        .screen-lock-background-message.is-success {
+            color: #9be3a1;
+        }
+
+        .modal-button-row {
+            margin-top: 18px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .modal-button-row button {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3 id="screenLockBackgroundSettingsTitle" data-label-id="screen-lock-background-settings-title">Screen Lock Background Settings</h3>
+        <p id="screenLockBackgroundDescription" class="screen-lock-background-description" data-label-id="screen-lock-background-description"></p>
+
+        <div class="screen-lock-background-status-box">
+            <label id="screenLockBackgroundCurrentLabel" class="screen-lock-background-status-label" for="screenLockBackgroundStatusValue" data-label-id="screen-lock-background-current-label"></label>
+            <div id="screenLockBackgroundStatusValue" class="screen-lock-background-status-value"></div>
+        </div>
+
+        <div class="screen-lock-background-button-row">
+            <button id="screenLockBackgroundSelectButton" type="button" data-label-id="screen-lock-background-select-button">Select Media</button>
+            <button id="screenLockBackgroundClearButton" type="button" data-label-id="screen-lock-background-clear-button">Clear</button>
+        </div>
+
+        <div id="screenLockBackgroundMessage" class="screen-lock-background-message"></div>
+
+        <div class="modal-button-row">
+            <button id="screenLockBackgroundCloseButton" type="button" data-label-id="screen-lock-background-close-button">OK</button>
+        </div>
+    </div>
+</body>
+</html>

@@ -5,8 +5,10 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { logInfo, logOpe, logDebug, setLogLevel, LOG_LEVELS } = require('./logger');
 const stateControl = require('./statecontrol');
+const screenLockBackgroundSettingsUtils = require('./screenLockBackgroundSettingsUtils');
 
 // ドラッグ＆ドロップイベントのハンドリング
 window.addEventListener('dragover', (e) => {
@@ -168,6 +170,47 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // 現在のモーダル状態を取得する関数
     getModalState: () => ipcRenderer.invoke('get-modal-state'),
+
+    // ----------------------------
+    //  スクリーンロック管理
+    // ----------------------------
+
+    // 現在のスクリーンロック状態を取得する関数
+    getScreenLockState: () => ipcRenderer.invoke('get-screen-lock-state'),
+
+    // スクリーンロック状態を更新する関数
+    setScreenLockState: (locked) => ipcRenderer.send('set-screen-lock-state', { locked }),
+
+    // スクリーンロック状態の変更を監視する関数
+    onScreenLockStateChange: (callback) => ipcRenderer.on('screen-lock-state-change', callback),
+
+    // スクリーンロック背景画像設定を取得する関数
+    getScreenLockBackgroundSettings: () => ipcRenderer.invoke('get-screen-lock-background-settings'),
+
+    // スクリーンロック背景メディアを選択する関数
+    selectScreenLockBackgroundImage: () => ipcRenderer.invoke('select-screen-lock-background-image'),
+
+    // スクリーンロック背景メディアをクリアする関数
+    clearScreenLockBackgroundImage: () => ipcRenderer.invoke('clear-screen-lock-background-image'),
+
+    // スクリーンロック背景画像設定の変更を監視する関数
+    onScreenLockBackgroundSettingsChanged: (callback) =>
+        ipcRenderer.on('screen-lock-background-settings-changed', (event, settings) => callback(settings)),
+
+    // スクリーンロック背景画像設定ウィンドウを閉じる関数
+    closeScreenLockBackgroundSettings: () => ipcRenderer.send('close-screen-lock-background-settings'),
+    screenLockBackgroundSettings: {
+        getDefaultSettings: () => screenLockBackgroundSettingsUtils.getDefaultScreenLockBackgroundSettings(),
+        normalizeSettings: (settings) => screenLockBackgroundSettingsUtils.normalizeScreenLockBackgroundSettings(settings),
+        getDisplayName: (settings) => screenLockBackgroundSettingsUtils.getScreenLockBackgroundDisplayName(settings),
+        toAssetUrl: (assetPath) => {
+            if (typeof assetPath !== 'string' || assetPath.trim() === '') {
+                return '';
+            }
+
+            return pathToFileURL(assetPath).toString();
+        },
+    },
 
     // ---------------------------------------
     // プレイリストのインポート・エクスポート

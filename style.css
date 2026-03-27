@@ -71,6 +71,135 @@ body {
     overflow: hidden;
 }
 
+
+/* ------------------ */
+/*     スクリーンロック   */
+/* ------------------ */
+
+.screen-locked {
+    background-color: inherit;
+}
+
+.screen-lock-background-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1350;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    background-color: #181818;
+    transition: opacity 120ms ease;
+}
+
+.screen-lock-background-image,
+.screen-lock-background-video {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: center center;
+}
+
+.screen-lock-background-video {
+    background-color: #181818;
+}
+
+.screen-lock-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    opacity: 0;
+    pointer-events: none;
+    background: rgba(18, 18, 18, 0.16);
+    backdrop-filter: blur(1.2px) saturate(0.88);
+    transition: opacity 120ms ease;
+}
+
+.screen-lock-banner {
+    --screen-lock-progress: 0%;
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(0.35rem);
+    z-index: 20000;
+    overflow: hidden;
+    padding: 0.72rem 1.3rem 0.9rem;
+    border: 1px solid rgba(255, 181, 63, 0.28);
+    border-radius: 0.38rem;
+    background: rgba(28, 28, 30, 0.92);
+    color: rgba(255, 214, 140, 0.9);
+    font-size: 0.96rem;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    width: min(34rem, calc(100vw - 1.2rem));
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 120ms ease-out, transform 120ms ease-out;
+}
+
+.screen-lock-banner-text {
+    display: flex;
+    justify-content: space-between;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.screen-lock-banner-title {
+    font-weight: 650;
+}
+
+.screen-lock-banner-hint {
+    font-weight: 550;
+}
+
+.screen-lock-progress,
+.screen-lock-progress-bar {
+    border-radius: 0.12rem;
+}
+
+.screen-lock-progress {
+    position: absolute;
+    left: 0.55rem;
+    right: 0.55rem;
+    bottom: 0;
+    height: 0.2rem;
+    overflow: hidden;
+    background: rgba(255, 181, 63, 0.12);
+}
+
+.screen-lock-progress-bar {
+    width: var(--screen-lock-progress);
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255, 171, 43, 0.72), rgba(255, 214, 128, 0.98));
+    transition: width 90ms linear;
+}
+
+.screen-locked .screen-lock-overlay {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.screen-locked.screen-lock-background-enabled .screen-lock-background-layer {
+    opacity: 1;
+    visibility: visible;
+}
+
+.screen-lock-background-layer.screen-lock-background-error {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.screen-locked .screen-lock-banner {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.screen-locked.screen-lock-banner-idle .screen-lock-banner {
+    opacity: 0;
+    transition: opacity 420ms ease-out, transform 420ms ease-out;
+}
+
 /* ---------------------------- */
 /*   各セクションの幅と高さ     */
 /* ---------------------------- */
