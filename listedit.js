@@ -2781,11 +2781,11 @@ async function resetFadeParamsForCurrentItem() {
 //  キーボードショートカット
 // --------------------------------
 
-let isScreenLocked = false;
+let listeditScreenLockActive = false;
 
 window.electronAPI.ipcRenderer.on('screen-lock-state-change', (_, { locked }) => {
-    isScreenLocked = !!locked;
-    logInfo(`[listedit.js] Screen lock state changed. locked=${isScreenLocked}`);
+    listeditScreenLockActive = !!locked;
+    logInfo(`[listedit.js] Screen lock state changed. locked=${listeditScreenLockActive}`);
 });
 
 // ショートカットからボタンの mousedown を発火させるユーティリティ
@@ -2820,7 +2820,7 @@ function triggerMouseDownOnElement(el, logMessage) {
 }
 
 async function handleShortcutAction(action) {
-    if (isScreenLocked) {
+    if (listeditScreenLockActive) {
         logInfo(`[listedit.js] Ignored shortcut action while screen lock is active. action=${action}`);
         return;
     }
@@ -2918,7 +2918,7 @@ async function handleShortcutAction(action) {
 }
 
 document.addEventListener('keydown', (event) => {
-    if (isScreenLocked) {
+    if (listeditScreenLockActive) {
         return;
     }
 
