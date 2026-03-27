@@ -2781,6 +2781,13 @@ async function resetFadeParamsForCurrentItem() {
 //  キーボードショートカット
 // --------------------------------
 
+let isScreenLocked = false;
+
+window.electronAPI.ipcRenderer.on('screen-lock-state-change', (_, { locked }) => {
+    isScreenLocked = !!locked;
+    logInfo(`[listedit.js] Screen lock state changed. locked=${isScreenLocked}`);
+});
+
 // ショートカットからボタンの mousedown を発火させるユーティリティ
 function triggerMouseDownById(id, logMessage) {
     const btn = document.getElementById(id);
@@ -2813,6 +2820,11 @@ function triggerMouseDownOnElement(el, logMessage) {
 }
 
 async function handleShortcutAction(action) {
+    if (isScreenLocked) {
+        logInfo(`[listedit.js] Ignored shortcut action while screen lock is active. action=${action}`);
+        return;
+    }
+
     switch (action) {
         case 'reset-edit-area':
             logOpe("[listedit.js] Reset Edit Area triggered.");
@@ -2906,6 +2918,10 @@ async function handleShortcutAction(action) {
 }
 
 document.addEventListener('keydown', (event) => {
+    if (isScreenLocked) {
+        return;
+    }
+
     // モーダルや入力フィールドがアクティブな場合は処理しない
     const modal = document.getElementById('playlist-name-modal');
     if (modal && !modal.classList.contains('hidden')) return;
