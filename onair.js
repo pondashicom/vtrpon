@@ -62,7 +62,8 @@ const ONAIR_OPERATOR_MONITOR_FPS = 30;
 const ONAIR_PLAYLIST_SETTINGS_DEFAULTS = {
     disableFtbButton: false,
     ftbButtonFadeSec: 1,
-    dskFadeSec: 1
+    dskFadeSec: 1,
+    remainTimerSize: 1
 };
 
 let onairPlaylistOnAirSettings = { ...ONAIR_PLAYLIST_SETTINGS_DEFAULTS };
@@ -82,6 +83,8 @@ function onairApplyPlaylistOnAirSettings() {
     const disableFtbButtonCheckbox = document.getElementById('disableFtbButton');
     const ftbButtonFadeSecInput = document.getElementById('ftbButtonFadeSec');
     const dskFadeSecInput = document.getElementById('dskFadeSec');
+    const onairRemainTimeDisplay = document.getElementById('on-air-remain-time');
+    const remainTimerSize = Math.min(1.3, Math.max(0.6, Number(settings.remainTimerSize ?? 1) || 1));
 
     if (ftbButton) {
         ftbButton.disabled = settings.disableFtbButton === true;
@@ -99,6 +102,11 @@ function onairApplyPlaylistOnAirSettings() {
 
     if (dskFadeSecInput) {
         dskFadeSecInput.value = String(settings.dskFadeSec ?? 1);
+    }
+
+    if (onairRemainTimeDisplay) {
+        onairRemainTimeDisplay.style.transform = `scale(${remainTimerSize})`;
+        onairRemainTimeDisplay.style.transformOrigin = 'center center';
     }
 }
 
@@ -127,7 +135,8 @@ function onairSavePlaylistOnAirTimingSettings() {
         ...onairGetPlaylistOnAirSettings(),
         disableFtbButton: disableFtbButtonCheckbox ? disableFtbButtonCheckbox.checked === true : false,
         ftbButtonFadeSec: Math.max(0, Number(ftbButtonFadeSecInput ? ftbButtonFadeSecInput.value : 1) || 1),
-        dskFadeSec: Math.max(0, Number(dskFadeSecInput ? dskFadeSecInput.value : 1) || 1)
+        dskFadeSec: Math.max(0, Number(dskFadeSecInput ? dskFadeSecInput.value : 1) || 1),
+        remainTimerSize: Number(onairGetPlaylistOnAirSettings().remainTimerSize ?? 1)
     };
 
     onairPlaylistOnAirSettings = nextSettings;

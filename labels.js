@@ -201,16 +201,21 @@ const labels = {
     "uvc-audio-mapping-title": "UVC オーディオマッピング",
     "restore-on-startup-label": "次回起動時にこの設定を復元",
 
+    // Playlist / Onair 設定
     "playlist-onair-settings-title": "Playlist / Onair 設定",
     "playlist-onair-section-playlist": "PLAYLIST",
     "playlist-onair-section-onair": "ONAIR",
     "playlist-onair-prefer-album-art-label": "音声ファイルのサムネイルでアルバムアートを優先",
     "playlist-onair-auto-select-next-label": "オンエア終了後に「次のアイテム」を自動選択",
+    "playlist-onair-clock-size-label": "時計サイズ",
+    "playlist-onair-remain-timer-size-label": "残り時間タイマーのサイズ",
     "playlist-onair-disable-ftb-button-label": "FTBボタンを無効化",
     "playlist-onair-ftb-fade-label": "FTBボタンのフェード時間",
     "playlist-onair-dsk-fade-label": "DSKのフェード時間",
     "playlist-onair-restore-on-startup-label": "次の起動時にこの設定を復元",
     "playlist-onair-ok-button": "OK",
+
+    // screen-lock
     "screen-lock-background-settings-title": "ロック背景設定",
     "screen-lock-background-description": "スクリーンロック中にメイン画面へ表示する背景画像または背景動画を設定します",
     "screen-lock-background-current-label": "現在の設定",
@@ -438,6 +443,8 @@ const labels = {
     "playlist-onair-section-onair": "ONAIR",
     "playlist-onair-prefer-album-art-label": "Prefer album art for audio thumbnails",
     "playlist-onair-auto-select-next-label": "Auto-select next item after Off-Air",
+    "playlist-onair-clock-size-label": "Clock Size",
+    "playlist-onair-remain-timer-size-label": "Remain Timer Size",
     "playlist-onair-disable-ftb-button-label": "Disable FTB button",
     "playlist-onair-ftb-fade-label": "FTB button fade duration",
     "playlist-onair-dsk-fade-label": "DSK fade duration",

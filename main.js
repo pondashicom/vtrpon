@@ -132,7 +132,6 @@ function saveConfig(config) {
     }
 }
 
-// Playlist / ONAIR 設定デフォルトを返す関数
 function getDefaultPlaylistOnAirSettings() {
     return {
         preferAudioAlbumArt: true,
@@ -141,7 +140,8 @@ function getDefaultPlaylistOnAirSettings() {
         ftbButtonFadeSec: 1,
         dskFadeSec: 1,
         restoreOnStartup: false,
-        clockSize: 1
+        clockSize: 1,
+        remainTimerSize: 1
     };
 }
 
@@ -150,8 +150,12 @@ function normalizePlaylistOnAirSettings(settings = {}) {
     const defaults = getDefaultPlaylistOnAirSettings();
     const rawClockSize = Number(settings.clockSize ?? defaults.clockSize);
     const clockSize = Number.isFinite(rawClockSize)
-        ? Math.min(2.4, Math.max(0.6, Math.round(rawClockSize * 10) / 10))
+        ? Math.min(2.0, Math.max(0.6, Math.round(rawClockSize * 10) / 10))
         : defaults.clockSize;
+    const rawRemainTimerSize = Number(settings.remainTimerSize ?? defaults.remainTimerSize);
+    const remainTimerSize = Number.isFinite(rawRemainTimerSize)
+        ? Math.min(1.3, Math.max(0.6, Math.round(rawRemainTimerSize * 10) / 10))
+        : defaults.remainTimerSize;
 
     return {
         preferAudioAlbumArt: settings.preferAudioAlbumArt !== false,
@@ -160,7 +164,8 @@ function normalizePlaylistOnAirSettings(settings = {}) {
         ftbButtonFadeSec: Math.max(0, Number(settings.ftbButtonFadeSec ?? defaults.ftbButtonFadeSec) || defaults.ftbButtonFadeSec),
         dskFadeSec: Math.max(0, Number(settings.dskFadeSec ?? defaults.dskFadeSec) || defaults.dskFadeSec),
         restoreOnStartup: settings.restoreOnStartup === true,
-        clockSize
+        clockSize,
+        remainTimerSize
     };
 }
 

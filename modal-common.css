@@ -441,8 +441,9 @@ button:active {
     text-align: left;
 }
 
-/* Clock Size 行 */
-.settings-check-row:has(#clockSizeValue) {
+/* Clock Size / Remain Timer Size 行 */
+.settings-check-row:has(#clockSizeValue),
+.settings-check-row:has(#remainTimerSizeValue) {
     display: grid;
     grid-template-columns: 170px 4.4rem 4.4rem 44px;
     column-gap: 8px;
@@ -450,7 +451,8 @@ button:active {
     justify-content: flex-start;
 }
 
-.settings-check-row label[for="clockSizeValue"] {
+.settings-check-row label[for="clockSizeValue"],
+.settings-check-row label[for="remainTimerSizeValue"] {
     width: 170px;
     margin: 0;
     text-align: left;
@@ -459,7 +461,9 @@ button:active {
 }
 
 #clockSizeDecrease,
-#clockSizeIncrease {
+#clockSizeIncrease,
+#remainTimerSizeDecrease,
+#remainTimerSizeIncrease {
     width: 4.4rem;
     min-width: 4.4rem;
     height: 1.4375rem;
@@ -470,7 +474,8 @@ button:active {
     line-height: 1;
 }
 
-#clockSizeValue {
+#clockSizeValue,
+#remainTimerSizeValue {
     width: 44px;
     font-size: 0.9em;
     font-weight: bold;

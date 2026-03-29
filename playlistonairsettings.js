@@ -3,11 +3,6 @@
 //  ver 2.6.1
 // ------------------------------
 
-// ------------------------------
-//  playlistonairsettings.js
-//  ver 2.6.0
-// ------------------------------
-
 // デフォルト設定
 const DEFAULT_PLAYLIST_ONAIR_SETTINGS = {
     preferAudioAlbumArt: true,
@@ -16,12 +11,17 @@ const DEFAULT_PLAYLIST_ONAIR_SETTINGS = {
     ftbButtonFadeSec: 1,
     dskFadeSec: 1,
     restoreOnStartup: false,
-    clockSize: 1
+    clockSize: 1,
+    remainTimerSize: 1
 };
 
 const CLOCK_SIZE_MIN = 0.6;
-const CLOCK_SIZE_MAX = 2.4;
+const CLOCK_SIZE_MAX = 2.0;
 const CLOCK_SIZE_STEP = 0.1;
+
+const REMAIN_TIMER_SIZE_MIN = 0.6;
+const REMAIN_TIMER_SIZE_MAX = 1.3;
+const REMAIN_TIMER_SIZE_STEP = 0.1;
 
 let currentPlaylistOnAirSettings = { ...DEFAULT_PLAYLIST_ONAIR_SETTINGS };
 
@@ -61,10 +61,38 @@ function normalizeClockSize(value) {
     );
 }
 
+// Remain Timer Size を正規化する関数
+function normalizeRemainTimerSize(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return DEFAULT_PLAYLIST_ONAIR_SETTINGS.remainTimerSize;
+    }
+
+    return Math.min(
+        REMAIN_TIMER_SIZE_MAX,
+        Math.max(
+            REMAIN_TIMER_SIZE_MIN,
+            Math.round(numeric * 10) / 10
+        )
+    );
+}
+
 // Clock Size 表示を更新する関数
 function updateClockSizeDisplay(value) {
     const normalized = normalizeClockSize(value);
     document.getElementById('clockSizeValue').textContent = `${normalized.toFixed(1)}x`;
+}
+
+// Remain Timer Size 表示を更新する関数
+function updateRemainTimerSizeDisplay(value) {
+    const normalized = normalizeRemainTimerSize(value);
+    document.getElementById('remainTimerSizeValue').textContent = `${normalized.toFixed(1)}x`;
+}
+
+// Remain Timer Size 表示を更新する関数
+function updateRemainTimerSizeDisplay(value) {
+    const normalized = normalizeRemainTimerSize(value);
+    document.getElementById('remainTimerSizeValue').textContent = `${normalized.toFixed(1)}x`;
 }
 
 // 現在のDOMから設定を収集する関数
@@ -76,7 +104,8 @@ function collectSettingsFromDom() {
         ftbButtonFadeSec: Math.max(0, Number(document.getElementById('ftbButtonFadeSec').value) || 0),
         disableFtbButton: document.getElementById('disableFtbButton').checked,
         restoreOnStartup: document.getElementById('restoreOnStartup').checked,
-        clockSize: normalizeClockSize(currentPlaylistOnAirSettings.clockSize)
+        clockSize: normalizeClockSize(currentPlaylistOnAirSettings.clockSize),
+        remainTimerSize: normalizeRemainTimerSize(currentPlaylistOnAirSettings.remainTimerSize)
     };
 }
 
@@ -92,6 +121,29 @@ function previewClockSize(nextClockSize) {
     window.electronAPI.setPlaylistOnAirSettings(settings);
 }
 
+// Remain Timer Size をプレビューする関数
+function previewRemainTimerSize(nextRemainTimerSize) {
+    const settings = {
+        ...collectSettingsFromDom(),
+        remainTimerSize: normalizeRemainTimerSize(nextRemainTimerSize)
+    };
+
+    currentPlaylistOnAirSettings = { ...settings };
+    updateRemainTimerSizeDisplay(settings.remainTimerSize);
+    window.electronAPI.setPlaylistOnAirSettings(settings);
+}
+
+// Remain Timer Size をプレビューする関数
+function previewRemainTimerSize(nextRemainTimerSize) {
+    const settings = {
+        ...collectSettingsFromDom(),
+        remainTimerSize: normalizeRemainTimerSize(nextRemainTimerSize)
+    };
+
+    currentPlaylistOnAirSettings = { ...settings };
+    updateRemainTimerSizeDisplay(settings.remainTimerSize);
+    window.electronAPI.setPlaylistOnAirSettings(settings);
+}
 // ラベルを反映する関数
 function applyLabels() {
     document.title = getLabel('playlist-onair-settings-title', 'Playlist / Onair Settings');
@@ -99,6 +151,7 @@ function applyLabels() {
     document.getElementById('preferAudioAlbumArtLabel').textContent = getLabel('playlist-onair-prefer-album-art-label', 'Prefer album art for audio thumbnails');
     document.getElementById('autoSelectNextAfterOffAirLabel').textContent = getLabel('playlist-onair-auto-select-next-label', 'Auto-select next item after Off-Air');
     document.getElementById('onairSectionTitle').textContent = getLabel('playlist-onair-section-onair', 'ONAIR');
+    document.getElementById('remainTimerSizeLabel').textContent = getLabel('playlist-onair-remain-timer-size-label', 'Remain Timer Size');
     document.getElementById('ftbButtonFadeSecLabel').textContent = getLabel('playlist-onair-ftb-fade-label', 'FTB button fade duration');
     document.getElementById('disableFtbButtonLabel').textContent = getLabel('playlist-onair-disable-ftb-button-label', 'Disable FTB button');
     document.getElementById('clockSizeLabel').textContent = getLabel('playlist-onair-clock-size-label', 'Clock Size');
@@ -111,7 +164,8 @@ function applySettingsToDom(settings) {
     const merged = {
         ...DEFAULT_PLAYLIST_ONAIR_SETTINGS,
         ...(settings || {}),
-        clockSize: normalizeClockSize(settings?.clockSize ?? DEFAULT_PLAYLIST_ONAIR_SETTINGS.clockSize)
+        clockSize: normalizeClockSize(settings?.clockSize ?? DEFAULT_PLAYLIST_ONAIR_SETTINGS.clockSize),
+        remainTimerSize: normalizeRemainTimerSize(settings?.remainTimerSize ?? DEFAULT_PLAYLIST_ONAIR_SETTINGS.remainTimerSize)
     };
 
     currentPlaylistOnAirSettings = { ...merged };
@@ -122,6 +176,7 @@ function applySettingsToDom(settings) {
     document.getElementById('disableFtbButton').checked = !!merged.disableFtbButton;
     document.getElementById('restoreOnStartup').checked = !!merged.restoreOnStartup;
     updateClockSizeDisplay(merged.clockSize);
+    updateRemainTimerSizeDisplay(merged.remainTimerSize);
 }
 
 // 設定を保存する関数
@@ -149,6 +204,14 @@ async function initializePlaylistOnAirSettings() {
 
     document.getElementById('clockSizeIncrease').addEventListener('click', () => {
         previewClockSize((currentPlaylistOnAirSettings.clockSize ?? 1) + CLOCK_SIZE_STEP);
+    });
+
+    document.getElementById('remainTimerSizeDecrease').addEventListener('click', () => {
+        previewRemainTimerSize((currentPlaylistOnAirSettings.remainTimerSize ?? 1) - REMAIN_TIMER_SIZE_STEP);
+    });
+
+    document.getElementById('remainTimerSizeIncrease').addEventListener('click', () => {
+        previewRemainTimerSize((currentPlaylistOnAirSettings.remainTimerSize ?? 1) + REMAIN_TIMER_SIZE_STEP);
     });
 
     document.getElementById('okButton').addEventListener('click', saveSettings);
