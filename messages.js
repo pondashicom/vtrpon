@@ -1,7 +1,7 @@
 ﻿
 // -----------------------
 //     messages.js
-//     ver 2.6.0
+//     ver 2.6.1
 // -----------------------
 
 const messages = {
@@ -57,6 +57,8 @@ const messages = {
     "atem.disconnected":             "ATEMの接続が切断されました。",
     "atem.autoOnAirTriggered":       "ATEM入力切替により自動でオンエアが開始されました。",
     "alac-converted-to-aac":         "ALACコーデックは非対応のため、AACコーデックに変換して登録しました。",
+    "live-mode-enabled": "ライブモードを有効にしました。",
+    "live-mode-disabled": "ライブモードを解除しました。",
     "screen-lock-title": "スクリーンロック中",
     "screen-lock-hint": "解除: Shift + Esc を 2 秒長押し",
     "screen-lock-unlocking": "解除中",
@@ -121,6 +123,8 @@ const messages = {
     "atem.disconnected":           "ATEM disconnected.",
     "atem.autoOnAirTriggered":     "Automatically triggered OnAir by ATEM input switch.",
     "alac-converted-to-aac":       "ALAC is not supported, so it was converted to AAC and added to the playlist.",
+    "live-mode-enabled": "Live Mode enabled.",
+    "live-mode-disabled": "Live Mode disabled.",
     "screen-lock-title": "Screen Locked",
     "screen-lock-hint": "Unlock: hold Shift + Esc for 2 seconds",
     "screen-lock-unlocking": "Unlocking",

@@ -1,4 +1,4 @@
-﻿/* style.css 2.6.0 */
+﻿/* style.css 2.6.1 */
 
 /* ------------------ */
 /*     共通スタイル   */
@@ -38,6 +38,28 @@ body {
     height: 100vh;
     margin: 0;
     box-sizing: border-box;
+}
+
+/* ライブモードレイアウト設定 */
+body.live-mode .grid-container {
+    grid-template-areas: "playlist onair";
+    grid-template-columns: 760px 740px;
+    justify-content: center;
+}
+
+body.live-mode #listedit-section {
+    display: none;
+}
+
+body.live-mode #on-air-section .video-container {
+    flex: 0 0 auto;
+    margin-bottom: 0.375rem;
+}
+
+body.live-mode #on-air-video {
+    width: 100%;
+    max-width: calc(100% - 2.5rem);
+    max-height: 38vh;
 }
 
 /* スチルキャプチャコントロール*/

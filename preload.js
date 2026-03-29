@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     preload.js
-//     ver 2.6.0
+//     ver 2.6.1
 // -----------------------
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -211,6 +211,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
             return pathToFileURL(assetPath).toString();
         },
     },
+
+    // ---------------------------------------
+    // ライブモード
+    // ---------------------------------------
+
+    // 現在のライブモード状態を取得する関数
+    getLiveModeState: () => ipcRenderer.invoke('get-live-mode-state'),
+
+    // ライブモード状態を更新する関数
+    setLiveModeState: (enabled) => ipcRenderer.send('set-live-mode-state', { enabled }),
+
+    // ライブモード状態の変更を監視する関数
+    onLiveModeStateChange: (callback) => ipcRenderer.on('live-mode-state-change', callback),
 
     // ---------------------------------------
     // プレイリストのインポート・エクスポート

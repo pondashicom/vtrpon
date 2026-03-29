@@ -35,6 +35,7 @@ const {
 // グローバル変数
 let mainWindow, fullscreenWindow, deviceSettingsWindow, playlistOnAirSettingsWindow, recordingSettingsWindow, atemSettingsWindow, screenLockBackgroundSettingsWindow;
 let isDebugMode = false;
+let isLiveMode = false;
 let playlistState = [];
 let powerSaveBlockerId;
 let isRecordingSaving = false;
@@ -993,6 +994,15 @@ function buildMenuTemplate(labels) {
           click: () => {
             isDebugMode = !isDebugMode;
             toggleDebugMode(isDebugMode);
+          }
+        },
+        {
+          label: labels["menu-live-mode"],
+          type: 'checkbox',
+          checked: isLiveMode,
+          accelerator: 'Control+Alt+L',
+          click: () => {
+            setLiveModeState(!isLiveMode);
           }
         },
         {
@@ -2760,6 +2770,13 @@ function broadcastModalState() {
     });
 }
 
+// ライブモード状態を全ウインドウへ通知する関数
+function broadcastLiveModeState() {
+    BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('live-mode-state-change', { enabled: isLiveMode });
+    });
+}
+
 // モーダルとスクリーンロックの両方を見て再登録可否を決める。
 function refreshShortcutRegistration() {
     globalShortcut.unregisterAll();
@@ -2784,6 +2801,23 @@ function setScreenLockState(locked) {
     refreshShortcutRegistration();
     broadcastScreenLockState();
     rebuildMenu();
+}
+
+// ライブモード状態を更新する関数
+function setLiveModeState(enabled) {
+    const nextEnabled = !!enabled;
+    if (isLiveMode === nextEnabled) {
+        return;
+    }
+
+    isLiveMode = nextEnabled;
+    console.log(`[main.js] Live mode is now ${isLiveMode ? 'ON' : 'OFF'}`);
+    broadcastLiveModeState();
+    rebuildMenu();
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('info-message', isLiveMode ? 'live-mode-enabled' : 'live-mode-disabled');
+    }
 }
 
 function canOpenSettingsWindow(windowName) {
@@ -2813,6 +2847,14 @@ ipcMain.on('set-screen-lock-state', (event, { locked }) => {
 
 ipcMain.handle('get-screen-lock-state', () => {
     return { locked: isScreenLocked };
+});
+
+ipcMain.on('set-live-mode-state', (event, { enabled }) => {
+    setLiveModeState(enabled);
+});
+
+ipcMain.handle('get-live-mode-state', () => {
+    return { enabled: isLiveMode };
 });
 
 ipcMain.handle('get-screen-lock-background-settings', () => {
@@ -2859,6 +2901,12 @@ function registerShortcuts() {
         isDebugMode = !isDebugMode;
         toggleDebugMode(isDebugMode);
         console.log(`[main.js] Debug mode is now ${isDebugMode ? 'ON' : 'OFF'}`);
+    });
+
+    // Control+Alt+L - Live Mode Toggle
+    globalShortcut.register('Control+Alt+L', () => {
+        setLiveModeState(!isLiveMode);
+        console.log(`[main.js] Global shortcut Control+Alt+L triggered: Live mode is now ${isLiveMode ? 'ON' : 'OFF'}`);
     });
 
     // F11 - Fullscreen Toggle
