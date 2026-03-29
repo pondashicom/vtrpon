@@ -3,8 +3,67 @@
 //     ver 2.4.8
 // -----------------------
 
+// -----------------------
+//     clock.js
+//     ver 2.4.8
+// -----------------------
+
 let timeOffset = 0;  // サーバーとの差分ミリ秒
 const TIME_API = 'https://timeapi.io/api/Time/current/zone?timeZone=Etc/UTC';
+const DEFAULT_CLOCK_SIZE = 1;
+const CLOCK_SIZE_MIN = 0.6;
+const CLOCK_SIZE_MAX = 2.4;
+
+// Clock Size を正規化する関数
+function normalizeClockSize(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return DEFAULT_CLOCK_SIZE;
+    }
+
+    return Math.min(
+        CLOCK_SIZE_MAX,
+        Math.max(
+            CLOCK_SIZE_MIN,
+            Math.round(numeric * 10) / 10
+        )
+    );
+}
+
+// footer clock のサイズを反映する関数
+function applyFooterClockSize(value) {
+    const footerClock = document.getElementById('footer-clock');
+    if (!footerClock) {
+        return;
+    }
+
+    const scale = normalizeClockSize(value);
+
+    footerClock.style.fontSize = `${1.5 * scale}em`;
+    footerClock.style.padding = `${0.4375 * scale}rem ${1.25 * scale}rem`;
+    footerClock.style.borderRadius = `${0.625 * scale}rem`;
+    footerClock.style.boxShadow = `0 0.25rem ${0.5 * scale}rem rgba(0, 0, 0, 0.5)`;
+    footerClock.style.width = `${13.125 * scale}rem`;
+    footerClock.style.letterSpacing = `${0.125 * scale}rem`;
+}
+
+// 保存済みの時計サイズを読み込む関数
+async function initializeFooterClockSize() {
+    try {
+        if (window.electronAPI.getPlaylistOnAirSettings) {
+            const settings = await window.electronAPI.getPlaylistOnAirSettings();
+            applyFooterClockSize(settings?.clockSize);
+        }
+    } catch (_) {
+        applyFooterClockSize(DEFAULT_CLOCK_SIZE);
+    }
+
+    if (window.electronAPI.onPlaylistOnAirSettingsUpdated) {
+        window.electronAPI.onPlaylistOnAirSettingsUpdated((settings) => {
+            applyFooterClockSize(settings?.clockSize);
+        });
+    }
+}
 
 async function syncTime() {
     try {
@@ -52,6 +111,7 @@ function updateClock() {
 
 // 初期表示
 updateClock();
+initializeFooterClockSize();
 
 // 起動時と10分ごとに同期
 syncTime();

@@ -1,5 +1,10 @@
 ﻿// ------------------------------
 //  playlistonairsettings.js
+//  ver 2.6.1
+// ------------------------------
+
+// ------------------------------
+//  playlistonairsettings.js
 //  ver 2.6.0
 // ------------------------------
 
@@ -10,8 +15,13 @@ const DEFAULT_PLAYLIST_ONAIR_SETTINGS = {
     disableFtbButton: false,
     ftbButtonFadeSec: 1,
     dskFadeSec: 1,
-    restoreOnStartup: false
+    restoreOnStartup: false,
+    clockSize: 1
 };
+
+const CLOCK_SIZE_MIN = 0.6;
+const CLOCK_SIZE_MAX = 2.4;
+const CLOCK_SIZE_STEP = 0.1;
 
 let currentPlaylistOnAirSettings = { ...DEFAULT_PLAYLIST_ONAIR_SETTINGS };
 
@@ -35,6 +45,53 @@ function getLabel(key, fallback) {
     return fallback;
 }
 
+// Clock Size を正規化する関数
+function normalizeClockSize(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return DEFAULT_PLAYLIST_ONAIR_SETTINGS.clockSize;
+    }
+
+    return Math.min(
+        CLOCK_SIZE_MAX,
+        Math.max(
+            CLOCK_SIZE_MIN,
+            Math.round(numeric * 10) / 10
+        )
+    );
+}
+
+// Clock Size 表示を更新する関数
+function updateClockSizeDisplay(value) {
+    const normalized = normalizeClockSize(value);
+    document.getElementById('clockSizeValue').textContent = `${normalized.toFixed(1)}x`;
+}
+
+// 現在のDOMから設定を収集する関数
+function collectSettingsFromDom() {
+    return {
+        ...currentPlaylistOnAirSettings,
+        preferAudioAlbumArt: document.getElementById('preferAudioAlbumArt').checked,
+        autoSelectNextAfterOffAir: document.getElementById('autoSelectNextAfterOffAir').checked,
+        ftbButtonFadeSec: Math.max(0, Number(document.getElementById('ftbButtonFadeSec').value) || 0),
+        disableFtbButton: document.getElementById('disableFtbButton').checked,
+        restoreOnStartup: document.getElementById('restoreOnStartup').checked,
+        clockSize: normalizeClockSize(currentPlaylistOnAirSettings.clockSize)
+    };
+}
+
+// Clock Size をプレビューする関数
+function previewClockSize(nextClockSize) {
+    const settings = {
+        ...collectSettingsFromDom(),
+        clockSize: normalizeClockSize(nextClockSize)
+    };
+
+    currentPlaylistOnAirSettings = { ...settings };
+    updateClockSizeDisplay(settings.clockSize);
+    window.electronAPI.setPlaylistOnAirSettings(settings);
+}
+
 // ラベルを反映する関数
 function applyLabels() {
     document.title = getLabel('playlist-onair-settings-title', 'Playlist / Onair Settings');
@@ -44,6 +101,7 @@ function applyLabels() {
     document.getElementById('onairSectionTitle').textContent = getLabel('playlist-onair-section-onair', 'ONAIR');
     document.getElementById('ftbButtonFadeSecLabel').textContent = getLabel('playlist-onair-ftb-fade-label', 'FTB button fade duration');
     document.getElementById('disableFtbButtonLabel').textContent = getLabel('playlist-onair-disable-ftb-button-label', 'Disable FTB button');
+    document.getElementById('clockSizeLabel').textContent = getLabel('playlist-onair-clock-size-label', 'Clock Size');
     document.getElementById('restoreOnStartupLabel').textContent = getLabel('playlist-onair-restore-on-startup-label', 'Restore on next startup');
     document.getElementById('okButton').textContent = getLabel('playlist-onair-ok-button', 'OK');
 }
@@ -52,7 +110,8 @@ function applyLabels() {
 function applySettingsToDom(settings) {
     const merged = {
         ...DEFAULT_PLAYLIST_ONAIR_SETTINGS,
-        ...(settings || {})
+        ...(settings || {}),
+        clockSize: normalizeClockSize(settings?.clockSize ?? DEFAULT_PLAYLIST_ONAIR_SETTINGS.clockSize)
     };
 
     currentPlaylistOnAirSettings = { ...merged };
@@ -62,19 +121,13 @@ function applySettingsToDom(settings) {
     document.getElementById('ftbButtonFadeSec').value = merged.ftbButtonFadeSec;
     document.getElementById('disableFtbButton').checked = !!merged.disableFtbButton;
     document.getElementById('restoreOnStartup').checked = !!merged.restoreOnStartup;
+    updateClockSizeDisplay(merged.clockSize);
 }
 
 // 設定を保存する関数
 function saveSettings() {
-    const settings = {
-        ...currentPlaylistOnAirSettings,
-        preferAudioAlbumArt: document.getElementById('preferAudioAlbumArt').checked,
-        autoSelectNextAfterOffAir: document.getElementById('autoSelectNextAfterOffAir').checked,
-        ftbButtonFadeSec: Math.max(0, Number(document.getElementById('ftbButtonFadeSec').value) || 0),
-        disableFtbButton: document.getElementById('disableFtbButton').checked,
-        restoreOnStartup: document.getElementById('restoreOnStartup').checked
-    };
-
+    const settings = collectSettingsFromDom();
+    currentPlaylistOnAirSettings = { ...settings };
     window.electronAPI.setPlaylistOnAirSettings(settings);
     window.electronAPI.closePlaylistOnAirSettings();
 }
@@ -89,6 +142,14 @@ async function initializePlaylistOnAirSettings() {
     } catch (_) {
         applySettingsToDom(DEFAULT_PLAYLIST_ONAIR_SETTINGS);
     }
+
+    document.getElementById('clockSizeDecrease').addEventListener('click', () => {
+        previewClockSize((currentPlaylistOnAirSettings.clockSize ?? 1) - CLOCK_SIZE_STEP);
+    });
+
+    document.getElementById('clockSizeIncrease').addEventListener('click', () => {
+        previewClockSize((currentPlaylistOnAirSettings.clockSize ?? 1) + CLOCK_SIZE_STEP);
+    });
 
     document.getElementById('okButton').addEventListener('click', saveSettings);
 

@@ -44,6 +44,7 @@ let ignoreAtemEvent = false;
 let isModalActive = false;
 let isScreenLocked = false;
 let screenLockBackgroundSettings;
+let hasPendingPlaylistOnAirSettingsSave = false;
 
 const SCREEN_LOCK_BACKGROUND_DIRNAME = 'screen-lock-background';
 const SCREEN_LOCK_BACKGROUND_BASENAME = 'background-image';
@@ -139,13 +140,18 @@ function getDefaultPlaylistOnAirSettings() {
         disableFtbButton: false,
         ftbButtonFadeSec: 1,
         dskFadeSec: 1,
-        restoreOnStartup: false
+        restoreOnStartup: false,
+        clockSize: 1
     };
 }
 
 // Playlist / ONAIR 設定を正規化する関数
 function normalizePlaylistOnAirSettings(settings = {}) {
     const defaults = getDefaultPlaylistOnAirSettings();
+    const rawClockSize = Number(settings.clockSize ?? defaults.clockSize);
+    const clockSize = Number.isFinite(rawClockSize)
+        ? Math.min(2.4, Math.max(0.6, Math.round(rawClockSize * 10) / 10))
+        : defaults.clockSize;
 
     return {
         preferAudioAlbumArt: settings.preferAudioAlbumArt !== false,
@@ -153,7 +159,8 @@ function normalizePlaylistOnAirSettings(settings = {}) {
         disableFtbButton: settings.disableFtbButton === true,
         ftbButtonFadeSec: Math.max(0, Number(settings.ftbButtonFadeSec ?? defaults.ftbButtonFadeSec) || defaults.ftbButtonFadeSec),
         dskFadeSec: Math.max(0, Number(settings.dskFadeSec ?? defaults.dskFadeSec) || defaults.dskFadeSec),
-        restoreOnStartup: settings.restoreOnStartup === true
+        restoreOnStartup: settings.restoreOnStartup === true,
+        clockSize
     };
 }
 
@@ -1555,7 +1562,7 @@ function createPlaylistOnAirSettingsWindow() {
 
     playlistOnAirSettingsWindow = new BrowserWindow({
         width: 500,
-        height: 500,
+        height: 560,
         title: 'Playlist / ONAIR Settings',
         parent: mainWindow,
         modal: true,
@@ -1572,6 +1579,13 @@ function createPlaylistOnAirSettingsWindow() {
     playlistOnAirSettingsWindow.loadFile('playlistonairsettings.html');
     playlistOnAirSettingsWindow.setMenuBarVisibility(false);
     playlistOnAirSettingsWindow.on('closed', () => {
+        if (hasPendingPlaylistOnAirSettingsSave && global.playlistOnAirSettings) {
+            const cfg = loadConfig();
+            cfg.playlistOnAirSettings = normalizePlaylistOnAirSettings(global.playlistOnAirSettings);
+            saveConfig(cfg);
+            hasPendingPlaylistOnAirSettingsSave = false;
+        }
+
         playlistOnAirSettingsWindow = null;
     });
 }
@@ -1681,9 +1695,14 @@ ipcMain.on('set-playlist-onair-settings', (event, settings) => {
     const normalized = normalizePlaylistOnAirSettings(settings);
     global.playlistOnAirSettings = normalized;
 
-    const cfg = loadConfig();
-    cfg.playlistOnAirSettings = normalized;
-    saveConfig(cfg);
+    if (playlistOnAirSettingsWindow && !playlistOnAirSettingsWindow.isDestroyed()) {
+        hasPendingPlaylistOnAirSettingsSave = true;
+    } else {
+        const cfg = loadConfig();
+        cfg.playlistOnAirSettings = normalized;
+        saveConfig(cfg);
+        hasPendingPlaylistOnAirSettingsSave = false;
+    }
 
     BrowserWindow.getAllWindows().forEach(win => {
         win.webContents.send('playlist-onair-settings-updated', global.playlistOnAirSettings);
