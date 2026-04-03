@@ -137,6 +137,7 @@ function getDefaultPlaylistOnAirSettings() {
         preferAudioAlbumArt: true,
         autoSelectNextAfterOffAir: true,
         disableFtbButton: false,
+        useHardwareAcceleration: true,
         ftbButtonFadeSec: 1,
         dskFadeSec: 1,
         restoreOnStartup: false,
@@ -161,12 +162,18 @@ function normalizePlaylistOnAirSettings(settings = {}) {
         preferAudioAlbumArt: settings.preferAudioAlbumArt !== false,
         autoSelectNextAfterOffAir: settings.autoSelectNextAfterOffAir !== false,
         disableFtbButton: settings.disableFtbButton === true,
+        useHardwareAcceleration: settings.useHardwareAcceleration !== false,
         ftbButtonFadeSec: Math.max(0, Number(settings.ftbButtonFadeSec ?? defaults.ftbButtonFadeSec) || defaults.ftbButtonFadeSec),
         dskFadeSec: Math.max(0, Number(settings.dskFadeSec ?? defaults.dskFadeSec) || defaults.dskFadeSec),
         restoreOnStartup: settings.restoreOnStartup === true,
         clockSize,
         remainTimerSize
     };
+}
+
+const startupPlaylistOnAirSettings = normalizePlaylistOnAirSettings(loadConfig().playlistOnAirSettings || {});
+if (startupPlaylistOnAirSettings.useHardwareAcceleration === false) {
+    app.disableHardwareAcceleration();
 }
 
 function getScreenLockBackgroundSettings() {

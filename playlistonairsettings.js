@@ -8,6 +8,7 @@ const DEFAULT_PLAYLIST_ONAIR_SETTINGS = {
     preferAudioAlbumArt: true,
     autoSelectNextAfterOffAir: true,
     disableFtbButton: false,
+    useHardwareAcceleration: true,
     ftbButtonFadeSec: 1,
     dskFadeSec: 1,
     restoreOnStartup: false,
@@ -43,6 +44,11 @@ function getLabel(key, fallback) {
         return labels[lang][key];
     }
     return fallback;
+}
+
+// macOS かどうかを判定する関数
+function isMacPlatform() {
+    return /mac/i.test(navigator.platform || '');
 }
 
 // Clock Size を正規化する関数
@@ -103,6 +109,7 @@ function collectSettingsFromDom() {
         autoSelectNextAfterOffAir: document.getElementById('autoSelectNextAfterOffAir').checked,
         ftbButtonFadeSec: Math.max(0, Number(document.getElementById('ftbButtonFadeSec').value) || 0),
         disableFtbButton: document.getElementById('disableFtbButton').checked,
+        useHardwareAcceleration: document.getElementById('useHardwareAcceleration').checked,
         restoreOnStartup: document.getElementById('restoreOnStartup').checked,
         clockSize: normalizeClockSize(currentPlaylistOnAirSettings.clockSize),
         remainTimerSize: normalizeRemainTimerSize(currentPlaylistOnAirSettings.remainTimerSize)
@@ -154,6 +161,8 @@ function applyLabels() {
     document.getElementById('remainTimerSizeLabel').textContent = getLabel('playlist-onair-remain-timer-size-label', 'Remain Timer Size');
     document.getElementById('ftbButtonFadeSecLabel').textContent = getLabel('playlist-onair-ftb-fade-label', 'FTB button fade duration');
     document.getElementById('disableFtbButtonLabel').textContent = getLabel('playlist-onair-disable-ftb-button-label', 'Disable FTB button');
+    document.getElementById('useHardwareAccelerationLabel').textContent = getLabel('playlist-onair-use-hardware-acceleration-label', 'Use Hardware Acceleration');
+    document.getElementById('hardwareAccelerationRestartNote').textContent = getLabel('playlist-onair-hardware-acceleration-restart-note', 'Changes will take effect after restarting the app.');
     document.getElementById('clockSizeLabel').textContent = getLabel('playlist-onair-clock-size-label', 'Clock Size');
     document.getElementById('restoreOnStartupLabel').textContent = getLabel('playlist-onair-restore-on-startup-label', 'Restore on next startup');
     document.getElementById('okButton').textContent = getLabel('playlist-onair-ok-button', 'OK');
@@ -174,7 +183,16 @@ function applySettingsToDom(settings) {
     document.getElementById('autoSelectNextAfterOffAir').checked = !!merged.autoSelectNextAfterOffAir;
     document.getElementById('ftbButtonFadeSec').value = merged.ftbButtonFadeSec;
     document.getElementById('disableFtbButton').checked = !!merged.disableFtbButton;
+    document.getElementById('useHardwareAcceleration').checked = merged.useHardwareAcceleration !== false;
     document.getElementById('restoreOnStartup').checked = !!merged.restoreOnStartup;
+
+    const useHardwareAccelerationRow = document.getElementById('useHardwareAccelerationRow');
+    const hardwareAccelerationRestartNoteRow = document.getElementById('hardwareAccelerationRestartNoteRow');
+    const shouldShowHardwareAcceleration = !isMacPlatform();
+
+    useHardwareAccelerationRow.style.display = shouldShowHardwareAcceleration ? '' : 'none';
+    hardwareAccelerationRestartNoteRow.style.display = shouldShowHardwareAcceleration ? '' : 'none';
+
     updateClockSizeDisplay(merged.clockSize);
     updateRemainTimerSizeDisplay(merged.remainTimerSize);
 }
