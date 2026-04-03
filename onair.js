@@ -50,9 +50,10 @@ let onairOperatorMonitorStateInterval = null;
 let onairOperatorMonitorCanvas = null;
 let onairOperatorMonitorCtx = null;
 let onairOperatorMonitorStream = null;
-const ONAIR_OPERATOR_MONITOR_WIDTH = 1920;
-const ONAIR_OPERATOR_MONITOR_HEIGHT = 1080;
-const ONAIR_OPERATOR_MONITOR_FPS = 30;
+let onairOperatorMonitorLastRenderAt = 0;
+const ONAIR_OPERATOR_MONITOR_WIDTH = 1280;
+const ONAIR_OPERATOR_MONITOR_HEIGHT = 720;
+const ONAIR_OPERATOR_MONITOR_FPS = 15;
 
 
 // -----------------------------------------
@@ -4994,14 +4995,22 @@ function onairOpenOperatorMonitorOutput() {
         onairOperatorMonitorWindow.resizeTo(640, 360);
     } catch (_) {}
 
+    onairOperatorMonitorLastRenderAt = 0;
+
     if (onairOperatorMonitorLoopRaf === null) {
-        const renderStep = () => {
+        const renderIntervalMs = 1000 / Math.max(1, ONAIR_OPERATOR_MONITOR_FPS);
+
+        const renderStep = (now) => {
             if (!onairOperatorMonitorWindow || onairOperatorMonitorWindow.closed) {
                 onairCloseOperatorMonitorOutput();
                 return;
             }
 
-            onairRenderOperatorMonitorFrame();
+            if ((now - onairOperatorMonitorLastRenderAt) >= renderIntervalMs) {
+                onairRenderOperatorMonitorFrame();
+                onairOperatorMonitorLastRenderAt = now;
+            }
+
             onairOperatorMonitorLoopRaf = requestAnimationFrame(renderStep);
         };
 
@@ -5016,7 +5025,7 @@ function onairOpenOperatorMonitorOutput() {
             }
 
             onairPushOperatorMonitorState();
-        }, 100);
+        }, 250);
     }
 
     const tryAttach = () => {
@@ -5051,6 +5060,8 @@ function onairCloseOperatorMonitorOutput() {
         clearInterval(onairOperatorMonitorStateInterval);
         onairOperatorMonitorStateInterval = null;
     }
+
+    onairOperatorMonitorLastRenderAt = 0;
 
     if (onairOperatorMonitorStream) {
         try {
