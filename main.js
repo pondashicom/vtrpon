@@ -33,13 +33,11 @@ const {
 } = require('./screenLockBackgroundSettingsUtils');
 
 // グローバル変数
-let mainWindow, fullscreenWindow, deviceSettingsWindow, playlistOnAirSettingsWindow, recordingSettingsWindow, atemSettingsWindow, screenLockBackgroundSettingsWindow;
+let mainWindow, fullscreenWindow, deviceSettingsWindow, playlistOnAirSettingsWindow, atemSettingsWindow, screenLockBackgroundSettingsWindow;
 let isDebugMode = false;
 let isLiveMode = false;
 let playlistState = [];
 let powerSaveBlockerId;
-let isRecordingSaving = false;
-let shouldQuitAfterSave = false;
 let ignoreAtemEvent = false;
 let isModalActive = false;
 let isScreenLocked = false;
@@ -648,13 +646,6 @@ function buildMenuTemplate(labels) {
         },
         { type: 'separator' },
         {
-          label: labels["menu-recording-settings"],
-          click: () => {
-            createRecordingSettingsWindow();
-        }
-        },
-        { type: 'separator' },
-        {
           label: labels["menu-tools-atem-connection"],
           click: () => {
             createAtemSettingsWindow();
@@ -942,15 +933,6 @@ function buildMenuTemplate(labels) {
             } else {
               console.log('[main.js] Menu: Fullscreen window not available.');
             }
-          }
-        },
-        { type: 'separator' },
-        {
-          label: labels["menu-recording-toggle"],
-          accelerator: 'Shift+R',
-          click: () => {
-            mainWindow.webContents.send('shortcut-trigger', 'Shift+R');
-            console.log('[main.js] Menu: Recording Toggle triggered.');
           }
         },
         { type: 'separator' },
@@ -1398,24 +1380,6 @@ app.whenReady().then(async () => {
     if (cfg.autoSwitch && cfg.ip) {
         await startATEMMonitor(cfg.ip);
     }
-
-    // 録画設定読込・初期化
-    const config = loadConfig();
-    const recordingConfig = config.recording || {};
-    const recordingDir = recordingConfig.directory || path.join(app.getPath('pictures'), 'vtrpon-recording');
-    const recordingPrefix = recordingConfig.prefix || '';
-    const recordingBitrate = recordingConfig.videoBitsPerSecond || 8000000; 
-    if (!fs.existsSync(recordingDir)) {
-        fs.mkdirSync(recordingDir, { recursive: true });
-    }
-    config.recording = {
-        directory:            recordingDir,
-        prefix:               recordingPrefix,
-        videoBitsPerSecond:   recordingBitrate
-    };
-    saveConfig(config);
-    global.recordingConfig = config.recording;
-    console.log('[main.js] Recording settings loaded:', global.recordingConfig);
 
     // プレイリスト保存ファイル削除
     removeOldPlaylistFile();
@@ -2419,148 +2383,6 @@ ipcMain.on('dsk-command', (event, dskCommandData) => {
     }
 });
 
-// ---------------------------------
-// 録画機能
-// ---------------------------------
-
-// 録画設定ウインドウ生成
-function createRecordingSettingsWindow() {
-  if (!canOpenSettingsWindow('recording settings window')) {
-    return;
-  }
-
-  recordingSettingsWindow = new BrowserWindow({
-    width: 500,
-    height: 420,
-    title: 'Recording Settings',
-    parent: mainWindow,
-    modal: true,
-    frame: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false
-    }
-  });
-  recordingSettingsWindow.loadFile('recordingSettings.html');
-  recordingSettingsWindow.setMenuBarVisibility(false);
-  recordingSettingsWindow.on('closed', () => { recordingSettingsWindow = null; });
-}
-
-ipcMain.on('open-recording-settings', () => {
-  if (!recordingSettingsWindow) createRecordingSettingsWindow();
-});
-
-ipcMain.on('close-recording-settings', () => {
-  if (recordingSettingsWindow) recordingSettingsWindow.close();
-});
-
-// ディレクトリ選択ダイアログ
-ipcMain.handle('show-recording-directory-dialog', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ['openDirectory']
-  });
-  return (canceled || filePaths.length === 0) ? null : filePaths[0];
-});
-
-// 録画ファイル保存
-ipcMain.handle('save-recording-file', async (event, arrayBuffer, chunkFileName) => {
-  try {
-    const tempDir = path.join(app.getPath('temp'), 'vtrpon_recordings');
-    await fs.promises.mkdir(tempDir, { recursive: true });
-    const filePath = path.join(tempDir, chunkFileName.replace(/\.mp4$/, '.webm'));
-    const buffer = Buffer.from(arrayBuffer);
-    await fs.promises.writeFile(filePath, buffer);
-    const stats = fs.statSync(filePath);
-    console.log(`[main.js] Recording chunk saved at: ${filePath}`);
-    console.log(`[main.js] Chunk file size: ${stats.size} bytes`);
-    return filePath;
-  } catch (error) {
-    console.error('[main.js] Failed to save recording chunk:', error);
-    throw error;
-  }
-});
-
-// 録画ファイル生成
-ipcMain.handle('merge-recording-chunks', async (event, chunkFilePaths, defaultFileName) => {
-    isRecordingSaving = true;
-    try {
-        // 保存開始通知
-        mainWindow.webContents.send('recording-save-start');
-        const prefix = global.recordingConfig.prefix || 'recording';
-        const timestamp = new Date()
-            .toISOString()
-            .split('.')[0]
-            .replace(/:/g, '-');
-        const fileName = `${prefix}_${timestamp}.webm`;
-        const saveDir = global.recordingConfig.directory;
-        const filePath = path.join(saveDir, fileName);
-        const concatInput = chunkFilePaths.map(p => p.replace(/\\/g, '/')).join('|');
-        console.log('[main.js] Concat input:', concatInput);
-        const tempMergedPath = filePath.replace('.webm', '_temp.webm');
-        await new Promise((resolve, reject) => {
-            ffmpeg()
-                .input(`concat:${concatInput}`)
-                .outputOptions(['-c', 'copy', '-threads', '0'])
-                .on('end', () => {
-                    console.log('[main.js] Concat protocol による結合に成功しました。');
-                    resolve();
-                })
-                .on('error', err => {
-                    console.error('[main.js] Concat protocol 結合処理中エラー:', err);
-                    reject(err);
-                })
-                .save(tempMergedPath);
-        });
-        await new Promise((resolve, reject) => {
-            ffmpeg()
-                .input(tempMergedPath)
-                .outputOptions([
-                    '-c', 'copy',
-                    '-fflags', '+genpts',
-                    '-reset_timestamps', '1'
-                ])
-                .on('end', () => {
-                    console.log('[main.js] Remux 処理によりタイムスタンプをリセットしました。');
-                    resolve();
-                })
-                .on('error', err => {
-                    console.error('[main.js] Remux 処理中エラー:', err);
-                    reject(err);
-                })
-                .save(filePath);
-        });
-        await fs.promises.unlink(tempMergedPath);
-        mainWindow.webContents.send('recording-save-complete');
-        mainWindow.webContents.send('recording-save-notify', filePath);
-        if (shouldQuitAfterSave) {
-            app.quit();
-        }
-
-        return filePath;
-    } catch (error) {
-        console.error('[main.js] merge-recording-chunks error:', error);
-        throw error;
-    } finally {
-        isRecordingSaving = false;
-    }
-});
-
-// 録画ファイルメタデータ
-ipcMain.handle('fix-webm-metadata', async (event, mergedPath, totalDurationMs) => {
-    try {
-        const buffer = await fs.promises.readFile(mergedPath);
-        const fixedBuffer = await fixWebmDuration(buffer, totalDurationMs);
-        await fs.promises.writeFile(mergedPath, fixedBuffer);
-        console.log('[main.js] EBML metadata fixed. Total duration:', totalDurationMs / 1000, 'seconds');
-        return mergedPath;
-    } catch (error) {
-        console.error('[main.js] EBML metadata fix failed:', error);
-        throw error;
-    }
-});
-
 ipcMain.handle('get-media-duration', async (event, filePath) => {
     return new Promise((resolve, reject) => {
         ffmpeg.ffprobe(filePath, (err, metadata) => {
@@ -2571,19 +2393,6 @@ ipcMain.handle('get-media-duration', async (event, filePath) => {
             }
         });
     });
-});
-
-// 録画設定取得/保存
-ipcMain.handle('get-recording-settings', () => {
-  return global.recordingConfig || {};
-});
-
-ipcMain.on('set-recording-settings', (event, newSettings) => {
-  const config = loadConfig();
-  config.recording = newSettings;
-  saveConfig(config);
-  global.recordingConfig = newSettings;
-  console.log('[main.js] Recording settings updated:', newSettings);
 });
 
 // ---------------------
@@ -3144,14 +2953,6 @@ app.on('will-quit', () => {
     if (powerSaveBlocker.isStarted(powerSaveBlockerId)) {
         powerSaveBlocker.stop(powerSaveBlockerId);
         console.log('[main.js] powerSaveBlocker stopped.');
-    }
-});
-
-// 録画ファイルの保存中はアプリを終了させない
-app.on('before-quit', (e) => {
-    if (isRecordingSaving) {
-        e.preventDefault();
-        shouldQuitAfterSave = true;
     }
 });
 

@@ -4550,38 +4550,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // -----------------------
-// 録画
-// -----------------------
-
-// 録画ボタン
-document.addEventListener('DOMContentLoaded', () => {
-    const recBtn = document.getElementById('rec-button');
-    if (recBtn) {
-        recBtn.addEventListener('mousedown', async (event) => {
-            // 左クリック限定
-            if (event.button !== 0) return;
-            event.preventDefault();
-
-            if (!window.recorderIsActive) {
-                // 録画開始
-                window.electronAPI.sendControlToFullscreen({ command: 'start-recording' });
-                window.recorderIsActive = true;
-                recBtn.classList.add('button-recording');
-                logOpe('[onair.js] REC mode started (command sent).');
-            } else {
-                // 録画停止
-                window.electronAPI.sendControlToFullscreen({ command: 'stop-recording' });
-                window.recorderIsActive = false;
-                recBtn.classList.remove('button-recording');
-                logOpe('[onair.js] REC mode ended (command sent).');
-            }
-        });
-    }
-});
-
-
-
-// -----------------------
 // FTBボタン
 // -----------------------
 function onairHandleFTBButton() {

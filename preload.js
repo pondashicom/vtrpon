@@ -362,56 +362,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // FFmpeg操作
     execFfmpeg: (args) => ipcRenderer.invoke('exec-ffmpeg', args),
 
-    // ----------------------------
-    //    録画機能用 API
-    // ----------------------------
-    recorderSave: {
-        saveRecordingFile: async (arrayBuffer, fileName) => {
-            try {
-                const savedPath = await ipcRenderer.invoke('save-recording-file', arrayBuffer, fileName);
-                return savedPath;
-            } catch (error) {
-                console.error('[preload.js] saveRecordingFile error:', error);
-                throw error;
-            }
-        }
-    },
-
-    recorderMerge: {
-        mergeRecordingChunks: async (chunkFilePaths, targetFileName) => {
-            try {
-                const mergedPath = await ipcRenderer.invoke('merge-recording-chunks', chunkFilePaths, targetFileName);
-                return mergedPath;
-            } catch (error) {
-                console.error('[preload.js] mergeRecordingChunks error:', error);
-                throw error;
-            }
-        }
-    },
-
-    // 録画保存完了通知リスナー
-    onRecordingSaveNotify: (callback) => ipcRenderer.on('recording-save-notify', (event, savedPath) => callback(savedPath)),
-
-    // EBMLのメタデータ補完 API
-    fixWebmMetadata: async (mergedPath, totalDurationMs) => {
-        return await ipcRenderer.invoke('fix-webm-metadata', mergedPath, totalDurationMs);
-    },
-
     // メディアファイルの再生時間を取得する API
     getMediaDuration: async (filePath) => {
         return await ipcRenderer.invoke('get-media-duration', filePath);
     },
-
-    // ----------------------------
-    // 録画設定用 API
-    // ----------------------------
-    getRecordingSettings: () => ipcRenderer.invoke('get-recording-settings'),
-    setRecordingSettings: (settings) => ipcRenderer.send('set-recording-settings', settings),
-    onRecordingSaveStart: (callback) => ipcRenderer.on('recording-save-start', (event) => callback()),
-    onRecordingSaveComplete: (callback) => ipcRenderer.on('recording-save-complete', (event) => callback()),
-    openRecordingSettings: () => ipcRenderer.send('open-recording-settings'),
-    closeRecordingSettings: () => ipcRenderer.send('close-recording-settings'),
-    showDirectoryDialog: () => ipcRenderer.invoke('show-recording-directory-dialog'),
 
     // ----------------------------
     // ATEM設定関連
