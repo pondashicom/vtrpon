@@ -94,8 +94,7 @@ Feedback and contributions are always welcome.
 
 Special thanks to all contributors who have helped improve VTR-PON 2.
 
-- [nasshu2916](https://github.com/nasshu2916) - Cross-platform compatibility improvements, automated build scripts for Windows and macOS
-
+- [nasshu2916](https://github.com/nasshu2916) - Contributions including cross-platform compatibility improvements, automated build scripts for Windows and macOS, bug fixes, implementation of the screen lock feature, and other ongoing enhancements
 ---
 
 ## License
