@@ -353,10 +353,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // テストパターン用ベースディレクトリ
     getTestPatternBaseDir: () => {
         const isPackaged = __dirname.includes('app.asar');
+
+        if (isPackaged && process.platform === 'darwin') {
+            return path.join(process.resourcesPath, 'assets', 'video');
+        }
+
         if (isPackaged) {
             // ビルド版: ...\resources\app.asar -> ...\resources\assets\video
             return path.join(__dirname, '..', 'assets', 'video');
         }
+
         // 開発時: __dirname === G:\vtrpon2
         return path.join(__dirname, 'assets', 'video');
     },
