@@ -2328,29 +2328,6 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                 }
                 break;
 
-            // 録画制御
-            case 'start-recording':
-                {
-                    const videoElement = document.getElementById('fullscreen-video');
-                    if (videoElement) {
-                        window.recorder.startRecording(videoElement);
-                        logInfo('[fullscreen.js] Start recording initiated.');
-                    } else {
-                        logInfo('[fullscreen.js] fullscreen-video element not found.');
-                    }
-                }
-                break;
-            case 'stop-recording':
-                window.recorder.stopRecording()
-                    .then(async () => {
-                        const savedPath = await window.recorder.saveRecording();
-                        logInfo('[fullscreen.js] Recording saved: ' + savedPath);
-                    })
-                    .catch(error => {
-                        logInfo('[fullscreen.js] Recording stop error: ' + error.message);
-                    });
-                break;
-
             // DSK制御
             case 'DSK_PAUSE':
                 pauseFullscreenDSK();

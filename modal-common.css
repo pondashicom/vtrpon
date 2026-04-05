@@ -242,47 +242,6 @@ button:active {
     background-color: #b71c1c;
 }
 
-
-/* ------------- */
-/*   録画設定    */
-/* ------------- */
-
-/* 全体をウィンドウサイズにフィットさせる */
-.container {
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 20px 10px;
-  box-sizing: border-box;
-}
-
-/* 縦並びフィールド */
-.field-col {
-  width: 100%;
-  margin-bottom: 12px;
-  text-align: center;
-}
-
-/* ラベルは中央寄せでマージン下 */
-.field-col label {
-  display: block;
-  font-size: 0.9em;
-  color: #ddd;
-  margin-bottom: 6px;
-}
-
-/* テキスト入力は幅100% */
-.field-col input[type="text"] {
-  width: 100%;
-  padding: 8px;
-  background-color: #2e2e2e;
-  color: #fff;
-  border: 1px solid #444;
-  border-radius: 4px;
-  font-size: 0.9em;
-  box-sizing: border-box;
-}
-
 /* ------------- */
 /*   ATEM設定    */
 /* ------------- */
@@ -368,21 +327,6 @@ button:active {
 /* SAVE/CANCEL, BROWSE などのボタンは margin-top を二重にしない */
 .modal-button-row button,
 .modal-button-row-double button {
-    margin-top: 0;
-}
-
-/* 録画ディレクトリ入力＋BROWSE ボタン用の横並び */
-.dir-input-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.dir-input-row input[type="text"] {
-    flex: 1 1 auto;
-}
-
-.dir-input-row button {
     margin-top: 0;
 }
 
