@@ -4615,11 +4615,12 @@ function onairHandleFTBButton() {
     logInfo(`[onair.js] FTB toggle hold ${nextActive ? 'ON' : 'OFF'} (visual+audio, step3). duration=${fadeSec}s`);
 
     // OnAir映像レイヤー
+    let restoreValue = 0;
     onairSetFtbToggleHoldVisual(nextActive, fadeSec);
     if (nextActive) {
         onairAnimateMasterFaderForFtb(0, fadeSec);
     } else {
-        const restoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
+        restoreValue = (typeof onairFtbToggleMasterRestoreValue === 'number' && !isNaN(onairFtbToggleMasterRestoreValue))
             ? Math.max(0, Math.min(100, Number(onairFtbToggleMasterRestoreValue) || 0))
             : 0;
 
@@ -4644,6 +4645,20 @@ function onairHandleFTBButton() {
         ? ((fillKeyColorPicker && fillKeyColorPicker.value) ? fillKeyColorPicker.value : "#00FF00")
         : "";
 
+    const currentItemSlider = document.getElementById('on-air-item-volume-slider');
+    const currentMasterSlider = document.getElementById('on-air-master-volume-slider');
+    const currentItemLinear = currentItemSlider
+        ? Math.max(0, Math.min(1, (Number(currentItemSlider.value) || 0) / 100))
+        : 1;
+    const currentMasterLinear = currentMasterSlider
+        ? Math.max(0, Math.min(1, (Number(currentMasterSlider.value) || 0) / 100))
+        : 1;
+    const restoreMasterLinear = Math.max(0, Math.min(1, restoreValue / 100));
+    const releaseTargetLinear = nextActive
+        ? 0
+        : (currentItemLinear * restoreMasterLinear);
+    const currentCombinedLinear = currentItemLinear * currentMasterLinear;
+
     window.electronAPI.sendControlToFullscreen({
         command: 'ftb-toggle-hold',
         value: {
@@ -4652,7 +4667,7 @@ function onairHandleFTBButton() {
             fillKeyMode: !!isFillKeyMode,
             fillKeyColor: ftbFillKeyColor,
             keepPlaying: onairFtbToggleShouldKeepPlaying,
-            audioTargetLinear: nextActive ? 0 : 1
+            audioTargetLinear: nextActive ? 0 : releaseTargetLinear
         }
     });
 }
