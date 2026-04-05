@@ -61,6 +61,9 @@
             ],
             "icon": "assets/icons/icon_512x512.png"
         },
+        "dmg": {
+            "sign": true
+        },
         "asarUnpack": [
             "**/node_modules/ffmpeg-static/**",
             "**/node_modules/ffprobe-static/**"
