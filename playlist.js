@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     playlist.js 
-//     ver 2.6.0
+//     ver 2.6.1
 // -----------------------
 
 
@@ -65,10 +65,10 @@ function normalizePlaylistStoreItemForStore(item, index) {
         endGotoItemId: src.endGotoItemId ?? null,
         startMode: src.startMode ?? null,
         endMode: src.endMode ?? null,
-        inPoint: typeof src.inPoint === 'number' ? src.inPoint : 0,
-        outPoint: typeof src.outPoint === 'number'
+        inPoint: (typeof src.inPoint !== 'undefined' && src.inPoint !== null) ? src.inPoint : "00:00:00:00",
+        outPoint: (typeof src.outPoint !== 'undefined' && src.outPoint !== null)
             ? src.outPoint
-            : (typeof src.duration === 'number' ? src.duration : 0),
+            : ((typeof src.duration !== 'undefined' && src.duration !== null) ? src.duration : "00:00:00:00"),
         repeatStartIndex: 0
     };
 
