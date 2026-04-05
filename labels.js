@@ -233,7 +233,14 @@ const labels = {
     "atem-switch-delay-label": "切り替えディレイ (ms)",
     "atem-restore-on-startup-label": "次回起動時にこの設定を復元",
     "atem-save-button": "保存",
-    "atem-cancel-button": "キャンセル"
+    "atem-cancel-button": "キャンセル",
+
+    // リフレッシュレート警告
+    "refresh-rate-warning-title": "ディスプレイのリフレッシュレート警告",
+    "refresh-rate-warning-message": "操作ウインドウとフルスクリーン表示先のリフレッシュレートが一致していません。",
+    "refresh-rate-warning-operator": "操作ウインドウ",
+    "refresh-rate-warning-fullscreen": "フルスクリーン表示先",
+    "refresh-rate-warning-detail": "再生がカクつく場合は、両方のディスプレイのリフレッシュレートを一致させてください。"
   },
   "en": {
 
@@ -453,7 +460,13 @@ const labels = {
     "atem-switch-delay-label": "Switch Delay (ms)",
     "atem-restore-on-startup-label": "Restore on next startup",
     "atem-save-button": "Save",
-    "atem-cancel-button": "Cancel"
+    "atem-cancel-button": "Cancel",
+
+    "refresh-rate-warning-title": "Display Refresh Rate Warning",
+    "refresh-rate-warning-message": "The operator window and fullscreen display have different refresh rates.",
+    "refresh-rate-warning-operator": "Operator Window",
+    "refresh-rate-warning-fullscreen": "Fullscreen Display",
+    "refresh-rate-warning-detail": "If playback appears choppy, match the refresh rates of both displays."
   }
 };
 

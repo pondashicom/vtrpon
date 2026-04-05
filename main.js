@@ -43,6 +43,7 @@ let isModalActive = false;
 let isScreenLocked = false;
 let screenLockBackgroundSettings;
 let hasPendingPlaylistOnAirSettingsSave = false;
+let lastRefreshRateWarningSignature = '';
 
 const SCREEN_LOCK_BACKGROUND_DIRNAME = 'screen-lock-background';
 const SCREEN_LOCK_BACKGROUND_BASENAME = 'background-image';
@@ -1007,6 +1008,14 @@ function buildMenuTemplate(labels) {
           }
         },
         {
+          label: labels["menu-tools-operator-monitor-output"],
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('toggle-operator-monitor-output');
+            }
+          }
+        },
+        {
           label: labels["menu-fullscreen"],
           accelerator: 'F11',
           click: () => {
@@ -1315,6 +1324,95 @@ function createFullscreenWindow() {
     });
 }
 
+// リフレッシュレート表示用文字列を作る関数
+function formatDisplayRefreshRate(display) {
+    if (!display || !Number.isFinite(display.displayFrequency) || display.displayFrequency <= 0) {
+        return 'Unknown';
+    }
+
+    return `${Math.round(display.displayFrequency * 100) / 100} Hz`;
+}
+
+// フルスクリーン対象ディスプレイを取得する関数
+function getFullscreenTargetDisplay() {
+    const displays = screen.getAllDisplays();
+    const preferId = global.deviceSettings?.fullscreenVideoOutputDevice ?? null;
+
+    return (
+        displays.find((display) => display.id === preferId) ||
+        (fullscreenWindow && !fullscreenWindow.isDestroyed()
+            ? screen.getDisplayMatching(fullscreenWindow.getBounds())
+            : null) ||
+        displays.find((display) => display.bounds.x !== 0 || display.bounds.y !== 0) ||
+        displays[0] ||
+        null
+    );
+}
+
+// 操作ウインドウとフルスクリーン表示先のリフレッシュレートを確認する関数
+function checkDisplayRefreshRateMismatch() {
+    if (process.platform !== 'win32') {
+        return;
+    }
+
+    if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+    }
+
+    const operatorDisplay = screen.getDisplayMatching(mainWindow.getBounds());
+    const fullscreenDisplay = getFullscreenTargetDisplay();
+
+    if (!operatorDisplay || !fullscreenDisplay) {
+        return;
+    }
+
+    if (
+        !Number.isFinite(operatorDisplay.displayFrequency) ||
+        !Number.isFinite(fullscreenDisplay.displayFrequency) ||
+        operatorDisplay.displayFrequency <= 0 ||
+        fullscreenDisplay.displayFrequency <= 0
+    ) {
+        return;
+    }
+
+    const operatorRate = Math.round(operatorDisplay.displayFrequency * 100) / 100;
+    const fullscreenRate = Math.round(fullscreenDisplay.displayFrequency * 100) / 100;
+
+    if (operatorDisplay.id === fullscreenDisplay.id) {
+        lastRefreshRateWarningSignature = '';
+        return;
+    }
+
+    if (operatorRate === fullscreenRate) {
+        lastRefreshRateWarningSignature = '';
+        return;
+    }
+
+    const signature = `${operatorDisplay.id}:${operatorRate}->${fullscreenDisplay.id}:${fullscreenRate}`;
+    if (signature === lastRefreshRateWarningSignature) {
+        return;
+    }
+    lastRefreshRateWarningSignature = signature;
+
+    const currentLabels = require('./labels.js')[global.currentLanguage] || require('./labels.js').en;
+
+    dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: currentLabels["refresh-rate-warning-title"],
+        message: currentLabels["refresh-rate-warning-message"],
+        detail:
+            `${currentLabels["refresh-rate-warning-operator"]}: ${formatDisplayRefreshRate(operatorDisplay)}\n` +
+            `${currentLabels["refresh-rate-warning-fullscreen"]}: ${formatDisplayRefreshRate(fullscreenDisplay)}\n\n` +
+            currentLabels["refresh-rate-warning-detail"],
+        buttons: ['OK'],
+        defaultId: 0,
+        cancelId: 0,
+        modal: false
+    }).catch((error) => {
+        console.error('[main.js] Failed to show refresh rate warning dialog:', error);
+    });
+}
+
 // ---------------------
 // 起動シーケンス
 // ---------------------
@@ -1415,6 +1513,7 @@ app.whenReady().then(async () => {
     // ウインドウ生成
     createMainWindow();
     createFullscreenWindow();
+    checkDisplayRefreshRateMismatch();
 
     // mac:前面復帰時擬似フルスクリーン再適用
     app.on('activate', () => {
@@ -1656,6 +1755,8 @@ ipcMain.on('set-device-settings', (event, settings) => {
     BrowserWindow.getAllWindows().forEach(win => {
         win.webContents.send('device-settings-updated', global.deviceSettings);
     });
+
+    checkDisplayRefreshRateMismatch();
 });
 
 // Playlist / ONAIR 設定保存・通知IPC
