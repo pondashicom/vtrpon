@@ -1039,14 +1039,6 @@ function buildMenuTemplate(labels) {
               }
             }
           }
-        },
-        {
-          label: labels["menu-tools-operator-monitor-output"],
-          click: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('toggle-operator-monitor-output');
-            }
-          }
         }
       ]
     },
