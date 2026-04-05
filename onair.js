@@ -4250,6 +4250,18 @@ function handleRepeatConfigUpdate(newRepeatCount, newRepeatEndMode, { source } =
     logDebug(`[onair.js] repeat config updated: repeatCount=${onairCurrentState.repeatCount}, repeatEndMode=${onairCurrentState.repeatEndMode}, repeatRemaining=${onairCurrentState.repeatRemaining}`);
 }
 
+// プレイリストモード更新時のスタートモード更新
+if (window?.electronAPI?.ipcRenderer?.on) {
+    window.electronAPI.ipcRenderer.on('sync-onair-startmode', (_e, payload) => {
+        if (!onairCurrentState) return;
+        const id = payload?.editingItemId;
+        if (id && onairCurrentState.itemId !== id) return;
+        const startMode = String(payload.startMode).toUpperCase();
+        if (!startMode) return;
+        handleStartModeUpdate(startMode, { source: 'ipc' });
+    });
+}
+
 // プレイリストモード更新時のエンドモード更新
 if (window?.electronAPI?.ipcRenderer?.on) {
     window.electronAPI.ipcRenderer.on('sync-onair-endmode', (_e, payload) => {

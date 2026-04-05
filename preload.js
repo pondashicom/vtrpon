@@ -89,8 +89,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onReceiveOnAirData: (callback) => ipcRenderer.on('on-air-data', (event, onAirData) => callback(onAirData)),
 
     // ----------------------------
-    //  オンエア endMode 同期
+    //  オンエア startMode / endMode 同期
     // ----------------------------
+
+    // プレイリスト→メイン：オンエア startMode 同期
+    syncOnAirStartMode: (payload) => ipcRenderer.send('sync-onair-startmode', payload),
+
+    // メイン→フルスクリーン：オンエア startMode 同期
+    onSyncOnAirStartMode: (callback) =>
+        ipcRenderer.on('sync-onair-startmode', (event, payload) => callback(payload)),
 
     // プレイリスト→メイン：オンエア endMode 同期
     syncOnAirEndMode: (payload) => ipcRenderer.send('sync-onair-endmode', payload),
@@ -98,7 +105,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // メイン→フルスクリーン：オンエア endMode 同期
     onSyncOnAirEndMode: (callback) =>
         ipcRenderer.on('sync-onair-endmode', (event, payload) => callback(payload)),
-
     // ----------------------------
     //  フルスクリーンにもオンエア
     // ----------------------------

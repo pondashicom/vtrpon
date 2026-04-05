@@ -6485,7 +6485,7 @@ function ensurePlaylistContextMenu() {
 }
 
 // 対象アイテムにパッチを当てて保存→UI更新→必要ならオンエア側へ同期
-async function applyPlaylistItemPatch(playlistItemId, patch, { syncEndMode = false } = {}) {
+async function applyPlaylistItemPatch(playlistItemId, patch, { syncStartMode = false, syncEndMode = false } = {}) {
     try {
         const playlist = await stateControl.getPlaylistState();
         if (!Array.isArray(playlist)) return;
@@ -6521,6 +6521,15 @@ async function applyPlaylistItemPatch(playlistItemId, patch, { syncEndMode = fal
         if (editingItem) {
             window.electronAPI.updateEditState(editingItem);
 
+            if (syncStartMode) {
+                window.electronAPI.syncOnAirStartMode &&
+                    window.electronAPI.syncOnAirStartMode({
+                        editingItemId: editingItem.playlistItem_id,
+                        startMode: editingItem.startMode
+                    });
+                logOpe('[playlist.js] Requested On-Air startMode sync (CONTEXT MENU).');
+            }
+
             if (syncEndMode) {
                 window.electronAPI.syncOnAirEndMode &&
                     window.electronAPI.syncOnAirEndMode({
@@ -6537,12 +6546,12 @@ async function applyPlaylistItemPatch(playlistItemId, patch, { syncEndMode = fal
 
 function setPlaylistItemStartMode(playlistItemId, mode) {
     logOpe(`[playlist.js] startMode set via context menu: ${mode}`);
-    applyPlaylistItemPatch(playlistItemId, { startMode: mode }, { syncEndMode: false });
+    applyPlaylistItemPatch(playlistItemId, { startMode: mode }, { syncStartMode: true, syncEndMode: false });
 }
 
 function setPlaylistItemEndMode(playlistItemId, mode) {
     logOpe(`[playlist.js] endMode set via context menu: ${mode}`);
-    applyPlaylistItemPatch(playlistItemId, { endMode: mode }, { syncEndMode: true });
+    applyPlaylistItemPatch(playlistItemId, { endMode: mode }, { syncStartMode: false, syncEndMode: true });
 }
 
 // 背景色変更

@@ -2201,6 +2201,18 @@ ipcMain.on('on-air-item-id', async (event, itemId) => {
     }
 });
 
+// プレイリストモード切り替え時の startMode 同期
+ipcMain.on('sync-onair-startmode', (event, payload) => {
+    try {
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('sync-onair-startmode', payload);
+        });
+        console.log('[main.js] Forwarded sync-onair-startmode:', payload);
+    } catch (e) {
+        console.error('[main.js] Error forwarding sync-onair-startmode:', e);
+    }
+});
+
 // プレイリストモード切り替え時の endMode 同期
 ipcMain.on('sync-onair-endmode', (event, payload) => {
     try {
