@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     pptxtomp4.js
-//     ver 2.4.6
+//     ver 2.6.1
 // -----------------------
 
 
@@ -182,9 +182,17 @@ async function convertPptxToMp4(originalPath, tempEntryPath) {
          finalPlaylist[finalIndex].thumbnail = await generateThumbnail(mp4Path);
          finalPlaylist[finalIndex].resolution = metadata.resolution || "Unknown";
          finalPlaylist[finalIndex].duration = metadata.duration || "00:00:10:00";
+         finalPlaylist[finalIndex].creationDate = metadata.creationDate || "Unknown";
          finalPlaylist[finalIndex].inPoint = "00:00:00:00";
          finalPlaylist[finalIndex].outPoint = metadata.duration || "00:00:10:00";
+         finalPlaylist[finalIndex].startMode = finalPlaylist[finalIndex].startMode || "PAUSE";
+         finalPlaylist[finalIndex].endMode = finalPlaylist[finalIndex].endMode || "PAUSE";
+         finalPlaylist[finalIndex].defaultVolume =
+             typeof finalPlaylist[finalIndex].defaultVolume === 'number'
+                 ? finalPlaylist[finalIndex].defaultVolume
+                 : 100;
          finalPlaylist[finalIndex].mediaOffline = false;
+         finalPlaylist[finalIndex].type = "MP4";
          finalPlaylist[finalIndex].converting = false;
          await window.electronAPI.stateControl.setPlaylistState(finalPlaylist);
          await updatePlaylistUI();

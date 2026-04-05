@@ -1,6 +1,6 @@
 // -----------------------
 //     pngtomp4.js 
-//     ver 2.4.7
+//     ver 2.6.1
 // -----------------------
 
 // PNGに透過が含まれているかをチェックする関数
@@ -85,12 +85,23 @@ async function convertPNGToVideo(pngPath) {
     const loadingThumbnail = loadingCanvas.toDataURL('image/png');
 
     const tempPlaylistItem = {
+      playlistItem_id: `${Date.now()}-${Math.random()}`,
       path: outputFilePath,
       name: hasAlpha ? `${originalFileName}.webm` : `${originalFileName}.mp4`,
+      resolution: 'Unknown',
+      duration: 'Unknown',
+      creationDate: 'Unknown',
+      inPoint: "00:00:00:00",
+      outPoint: "00:00:00:00",
+      startMode: "PAUSE",
+      endMode: "PAUSE",
+      defaultVolume: 100,
       thumbnail: loadingThumbnail,
       selectionState: "unselected",
       editingState: null,
-      onAirState: null
+      onAirState: null,
+      mediaOffline: false,
+      type: hasAlpha ? 'WEBM' : 'MP4'
     };
 
     const currentPlaylist = await stateControl.getPlaylistState();
@@ -104,8 +115,25 @@ async function convertPNGToVideo(pngPath) {
     const finalPlaylist = await stateControl.getPlaylistState();
     const finalIndex = finalPlaylist.findIndex(item => item.path === outputFilePath);
     if (finalIndex !== -1) {
+      const metadata = await window.electronAPI.getMetadata(outputFilePath);
+
       finalPlaylist[finalIndex].path = outputFilePath;
+      finalPlaylist[finalIndex].name = hasAlpha ? `${originalFileName}.webm` : `${originalFileName}.mp4`;
+      finalPlaylist[finalIndex].resolution = metadata.resolution || 'Unknown';
+      finalPlaylist[finalIndex].duration = metadata.duration || 'Unknown';
+      finalPlaylist[finalIndex].creationDate = metadata.creationDate || 'Unknown';
+      finalPlaylist[finalIndex].inPoint = "00:00:00:00";
+      finalPlaylist[finalIndex].outPoint = metadata.duration || "00:00:00:00";
+      finalPlaylist[finalIndex].startMode = finalPlaylist[finalIndex].startMode || "PAUSE";
+      finalPlaylist[finalIndex].endMode = finalPlaylist[finalIndex].endMode || "PAUSE";
+      finalPlaylist[finalIndex].defaultVolume =
+        typeof finalPlaylist[finalIndex].defaultVolume === 'number'
+          ? finalPlaylist[finalIndex].defaultVolume
+          : 100;
       finalPlaylist[finalIndex].thumbnail = await generateThumbnail(outputFilePath);
+      finalPlaylist[finalIndex].mediaOffline = false;
+      finalPlaylist[finalIndex].type = hasAlpha ? 'WEBM' : 'MP4';
+
       await stateControl.setPlaylistState(finalPlaylist);
       await updatePlaylistUI();
     }

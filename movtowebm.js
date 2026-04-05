@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     movtowebm.js 
-//     ver 2.1.5
+//     ver 2.6.1
 // -----------------------
 
 // MOVファイルにアルファチャンネルが含まれているかをチェックする関数
@@ -33,13 +33,23 @@ async function addLoadingEntry(originalPath, extension) {
     const loadingThumbnail = loadingCanvas.toDataURL('image/png');
 
     const tempPlaylistItem = {
+        playlistItem_id: `${Date.now()}-${Math.random()}`,
         path: loadingPath,
         name: `${originalFileName}.${extension}`,
+        resolution: "Unknown",
+        duration: "Unknown",
+        creationDate: "Unknown",
+        inPoint: "00:00:00:00",
+        outPoint: "00:00:00:00",
+        startMode: "PAUSE",
+        endMode: "PAUSE",
+        defaultVolume: 100,
         thumbnail: loadingThumbnail,
         selectionState: "unselected",
         editingState: null,
         onAirState: null,
-        mediaOffline: false, 
+        mediaOffline: false,
+        type: extension.toUpperCase()
     };
 
     const currentPlaylist = await stateControl.getPlaylistState();
@@ -100,12 +110,21 @@ async function convertMovToWebm(originalPath, tempEntryPath) {
 
     if (finalIndex !== -1) {
         finalPlaylist[finalIndex].path = webmPath;
+        finalPlaylist[finalIndex].name = window.electronAPI.path.basename(webmPath);
         finalPlaylist[finalIndex].thumbnail = await generateThumbnail(webmPath);
         finalPlaylist[finalIndex].resolution = metadata.resolution || "Unknown";
         finalPlaylist[finalIndex].duration = metadata.duration || "00:00:10:00";
+        finalPlaylist[finalIndex].creationDate = metadata.creationDate || "Unknown";
         finalPlaylist[finalIndex].inPoint = "00:00:00:00";
         finalPlaylist[finalIndex].outPoint = metadata.duration || "00:00:10:00";
+        finalPlaylist[finalIndex].startMode = finalPlaylist[finalIndex].startMode || "PAUSE";
+        finalPlaylist[finalIndex].endMode = finalPlaylist[finalIndex].endMode || "PAUSE";
+        finalPlaylist[finalIndex].defaultVolume =
+            typeof finalPlaylist[finalIndex].defaultVolume === 'number'
+                ? finalPlaylist[finalIndex].defaultVolume
+                : 100;
         finalPlaylist[finalIndex].mediaOffline = false;
+        finalPlaylist[finalIndex].type = "WEBM";
 
         finalPlaylist[finalIndex].converting = false;
 
