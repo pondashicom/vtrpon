@@ -5178,10 +5178,6 @@ window.addEventListener('beforeunload', () => {
 // ショートカットキー管理
 // -----------------------
 
-// -----------------------
-// ショートカットキー管理
-// -----------------------
-
 // モーダル状態
 let isOnAirModalActive = false;
 let isOnAirScreenLocked = false;
@@ -5513,11 +5509,6 @@ function handleShortcut(action) {
             onairHandleFTBButton();
             break;
 
-        case 'Shift+R':
-            logOpe('[onair.js] Shortcut: Shift+R (recording toggle) triggered.');
-            triggerOnAirMouseDown('rec-button');
-            break;
-
         // ITEM音量
         case 'Alt+]': {
             const s = document.getElementById('on-air-item-volume-slider');
@@ -5632,8 +5623,6 @@ document.addEventListener('keydown', (event) => {
         action = 'Shift+Alt+F';
     } else if (isShift && event.key.toLowerCase() === 'f') {
         action = 'Shift+F';
-    } else if (isShift && event.key.toLowerCase() === 'r') {
-        action = 'Shift+R';
     }
 
     // ITEM音量判定
