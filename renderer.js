@@ -1,6 +1,6 @@
 ﻿// -----------------------
 //     renderer.js
-//     ver 2.0.0
+//     ver 2.6.1
 // -----------------------
 
 // 各レンダラープロセスの共通処理のみ利用
@@ -43,11 +43,6 @@ function showMessage(message, duration = 3000, type = 'success') {
 // メインウィンドウの renderer 側で 'screenshot-saved' イベントを受信して showMessage を呼び出す
 window.electronAPI.ipcRenderer.on('screenshot-saved', (event, savedPath) => {
     showMessage(`Screenshot saved at:\n${savedPath}`, 5000, 'info');
-});
-
-// 録画保存完了通知を受信して showMessage を呼び出す
-window.electronAPI.onRecordingSaveNotify((savedPath) => {
-    showMessage(getMessage('recording-save-result') + savedPath, 10000, 'info');
 });
 
 // info-message イベントを受信して showMessage を呼び出す
