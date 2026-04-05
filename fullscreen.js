@@ -2171,6 +2171,10 @@ window.electronAPI.ipcRenderer.on('control-video', (event, commandData) => {
                         clamped = 1;
                     }
 
+                    if (fullscreenFtbToggleHoldActive && fullscreenFtbToggleShouldKeepPlaying && clamped > 0) {
+                        clamped = 0;
+                    }
+
                     const isEndpoint = (clamped === 0 || clamped === 1);
                     if (
                         !isEndpoint &&
