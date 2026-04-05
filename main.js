@@ -1008,14 +1008,6 @@ function buildMenuTemplate(labels) {
           }
         },
         {
-          label: labels["menu-tools-operator-monitor-output"],
-          click: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('toggle-operator-monitor-output');
-            }
-          }
-        },
-        {
           label: labels["menu-fullscreen"],
           accelerator: 'F11',
           click: () => {
@@ -1027,6 +1019,14 @@ function buildMenuTemplate(labels) {
           accelerator: `${opt}+W`,
           click: () => {
             moveFullscreenToNextDisplay();
+          }
+        },
+        {
+          label: labels["menu-tools-operator-monitor-output"],
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('toggle-operator-monitor-output');
+            }
           }
         },
         {
