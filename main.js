@@ -1552,23 +1552,36 @@ app.whenReady().then(async () => {
 
     // ディスプレイ1枚警告ダイアログ
     if (displays.length < 2) {
-        dialog.showMessageBox(mainWindow, {
-            type: 'warning',
-            title: messages[global.currentLanguage]["single-display-dialog-title"],
-            message: messages[global.currentLanguage]["single-display-dialog-message"],
-            buttons: [
-                messages[global.currentLanguage]["single-display-dialog-button-continue"],
-                messages[global.currentLanguage]["single-display-dialog-button-exit"]
-            ],
-            defaultId: 0,
-            cancelId: 1,
-            modal: true
-        }).then(result => {
-            if (result.response === 1) {
-                app.quit();
-                return;
-            }
-        });
+        const config = loadConfig();
+        const suppressSingleDisplayWarning = config.suppressSingleDisplayWarning === true;
+
+        if (!suppressSingleDisplayWarning) {
+            dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: messages[global.currentLanguage]["single-display-dialog-title"],
+                message: messages[global.currentLanguage]["single-display-dialog-message"],
+                buttons: [
+                    messages[global.currentLanguage]["single-display-dialog-button-continue"],
+                    messages[global.currentLanguage]["single-display-dialog-button-exit"]
+                ],
+                defaultId: 0,
+                cancelId: 1,
+                modal: true,
+                checkboxLabel: messages[global.currentLanguage]["single-display-dialog-checkbox-hide-next-time"],
+                checkboxChecked: false
+            }).then(result => {
+                if (result.checkboxChecked) {
+                    const nextConfig = loadConfig();
+                    nextConfig.suppressSingleDisplayWarning = true;
+                    saveConfig(nextConfig);
+                }
+
+                if (result.response === 1) {
+                    app.quit();
+                    return;
+                }
+            });
+        }
     }
 
     // ディスプレイが1枚の場合フルスクリーンウィンドウを最小化
