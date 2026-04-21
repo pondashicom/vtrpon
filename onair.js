@@ -3501,6 +3501,7 @@ function audioFadeOut(duration) {
             // 終了処理
             setSliderValue(targetValue);
             onairMasterVolume = targetValue;
+            onairMasterBaseVolume = targetValue;
             fadeOutInProgressMain = false;
             logInfo('[onair.js] Main fade-out completed');
             stopFadeButtonBlink(document.getElementById('on-air-fo-button'));
@@ -3566,6 +3567,7 @@ function audioFadeIn(duration) {
             // 終了処理
             setSliderValue(targetValue);
             onairMasterVolume = targetValue;
+            onairMasterBaseVolume = targetValue;
             fadeInInProgressMain = false;
             stopFadeButtonBlink(document.getElementById('on-air-fi-button'));
         }
