@@ -352,6 +352,7 @@ function setFullscreenFtbToggleHoldVisual(active, durationSec, fillKeyMode, fill
 }
 
 // FTBトグル用音量値適用
+// FTBトグル用音量値適用
 function fullscreenApplyVolumeValueForFtbToggle(value) {
     const v = Math.max(0, Math.min(1, Number(value) || 0));
     const fullscreenVideoElement = document.getElementById('fullscreen-video');
@@ -386,7 +387,6 @@ function fullscreenAnimateFtbToggleAudioTo(targetLinear, durationSec) {
 
     // 古いアニメーション無効化
     fullscreenFtbToggleAudioAnimSeq += 1;
-    const animSeq = fullscreenFtbToggleAudioAnimSeq;
 
     const fullscreenVideoElement = document.getElementById('fullscreen-video');
     if (!fullscreenVideoElement) return;
@@ -395,47 +395,36 @@ function fullscreenAnimateFtbToggleAudioTo(targetLinear, durationSec) {
     const target = Math.pow(targetLinearClamped, 2.2);
     const dur = Math.max(0, Number(durationSec) || 0);
 
-    // 現在の適用音量を取得
-    let start;
-    try {
-        if (fullscreenGainNode) {
-            start = Math.max(0, Math.min(1, Number(fullscreenGainNode.gain.value) || 0));
-        } else {
-            start = Math.max(0, Math.min(1, Number(fullscreenVideoElement.volume) || 0));
-        }
-    } catch (_) {
-        start = Math.max(0, Math.min(1, Number(fullscreenVideoElement.volume) || 0));
-    }
-
-    if (dur <= 0) {
+    if (dur <= 0 || !fullscreenGainNode) {
         fullscreenApplyVolumeValueForFtbToggle(target);
         return;
     }
 
-    const startTs = performance.now();
-    const animate = (now) => {
-        if (animSeq !== fullscreenFtbToggleAudioAnimSeq) {
-            return;
+    try {
+        const audioContext = FullscreenAudioManager.getContext();
+        const currentTime = audioContext.currentTime;
+        const gainParam = fullscreenGainNode.gain;
+        let start = Math.max(0, Math.min(1, Number(gainParam.value) || 0));
+
+        if (typeof gainParam.cancelAndHoldAtTime === 'function') {
+            gainParam.cancelAndHoldAtTime(currentTime);
+            start = Math.max(0, Math.min(1, Number(gainParam.value) || 0));
+        } else {
+            gainParam.cancelScheduledValues(currentTime);
+            gainParam.setValueAtTime(start, currentTime);
         }
 
-        const t = Math.min(1, (now - startTs) / (dur * 1000));
-        const v = start + ((target - start) * t);
-        fullscreenApplyVolumeValueForFtbToggle(v);
-
-        if (t < 1) {
-            fullscreenFtbToggleAudioRaf = requestAnimationFrame(animate);
-            return;
+        // FTB解除時は、映像要素側の音量ミュートを先に解除する。
+        // 実際の復帰フェードは GainNode の AudioContext 時間軸で行う。
+        if (target > start) {
+            fullscreenVideoElement.volume = 1;
         }
 
-        if (animSeq !== fullscreenFtbToggleAudioAnimSeq) {
-            return;
-        }
-
-        fullscreenFtbToggleAudioRaf = null;
+        gainParam.setValueAtTime(start, currentTime);
+        gainParam.linearRampToValueAtTime(target, currentTime + dur);
+    } catch (_) {
         fullscreenApplyVolumeValueForFtbToggle(target);
-    };
-
-    fullscreenFtbToggleAudioRaf = requestAnimationFrame(animate);
+    }
 }
 
 // -------------------
