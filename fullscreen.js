@@ -46,6 +46,9 @@ let fullscreenPlaybackSessionToken = 0;
 const FS_LAYER_Z_PRE_FTB_BLACK = 8000;
 const FS_LAYER_Z_DSK = 9000;
 const FS_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
+// 完全不透明なレイヤーで video を覆うと Chromium が背後のフレーム提示を省略することがある。
+// 8bit 合成結果は黒のままになる範囲で非不透明にし、DSK のフレーム進行を維持する。
+const FULLSCREEN_FTB_OCCLUSION_SAFE_OPACITY = 0.9999;
 
 // ----------------------------------------
 // フルスクリーン初期化
@@ -303,7 +306,7 @@ function setFullscreenFtbToggleHoldVisual(active, durationSec, fillKeyMode, fill
 
     const dur = Math.max(0, Number(durationSec) || 0);
     const startOpacity = Math.max(0, Math.min(1, parseFloat(layer.style.opacity || '0') || 0));
-    const targetOpacity = active ? 1 : 0;
+    const targetOpacity = active ? FULLSCREEN_FTB_OCCLUSION_SAFE_OPACITY : 0;
 
     // FTB表示色決定
     const effectiveFillKeyColor = (typeof fillKeyColor === 'string' && fillKeyColor.trim() !== '')
