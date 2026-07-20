@@ -5,6 +5,7 @@ const fs = require('fs');
 
 const SCREENSHOT_FILE_NAME_PATTERN = /^screenshot-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.png$/;
 const TEMP_CAPTURE_FILE_NAME_PATTERN = /^capture_\d{13}\.png$/;
+const UVC_SOURCE_PREFIX = 'UVC_DEVICE:';
 
 function requireAbsolutePath(value, label) {
     if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) {
@@ -35,10 +36,19 @@ function resolvePathWithin(baseDirectory, fileName) {
     return targetPath;
 }
 
-function getScreenshotSavePath(videoPath, fileName) {
-    const normalizedVideoPath = requireAbsolutePath(videoPath, 'videoPath');
+function getScreenshotSavePath(videoPath, fileName, picturesRoot) {
     const validFileName = requireFileName(fileName, SCREENSHOT_FILE_NAME_PATTERN, 'screenshot');
-    const directory = path.join(path.dirname(normalizedVideoPath), 'Screenshot');
+    let directory;
+
+    if (typeof videoPath === 'string' && videoPath.startsWith(UVC_SOURCE_PREFIX)
+        && videoPath.length > UVC_SOURCE_PREFIX.length && !videoPath.includes('\0')) {
+        const normalizedPicturesRoot = requireAbsolutePath(picturesRoot, 'picturesRoot');
+        directory = path.join(normalizedPicturesRoot, 'VTR-PON2', 'Screenshot');
+    } else {
+        const normalizedVideoPath = requireAbsolutePath(videoPath, 'videoPath');
+        directory = path.join(path.dirname(normalizedVideoPath), 'Screenshot');
+    }
+
     return { directory, filePath: resolvePathWithin(directory, validFileName) };
 }
 
@@ -55,8 +65,8 @@ function writeFileToValidatedPath(savePath, arrayBuffer) {
     return savePath.filePath;
 }
 
-function saveScreenshotFile(arrayBuffer, fileName, videoPath) {
-    return writeFileToValidatedPath(getScreenshotSavePath(videoPath, fileName), arrayBuffer);
+function saveScreenshotFile(arrayBuffer, fileName, videoPath, picturesRoot) {
+    return writeFileToValidatedPath(getScreenshotSavePath(videoPath, fileName, picturesRoot), arrayBuffer);
 }
 
 function saveTemporaryCaptureFile(arrayBuffer, fileName, tempRoot) {

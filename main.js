@@ -2496,7 +2496,7 @@ function removeFlacPicture(input, output) {
 ipcMain.handle('saveScreenshot', async (event, arrayBuffer, fileName, videoPath) => {
     try {
         // ディレクトリ取得・フォルダ生成
-        const filePath = saveScreenshotFile(arrayBuffer, fileName, videoPath);
+        const filePath = saveScreenshotFile(arrayBuffer, fileName, videoPath, app.getPath('pictures'));
         // 保存先ファイルパス決定
         console.log(`[main.js] Screenshot saved at: ${filePath}`);
         return filePath;

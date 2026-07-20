@@ -46,6 +46,21 @@ test('screenshot path is limited to the media directory Screenshot folder', () =
     assert.equal(result.filePath, path.join(result.directory, 'screenshot-2026-07-20T12-34-56-789Z.png'));
 });
 
+test('UVC screenshot is saved in the application screenshot folder under Pictures', (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vtr-pon2-uvc-screenshot-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+    const screenshotPath = saveScreenshotFile(
+        Uint8Array.from([1, 2, 3]),
+        'screenshot-2026-07-20T12-34-56-789Z.png',
+        'UVC_DEVICE:camera-device-id',
+        root
+    );
+
+    assert.deepEqual(fs.readFileSync(screenshotPath), Buffer.from([1, 2, 3]));
+    assert.equal(path.dirname(screenshotPath), path.join(root, 'VTR-PON2', 'Screenshot'));
+});
+
 test('temporary capture path is limited to the VTR-PON2 capture folder', () => {
     const tempRoot = path.resolve('test-fixtures', 'temp');
     const result = getTemporaryCaptureSavePath(tempRoot, 'capture_1753014896789.png');
@@ -67,6 +82,13 @@ for (const invalidName of ['../capture_1753014896789.png', 'capture_175301489678
 
 test('screenshot rejects a relative media path', () => {
     assert.throws(() => getScreenshotSavePath('media/program.mp4', 'screenshot-2026-07-20T12-34-56-789Z.png'), /videoPath must be a normalized absolute path/);
+});
+
+test('UVC screenshot rejects a missing Pictures root', () => {
+    assert.throws(
+        () => getScreenshotSavePath('UVC_DEVICE:camera-device-id', 'screenshot-2026-07-20T12-34-56-789Z.png'),
+        /picturesRoot must be a non-empty absolute path/
+    );
 });
 
 test('temporary capture rejects a relative temp root', () => {
