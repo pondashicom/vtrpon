@@ -44,6 +44,9 @@ let onairLastSentFullscreenGammaVolumeForFtb = null;
 let onairSuppressFullscreenVolumeSync = false;
 const ONAIR_LAYER_Z_PRE_FTB_BLACK = 8000;
 const ONAIR_LAYER_Z_FTB_TOGGLE_HOLD = 10000;
+// Avoid fully occluding the underlying videos so Chromium keeps presenting frames during FTB.
+// The difference remains below an 8-bit compositing step, so the visible result stays black.
+const ONAIR_FTB_OCCLUSION_SAFE_OPACITY = 0.9999;
 let onairOperatorMonitorWindow = null;
 let onairOperatorMonitorLoopRaf = null;
 let onairOperatorMonitorStateInterval = null;
@@ -308,7 +311,7 @@ function onairSetFtbToggleHoldVisual(active, durationSec) {
 
     const dur = Math.max(0, Number(durationSec) || 0);
     const startOpacity = Math.max(0, Math.min(1, parseFloat(layer.style.opacity || '0') || 0));
-    const targetOpacity = active ? 1 : 0;
+    const targetOpacity = active ? ONAIR_FTB_OCCLUSION_SAFE_OPACITY : 0;
 
     // 表示色設定
     const fillKeyColorPicker = document.getElementById('fillkey-color-picker');
