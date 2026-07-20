@@ -3094,6 +3094,14 @@ window.electronAPI.ipcRenderer.on('dsk-control', (event, dskCommandData) => {
 
 // DSKオーバレイ要素
 let fsDSKOverlay = null;
+let fsDSKTransitionToken = 0;
+
+function isCurrentFullscreenDSK(video, transitionToken) {
+    return transitionToken === fsDSKTransitionToken
+        && fsDSKOverlay
+        && video
+        && video.parentElement === fsDSKOverlay;
+}
 
 // DSKオーバレイ初期化
 function initFsDSKOverlay() {
@@ -3127,19 +3135,22 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
         initFsDSKOverlay();
         if (!fsDSKOverlay) return;
     }
+    if (!itemData) {
+        return;
+    }
+
+    const transitionToken = ++fsDSKTransitionToken;
+
     fsDSKOverlay.innerHTML = '';
     fsDSKOverlay.style.visibility = 'visible';
     fsDSKOverlay.style.opacity    = '0';
     fsDSKOverlay.style.backgroundColor = 'transparent';
 
-    // 入力確認
-    if (!itemData) {
-        return;
-    }
     currentDSKItem = itemData;
 
     // video要素作成
     const video = document.createElement('video');
+    video._fsDskTransitionToken = transitionToken;
     video.src = getSafeFileURL(itemData.path);
     video.style.width = '100%';
     video.style.height = '100%';
@@ -3159,16 +3170,19 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
 
     if (mode === 'REPEAT') {
         video.addEventListener('timeupdate', function loopRepeat() {
+            if (!isCurrentFullscreenDSK(video, transitionToken)) return;
             if (video.currentTime >= outSec) {
                 video.currentTime = inSec;
             }
         });
         video.addEventListener('ended', function loopOnEnded() {
+            if (!isCurrentFullscreenDSK(video, transitionToken)) return;
             video.currentTime = inSec;
             video.play().catch(err => logInfo('[fullscreen.js] fsDSK repeat error:', err));
         });
     } else {
         function onFsEnd() {
+            if (!isCurrentFullscreenDSK(video, transitionToken)) return;
             detachFullscreenDskEndWatchers(video);
             handleFullscreenDskEnd(video);
         }
@@ -3193,6 +3207,7 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
 
     // 再生開始準備
     video.addEventListener('loadeddata', function() {
+        if (!isCurrentFullscreenDSK(video, transitionToken)) return;
         const startMode = String(itemData.startMode || 'PAUSE').toUpperCase();
         if (startMode === 'PLAY') {
             video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
@@ -3240,6 +3255,8 @@ function parseTimecode(timecode) {
 function hideFullscreenDSK(fadeDurationMs = null) {
     if (!fsDSKOverlay) return;
 
+    const transitionToken = ++fsDSKTransitionToken;
+
     // 即時非表示
     const mode = currentDSKItem?.endMode || 'OFF';
     if (mode === 'OFF' || mode === 'NEXT') {
@@ -3255,6 +3272,9 @@ function hideFullscreenDSK(fadeDurationMs = null) {
         ? Math.max(0, fadeDurationMs)
         : DEFAULT_FADE_DURATION;
     fadeOut(fsDSKOverlay, fadeDuration, () => {
+        if (transitionToken !== fsDSKTransitionToken) {
+            return;
+        }
         fsDSKOverlay.innerHTML = '';
     });
 }
@@ -3324,7 +3344,8 @@ function playFullscreenDSK() {
 
 // DSK終了処理
 function handleFullscreenDskEnd(videoEl) {
-    if (!videoEl || !currentDSKItem || !fsDSKOverlay) return;
+    if (!videoEl || !currentDSKItem || !fsDSKOverlay
+        || !isCurrentFullscreenDSK(videoEl, videoEl._fsDskTransitionToken)) return;
 
     // 終了情報取得
     const inSec  = parseTimecode(currentDSKItem.inPoint);
