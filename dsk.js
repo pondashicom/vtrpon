@@ -129,6 +129,10 @@ function showOnAirDSK(itemData) {
 
     const video = document.createElement('video');
     video.src = getSafeFileURL(itemData.path);
+    video.addEventListener('error', () => {
+        if (transitionToken !== dskTransitionToken || video !== dskVideo) return;
+        console.error('[dsk.js] Failed to load OnAir DSK media:', itemData.path, video.error);
+    }, { once: true });
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'contain';

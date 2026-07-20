@@ -1777,7 +1777,7 @@ function handleStartMode() {
             // メーター開始
             startVolumeMeasurement();
         })
-        .catch(error => logDebug(`[fullscreen.js] Playback failed to start: ${error.message}`));
+        .catch(error => console.error('[fullscreen.js] Playback failed to start:', error));
 
     // OUT点監視開始
     monitorVideoPlayback();
@@ -2595,7 +2595,13 @@ setupFullscreenAudio.initialized = false; // 音声初期化フラグ
 
 // 音声初期化
 function setupFullscreenAudio(videoElement) {
-    const audioContext = FullscreenAudioManager.getContext();
+    let audioContext;
+    try {
+        audioContext = FullscreenAudioManager.getContext();
+    } catch (error) {
+        console.error('[fullscreen.js] Failed to create fullscreen audio context:', error);
+        return;
+    }
 
     // 既存音声チェーン解除
     if (setupFullscreenAudio.initialized) {
@@ -2607,22 +2613,27 @@ function setupFullscreenAudio(videoElement) {
     }
 
     // 解析・ゲインノード初期化
-    if (!fullscreenAnalyserL) {
-        fullscreenAnalyserL = audioContext.createAnalyser();
-        fullscreenAnalyserL.fftSize = 2048;
-    }
-    if (!fullscreenAnalyserR) {
-        fullscreenAnalyserR = audioContext.createAnalyser();
-        fullscreenAnalyserR.fftSize = 2048;
-    }
-    if (!fullscreenGainNode) {
-        fullscreenGainNode = audioContext.createGain();
-    }
-    if (!fullscreenSplitter) {
-        fullscreenSplitter = audioContext.createChannelSplitter(2);
-    }
-    if (!fullscreenMerger) {
-        fullscreenMerger = audioContext.createChannelMerger(2);
+    try {
+        if (!fullscreenAnalyserL) {
+            fullscreenAnalyserL = audioContext.createAnalyser();
+            fullscreenAnalyserL.fftSize = 2048;
+        }
+        if (!fullscreenAnalyserR) {
+            fullscreenAnalyserR = audioContext.createAnalyser();
+            fullscreenAnalyserR.fftSize = 2048;
+        }
+        if (!fullscreenGainNode) {
+            fullscreenGainNode = audioContext.createGain();
+        }
+        if (!fullscreenSplitter) {
+            fullscreenSplitter = audioContext.createChannelSplitter(2);
+        }
+        if (!fullscreenMerger) {
+            fullscreenMerger = audioContext.createChannelMerger(2);
+        }
+    } catch (error) {
+        console.error('[fullscreen.js] Failed to create fullscreen audio processing nodes:', error);
+        return;
     }
 
     // ソースノード再構築
@@ -2670,12 +2681,18 @@ function setupFullscreenAudio(videoElement) {
         fullscreenSplitter.connect(fullscreenAnalyserL, 0);
         fullscreenSplitter.connect(fullscreenAnalyserR, 1);
     } catch (error) {
-        logInfo('[fullscreen.js] Error creating fullscreen audio source node:', error);
+        console.error('[fullscreen.js] Failed to initialize fullscreen audio source:', error);
     }
 
     // 出力先作成
-    const mediaStreamDest = audioContext.createMediaStreamDestination();
-    fullscreenMediaDest = mediaStreamDest;
+    let mediaStreamDest;
+    try {
+        mediaStreamDest = audioContext.createMediaStreamDestination();
+        fullscreenMediaDest = mediaStreamDest;
+    } catch (error) {
+        console.error('[fullscreen.js] Failed to create fullscreen audio output:', error);
+        return;
+    }
 
     // 出力経路切替
     try { fullscreenGainNode.disconnect(mediaStreamDest); } catch (_e) {}
@@ -2683,17 +2700,25 @@ function setupFullscreenAudio(videoElement) {
     try { fullscreenUpmixNode && fullscreenUpmixNode.disconnect(mediaStreamDest); } catch (_e) {}
 
     if (isMonoSource && fullscreenMerger) {
-        try { fullscreenMerger.connect(mediaStreamDest); } catch (_e) {}
         try {
+            fullscreenMerger.connect(mediaStreamDest);
             fullscreenGainNode.connect(fullscreenMerger, 0, 0);
             fullscreenGainNode.connect(fullscreenMerger, 0, 1);
-        } catch (_e) {}
+        } catch (error) {
+            console.error('[fullscreen.js] Failed to initialize fullscreen dual-mono output:', error);
+            return;
+        }
     } else {
-        if (fullscreenUpmixNode) {
-            try { fullscreenUpmixNode.connect(mediaStreamDest); } catch (_e) {}
-        } else {
-            // フォールバック
-            try { fullscreenGainNode.connect(mediaStreamDest); } catch (_e) {}
+        try {
+            if (fullscreenUpmixNode) {
+                fullscreenUpmixNode.connect(mediaStreamDest);
+            } else {
+                // フォールバック
+                fullscreenGainNode.connect(mediaStreamDest);
+            }
+        } catch (error) {
+            console.error('[fullscreen.js] Failed to connect fullscreen audio output:', error);
+            return;
         }
     }
 
@@ -2719,7 +2744,9 @@ function setupFullscreenAudio(videoElement) {
             if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') {
                 await ctx.resume();
             }
-        } catch (_e) {}
+        } catch (error) {
+            console.error('[fullscreen.js] Failed to resume fullscreen audio context:', error);
+        }
 
         // 出力デバイス適用
         try {
@@ -2730,14 +2757,14 @@ function setupFullscreenAudio(videoElement) {
                 logInfo('[fullscreen.js] hiddenAudio.setSinkId is not supported.');
             }
         } catch (err) {
-            logInfo('[fullscreen.js] Failed to set hidden audio output device: ' + err);
+            console.error('[fullscreen.js] Failed to set hidden audio output device:', err);
         }
 
         // 隠しaudio再生
         try {
             await hiddenAudio.play();
         } catch (err) {
-            logInfo('[fullscreen.js] Hidden audio play failed: ' + err);
+            console.error('[fullscreen.js] Hidden audio play failed:', err);
 
             // 隠しaudio再作成リトライ
             try {
@@ -2762,14 +2789,16 @@ function setupFullscreenAudio(videoElement) {
                         logDebug('[fullscreen.js] Hidden audio output routed to device (retry): ' + outputDeviceId);
                     }
                 } catch (e2) {
-                    logInfo('[fullscreen.js] Failed to set hidden audio output device (retry): ' + e2);
+                    console.error('[fullscreen.js] Failed to set hidden audio output device (retry):', e2);
                 }
 
                 await hiddenAudio.play();
             } catch (e3) {
-                logInfo('[fullscreen.js] Hidden audio retry failed: ' + e3);
+                console.error('[fullscreen.js] Hidden audio retry failed:', e3);
             }
         }
+    }).catch((error) => {
+        console.error('[fullscreen.js] Failed to load audio output settings:', error);
     });
 
     // 初期化完了
@@ -3152,6 +3181,10 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
     const video = document.createElement('video');
     video._fsDskTransitionToken = transitionToken;
     video.src = getSafeFileURL(itemData.path);
+    video.addEventListener('error', () => {
+        if (!isCurrentFullscreenDSK(video, transitionToken)) return;
+        console.error('[fullscreen.js] Failed to load Fullscreen DSK media:', itemData.path, video.error);
+    }, { once: true });
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'contain';
@@ -3178,7 +3211,7 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
         video.addEventListener('ended', function loopOnEnded() {
             if (!isCurrentFullscreenDSK(video, transitionToken)) return;
             video.currentTime = inSec;
-            video.play().catch(err => logInfo('[fullscreen.js] fsDSK repeat error:', err));
+            video.play().catch(err => console.error('[fullscreen.js] Fullscreen DSK repeat playback failed:', err));
         });
     } else {
         function onFsEnd() {
@@ -3210,7 +3243,7 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
         if (!isCurrentFullscreenDSK(video, transitionToken)) return;
         const startMode = String(itemData.startMode || 'PAUSE').toUpperCase();
         if (startMode === 'PLAY') {
-            video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
+            video.play().catch(err => console.error('[fullscreen.js] Fullscreen DSK playback failed:', err));
         } else {
             video.pause();
         }
@@ -3338,7 +3371,7 @@ function playFullscreenDSK() {
     }
 
     if (video.paused) {
-        video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
+        video.play().catch(err => console.error('[fullscreen.js] Fullscreen DSK playback failed:', err));
     }
 }
 
@@ -3356,7 +3389,7 @@ function handleFullscreenDskEnd(videoEl) {
     switch (mode) {
         case 'REPEAT':
             videoEl.currentTime = inSec;
-            videoEl.play().catch(err => logInfo('[fullscreen.js] REPEAT error:', err));
+            videoEl.play().catch(err => console.error('[fullscreen.js] Fullscreen DSK repeat playback failed:', err));
             break;
 
         case 'PAUSE':

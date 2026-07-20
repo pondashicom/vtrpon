@@ -101,7 +101,9 @@ function setOperatorMonitorStream(stream) {
 
     const playPromise = videoElement.play();
     if (playPromise && typeof playPromise.catch === 'function') {
-        playPromise.catch(() => {});
+        playPromise.catch((error) => {
+            console.error('[operator_monitor.js] Failed to start monitor playback:', error);
+        });
     }
 
     if (waitingElement) {

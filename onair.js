@@ -4637,10 +4637,12 @@ function onairHandleFTBButton() {
         try {
             const p = elements.onairVideoElement.play();
             if (p && typeof p.catch === 'function') {
-                p.catch(() => {});
+                p.catch((error) => {
+                    console.error('[onair.js] Failed to resume playback after FTB release:', error);
+                });
             }
-        } catch (_) {
-            // ignore
+        } catch (error) {
+            console.error('[onair.js] Failed to resume playback after FTB release:', error);
         }
     }
 
