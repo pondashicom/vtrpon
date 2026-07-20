@@ -25,6 +25,10 @@ const { Atem } = require('atem-connection');
 const { exec } = require('child_process');
 const messages = require('./messages');
 const {
+    saveScreenshotFile,
+    saveTemporaryCaptureFile
+} = require('./fileSaveValidation');
+const {
     SCREEN_LOCK_BACKGROUND_IMAGE_FILE_EXTENSIONS,
     SCREEN_LOCK_BACKGROUND_VIDEO_FILE_EXTENSIONS,
     getDefaultScreenLockBackgroundSettings,
@@ -2441,15 +2445,8 @@ function removeFlacPicture(input, output) {
 ipcMain.handle('saveScreenshot', async (event, arrayBuffer, fileName, videoPath) => {
     try {
         // ディレクトリ取得・フォルダ生成
-        const videoDir = path.dirname(videoPath);
-        const screenshotDir = path.join(videoDir, 'Screenshot');
-        if (!fs.existsSync(screenshotDir)) {
-            fs.mkdirSync(screenshotDir, { recursive: true });
-        }
+        const filePath = saveScreenshotFile(arrayBuffer, fileName, videoPath);
         // 保存先ファイルパス決定
-        const filePath = path.join(screenshotDir, fileName);
-        const buffer = Buffer.from(arrayBuffer);
-        fs.writeFileSync(filePath, buffer);
         console.log(`[main.js] Screenshot saved at: ${filePath}`);
         return filePath;
     } catch (error) {
@@ -2473,13 +2470,7 @@ ipcMain.on('request-capture-screenshot', (event) => {
 // --------------------------------
 ipcMain.handle('saveBlobToFile', async (event, arrayBuffer, fileName) => {
     try {
-        const tempDir = path.join(app.getPath('temp'), 'my-app-temp-files');
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
-        const filePath = path.join(tempDir, fileName);
-        const buffer = Buffer.from(arrayBuffer);
-        fs.writeFileSync(filePath, buffer);
+        const filePath = saveTemporaryCaptureFile(arrayBuffer, fileName, app.getPath('temp'));
 
         console.log(`[main.js] File saved at: ${filePath}`);
         return filePath;

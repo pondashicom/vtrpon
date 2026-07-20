@@ -3,6 +3,7 @@
     "version": "2.6.3",
     "main": "main.js",
     "scripts": {
+        "test": "node --test",
         "start": "electron .",
         "build": "electron-builder",
         "rebuild:win": "npx @electron/rebuild -f -w winax -i @julusian/freetype2 --arch=x64",
