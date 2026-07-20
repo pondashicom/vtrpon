@@ -3132,6 +3132,38 @@ function isCurrentFullscreenDSK(video, transitionToken) {
         && video.parentElement === fsDSKOverlay;
 }
 
+function releaseFullscreenDskVideo(video) {
+    if (!video) return;
+
+    detachFullscreenDskEndWatchers(video);
+
+    if (video._onFsRepeatTimeUpdate) {
+        video.removeEventListener('timeupdate', video._onFsRepeatTimeUpdate);
+        video._onFsRepeatTimeUpdate = null;
+    }
+    if (video._onFsRepeatEnded) {
+        video.removeEventListener('ended', video._onFsRepeatEnded);
+        video._onFsRepeatEnded = null;
+    }
+    if (video._onFsLoadedData) {
+        video.removeEventListener('loadeddata', video._onFsLoadedData);
+        video._onFsLoadedData = null;
+    }
+    if (video._onFsLoadError) {
+        video.removeEventListener('error', video._onFsLoadError);
+        video._onFsLoadError = null;
+    }
+
+    try { video.pause(); } catch (_) {}
+    try { video.removeAttribute('src'); } catch (_) {}
+    try { video.load(); } catch (_) {}
+}
+
+function releaseCurrentFullscreenDskVideo() {
+    if (!fsDSKOverlay) return;
+    releaseFullscreenDskVideo(fsDSKOverlay.querySelector('video'));
+}
+
 // DSKオーバレイ初期化
 function initFsDSKOverlay() {
     // body直下配置
@@ -3170,6 +3202,7 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
 
     const transitionToken = ++fsDSKTransitionToken;
 
+    releaseCurrentFullscreenDskVideo();
     fsDSKOverlay.innerHTML = '';
     fsDSKOverlay.style.visibility = 'visible';
     fsDSKOverlay.style.opacity    = '0';
@@ -3181,10 +3214,11 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
     const video = document.createElement('video');
     video._fsDskTransitionToken = transitionToken;
     video.src = getSafeFileURL(itemData.path);
-    video.addEventListener('error', () => {
+    video._onFsLoadError = () => {
         if (!isCurrentFullscreenDSK(video, transitionToken)) return;
         console.error('[fullscreen.js] Failed to load Fullscreen DSK media:', itemData.path, video.error);
-    }, { once: true });
+    };
+    video.addEventListener('error', video._onFsLoadError, { once: true });
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'contain';
@@ -3202,20 +3236,25 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
     video.currentTime = inSec;
 
     if (mode === 'REPEAT') {
-        video.addEventListener('timeupdate', function loopRepeat() {
+        video._onFsRepeatTimeUpdate = function loopRepeat() {
             if (!isCurrentFullscreenDSK(video, transitionToken)) return;
             if (video.currentTime >= outSec) {
                 video.currentTime = inSec;
             }
-        });
-        video.addEventListener('ended', function loopOnEnded() {
+        };
+        video._onFsRepeatEnded = function loopOnEnded() {
             if (!isCurrentFullscreenDSK(video, transitionToken)) return;
             video.currentTime = inSec;
             video.play().catch(err => console.error('[fullscreen.js] Fullscreen DSK repeat playback failed:', err));
-        });
+        };
+        video.addEventListener('timeupdate', video._onFsRepeatTimeUpdate);
+        video.addEventListener('ended', video._onFsRepeatEnded);
     } else {
         function onFsEnd() {
-            if (!isCurrentFullscreenDSK(video, transitionToken)) return;
+            if (!isCurrentFullscreenDSK(video, transitionToken)) {
+                detachFullscreenDskEndWatchers(video);
+                return;
+            }
             detachFullscreenDskEndWatchers(video);
             handleFullscreenDskEnd(video);
         }
@@ -3239,7 +3278,7 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
     }
 
     // 再生開始準備
-    video.addEventListener('loadeddata', function() {
+    video._onFsLoadedData = function onFsLoadedData() {
         if (!isCurrentFullscreenDSK(video, transitionToken)) return;
         const startMode = String(itemData.startMode || 'PAUSE').toUpperCase();
         if (startMode === 'PLAY') {
@@ -3247,7 +3286,8 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
         } else {
             video.pause();
         }
-    });
+    };
+    video.addEventListener('loadeddata', video._onFsLoadedData);
 
     fsDSKOverlay.appendChild(video);
     fsDSKOverlay.style.visibility = 'visible';
@@ -3293,6 +3333,7 @@ function hideFullscreenDSK(fadeDurationMs = null) {
     // 即時非表示
     const mode = currentDSKItem?.endMode || 'OFF';
     if (mode === 'OFF' || mode === 'NEXT') {
+        releaseCurrentFullscreenDskVideo();
         fsDSKOverlay.innerHTML   = '';
         fsDSKOverlay.style.opacity    = '0';
         fsDSKOverlay.style.visibility = 'hidden';
@@ -3308,6 +3349,7 @@ function hideFullscreenDSK(fadeDurationMs = null) {
         if (transitionToken !== fsDSKTransitionToken) {
             return;
         }
+        releaseCurrentFullscreenDskVideo();
         fsDSKOverlay.innerHTML = '';
     });
 }
@@ -3327,7 +3369,7 @@ function detachFullscreenDskEndWatchers(video) {
     if (video._onFsEnd)        video.removeEventListener('ended',      video._onFsEnd);
     if (video._fsDskFrameCallbackId !== null && video._fsDskFrameCallbackId !== undefined
         && typeof video.cancelVideoFrameCallback === 'function') {
-        video.cancelVideoFrameCallback(video._fsDskFrameCallbackId);
+        try { video.cancelVideoFrameCallback(video._fsDskFrameCallbackId); } catch (_) {}
     }
     video._fsDskFrameCallbackId = null;
 }
@@ -3404,6 +3446,7 @@ function handleFullscreenDskEnd(videoEl) {
         case 'OFF':
         case 'NEXT':
         default:
+            releaseFullscreenDskVideo(videoEl);
             fsDSKOverlay.innerHTML   = '';
             fsDSKOverlay.style.opacity    = '0';
             fsDSKOverlay.style.visibility = 'hidden';
