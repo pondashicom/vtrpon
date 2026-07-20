@@ -21,20 +21,8 @@ function getDskFadeDurationMs() {
 // -----------------------
 // DSKオーバーレイ初期化
 // -----------------------
-// dskOverlay の位置・サイズを動画要素に合わせて調整
-function adjustDskOverlay() {
-    const fsVideo = document.getElementById('fullscreen-video');
-    if (fsVideo && dskOverlay) {
-        const rect = fsVideo.getBoundingClientRect();
-        dskOverlay.style.left = rect.left + 'px';
-        dskOverlay.style.top = rect.top + 'px';
-        dskOverlay.style.width = rect.width + 'px';
-        dskOverlay.style.height = rect.height + 'px';
-    }
-}
-
 // オンエア用DSKオーバーレイの位置・サイズを、on-air-video の位置に合わせて調整する関数
-function adjustDskOverlay() {
+function adjustOnAirDskOverlay() {
     const onAirVideo = document.getElementById('on-air-video');
     if (onAirVideo && dskOverlay) {
         const rect = onAirVideo.getBoundingClientRect();
@@ -67,12 +55,12 @@ function initOnAirDSKOverlay() {
         dskOverlay.style.pointerEvents = 'none';
         document.body.appendChild(dskOverlay);
     }
-    adjustDskOverlay();
+    adjustOnAirDskOverlay();
 }
 
 window.addEventListener('resize', () => {
     if (dskOverlay) {
-        adjustDskOverlay();
+        adjustOnAirDskOverlay();
     }
 });
 
