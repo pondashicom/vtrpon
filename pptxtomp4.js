@@ -57,53 +57,15 @@ async function pptxtomp4_convertPPTXToMp4(pptxPath) {
         const counter = window.convertCounter[timestamp]++;
         const outputVideoPath = window.electronAPI.path.join(pptDir, `${pptBase}_video_${timestamp}-${counter}.mp4`);
 
-        let ffmpegArgs;
-
-        if (useDissolve) {
-            // -----------------------------
-            // ディゾルブあり（0.5秒固定）
-            // 各PNGから slideDuration 秒のクリップを作成し、xfadeで順次クロスディゾルブ
-            // -----------------------------
-            const dissolveDuration = 0.5;
-
-            // 入力（各PNGを -loop 1 -t <秒数> で読み込む）
-            const inputArgsParts = [];
-            for (let i = 0; i < pngFiles.length; i++) {
-                inputArgsParts.push(`-loop 1 -t ${slideDuration} -i "${pngFiles[i]}"`);
-            }
-            const inputArgs = inputArgsParts.join(' ');
-
-            // filter_complex で xfades を連結
-            let filterComplex = "";
-            let prevLabel = "0:v";
-            let totalDuration = slideDuration;
-            for (let i = 1; i < pngFiles.length; i++) {
-                const outLabel = (i === pngFiles.length - 1) ? "vfinal" : `v${i}`;
-                const offset = totalDuration - dissolveDuration;
-                filterComplex += `[${prevLabel}][${i}:v]xfade=transition=fade:duration=${dissolveDuration}:offset=${offset}[${outLabel}];`;
-                totalDuration = totalDuration + slideDuration - dissolveDuration;
-                prevLabel = outLabel;
-            }
-            if (filterComplex.endsWith(";")) {
-                filterComplex = filterComplex.slice(0, -1);
-            }
-
-            ffmpegArgs = `-y ${inputArgs} -filter_complex "${filterComplex}" -map "[vfinal]" -r ${outputFps} -c:v libx264 -g 1 -pix_fmt yuv420p "${outputVideoPath}"`;
-        } else {
-            // -----------------------------
-            // ディゾルブなし（従来のシンプルなスライドショー）
-            // -----------------------------
-            // 入力側のフレームレート（1枚あたりの秒数に合わせる）
-            const framerate = `1/${slideDuration}`;
-            // PNGファイル名は "Slide_XXX.png" 形式（3桁連番）とする
-            // FFmpeg 推奨の image2 入力 + 明示的な出力fps 指定で黒フレームを抑制
-            ffmpegArgs = `-y -framerate ${framerate} -start_number 1 -i "${outputFolder}\\Slide_%03d.png" -c:v libx264 -r ${outputFps} -g 1 -pix_fmt yuv420p "${outputVideoPath}"`;
-        }
-
-        console.log("[pptxtomp4.js] FFmpeg args:", ffmpegArgs);
-
         // FFmpegによる動画変換を実行
-        await window.electronAPI.execFfmpeg(ffmpegArgs);
+        await window.electronAPI.convertPptxSlidesToMp4({
+            inputPattern: window.electronAPI.path.join(outputFolder, 'Slide_%03d.png'),
+            inputPaths: pngFiles,
+            outputPath: outputVideoPath,
+            slideDuration,
+            outputFps,
+            useDissolve
+        });
         console.log("[pptxtomp4.js] Conversion completed. Output:", outputVideoPath);
 
         // 変換した動画のパスを返す

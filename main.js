@@ -22,8 +22,16 @@ const fs = require('fs');
 const statecontrol = require('./statecontrol.js');
 const fixWebmDuration = require('fix-webm-duration');
 const { Atem } = require('atem-connection');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const messages = require('./messages');
+const {
+    buildAlacToAacArguments,
+    buildFlacPictureRemovalArguments,
+    buildPngToVideoArguments,
+    buildPptxToMp4Arguments,
+    validateMediaPath,
+    validateMovToWebmPayload
+} = require('./externalMediaArguments');
 const {
     saveScreenshotFile,
     saveTemporaryCaptureFile
@@ -84,25 +92,65 @@ if (ffprobePath && fs.existsSync(ffprobePath)) {
 }
 
 // ffmpeg操作IPC
+// P2-1: migrated media conversions use validated argv and bypass the shell.
+// 未移行機能との互換性のため、従来のIPCは残す。
 ipcMain.handle('exec-ffmpeg', async (event, args) => {
     const command = `"${ffmpegPath}" ${args}`;
-
     return new Promise((resolve, reject) => {
         exec(command, { shell: true, encoding: 'utf8' }, (error, stdout, stderr) => {
             if (error) {
                 if (!stderr.includes('Unsupported pixel format: -1')) {
-                    console.error(`FFmpeg error: ${stderr}`);
-                    reject(stderr);
+                    reject(stderr || error.message);
+                } else {
+                    resolve(stdout);
+                }
+            } else {
+                resolve(stdout);
+            }
+        });
+    });
+});
+
+ipcMain.handle('convert-alac-to-aac', async (event, payload) => {
+    const args = buildAlacToAacArguments(payload);
+
+    return new Promise((resolve, reject) => {
+        execFile(ffmpegPath, args, { windowsHide: true, encoding: 'utf8' }, (error, stdout, stderr) => {
+            if (error) {
+                if (!stderr.includes('Unsupported pixel format: -1')) {
+                    console.error(`FFmpeg ALAC conversion error: ${stderr}`);
+                    reject(stderr || error.message);
                 } else {
                     console.warn('Filtered FFmpeg warning: Unsupported pixel format');
                     resolve(stdout);
                 }
             } else {
-                console.log(`FFmpeg output: ${stdout}`);
+                console.log(`FFmpeg ALAC conversion output: ${stdout}`);
                 resolve(stdout);
             }
         });
     });
+});
+
+function runFfmpegArguments(args, operationName) {
+    return new Promise((resolve, reject) => {
+        execFile(ffmpegPath, args, { windowsHide: true, encoding: 'utf8' }, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`FFmpeg ${operationName} error: ${stderr}`);
+                reject(stderr || error.message);
+                return;
+            }
+            resolve(stdout);
+        });
+    });
+}
+
+ipcMain.handle('convert-png-to-video', async (event, payload) => {
+    return runFfmpegArguments(buildPngToVideoArguments(payload), 'PNG conversion');
+});
+
+ipcMain.handle('convert-pptx-slides-to-mp4', async (event, payload) => {
+    return runFfmpegArguments(buildPptxToMp4Arguments(payload), 'PPTX slide conversion');
 });
 
 // ---------------------------------
@@ -2349,10 +2397,10 @@ ipcMain.handle('check-mov-alpha', async (event, filePath) => {
     });
 });
 
-ipcMain.handle('convert-mov-to-webm', async (event, filePath) => {
+ipcMain.handle('convert-mov-to-webm', async (event, payload) => {
     return new Promise((resolve, reject) => {
-        const outputFilePath = filePath.replace(/\.[^/.]+$/, ".webm");
-        ffmpeg(filePath)
+        const { inputPath, outputPath } = validateMovToWebmPayload(payload);
+        ffmpeg(inputPath)
             .outputOptions([
                 '-c:v', 'libvpx-vp9',
                 '-pix_fmt', 'yuva420p',
@@ -2363,14 +2411,14 @@ ipcMain.handle('convert-mov-to-webm', async (event, filePath) => {
                 '-threads', '8'
             ])
             .on('end', () => {
-                console.log(`[main.js] Conversion successful: ${outputFilePath}`);
-                resolve(outputFilePath);
+                console.log(`[main.js] Conversion successful: ${outputPath}`);
+                resolve(outputPath);
             })
             .on('error', (err) => {
-                console.error(`[main.js] ffmpeg conversion error for ${filePath}:`, err);
+                console.error(`[main.js] ffmpeg conversion error for ${inputPath}:`, err);
                 reject(err);
             })
-            .save(outputFilePath);
+            .save(outputPath);
     });
 });
 
@@ -2413,9 +2461,13 @@ ipcMain.handle('get-png-files', async (event, outputFolder) => {
 });
 
 // FLACのPICTUREブロック削除
-ipcMain.handle('getPlayableFlac', async (event, inputPath) => {
+ipcMain.handle('getPlayableFlac', async (event, payload) => {
     const { fileURLToPath } = require('url');
-    let src = inputPath.startsWith('file://') ? fileURLToPath(inputPath) : inputPath;
+    if (!payload || typeof payload !== 'object' || typeof payload.inputPath !== 'string') {
+        throw new TypeError('FLAC conversion payload must contain inputPath');
+    }
+    let src = payload.inputPath.startsWith('file://') ? fileURLToPath(payload.inputPath) : payload.inputPath;
+    validateMediaPath(src, 'inputPath');
     const dir  = path.dirname(src);
     const base = path.basename(src, '.flac');
     const out  = path.join(dir, `${base}_nopic.flac`);
@@ -2424,12 +2476,11 @@ ipcMain.handle('getPlayableFlac', async (event, inputPath) => {
 });
 function removeFlacPicture(input, output) {
     return new Promise((resolve, reject) => {
-        let cmd = `metaflac --remove --block-type=PICTURE --output="${output}" "${input}"`;
-        exec(cmd, (err, _s, stderr) => {
+        const args = buildFlacPictureRemovalArguments({ inputPath: input, outputPath: output });
+        execFile('metaflac', args.metaflac, { windowsHide: true, encoding: 'utf8' }, (err) => {
             if (!err) return resolve();
 
-            cmd = `"${ffmpegPath}" -y -i "${input}" -c:a copy -map_metadata -1 "${output}"`;
-            exec(cmd, (err2, _s2, stderr2) => {
+            execFile(ffmpegPath, args.ffmpeg, { windowsHide: true, encoding: 'utf8' }, (err2, _s2, stderr2) => {
                 if (err2) return reject(stderr2 || err2);
                 resolve();
             });

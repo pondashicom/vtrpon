@@ -289,7 +289,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // MOV透過チェックと変換処理用
     // ------------------------------
     checkMovAlpha: (filePath) => ipcRenderer.invoke('check-mov-alpha', filePath),
-    convertMovToWebm: (filePath) => ipcRenderer.invoke('convert-mov-to-webm', filePath),
+    convertMovToWebm: (inputPath) => ipcRenderer.invoke('convert-mov-to-webm', {
+        inputPath,
+        outputPath: inputPath.replace(/\.[^/.]+$/, '.webm')
+    }),
 
     // ------------------------------
     // FLACファイルの波形分析
@@ -309,7 +312,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ------------------------------
     // PICTURE 削除版 FLAC を取得
     // ------------------------------
-    getPlayableFlac:        (filePath) => ipcRenderer.invoke('getPlayableFlac', filePath),
+    getPlayableFlac:        (inputPath) => ipcRenderer.invoke('getPlayableFlac', { inputPath }),
     // ------------------------------
     //    PPTX to MP4変換関連
     // ------------------------------
@@ -371,8 +374,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     //    動画処理
     // ------------------------------
 
-    // FFmpeg操作
-    execFfmpeg: (args) => ipcRenderer.invoke('exec-ffmpeg', args),
+    // 構造化されたメディア変換操作
+    convertPngToVideo: (payload) => ipcRenderer.invoke('convert-png-to-video', payload),
+    convertPptxSlidesToMp4: (payload) => ipcRenderer.invoke('convert-pptx-slides-to-mp4', payload),
+    convertAlacToAac: (inputPath, outputPath) => ipcRenderer.invoke(
+        'convert-alac-to-aac',
+        { inputPath, outputPath }
+    ),
 
     // メディアファイルの再生時間を取得する API
     getMediaDuration: async (filePath) => {
@@ -407,7 +415,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         });
     },
 
-    execFFmpeg: (args) => ipcRenderer.invoke('exec-ffmpeg', args),
     // ------------------------------
     //    時刻同期
     // ------------------------------

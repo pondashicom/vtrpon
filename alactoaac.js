@@ -71,9 +71,7 @@ async function convertAlacToAac(inputPath) {
             logInfo('[alactoaac.js] Auto-save after ALAC loading entry failed (ignored):', e);
         }
 
-        const ffmpegArgs = `-y -i "${inputPath}" -vn -map_metadata 0 -c:a aac -b:a 320k -movflags +faststart "${outputFilePath}"`;
-
-        await window.electronAPI.execFfmpeg(ffmpegArgs);
+        await window.electronAPI.convertAlacToAac(inputPath, outputFilePath);
 
         const updatedPlaylist = await stateControl.getPlaylistState();
         const targetIndex = updatedPlaylist.findIndex(item => item.path === outputFilePath);
