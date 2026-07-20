@@ -3169,8 +3169,7 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
         });
     } else {
         function onFsEnd() {
-            video.removeEventListener('timeupdate', onFsTimeUpdate);
-            video.removeEventListener('ended',      onFsEnd);
+            detachFullscreenDskEndWatchers(video);
             handleFullscreenDskEnd(video);
         }
         function onFsTimeUpdate() {
@@ -3179,12 +3178,16 @@ function showFullscreenDSK(itemData, fadeDurationMs = null) {
             }
         }
 
+        // Keep stable callback references so PAUSE can safely re-arm OUT monitoring.
+        video._onFsTimeUpdate = onFsTimeUpdate;
+        video._onFsEnd = onFsEnd;
+        video._fsDskOutSec = outSec;
+
         // EndMode別終了監視
         if (mode === 'NEXT' || mode === 'OFF') {
-            video.addEventListener('ended', onFsEnd);
+            attachFullscreenDskEndWatchers(video, false);
         } else {
-            video.addEventListener('timeupdate', onFsTimeUpdate);
-            video.addEventListener('ended',      onFsEnd);
+            attachFullscreenDskEndWatchers(video, true);
         }
     }
 
@@ -3265,6 +3268,41 @@ function pauseFullscreenDSK() {
     }
 }
 
+function detachFullscreenDskEndWatchers(video) {
+    if (!video) return;
+    if (video._onFsTimeUpdate) video.removeEventListener('timeupdate', video._onFsTimeUpdate);
+    if (video._onFsEnd)        video.removeEventListener('ended',      video._onFsEnd);
+    if (video._fsDskFrameCallbackId !== null && video._fsDskFrameCallbackId !== undefined
+        && typeof video.cancelVideoFrameCallback === 'function') {
+        video.cancelVideoFrameCallback(video._fsDskFrameCallbackId);
+    }
+    video._fsDskFrameCallbackId = null;
+}
+
+function attachFullscreenDskEndWatchers(video, watchOutPoint) {
+    if (!video || !video._onFsEnd) return;
+
+    // Remove first so repeated PLAY commands cannot accumulate listeners.
+    detachFullscreenDskEndWatchers(video);
+    if (watchOutPoint && video._onFsTimeUpdate) {
+        video.addEventListener('timeupdate', video._onFsTimeUpdate);
+    }
+    video.addEventListener('ended', video._onFsEnd);
+
+    if (watchOutPoint && typeof video.requestVideoFrameCallback === 'function') {
+        const watchPresentedFrame = () => {
+            if (video._fsDskFrameCallbackId === null) return;
+            const outSec = Number(video._fsDskOutSec);
+            if (Number.isFinite(outSec) && video.currentTime >= outSec) {
+                video._onFsEnd();
+                return;
+            }
+            video._fsDskFrameCallbackId = video.requestVideoFrameCallback(watchPresentedFrame);
+        };
+        video._fsDskFrameCallbackId = video.requestVideoFrameCallback(watchPresentedFrame);
+    }
+}
+
 // DSK再生
 function playFullscreenDSK() {
     if (!fsDSKOverlay) return;
@@ -3274,14 +3312,13 @@ function playFullscreenDSK() {
     // 可視化
     fsDSKOverlay.style.visibility = 'visible';
 
-    if (video.paused) {
-        video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
-    }
-
     // PAUSEモード終了監視再登録
     if (currentDSKItem?.endMode === 'PAUSE') {
-        if (video._onFsTimeUpdate) video.addEventListener('timeupdate', video._onFsTimeUpdate);
-        if (video._onFsEnd)        video.addEventListener('ended',      video._onFsEnd);
+        attachFullscreenDskEndWatchers(video, true);
+    }
+
+    if (video.paused) {
+        video.play().catch(err => logInfo('[fullscreen.js] fsDSK video.play() error:', err));
     }
 }
 

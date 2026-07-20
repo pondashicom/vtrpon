@@ -158,11 +158,19 @@ function showOnAirDSK(itemData) {
 
     } else if (mode === 'PAUSE') {
         function onPauseEnd() {
+            detachOnAirDskPauseEndWatchers(video);
             video.pause();
             video.currentTime = outSec;
-            video.removeEventListener('ended', onPauseEnd);
         }
-        video.addEventListener('ended', onPauseEnd);
+        function onPauseTimeUpdate() {
+            if (video.currentTime >= outSec) {
+                onPauseEnd();
+            }
+        }
+
+        video._onDskPauseEnd = onPauseEnd;
+        video._onDskPauseTimeUpdate = onPauseTimeUpdate;
+        attachOnAirDskPauseEndWatchers(video);
 
     } else {
         // OFF系は終了時にクリア
@@ -322,17 +330,31 @@ function pauseOnAirDSK() {
     }
 }
 
+function detachOnAirDskPauseEndWatchers(video) {
+    if (!video) return;
+    if (video._onDskPauseTimeUpdate) {
+        video.removeEventListener('timeupdate', video._onDskPauseTimeUpdate);
+    }
+    if (video._onDskPauseEnd) {
+        video.removeEventListener('ended', video._onDskPauseEnd);
+    }
+}
+
+function attachOnAirDskPauseEndWatchers(video) {
+    if (!video || !video._onDskPauseEnd || !video._onDskPauseTimeUpdate) return;
+
+    // Remove first so repeated PLAY commands cannot accumulate listeners.
+    detachOnAirDskPauseEndWatchers(video);
+    video.addEventListener('timeupdate', video._onDskPauseTimeUpdate);
+    video.addEventListener('ended', video._onDskPauseEnd);
+}
+
 function playOnAirDSK() {
     if (dskVideo && dskVideo.paused) {
-        dskVideo.play().catch(err => console.error('[dsk.js] dskVideo.play() error:', err));
         if (currentDSKItem?.endMode === 'PAUSE') {
-            function onPauseEnd() {
-                dskVideo.pause();
-                dskVideo.currentTime = parseTimecode(currentDSKItem.outPoint);
-                dskVideo.removeEventListener('ended', onPauseEnd);
-            }
-            dskVideo.addEventListener('ended', onPauseEnd);
+            attachOnAirDskPauseEndWatchers(dskVideo);
         }
+        dskVideo.play().catch(err => console.error('[dsk.js] dskVideo.play() error:', err));
     }
 }
 
