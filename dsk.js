@@ -196,6 +196,12 @@ function showOnAirDSK(itemData) {
     }
 
     const fadeDuration = getDskFadeDurationMs();
+    window.dispatchEvent(new CustomEvent('dsk-active-set', {
+        detail: {
+            itemId: itemData.playlistItem_id,
+            fadeDurationMs: fadeDuration
+        }
+    }));
     fadeIn(dskOverlay, fadeDuration, () => {
         if (transitionToken !== dskTransitionToken) {
             return;
@@ -209,7 +215,6 @@ function showOnAirDSK(itemData) {
             fadeDurationMs: fadeDuration
         });
     }
-    window.dispatchEvent(new CustomEvent('dsk-active-set', { detail: { itemId: itemData.playlistItem_id } }));
 }
 
 // DSK終了処理分岐
@@ -247,6 +252,9 @@ function handleDskEnd() {
                 });
             }
 
+            window.dispatchEvent(new CustomEvent('dsk-active-clearing', {
+                detail: { fadeDurationMs: fadeDuration }
+            }));
             fadeOut(dskOverlay, fadeDuration, () => {
                 if (transitionToken !== dskTransitionToken) {
                     return;
@@ -279,6 +287,9 @@ function hideOnAirDSK() {
             fadeDurationMs: fadeDuration
         });
     }
+    window.dispatchEvent(new CustomEvent('dsk-active-clearing', {
+        detail: { fadeDurationMs: fadeDuration }
+    }));
     fadeOut(dskOverlay, fadeDuration, () => {
         if (transitionToken !== dskTransitionToken) {
             return;

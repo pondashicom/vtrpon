@@ -5688,6 +5688,43 @@ function scrollToPlaylistItem(itemId) {
 // DSK
 // -----------------------
 
+let dskButtonRecordingTimer = null;
+
+function setDskButtonVisualState(isActive, durationMs = 0) {
+    const button = document.getElementById('dsk-button');
+    if (!button) return;
+
+    const normalizedDurationMs = Number.isFinite(Number(durationMs))
+        ? Math.max(0, Number(durationMs))
+        : 0;
+
+    if (dskButtonRecordingTimer !== null) {
+        clearTimeout(dskButtonRecordingTimer);
+        dskButtonRecordingTimer = null;
+    }
+
+    button.style.setProperty('--dsk-button-transition-duration', `${normalizedDurationMs}ms`);
+    button.classList.remove('button-recording');
+
+    // 点滅アニメーションを外した状態を確定し、現在色から次の色へ補間する。
+    void button.offsetWidth;
+    button.classList.toggle('dsk-button-active', Boolean(isActive));
+
+    if (!isActive) return;
+
+    if (normalizedDurationMs === 0) {
+        button.classList.add('button-recording');
+        return;
+    }
+
+    dskButtonRecordingTimer = setTimeout(() => {
+        dskButtonRecordingTimer = null;
+        if (button.classList.contains('dsk-button-active')) {
+            button.classList.add('button-recording');
+        }
+    }, normalizedDurationMs);
+}
+
 // DSKボタンイベントリスナー
 const dskButton = document.getElementById('dsk-button');
 if (dskButton) {
@@ -5712,28 +5749,33 @@ if (dskButton) {
 }
 
 // DSK送出状態反映
-window.addEventListener('dsk-active-set', async () => {
+window.addEventListener('dsk-active-set', async (event) => {
+    setDskButtonVisualState(true, event.detail?.fadeDurationMs);
     try {
         await updatePlaylistUI();
     } catch (err) {
         logInfo("Error reflecting active DSK UI:", err);
     }
-    const dskButton = document.getElementById('dsk-button');
-    if (dskButton) {
-        dskButton.classList.add('button-recording');
-    }
+});
+
+// DSKフェードアウト開始時
+window.addEventListener('dsk-active-clearing', (event) => {
+    setDskButtonVisualState(false, event.detail?.fadeDurationMs);
 });
 
 // DSK送出解除時
 window.addEventListener('dsk-active-clear', async () => {
+    const dskButton = document.getElementById('dsk-button');
+    if (dskButton && (
+        dskButton.classList.contains('dsk-button-active') ||
+        dskButton.classList.contains('button-recording')
+    )) {
+        setDskButtonVisualState(false, 0);
+    }
     try {
         await updatePlaylistUI();
     } catch (err) {
         logInfo("Error clearing active DSK UI:", err);
-    }
-    const dskButton = document.getElementById('dsk-button');
-    if (dskButton) {
-        dskButton.classList.remove('button-recording');
     }
 });
 
