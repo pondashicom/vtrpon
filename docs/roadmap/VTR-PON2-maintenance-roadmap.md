@@ -6,7 +6,12 @@ VTR-PON2 は、大規模な再設計ではなく、現在利用しているユ�
 
 本ロードマップでは、現行機能と操作性を維持しながら、再現可能な不具合、明確な実装上の欠陥、安全性に関わる境界を、小さく確認可能な変更で修正します。
 
-VTR-PON2 に SPLIT-PON は導入しません。また、状態管理、プレイヤー構成、画面構造などの全面的な作り直しは、VTR-PON2 の保守範囲に含めません。
+VTR-PON2にはSPLIT-PONのcapture、変換、queue、Core、Output Adapter、
+worker管理を内蔵しません。一方、任意ADDONの受け入れ側として、ADDONが
+インストールされている場合だけ表示する最小限の`ADDITIONAL OUTPUT` UI、
+control client、休眠可能なProgram音声tap、Operator Monitor OSD sidebandは
+VTR-PON2側の正式な境界に含めます。状態管理、プレイヤー構成、画面構造などの
+全面的な作り直しは、VTR-PON2の保守範囲に含めません。
 
 ## 保守方針
 
@@ -179,6 +184,46 @@ Phase 0から2の完了後は、新たな構造改修へ進まず、ユーザー
 
 ---
 
+## 任意ADDONの本体影響隔離
+
+SPLIT-PON ADDONは任意機能として扱い、欠損、破損、初期化例外、host／protocol
+消失、control hangをVTR-PON2本体の起動、通常再生、Fullscreen、OnAir、
+Program音声、終了へ波及させません。
+
+- ADDON終了待機は4秒を上限とし、応答しない場合もVTR-PON2終了を継続します。
+- host／protocol消失時はADDONの全observed state、Program音声tap、Operator
+  Monitor OSDをsafe stateへ落とし、本体windowを終了・再生成しません。
+- ADDONが利用不可の場合はhost、polling、audio tap、OSD接続を起動しません。
+- 出力要求前は、正常ADDONでもhostを起動しません。
+- machine-wide ADDONは`ProgramData`のinstall markerから`Program Files`上の
+  manifestを解決します。markerなしは未導入、markerあり＋manifest／version／
+  必須binary不正は「修復が必要」とし、どちらも本体通常機能へ波及させません。
+
+M8の番号体系と枝番の正式な意味は、ADDON repositoryの
+`docs/roadmap/m8-productization-roadmap.md`を正本とします。M8-3は
+本体影響隔離、installed-only UI、短時間統合確認、追加soak判断を束ねる親stageで、
+M8-3A～Dを個別の正式gateとして扱います。
+
+M8-3Aの関連test 28件はPASSしています。M8-3Bではinstalled／availableを分離し、
+未導入時に非表示、破損導入時に「修復が必要」で操作不可となる主画面`ADDITIONAL OUTPUT`
+UIを追加しました。Operator Window／OSD／NDI Output、主画面限定IPC、Live Mode用
+`Output Control`メニューを同じstateへ接続し、正式`master`候補のVTR-PON2全体
+63件をPASSしています。
+M8-3Cの10分bounded実media確認はmanual-visible／audibleとmachineを分離して
+PASSしました。Router終了cleanupとultra-low-latency latest-winsを異常dropから
+分離し、raw値を保持した再判定も完了しています。正式`master`候補では、開発用
+診断runner／試験専用IPC／依存履歴を除外し、製品runtime、installed-only UI、
+ProgramData marker、回帰testだけを最小差分として扱います。clean machineでの
+install／repair／upgrade／uninstall確認は別の未完了gateです。
+ADDON UIを最初に正式搭載するVTR-PON2 versionは`2.6.5`とします。
+
+`2.6.5`はWindows版とmacOS版を同時release対象とします。ADDON連携はWindows版だけで
+有効にし、macOS版はWindows用moduleを読み込む前にno-opへ移ります。macOS版には
+ADDON用IPC、Program音声tap、Operator Monitor sideband、Output UI、NDI表示を
+公開しません。一方、DSKの配置と通常動作、共通UI整理、旧内蔵Operator Monitorの
+廃止はplatform共通変更として両版へ適用します。release source gateの
+FFmpeg／ffprobe検査はWindows固定pathを廃止し、実行platformのbinaryを検査します。
+
 ## VTR-PON2で実施しない項目
 
 - OnAirとFullscreenのプレイヤー統合
@@ -189,7 +234,7 @@ Phase 0から2の完了後は、新たな構造改修へ進まず、ユーザー
 - 画面間通信全体の全面的な再設計
 - 巨大JavaScriptファイルの大規模な分割
 - 保存形式の全面的な刷新
-- SPLIT-PONの導入
+- SPLIT-PONのcapture、Core、Output Adapter、worker supervisorの内蔵
 
 ## 共通の品質確認
 

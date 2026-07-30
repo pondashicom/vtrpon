@@ -1,19 +1,20 @@
 {
     "name": "VTR-PON2",
-    "version": "2.6.4",
+    "version": "2.6.5",
     "main": "main.js",
     "scripts": {
         "test": "node --test",
         "start": "electron .",
-        "build": "electron-builder",
-        "rebuild:win": "npx @electron/rebuild -f -w winax -i @julusian/freetype2 --arch=x64",
-        "dist:win": "npm run rebuild:win && electron-builder --win",
+        "verify:release-source": "node scripts/verify-release-source.js",
+        "build": "npm run verify:release-source && electron-builder",
+        "rebuild:win": "npx @electron/rebuild -f -w winax,@julusian/freetype2 --arch=x64",
+        "dist:win": "npm run verify:release-source && npm run rebuild:win && electron-builder --win",
         "deps:mac-arm64": "electron-builder install-app-deps --platform=darwin --arch=arm64",
         "deps:mac-x64": "electron-builder install-app-deps --platform=darwin --arch=x64",
-        "dist:mac-arm64": "npm run deps:mac-arm64 && electron-builder --mac --arm64",
-        "dist:mac-x64": "npm run deps:mac-x64 && electron-builder --mac --x64",
-        "dist": "node -e \"const {execSync}=require('child_process'); const os=process.platform; if(os==='win32'){execSync('npm run dist:win',{stdio:'inherit'})} else if(os==='darwin'){execSync('npm run dist:mac-arm64',{stdio:'inherit'})} else {execSync('electron-builder -l',{stdio:'inherit'})}\"",
-        "postinstall": "node -e \"if(process.platform==='win32'){try{require('child_process').execSync('npx @electron/rebuild -f -w winax -i @julusian/freetype2 --arch=x64',{stdio:'inherit'})}catch(e){console.warn('postinstall: rebuild skipped:',e && e.message)}}else{console.log('postinstall: skip on non-Windows')}\""
+        "dist:mac-arm64": "npm run verify:release-source && npm run deps:mac-arm64 && electron-builder --mac --arm64",
+        "dist:mac-x64": "npm run verify:release-source && npm run deps:mac-x64 && electron-builder --mac --x64",
+        "dist": "node -e \"const {execSync}=require('child_process'); const os=process.platform; if(os==='win32'){execSync('npm run dist:win',{stdio:'inherit'})} else if(os==='darwin'){execSync('npm run dist:mac-arm64',{stdio:'inherit'})} else {execSync('npm run verify:release-source',{stdio:'inherit'});execSync('electron-builder -l',{stdio:'inherit'})}\"",
+        "postinstall": "node -e \"if(process.platform==='win32'){try{require('child_process').execSync('npx @electron/rebuild -f -w winax,@julusian/freetype2 --arch=x64',{stdio:'inherit'})}catch(e){console.warn('postinstall: rebuild skipped:',e && e.message)}}else{console.log('postinstall: skip on non-Windows')}\""
     },
     "keywords": [],
     "author": "Tetsu Suzuki",
@@ -51,6 +52,17 @@
     },
     "build": {
         "appId": "pondashi.com-vtrpon",
+        "files": [
+            "**/*",
+            "!dist",
+            "!dist/**/*",
+            "!dist-validation",
+            "!dist-validation/**/*",
+            "!out",
+            "!out/**/*",
+            "!build",
+            "!build/**/*"
+        ],
         "win": {
             "icon": "assets/icons/icon.ico"
         },
@@ -77,6 +89,26 @@
             {
                 "from": "assets",
                 "to": "assets"
+            },
+            {
+                "from": "LICENSE/gpl-3.0.txt",
+                "to": "COPYING"
+            },
+            {
+                "from": "LICENSE/LICENSE.txt",
+                "to": "LICENSE.txt"
+            },
+            {
+                "from": "LICENSE/Third-Party Licenses.txt",
+                "to": "THIRD-PARTY-NOTICES.txt"
+            },
+            {
+                "from": "LICENSE/SOURCE.txt",
+                "to": "SOURCE.txt"
+            },
+            {
+                "from": "package-lock.json",
+                "to": "NPM-DEPENDENCIES-LOCK.json"
             }
         ],
         "npmRebuild": false

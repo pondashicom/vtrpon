@@ -54,6 +54,9 @@ const FULLSCREEN_FTB_OCCLUSION_SAFE_OPACITY = 0.9999;
 // フルスクリーン初期化
 // ----------------------------------------
 function initializeFullscreenArea(blackHoldMode = null) {
+    teardownSplitPonAudioTap();
+    splitPonAudioTapCandidateNode = null;
+
     // オーバレイ解除
     try {
         if (typeof fullscreenSeamlessCleanup === 'function') {
@@ -490,6 +493,9 @@ function applyMuteStateForNextSource(itemData) {
 
 // 次ソース適用前の再生要素クリーンアップ
 function cleanupBeforeSourceApply() {
+    teardownSplitPonAudioTap();
+    splitPonAudioTapCandidateNode = null;
+
     // フェードアウト中断
     cancelFadeOut();
     const videoElement = document.getElementById('fullscreen-video');
@@ -2591,10 +2597,159 @@ let fullscreenStreamSourceNode = null; // UVC/ND
 let fullscreenSourceKind = null;
 let fullscreenMediaDest = null;
 let fullscreenLingerTimerId = null;
+let splitPonAudioTapNode = null;
+let splitPonAudioTapSourceNode = null;
+let splitPonAudioTapCandidateNode = null;
+let splitPonAudioTapModulePromise = null;
+let splitPonAudioTapSetupToken = 0;
+let splitPonAudioTapSendFailures = 0;
+const SPLITPON_AUDIO_TAP_MAX_SEND_FAILURES = 500;
 setupFullscreenAudio.initialized = false; // 音声初期化フラグ
+
+function teardownSplitPonAudioTap(reason = '') {
+    splitPonAudioTapSetupToken += 1;
+    const sourceNode = splitPonAudioTapSourceNode;
+    const tapNode = splitPonAudioTapNode;
+    splitPonAudioTapSourceNode = null;
+    splitPonAudioTapNode = null;
+    splitPonAudioTapSendFailures = 0;
+
+    if (sourceNode && tapNode) {
+        try {
+            sourceNode.disconnect(tapNode);
+        } catch (_) {
+            // Source teardown may already have removed the edge.
+        }
+    }
+    if (tapNode) {
+        try {
+            tapNode.disconnect();
+        } catch (_) {}
+        try {
+            tapNode.port.onmessage = null;
+            tapNode.port.close();
+        } catch (_) {}
+    }
+    if (reason) {
+        try {
+            logInfo(`[fullscreen.js] SPLIT-PON audio tap stopped: ${reason}`);
+        } catch (_) {}
+    }
+}
+
+// SPLIT-PON addonが要求された場合だけ、最終ゲイン・fade・stereo化後のPCMを分岐する。
+async function setupSplitPonAudioTap(audioContext, finalMixNode, mediaStreamDest) {
+    const bridge = window.electronAPI?.splitPonAudio;
+    if (!bridge?.enabled || !audioContext || !finalMixNode || !mediaStreamDest) {
+        return;
+    }
+    const bridgeState = bridge.getStats?.();
+    if (bridgeState?.managed && !bridgeState.active) {
+        return;
+    }
+    if (audioContext.sampleRate !== 48000) {
+        console.error(
+            `[fullscreen.js] SPLIT-PON audio tap requires 48000 Hz, got ${audioContext.sampleRate}.`);
+        return;
+    }
+
+    const setupToken = ++splitPonAudioTapSetupToken;
+    if (!splitPonAudioTapModulePromise) {
+        splitPonAudioTapModulePromise =
+            audioContext.audioWorklet.addModule('splitpon-audio-worklet.js');
+    }
+    try {
+        await splitPonAudioTapModulePromise;
+    } catch (error) {
+        if (setupToken === splitPonAudioTapSetupToken) {
+            splitPonAudioTapModulePromise = null;
+        }
+        throw error;
+    }
+    if (setupToken !== splitPonAudioTapSetupToken) {
+        return;
+    }
+
+    const tapNode = new AudioWorkletNode(
+        audioContext,
+        'splitpon-audio-tap',
+        {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            outputChannelCount: [2],
+            channelCount: 2,
+            channelCountMode: 'explicit',
+            channelInterpretation: 'speakers',
+        });
+    tapNode.port.onmessage = (event) => {
+        try {
+            const packet = event.data || {};
+            const sent = bridge.sendPcm(
+                packet.pcm,
+                packet.contextFrame,
+                packet.frameCount,
+                packet.sampleRate,
+                packet.channels);
+            if (sent) {
+                splitPonAudioTapSendFailures = 0;
+                return;
+            }
+            splitPonAudioTapSendFailures += 1;
+            const bridgeStopped = !!bridge.getStats()?.stopped;
+            if (bridgeStopped ||
+                splitPonAudioTapSendFailures >= SPLITPON_AUDIO_TAP_MAX_SEND_FAILURES) {
+                teardownSplitPonAudioTap(
+                    bridgeStopped ? 'bridge stopped' : 'bridge unavailable for 10 seconds');
+            }
+        } catch (error) {
+            try {
+                console.error('[fullscreen.js] SPLIT-PON bridge exception isolated:', error);
+            } catch (_) {}
+            try {
+                teardownSplitPonAudioTap('bridge exception isolated');
+            } catch (_) {}
+        }
+    };
+
+    splitPonAudioTapNode = tapNode;
+    finalMixNode.connect(tapNode);
+    // Worklet outputは無音。既存destinationでclockし、別の可聴経路は増やさない。
+    tapNode.connect(mediaStreamDest);
+    splitPonAudioTapSourceNode = finalMixNode;
+    logInfo('[fullscreen.js] SPLIT-PON final-mix audio tap connected (48000 Hz stereo).');
+}
+
+window.addEventListener('beforeunload', () => {
+    teardownSplitPonAudioTap();
+});
+
+window.electronAPI?.splitPonAudio?.onEnabled?.((enabled) => {
+    if (!enabled) {
+        teardownSplitPonAudioTap('output disabled');
+        return;
+    }
+    if (
+        splitPonAudioTapNode ||
+        !splitPonAudioTapCandidateNode ||
+        !fullscreenMediaDest
+    ) {
+        return;
+    }
+    setupSplitPonAudioTap(
+        FullscreenAudioManager.getContext(),
+        splitPonAudioTapCandidateNode,
+        fullscreenMediaDest
+    ).catch((error) => {
+        console.error(
+            '[fullscreen.js] Failed to activate SPLIT-PON audio tap:',
+            error
+        );
+    });
+});
 
 // 音声初期化
 function setupFullscreenAudio(videoElement) {
+    teardownSplitPonAudioTap();
     let audioContext;
     try {
         audioContext = FullscreenAudioManager.getContext();
@@ -2721,6 +2876,18 @@ function setupFullscreenAudio(videoElement) {
             return;
         }
     }
+
+    const splitPonFinalMixNode =
+        isMonoSource && fullscreenMerger
+            ? fullscreenMerger
+            : (fullscreenUpmixNode || fullscreenGainNode);
+    splitPonAudioTapCandidateNode = splitPonFinalMixNode;
+    setupSplitPonAudioTap(
+        audioContext,
+        splitPonFinalMixNode,
+        mediaStreamDest).catch((error) => {
+            console.error('[fullscreen.js] Failed to initialize SPLIT-PON audio tap:', error);
+        });
 
     // 隠しaudio要素取得
     let hiddenAudio = document.getElementById('fullscreen-hidden-audio');

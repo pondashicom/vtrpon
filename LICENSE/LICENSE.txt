@@ -1,112 +1,72 @@
-==============================
-         VTR-PON 2
-       LICENSE NOTICE
-==============================
+VTR-PON2 LICENSE NOTICE
+Version 2.6.5
 
-Copyright (c) 2024-2025 Tetsu Suzuki All Rights Reserved.
+Copyright (c) 2024-2026 Tetsu Suzuki
 
-This project "VTR-PON 2" is distributed under the terms of the GNU General Public License
-Version 3 (or, at your option, any later version). The entire distribution?both source
-code and executable binaries?is subject to the GPL.
+VTR-PON2 program code is free software licensed under the GNU General
+Public License, version 3, or (at your option) any later version
+(GPL-3.0-or-later).
 
-–{ƒvƒƒWƒFƒNƒguVTR-PON 2v‚ÍAGNU General Public License Version 3i‚Ü‚½‚ÍˆÈ~‚Ìƒo[ƒWƒ‡ƒ“j‚Ì
-ğŒ‚Ì‰º‚Å”z•z‚³‚ê‚Ä‚¢‚Ü‚·B”z•z•¨‘S‘Ìiƒ\[ƒXƒR[ƒh‚¨‚æ‚ÑÀs‰Â”\ƒoƒCƒiƒŠj‚ÍAGPL‚ÌğŒ‚É]‚¢‚Ü‚·B
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+for details.
 
-------------------------------
-1. Primary License: GNU General Public License Version 3
-------------------------------
+The complete GPL text is installed as COPYING.
 
-This project is licensed under the GNU General Public License Version 3.
-For the full text of the GPL, please see the accompanying file "GPL.txt" or visit:
-https://www.gnu.org/licenses/gpl-3.0.txt
+Complete Corresponding Source for this exact release:
+https://github.com/pondashicom/vtrpon/tree/v2.6.5
 
-–{ƒvƒƒWƒFƒNƒg‚ÍAGNU General Public License Version 3 ‚Ì‰º‚Åƒ‰ƒCƒZƒ“ƒX‚³‚ê‚Ä‚¢‚Ü‚·B
-Š®‘S‚È GPL ‚Ì‘S•¶‚ÍA“¯«‚ÌuGPL.txtv‚Ü‚½‚ÍˆÈ‰º‚ÌŒö®ƒTƒCƒg‚ğ‚²QÆ‚­‚¾‚³‚¢F
-https://www.gnu.org/licenses/gpl-3.0.txt
+Source archive:
+https://github.com/pondashicom/vtrpon/archive/refs/tags/v2.6.5.zip
 
-------------------------------
-2. Third-Party Components and Their Licenses
-------------------------------
+Build and installation scripts are included in that source tree. The release
+build is refused unless the local and published v2.6.5 tag identify the exact
+commit used for the executable. See SOURCE.txt for source details.
 
-This project incorporates several third-party components. Their respective licenses are as follows:
+Third-party components retain their own licenses. They do not become GPL
+merely because they are distributed with VTR-PON2. See
+THIRD-PARTY-NOTICES.txt, NPM-DEPENDENCIES-LOCK.json, LICENSE.electron.txt,
+and LICENSES.chromium.html where present.
 
-–{ƒvƒƒWƒFƒNƒg‚É‚ÍAˆÈ‰º‚ÌƒT[ƒhƒp[ƒeƒBƒRƒ“ƒ|[ƒlƒ“ƒg‚ªŠÜ‚Ü‚ê‚Ä‚¨‚èAŠeƒRƒ“ƒ|[ƒlƒ“ƒg‚Í‚»‚ê‚¼‚ê‚Ìƒ‰ƒCƒZƒ“ƒXğŒ‚É]‚Á‚Ä‚¢‚Ü‚·B
+VTR-PON2 SPLIT-PON ADDON is a separately installed product and is not included
+in the VTR-PON2 distribution. Its independently authored code is licensed
+separately. The Windows version detects it only through the machine installation
+marker. The macOS version does not load or expose the ADDON integration.
 
-- **Electron**  
-  Licensed under the MIT License.  
-  Ú×: https://electronjs.org/docs/latest/tutorial/licensing
+----------------------------------------------------------------------
 
-- **Node.js**  
-  Licensed under the MIT License.  
-  Ú×: https://github.com/nodejs/node/blob/master/LICENSE
+VTR-PON2 ãƒ©ã‚¤ã‚»ãƒ³ã‚¹å‘ŠçŸ¥
+Version 2.6.5
 
-- **FFmpeg / ffprobe**  
-  The versions included in this distribution are provided under the GNU General Public License.
-  Ú×: See the accompanying "gpl-3.0.txt" file or visit https://www.gnu.org/licenses/gpl-3.0.txt
+Copyright (c) 2024-2026 Tetsu Suzuki
 
-- **atem-connection**  
-  Licensed under the MIT License.  
-  Ú×: https://github.com/nrkno/atem-connection/blob/main/LICENSE
+VTR-PON2ã®ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã‚³ãƒ¼ãƒ‰ã¯ã€GNU General Public License version 3ã¾ãŸã¯
+åˆ©ç”¨è€…ã®é¸æŠã«ã‚ˆã‚Šãã‚Œä»¥é™ã®versionï¼ˆGPL-3.0-or-laterï¼‰ã§æä¾›ã™ã‚‹
+free softwareã§ã™ã€‚
 
-- **Other dependencies**  
-  Please refer to the "Third-Party Licenses.txt" file included in this distribution for details.
-  ‚»‚Ì‘¼‚ÌˆË‘¶ƒ‰ƒCƒuƒ‰ƒŠ‚É‚Â‚¢‚Ä‚ÍA“¯«‚ÌuThird-Party Licenses.txtvƒtƒ@ƒCƒ‹‚ğ‚²QÆ‚­‚¾‚³‚¢B
+æœ¬ãƒ—ãƒ­ã‚°ãƒ©ãƒ ã¯æœ‰ç”¨ã§ã‚ã‚‹ã“ã¨ã‚’é¡˜ã£ã¦é…å¸ƒã—ã¾ã™ãŒã€å•†å“æ€§ã¾ãŸã¯ç‰¹å®šç›®çš„ã¸ã®
+é©åˆæ€§ã‚’å«ã‚ã€ã„ã‹ãªã‚‹ä¿è¨¼ã‚‚ã‚ã‚Šã¾ã›ã‚“ã€‚è©³ç´°ã¯GNU General Public Licenseã‚’
+å‚ç…§ã—ã¦ãã ã•ã„ã€‚
 
-------------------------------
-3. Redistribution Requirements
-------------------------------
+GPLå…¨æ–‡ã¯COPYINGã¨ã—ã¦installã—ã¾ã™ã€‚
 
-When redistributing this project, you must include the full texts of the following license documents:
-  - GNU General Public License (GPL)
-  - MIT License (for Electron, Node.js, etc.)
+ã“ã®releaseã®å®Œå…¨ãªå¯¾å¿œsource:
+https://github.com/pondashicom/vtrpon/tree/v2.6.5
 
-”z•z‚ÌÛ‚É‚ÍAˆÈ‰º‚Ìƒ‰ƒCƒZƒ“ƒX•¶‘‚ğ•K‚¸“¯«‚µ‚Ä‚­‚¾‚³‚¢F
-  - GNU General Public License (–{ƒvƒƒWƒFƒNƒg‘S‘Ì‚É“K—p)
-  - ElectronANode.js ‚È‚Ç‚ÌƒRƒ“ƒ|[ƒlƒ“ƒg‚ÉŠÖ‚·‚é MIT ƒ‰ƒCƒZƒ“ƒX•¶‘
+source archive:
+https://github.com/pondashicom/vtrpon/archive/refs/tags/v2.6.5.zip
 
-Example:
-u–{Ä”z•z•¨‚ÍA‘S‘Ì‚Æ‚µ‚Ä GPL ‚ÌğŒ‚É]‚¢‚Ü‚·BƒT[ƒhƒp[ƒeƒBƒRƒ“ƒ|[ƒlƒ“ƒg‚É‚Â‚¢‚Ä‚ÍA‚»‚ê‚¼‚ê‚Ìƒ‰ƒCƒZƒ“ƒX•¶‘‚ğ“¯«‚µ‚Ä‚¨‚è‚Ü‚·Bv
+buildï¼install scriptã¯source treeã«å«ã¾ã‚Œã¾ã™ã€‚release buildã¯ã€localãŠã‚ˆã³
+å…¬é–‹æ¸ˆã¿ã®v2.6.5 tagãŒå®Ÿè¡Œfileã«ä½¿ç”¨ã—ãŸæ­£ç¢ºãªcommitã‚’æŒ‡ã—ã¦ã„ãªã‘ã‚Œã°
+åœæ­¢ã—ã¾ã™ã€‚è©³ç´°ã¯SOURCE.txtã‚’å‚ç…§ã—ã¦ãã ã•ã„ã€‚
 
-"This redistributed work is subject as a whole to the GPL. The license texts for third-party components are included in this distribution."
+ç¬¬ä¸‰è€…componentã«ã¯ãã‚Œãã‚Œã®licenseãŒé©ç”¨ã•ã‚Œã¾ã™ã€‚VTR-PON2ã¨ä¸€ç·’ã«
+é…å¸ƒã•ã‚Œã‚‹ã“ã¨ã ã‘ã‚’ç†ç”±ã«GPLã¸å¤‰æ›´ã•ã‚Œã‚‹ã‚‚ã®ã§ã¯ã‚ã‚Šã¾ã›ã‚“ã€‚
+THIRD-PARTY-NOTICES.txtã€NPM-DEPENDENCIES-LOCK.jsonã€ãŠã‚ˆã³å­˜åœ¨ã™ã‚‹å ´åˆã¯
+LICENSE.electron.txtã¨LICENSES.chromium.htmlã‚’å‚ç…§ã—ã¦ãã ã•ã„ã€‚
 
-------------------------------
-4. Notice on License Change and Transparency
-------------------------------
-
-Please note that earlier releases of this project may have contained inconsistent or incorrect license
-information. With the ver2.2.1 release, all components are now uniformly distributed under the GPL to ensure
-clarity and compliance. Future releases will continue to adhere to these terms.
-
-‚È‚¨AˆÈ‘O‚ÌƒŠƒŠ[ƒX‚Å‚Íƒ‰ƒCƒZƒ“ƒX•\‹L‚É•s®‡‚ª‚ ‚Á‚½‰Â”\«‚ª‚ ‚è‚Ü‚·‚ªAver2.2.1 ƒŠƒŠ[ƒXˆÈ~A
-‚·‚×‚Ä‚ÌƒRƒ“ƒ|[ƒlƒ“ƒg‚ğ“ˆê‚µ‚Ä GPL ‚Ì‰º‚Å”z•z‚·‚é‚±‚Æ‚É‚æ‚èA“§–¾«‚Æ…–@«‚ğŠm•Û‚µ‚Ä‚¨‚è‚Ü‚·B
-
-
-------------------------------
-5. ATEM Mini Control Notice
-------------------------------
-
-This software includes control functionality for the ATEM Mini series,
-but it does **not** use the official SDK provided by Blackmagic Design.
-Instead, it relies on an **unofficial** control library based on the network protocol.
-
-As such, this feature is **not** supported by Blackmagic Design.
-Use at your own risk.
-
-–{ƒ\ƒtƒgƒEƒFƒA‚É‚Í ATEM Mini ƒVƒŠ[ƒY‚Ì§Œä‹@”\‚ªŠÜ‚Ü‚ê‚Ä‚¢‚Ü‚·‚ªA
-‚±‚ê‚Í Blackmagic Design Ğ‚ª’ñ‹Ÿ‚·‚éŒö® SDK ‚Å‚Í‚È‚­A
-ƒlƒbƒgƒ[ƒN§ŒäƒvƒƒgƒRƒ‹‚ğ‚à‚Æ‚É‚µ‚½ **”ñŒö®ƒ‰ƒCƒuƒ‰ƒŠ** ‚ğg—p‚µ‚Ä‚¢‚Ü‚·B
-
-‚»‚Ì‚½‚ßABlackmagic Design Ğ‚ÌƒTƒ|[ƒg‘ÎÛŠO‚Æ‚È‚è‚Ü‚·B
-‚²g—p‚Í©ŒÈÓ”C‚Å‚¨Šè‚¢‚¢‚½‚µ‚Ü‚·B
-
-------------------------------
-6. Contact Information / ‚¨–â‚¢‡‚í‚¹æ
-------------------------------
-
-For any inquiries regarding this license, please contact:
-info@pondashi.com
-
-ƒ‰ƒCƒZƒ“ƒX‚ÉŠÖ‚·‚é‚¨–â‚¢‡‚í‚¹‚ÍAˆÈ‰º‚Ü‚Å‚²˜A—‚­‚¾‚³‚¢F
-info@pondashi.com
-
-==============================
+VTR-PON2 SPLIT-PON ADDONã¯åˆ¥é€”installã™ã‚‹ç‹¬ç«‹è£½å“ã§ã‚ã‚Šã€VTR-PON2é…å¸ƒç‰©ã¸
+å«ã‚ã¾ã›ã‚“ã€‚ADDONã®ç‹¬è‡ªcodeã«ã¯åˆ¥ã®licenseãŒé©ç”¨ã•ã‚Œã¾ã™ã€‚Windowsç‰ˆã ã‘ãŒ
+machine install markerã‚’é€šã˜ã¦ADDONã‚’æ¤œå‡ºã—ã¾ã™ã€‚macOSç‰ˆã¯ADDONé€£æºã‚’
+èª­ã¿è¾¼ã¾ãšã€UIã«ã‚‚è¡¨ç¤ºã—ã¾ã›ã‚“ã€‚

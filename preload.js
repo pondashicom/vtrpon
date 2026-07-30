@@ -9,6 +9,23 @@ const { pathToFileURL } = require('url');
 const { logInfo, logOpe, logDebug, setLogLevel, LOG_LEVELS } = require('./logger');
 const stateControl = require('./statecontrol');
 const screenLockBackgroundSettingsUtils = require('./screenLockBackgroundSettingsUtils');
+const isFullscreenRenderer =
+    process.argv.includes('--vtrpon2-fullscreen-renderer');
+const splitPonAddonPlatformSupported = process.platform === 'win32';
+const splitPonAudioBridge =
+    splitPonAddonPlatformSupported && isFullscreenRenderer
+        ? require('./splitpon-audio-bridge')
+        : null;
+
+if (splitPonAudioBridge) {
+    ipcRenderer.on('splitpon-audio-set-enabled', (_event, enabled) => {
+        splitPonAudioBridge.setActive(enabled === true);
+    });
+}
+
+window.addEventListener('unload', () => {
+    splitPonAudioBridge?.close();
+});
 
 // ドラッグ＆ドロップイベントのハンドリング
 window.addEventListener('dragover', (e) => {
@@ -27,7 +44,7 @@ window.addEventListener('drop', (e) => {
 });
 
 
-contextBridge.exposeInMainWorld('electronAPI', {
+const electronAPI = {
 
     // -----------------------
     //  プレイリストの状態管理
@@ -451,4 +468,64 @@ contextBridge.exposeInMainWorld('electronAPI', {
     logDebug,
     setLogLevel,
     LOG_LEVELS,
-});
+};
+
+if (splitPonAddonPlatformSupported) {
+    electronAPI.publishSplitPonOperatorMonitorState = (state) =>
+        ipcRenderer.send(
+            'splitpon-operator-monitor-state',
+            state
+        );
+    electronAPI.onSplitPonOperatorMonitorEnabled = (callback) =>
+        ipcRenderer.on(
+            'splitpon-operator-monitor-enabled',
+            (_event, enabled) => callback(enabled === true)
+        );
+}
+
+if (splitPonAudioBridge) {
+    electronAPI.splitPonAudio = {
+        enabled: splitPonAudioBridge.enabled,
+        sendPcm: splitPonAudioBridge.sendPcm,
+        getStats: splitPonAudioBridge.getStats,
+        onEnabled: (callback) => ipcRenderer.on(
+            'splitpon-audio-set-enabled',
+            (_event, enabled) => callback(enabled === true)
+        ),
+    };
+}
+
+if (splitPonAddonPlatformSupported && !isFullscreenRenderer) {
+    electronAPI.splitPonOutputControl = {
+        getStatus: () =>
+            ipcRenderer.invoke('splitpon-output-control-get-status'),
+        setOutputEnabled: (output, enabled) =>
+            ipcRenderer.invoke(
+                'splitpon-output-control-set-output',
+                {
+                    output,
+                    enabled
+                }
+            ),
+        setOsdEnabled: (enabled) =>
+            ipcRenderer.invoke(
+                'splitpon-output-control-set-osd',
+                { enabled }
+            ),
+        onStatus: (callback) => {
+            const listener = (_event, status) => callback(status);
+            ipcRenderer.on(
+                'splitpon-output-control-status',
+                listener
+            );
+            return () => {
+                ipcRenderer.removeListener(
+                    'splitpon-output-control-status',
+                    listener
+                );
+            };
+        }
+    };
+}
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);

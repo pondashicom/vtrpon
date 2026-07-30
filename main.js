@@ -43,6 +43,11 @@ const {
     normalizeScreenLockBackgroundSettings,
     inferScreenLockBackgroundMediaType
 } = require('./screenLockBackgroundSettingsUtils');
+const {
+    loadSplitPonOptionalRuntime
+} = require('./splitPonOptionalRuntime');
+const SPLITPON_ADDON_PLATFORM_SUPPORTED =
+    process.platform === 'win32';
 
 // グローバル変数
 let mainWindow, fullscreenWindow, deviceSettingsWindow, playlistOnAirSettingsWindow, atemSettingsWindow, screenLockBackgroundSettingsWindow;
@@ -645,8 +650,591 @@ const { checkForUpdates, checkForUpdatesFromMenu } = initUpdateCheck();
 const config = loadConfig();
 global.currentLanguage = config.language || 'en';
 screenLockBackgroundSettings = normalizeScreenLockBackgroundSettings(config.screenLockBackground);
+const splitPonOptionalRuntime = loadSplitPonOptionalRuntime({
+    clientVersion: app.getVersion(),
+    allowDevelopmentOverrides: !app.isPackaged
+});
+const splitPonAddonController = splitPonOptionalRuntime.controller;
+const splitPonOperatorMonitorBridge =
+    splitPonOptionalRuntime.operatorMonitorBridge;
+const CAPTURE_BORDER_SETTINGS_URI =
+    splitPonOptionalRuntime.captureBorderSettingsUri;
+const buildCapturePermissionDialogOptions =
+    splitPonOptionalRuntime.buildCapturePermissionDialogOptions;
+if (splitPonOptionalRuntime.initializationError) {
+    console.error(
+        '[main.js] Optional SPLIT-PON integration is unavailable:',
+        splitPonOptionalRuntime.initializationError
+    );
+}
+let splitPonAddonStatus = splitPonAddonController.getStatus();
+let splitPonAddonMenuRefreshPending = false;
+let splitPonOperatorMonitorEnabled = false;
+let splitPonOperatorMonitorOsdDesired = true;
+let splitPonCapturePermissionCheckPending = null;
+let splitPonCapturePermissionAllowed = false;
+let splitPonOutputRequestPending = Promise.resolve();
+let splitPonPresentationRevision = 0;
+
+splitPonOperatorMonitorBridge.onCloseRequested?.(() => {
+    const current = splitPonAddonController.getStatus();
+    if (current.outputs.operatorMonitor.desired !== true) return;
+    console.log(
+        '[main.js] Operator Monitor window close requested output OFF'
+    );
+    void requestSplitPonOperatorMonitorEnabled(false).catch((error) => {
+        console.error(
+            '[main.js] Operator Monitor window close OFF failed:',
+            error
+        );
+    });
+});
+
+function sendSplitPonAudioEnabled(enabled) {
+    if (
+        !SPLITPON_ADDON_PLATFORM_SUPPORTED ||
+        !fullscreenWindow ||
+        fullscreenWindow.isDestroyed() ||
+        fullscreenWindow.webContents.isDestroyed()
+    ) {
+        return;
+    }
+    fullscreenWindow.webContents.send(
+        'splitpon-audio-set-enabled',
+        enabled === true
+    );
+}
+
+function sendSplitPonOperatorMonitorEnabled() {
+    if (
+        !SPLITPON_ADDON_PLATFORM_SUPPORTED ||
+        !mainWindow ||
+        mainWindow.isDestroyed()
+    ) return;
+    mainWindow.webContents.send(
+        'splitpon-operator-monitor-enabled',
+        splitPonOperatorMonitorEnabled
+    );
+}
+
+function setSplitPonOperatorMonitorEnabled(enabled) {
+    const nextEnabled =
+        splitPonOperatorMonitorBridge.enabled && enabled === true;
+    if (splitPonOperatorMonitorEnabled === nextEnabled) return;
+    splitPonOperatorMonitorEnabled = nextEnabled;
+    if (!splitPonOperatorMonitorEnabled) {
+        splitPonOperatorMonitorBridge.publish({
+            enabled: false
+        });
+    }
+    sendSplitPonOperatorMonitorEnabled();
+}
+
+function refreshSplitPonOperatorMonitorEnabled() {
+    const operatorMonitorRunning =
+        splitPonAddonStatus.outputs.operatorMonitor.desired &&
+        splitPonAddonStatus.outputs.operatorMonitor.observedState ===
+            'running';
+    setSplitPonOperatorMonitorEnabled(
+        splitPonOperatorMonitorOsdDesired &&
+        operatorMonitorRunning
+    );
+}
+
+function setSplitPonOperatorMonitorOsdDesired(enabled) {
+    splitPonOperatorMonitorOsdDesired = enabled === true;
+    refreshSplitPonOperatorMonitorEnabled();
+    sendSplitPonOutputControlStatus();
+    if (app.isReady()) rebuildMenu();
+}
+
+async function checkSplitPonCapturePermission() {
+    if (splitPonCapturePermissionCheckPending) {
+        return splitPonCapturePermissionCheckPending;
+    }
+    splitPonCapturePermissionCheckPending =
+        splitPonAddonController.checkCaptureBorderAccess();
+    try {
+        return await splitPonCapturePermissionCheckPending;
+    } finally {
+        splitPonCapturePermissionCheckPending = null;
+    }
+}
+
+async function ensureSplitPonCapturePermission() {
+    if (splitPonCapturePermissionAllowed) return true;
+    const checked = await checkSplitPonCapturePermission();
+    if (!checked.ok || !checked.access) {
+        await showSplitPonAddonStatus('error');
+        return false;
+    }
+    if (checked.access.allowed) {
+        splitPonCapturePermissionAllowed = true;
+        return true;
+    }
+
+    const labels =
+        require('./labels.js')[global.currentLanguage] ||
+        require('./labels.js').en;
+    const result = await dialog.showMessageBox(
+        mainWindow,
+        buildCapturePermissionDialogOptions(labels)
+    );
+    if (result.response === 0) {
+        await shell.openExternal(
+            checked.access.settingsUri ||
+            CAPTURE_BORDER_SETTINGS_URI
+        );
+    }
+    return false;
+}
+
+function getSplitPonPresentation() {
+    if (
+        !fullscreenWindow ||
+        fullscreenWindow.isDestroyed() ||
+        fullscreenWindow.webContents.isDestroyed()
+    ) {
+        return null;
+    }
+    const handle = fullscreenWindow.getNativeWindowHandle();
+    let value = 0n;
+    if (handle.length >= 8) {
+        value = handle.readBigUInt64LE(0);
+    } else if (handle.length >= 4) {
+        value = BigInt(handle.readUInt32LE(0));
+    }
+    const rendererPid =
+        fullscreenWindow.webContents.getOSProcessId();
+    if (value === 0n || !Number.isSafeInteger(rendererPid) ||
+        rendererPid <= 0) {
+        return null;
+    }
+    splitPonPresentationRevision += 1;
+    return {
+        fullscreenHwnd: `0x${value.toString(16)}`,
+        rendererPid,
+        presentationRevision: splitPonPresentationRevision
+    };
+}
+
+function requestSplitPonOutputEnabled(output, enabled) {
+    const run = async () => {
+        const current = splitPonAddonController.getStatus();
+        const desired = {
+            ndi: current.outputs.ndi.desired,
+            operatorMonitor:
+                current.outputs.operatorMonitor.desired,
+            [output]: enabled === true
+        };
+        if (
+            desired.ndi === current.outputs.ndi.desired &&
+            desired.operatorMonitor ===
+                current.outputs.operatorMonitor.desired
+        ) {
+            return;
+        }
+
+        const firstOutputStarting =
+            (desired.ndi || desired.operatorMonitor) &&
+            !current.sharedCaptureDesired;
+        if (
+            firstOutputStarting &&
+            !(await ensureSplitPonCapturePermission())
+        ) {
+            return;
+        }
+        if (desired.ndi || desired.operatorMonitor) {
+            sendSplitPonAudioEnabled(true);
+            const presentation = getSplitPonPresentation();
+            if (!presentation) {
+                if (!current.sharedCaptureDesired) {
+                    sendSplitPonAudioEnabled(false);
+                }
+                await showSplitPonAddonStatus('error');
+                return;
+            }
+            const updated =
+                await splitPonAddonController.updatePresentation(
+                    presentation
+                );
+            if (!updated.ok) {
+                if (!current.sharedCaptureDesired) {
+                    sendSplitPonAudioEnabled(false);
+                }
+                await showSplitPonAddonStatus('error');
+                return;
+            }
+        }
+
+        const result =
+            await splitPonAddonController.setOutputs(desired);
+        if (!result.ok) {
+            if (!current.sharedCaptureDesired) {
+                sendSplitPonAudioEnabled(false);
+            }
+            await showSplitPonAddonStatus('error');
+        } else if (!desired.ndi && !desired.operatorMonitor) {
+            sendSplitPonAudioEnabled(false);
+        }
+    };
+    const pending = splitPonOutputRequestPending.then(run, run);
+    splitPonOutputRequestPending = pending.catch(() => {});
+    return pending;
+}
+
+async function refreshSplitPonPresentationIfActive() {
+    if (
+        !splitPonAddonController.getStatus().sharedCaptureDesired
+    ) {
+        return;
+    }
+    const presentation = getSplitPonPresentation();
+    if (!presentation) return;
+    sendSplitPonAudioEnabled(true);
+    const updated =
+        await splitPonAddonController.updatePresentation(
+            presentation
+        );
+    if (!updated.ok) {
+        console.error(
+            '[main.js] SPLIT-PON presentation refresh failed:',
+            updated.error
+        );
+    }
+}
+
+async function requestSplitPonOperatorMonitorEnabled(enabled) {
+    return requestSplitPonOutputEnabled(
+        'operatorMonitor',
+        enabled
+    );
+}
+
+function getSplitPonOutputControlStatus() {
+    const status = splitPonAddonController.getStatus();
+    return {
+        installed: status.installed === true,
+        available: status.available === true,
+        repairRequired:
+            status.installed === true && status.available !== true,
+        state: String(status.state || 'unavailable'),
+        outputs: {
+            ndi: {
+                desired: status.outputs.ndi.desired === true,
+                observedState: String(
+                    status.outputs.ndi.observedState || 'stopped'
+                )
+            },
+            operatorMonitor: {
+                desired:
+                    status.outputs.operatorMonitor.desired === true,
+                observedState: String(
+                    status.outputs.operatorMonitor.observedState ||
+                    'stopped'
+                )
+            }
+        },
+        osd: {
+            desired: splitPonOperatorMonitorOsdDesired,
+            enabled: splitPonOperatorMonitorEnabled
+        }
+    };
+}
+
+function sendSplitPonOutputControlStatus() {
+    if (
+        !SPLITPON_ADDON_PLATFORM_SUPPORTED ||
+        !mainWindow ||
+        mainWindow.isDestroyed() ||
+        mainWindow.webContents.isDestroyed()
+    ) {
+        return;
+    }
+    mainWindow.webContents.send(
+        'splitpon-output-control-status',
+        getSplitPonOutputControlStatus()
+    );
+}
+
+function requireSplitPonOutputControlSender(event) {
+    if (
+        !mainWindow ||
+        mainWindow.isDestroyed() ||
+        event.sender !== mainWindow.webContents
+    ) {
+        throw new Error('SPLIT-PON output control sender is not allowed');
+    }
+}
+
+function requireAvailableSplitPonOutputControl() {
+    const status = splitPonAddonController.getStatus();
+    if (status.installed !== true || status.available !== true) {
+        throw new Error('SPLIT-PON output control is unavailable');
+    }
+}
+
+if (SPLITPON_ADDON_PLATFORM_SUPPORTED) {
+    ipcMain.handle('splitpon-output-control-get-status', (event) => {
+        requireSplitPonOutputControlSender(event);
+        return getSplitPonOutputControlStatus();
+    });
+
+    ipcMain.handle(
+        'splitpon-output-control-set-output',
+        async (event, payload) => {
+            requireSplitPonOutputControlSender(event);
+            requireAvailableSplitPonOutputControl();
+            if (
+                !payload ||
+                !['ndi', 'operatorMonitor'].includes(payload.output) ||
+                typeof payload.enabled !== 'boolean'
+            ) {
+                throw new Error('Invalid SPLIT-PON output request');
+            }
+            await requestSplitPonOutputEnabled(
+                payload.output,
+                payload.enabled
+            );
+            return getSplitPonOutputControlStatus();
+        }
+    );
+
+    ipcMain.handle(
+        'splitpon-output-control-set-osd',
+        (event, payload) => {
+            requireSplitPonOutputControlSender(event);
+            requireAvailableSplitPonOutputControl();
+            if (!payload || typeof payload.enabled !== 'boolean') {
+                throw new Error('Invalid SPLIT-PON OSD request');
+            }
+            setSplitPonOperatorMonitorOsdDesired(payload.enabled);
+            return getSplitPonOutputControlStatus();
+        }
+    );
+
+    ipcMain.on('splitpon-operator-monitor-state', (event, payload) => {
+        if (
+            !mainWindow ||
+            mainWindow.isDestroyed() ||
+            event.sender !== mainWindow.webContents
+        ) {
+            return;
+        }
+        splitPonOperatorMonitorBridge.publish({
+            ...(payload && typeof payload === 'object' ? payload : {}),
+            enabled: splitPonOperatorMonitorEnabled
+        });
+    });
+}
+
+splitPonAddonController.on('status', (status) => {
+    splitPonAddonStatus = status;
+    if (!status.hostRunning) {
+        sendSplitPonAudioEnabled(false);
+    }
+    if (
+        status.outputs.operatorMonitor.desired === true &&
+        status.outputs.operatorMonitor.observedState === 'running' &&
+        splitPonOperatorMonitorBridge.getStats().connected !== true
+    ) {
+        splitPonOperatorMonitorBridge.reconnectNow?.();
+    }
+    refreshSplitPonOperatorMonitorEnabled();
+    sendSplitPonOutputControlStatus();
+    console.log(
+        `[main.js] SPLIT-PON Addon state=${status.state}` +
+        ` host=${status.hostRunning ? 'running' : 'stopped'}` +
+        ` ndi=${status.outputs.ndi.observedState}` +
+        ` operatorMonitor=` +
+        `${status.outputs.operatorMonitor.observedState}` +
+        ` sharedCapture=${status.sharedCaptureObservedState}`
+    );
+    if (status.error) {
+        console.error(
+            `[main.js] SPLIT-PON Addon ${status.error.scope}/${status.error.code}:` +
+            ` ${status.error.message}`
+        );
+    }
+    if (splitPonAddonMenuRefreshPending || !app.isReady()) return;
+    splitPonAddonMenuRefreshPending = true;
+    setImmediate(() => {
+        splitPonAddonMenuRefreshPending = false;
+        rebuildMenu();
+    });
+});
+
+function splitPonAddonMenuLabel(labels) {
+    if (
+        splitPonAddonStatus.installed === true &&
+        splitPonAddonStatus.available !== true
+    ) {
+        return (
+            `${labels["menu-tools-splitpon-addon"]} ` +
+            `[${labels["menu-tools-splitpon-addon-state-repair-required"]}]`
+        );
+    }
+    const stateLabel =
+        labels[`menu-tools-splitpon-addon-state-${splitPonAddonStatus.state}`] ||
+        splitPonAddonStatus.state;
+    return `${labels["menu-tools-splitpon-addon"]} [${stateLabel}]`;
+}
+
+function splitPonAddonStatusDetail() {
+    const isJapanese = global.currentLanguage === 'ja';
+    const error = splitPonAddonStatus.error;
+    const lines = isJapanese
+        ? [
+            `利用可能: ${splitPonAddonStatus.available ? 'はい' : 'いいえ'}`,
+            `Manifest: ${splitPonAddonStatus.manifestVersion ?? '-'}`,
+            `ADDON host: ${splitPonAddonStatus.hostRunning ? '起動中' : '停止'} (PID ${splitPonAddonStatus.hostPid ?? '-'})`,
+            `状態: ${splitPonAddonStatus.state}`,
+            `共有Input/Core: ${splitPonAddonStatus.sharedCaptureObservedState}`,
+            `NDI: desired=${splitPonAddonStatus.outputs.ndi.desired ? 'ON' : 'OFF'}, observed=${splitPonAddonStatus.outputs.ndi.observedState}`,
+            `オペレーターモニター: desired=${splitPonAddonStatus.outputs.operatorMonitor.desired ? 'ON' : 'OFF'}, observed=${splitPonAddonStatus.outputs.operatorMonitor.observedState}`
+        ]
+        : [
+            `Available: ${splitPonAddonStatus.available ? 'yes' : 'no'}`,
+            `Manifest: ${splitPonAddonStatus.manifestVersion ?? '-'}`,
+            `ADDON host: ${splitPonAddonStatus.hostRunning ? 'running' : 'stopped'} (PID ${splitPonAddonStatus.hostPid ?? '-'})`,
+            `State: ${splitPonAddonStatus.state}`,
+            `Shared Input/Core: ${splitPonAddonStatus.sharedCaptureObservedState}`,
+            `NDI: desired=${splitPonAddonStatus.outputs.ndi.desired ? 'ON' : 'OFF'}, observed=${splitPonAddonStatus.outputs.ndi.observedState}`,
+            `Operator Monitor: desired=${splitPonAddonStatus.outputs.operatorMonitor.desired ? 'ON' : 'OFF'}, observed=${splitPonAddonStatus.outputs.operatorMonitor.observedState}`
+        ];
+    if (splitPonAddonStatus.unavailableReason) {
+        lines.push(
+            `${isJapanese ? '利用不可理由' : 'Unavailable reason'}: ` +
+            splitPonAddonStatus.unavailableReason
+        );
+    }
+    if (error) {
+        lines.push(
+            `${isJapanese ? 'エラー' : 'Error'}: ` +
+            `${error.scope}/${error.code} (${error.nativeCode})`,
+            error.message
+        );
+    }
+    return lines.join('\n');
+}
+
+async function showSplitPonAddonStatus(type = 'info') {
+    await splitPonAddonController.refresh();
+    const labels = require('./labels.js')[global.currentLanguage];
+    await dialog.showMessageBox(mainWindow, {
+        type,
+        title: labels["menu-tools-splitpon-status-title"],
+        message: splitPonAddonMenuLabel(labels),
+        detail: splitPonAddonStatusDetail(),
+        buttons: ['OK']
+    });
+}
+
+async function stopSplitPonAddon() {
+    const result = await splitPonAddonController.stop();
+    if (!result.ok) {
+        await showSplitPonAddonStatus('error');
+    } else {
+        sendSplitPonAudioEnabled(false);
+    }
+}
 
 // メニュー生成
+function isSplitPonOutputTransitioning(output) {
+    return ['starting', 'stopping'].includes(
+        splitPonAddonStatus.outputs[output].observedState
+    );
+}
+
+function buildSplitPonAddonMenuItems(labels) {
+    if (
+        !SPLITPON_ADDON_PLATFORM_SUPPORTED ||
+        splitPonAddonStatus.installed !== true
+    ) return [];
+    const controlsAvailable =
+        splitPonAddonStatus.available === true;
+    const operatorMonitorActive =
+        splitPonAddonStatus.outputs.operatorMonitor.observedState ===
+            'running';
+    return [
+        {
+          label: splitPonAddonMenuLabel(labels),
+          submenu: [
+            {
+              label: labels["menu-tools-splitpon-output-operator-window"],
+              type: 'checkbox',
+              checked:
+                splitPonAddonStatus.outputs.operatorMonitor.desired,
+              enabled:
+                controlsAvailable &&
+                !isSplitPonOutputTransitioning('operatorMonitor'),
+              click: () => {
+                void requestSplitPonOperatorMonitorEnabled(
+                  !splitPonAddonStatus.outputs.operatorMonitor.desired
+                );
+              }
+            },
+            {
+              label: labels["menu-tools-splitpon-output-osd"],
+              type: 'checkbox',
+              checked: splitPonOperatorMonitorEnabled,
+              enabled:
+                controlsAvailable &&
+                operatorMonitorActive &&
+                !isSplitPonOutputTransitioning('operatorMonitor'),
+              click: () => {
+                setSplitPonOperatorMonitorOsdDesired(
+                  !splitPonOperatorMonitorOsdDesired
+                );
+              }
+            },
+            {
+              label: labels["menu-tools-splitpon-output-ndi"],
+              type: 'checkbox',
+              checked: splitPonAddonStatus.outputs.ndi.desired,
+              enabled:
+                controlsAvailable &&
+                !isSplitPonOutputTransitioning('ndi'),
+              click: () => {
+                void requestSplitPonOutputEnabled(
+                  'ndi',
+                  !splitPonAddonStatus.outputs.ndi.desired
+                );
+              }
+            },
+            {
+              label: labels["menu-tools-splitpon-ndi-info"],
+              click: () => {
+                void shell.openExternal('https://ndi.video/').catch(
+                  (error) => {
+                    console.error(
+                      '[main.js] Failed to open NDI website:',
+                      error
+                    );
+                  }
+                );
+              }
+            },
+            { type: 'separator' },
+            {
+              label: labels["menu-tools-splitpon-addon-stop"],
+              enabled: splitPonAddonStatus.hostRunning,
+              click: () => {
+                void stopSplitPonAddon();
+              }
+            },
+            {
+              label: labels["menu-tools-splitpon-addon-status"],
+              click: () => {
+                void showSplitPonAddonStatus();
+              }
+            }
+          ]
+        },
+        { type: 'separator' }
+    ];
+}
+
 function buildMenuTemplate(labels) {
   const isMac = process.platform === 'darwin';
   const opt = isMac ? 'Option' : 'Alt';
@@ -1074,14 +1662,6 @@ function buildMenuTemplate(labels) {
           }
         },
         {
-          label: labels["menu-tools-operator-monitor-output"],
-          click: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('toggle-operator-monitor-output');
-            }
-          }
-        },
-        {
           label: labels["menu-screen-lock"],
           type: 'normal',
           enabled: !isScreenLocked,
@@ -1106,6 +1686,7 @@ function buildMenuTemplate(labels) {
     {
       label: labels["menu-tools"],
       submenu: [
+        ...buildSplitPonAddonMenuItems(labels),
         {
           label: 'Clock Sync',
           click: () => {
@@ -1186,12 +1767,39 @@ function buildMenuTemplate(labels) {
         {
           label: labels["menu-about"],
           click: () => {
-            dialog.showMessageBox(mainWindow, {
+            const splitPonNotice =
+              SPLITPON_ADDON_PLATFORM_SUPPORTED
+                ? '\n\nThe separately installed SPLIT-PON ADDON provides NDI® Output. NDI® is a registered trademark of Vizrt NDI AB.'
+                : '';
+            void dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: 'About',
-              message: `VTR-PON 2 \nVersion: ${app.getVersion()}\nCopyright (c) 2024-2026 Tetsu Suzuki All Rights Reserved.\n\nThis project "VTR-PON 2" is distributed under the terms of the GNU General Public License
-Version 3 (or, at your option, any later version). The entire distribution (both source code and executable binaries) is subject to the GPL.`,
-              buttons: ['OK']
+              message: `VTR-PON 2\nVersion: ${app.getVersion()}\nCopyright (c) 2024-2026 Tetsu Suzuki\n\nVTR-PON2 program code is licensed under GNU GPL-3.0-or-later. Third-party components remain under their respective licenses.${splitPonNotice}`,
+              detail:
+                SPLITPON_ADDON_PLATFORM_SUPPORTED
+                  ? 'NDI: https://ndi.video/'
+                  : '',
+              buttons:
+                SPLITPON_ADDON_PLATFORM_SUPPORTED
+                  ? ['OK', 'Source code', 'NDI® website']
+                  : ['OK', 'Source code'],
+              defaultId: 0,
+              cancelId: 0
+            }).then(({ response }) => {
+              if (response === 1) {
+                return shell.openExternal(
+                  'https://github.com/pondashicom/vtrpon/tree/v2.6.5'
+                );
+              }
+              if (
+                SPLITPON_ADDON_PLATFORM_SUPPORTED &&
+                response === 2
+              ) {
+                return shell.openExternal('https://ndi.video/');
+              }
+              return undefined;
+            }).catch((error) => {
+              console.error('[main.js] About dialog failed:', error);
             });
           }
         },
@@ -1307,6 +1915,8 @@ function createMainWindow() {
 
     // 言語通知とタイトル
     mainWindow.webContents.send('language-changed', global.currentLanguage);
+    sendSplitPonOperatorMonitorEnabled();
+    sendSplitPonOutputControlStatus();
     mainWindow.setTitle(`VTR-PON2  ver.${app.getVersion()}`);
   });
 
@@ -1352,6 +1962,7 @@ function createFullscreenWindow() {
         fullscreenable: isMac ? false : true, 
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
+            additionalArguments: ['--vtrpon2-fullscreen-renderer'],
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: false,
@@ -1360,6 +1971,9 @@ function createFullscreenWindow() {
     });
 
     fullscreenWindow.loadFile('fullscreen.html');
+    fullscreenWindow.webContents.on('did-finish-load', () => {
+        void refreshSplitPonPresentationIfActive();
+    });
     fullscreenWindow.setMenuBarVisibility(false);
 
     if (isMac) {
@@ -3042,6 +3656,7 @@ function macRecreateFullscreenWindow(html = 'fullscreen.html') {
       backgroundColor: '#000',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
+        additionalArguments: ['--vtrpon2-fullscreen-renderer'],
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false
@@ -3099,6 +3714,31 @@ function removeOldPlaylistFile() {
 // --------------------------------
 // 終了処理
 // --------------------------------
+
+let splitPonAddonQuitPending = false;
+const SPLITPON_ADDON_QUIT_DEADLINE_MS = 4_000;
+app.on('before-quit', (event) => {
+    sendSplitPonAudioEnabled(false);
+    splitPonOperatorMonitorBridge.publish({ enabled: false });
+    splitPonOperatorMonitorBridge.close();
+    if (splitPonAddonQuitPending) return;
+    const addonStatus = splitPonAddonController.getStatus();
+    if (
+        !addonStatus.hostRunning &&
+        addonStatus.state !== 'starting'
+    ) return;
+    event.preventDefault();
+    splitPonAddonQuitPending = true;
+    splitPonAddonController.shutdown(
+        SPLITPON_ADDON_QUIT_DEADLINE_MS
+    )
+        .catch((error) => {
+            console.error('[main.js] SPLIT-PON Addon shutdown failed:', error);
+        })
+        .finally(() => {
+            app.quit();
+        });
+});
 
 // グローバルショートカットリリース
 app.on('browser-window-blur', () => {

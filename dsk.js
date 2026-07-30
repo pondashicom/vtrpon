@@ -436,6 +436,7 @@ window.dskModule = {
     clearOnAirDSK: clearOnAirDSK,
     pauseOnAirDSK: pauseOnAirDSK,
     playOnAirDSK: playOnAirDSK,
+    isOnAirDSKActuallyActive: isOnAirDSKActuallyActive,
     getCurrentDSKItem: function() { return currentDSKItem; },
     setCurrentDSKItemById: setCurrentDSKItemById
 };

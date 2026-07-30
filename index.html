@@ -26,6 +26,7 @@
     <script src="capture.js" defer></script>
     <script src="testpattern.js"></script>
     <script src="livemode.js" defer></script>
+    <script src="splitpon-output-control.js" defer></script>
     <script src="renderer.js" defer></script>
 </head>
 <body>
@@ -183,8 +184,8 @@
             </div>
             
             <!-- OTHER SOURCE -->
-            <h2 data-label-id="other-source-title"></h2>
-            <div id="control-area" class="control-area">
+            <h2 class="other-source-heading" data-label-id="other-source-title"></h2>
+            <div id="control-area" class="control-area other-source-uvc-panel">
                 <p data-label-id="uvc-device"></p>
                 <div id="device-selection-container">
                     <select id="uvcDeviceDropdown"></select>
@@ -203,6 +204,29 @@
                     <div class="still-capture-col">
                         <span id="pptxDissolveLabel" data-label-id="pptxDissolve"></span>
                         <input type="checkbox" id="pptxDissolve" data-tooltip-id="pptxDissolve">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ADDITIONAL OUTPUT CONTROL -->
+            <div id="splitpon-output-control" class="output-control-section" hidden>
+                <h2 class="output-control-heading">
+                    <span data-label-id="output-control-title"></span>
+                    <span id="output-control-status" class="output-control-status"></span>
+                </h2>
+                <div class="control-area output-control-panel output-control-operator-panel">
+                    <div class="output-control-group-items">
+                        <div class="output-control-item output-control-operator-window">
+                            <button id="output-control-operator-window-toggle" class="button button-gray" type="button" data-label-id="output-control-operator-window" aria-pressed="false"></button>
+                        </div>
+                        <div class="output-control-item output-control-osd">
+                            <button id="output-control-osd-toggle" class="button button-gray" type="button" data-label-id="output-control-osd" aria-pressed="false"></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="control-area output-control-panel output-control-ndi-panel">
+                    <div class="output-control-item output-control-ndi">
+                        <button id="output-control-ndi-toggle" class="button button-gray" type="button" data-label-id="output-control-ndi" aria-pressed="false"></button>
                     </div>
                 </div>
             </div>

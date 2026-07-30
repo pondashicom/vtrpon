@@ -1,0 +1,57 @@
+VTR-PON2 2.6.5 SOURCE INFORMATION
+
+VTR-PON2 Corresponding Source
+-----------------------------
+
+Repository:
+https://github.com/pondashicom/vtrpon
+
+Exact release tag:
+v2.6.5
+
+Browsable source:
+https://github.com/pondashicom/vtrpon/tree/v2.6.5
+
+Source archive:
+https://github.com/pondashicom/vtrpon/archive/refs/tags/v2.6.5.zip
+
+The source tree includes package.json, package-lock.json, build configuration,
+JavaScript/HTML/CSS sources, tests, and the scripts needed to build the
+distributed application. The standard release scripts refuse to build unless:
+
+1. the worktree is clean;
+2. the local v2.6.5 tag points to the build commit;
+3. the published origin v2.6.5 tag points to the same commit; and
+4. origin is https://github.com/pondashicom/vtrpon.git.
+
+The source must remain available for as long as the object code is distributed.
+The release download page must provide clear access to this source next to the
+binary download.
+
+Third-party Corresponding Source
+--------------------------------
+
+The Windows and macOS distributions also contain platform-specific prebuilt
+FFmpeg/ffprobe binaries.
+Upstream sources for the fixed binary versions are:
+
+- FFmpeg 6.1.1:
+  https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+- FFmpeg 4.0.2:
+  https://ffmpeg.org/releases/ffmpeg-4.0.2.tar.xz
+
+Package wrapper sources and exact npm versions are identified in
+THIRD-PARTY-NOTICES.txt and NPM-DEPENDENCIES-LOCK.json.
+
+日本語
+------
+
+VTR-PON2 2.6.5実行fileに対応するsourceは、上記repositoryのv2.6.5 tagです。
+buildに使う変更、build script、package-lock、testを含む完全なtreeを公開します。
+binaryを公開するdownload pageでは、同じ場所または明確な案内によってこのsourceへ
+同等にaccessできるようにします。公開tagとbuild commitが一致しない場合、標準の
+release scriptは配布buildを停止します。
+
+Windows版とmacOS版は、それぞれのplatform向けにbuildされたFFmpeg／ffprobe
+binaryを含みます。固定versionの上流sourceとnpm wrapper sourceは上記および
+THIRD-PARTY-NOTICES.txtに記載します。

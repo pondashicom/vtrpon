@@ -1,76 +1,86 @@
-==============================
-  Third-Party Licenses for VTR-PON 2
-==============================
+VTR-PON2 2.6.5 THIRD-PARTY NOTICES
 
-This file contains the license information for third-party components included in the VTR-PON 2 project.
-Please review the following licenses for details regarding the terms under which these components are distributed.
+This file identifies the principal third-party components in the Windows x64
+and macOS x64/arm64 distributions. Exact npm dependency versions and integrity
+hashes are installed as NPM-DEPENDENCIES-LOCK.json. Package license files remain
+included with their packages. Third-party terms apply only to the components
+they cover.
 
-�{�t�@�C���́AVTR-PON 2 �v���W�F�N�g�Ɋ܂܂��T�[�h�p�[�e�B�R���|�[�l���g�̃��C�Z���X�����܂Ƃ߂����̂ł��B
-�e�R���|�[�l���g�̏ڍׂȃ��C�Z���X�����ɂ��ẮA�ȉ������m�F���������B
+1. Electron runtime
 
---------------------------------------------------
-1. Electron
---------------------------------------------------
-License: MIT License
+- Electron 39.8.6: MIT License
+- Node.js and Chromium components: their respective licenses
+- Installed notices produced by the Electron distribution:
+  LICENSE.electron.txt and LICENSES.chromium.html
+- Project: https://www.electronjs.org/
 
-Electron is distributed under the MIT License. For the full text of the Electron MIT License,
-please refer to the file "electron-license.txt" included in this distribution or visit:
-https://electronjs.org/docs/latest/tutorial/licensing
+2. Production npm dependencies
 
---------------------------------------------------
-2. Node.js
---------------------------------------------------
-License: MIT License
+- atem-connection 3.9.0: MIT
+- ffmpeg-static 5.3.0: GPL-3.0-or-later
+- ffprobe-static 3.1.0 wrapper: MIT
+- fix-webm-duration 1.0.6: MIT
+- fluent-ffmpeg 2.1.3: MIT
+- node-fetch 3.3.2: MIT
+- papaparse 5.5.3: MIT
+- winax 3.6.5: MIT (Windows only)
 
-Node.js is distributed under the MIT License. For the full text of the Node.js MIT License,
-please refer to the file "nodejs-license.txt" included in this distribution or visit:
-https://github.com/nodejs/node/blob/master/LICENSE
+The transitive package inventory is fixed by NPM-DEPENDENCIES-LOCK.json.
+It includes MIT, ISC, BSD/0BSD, and Apache-2.0 components. The full license
+notice shipped inside each npm package remains part of the installed
+application. A package license is not replaced by the VTR-PON2 GPL.
 
---------------------------------------------------
-3. FFmpeg / ffprobe
---------------------------------------------------
-License: GNU General Public License (GPL)
+3. FFmpeg and ffprobe executable binaries
 
-The versions of FFmpeg and ffprobe included in this project are distributed under the GNU General Public License.
-For the complete text of the GPL, please refer to the accompanying file "GPL.txt" in this distribution or visit:
-https://www.gnu.org/licenses/gpl-3.0.txt
+ffmpeg-static 5.3.0 selects FFmpeg 6.1.1 for its binary release and is
+GPL-3.0-or-later. ffprobe-static 3.1.0 includes an FFprobe 4.0.2 binary whose
+reported build configuration enables GPL and version-3 components. The GNU
+GPL v3 text is installed as COPYING.
 
+Corresponding upstream sources:
 
---------------------------------------------------
-4. winax
---------------------------------------------------
-License: MIT License
+- FFmpeg 6.1.1: https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+- FFmpeg 4.0.2: https://ffmpeg.org/releases/ffmpeg-4.0.2.tar.xz
+- ffmpeg-static package:
+  https://github.com/eugeneware/ffmpeg-static/tree/5.3.0
+- ffprobe-static package:
+  https://github.com/joshwnj/ffprobe-static/tree/3.1.0
 
-winax is distributed under the MIT License. It is a lightweight library for COM automation in Node.js, allowing integration with Windows COM objects (such as Microsoft Office applications). For the full text of the MIT License for winax, please refer to its repository or the file "winax-license.txt" included with the package, or visit: https://github.com/durs/node-winax
+Codec and patent permissions are separate from copyright licenses and may
+depend on use and jurisdiction. This notice does not claim that every codec
+use is patent-cleared.
 
---------------------------------------------------
-5. atem-connection
---------------------------------------------------
-License: MIT License
+4. Blackmagic Design ATEM control
 
-atem-connection is distributed under the MIT License. It provides an API for controlling Blackmagic Design ATEM switchers from Node.js. For the full text of the MIT License for atem-connection, please refer to its repository or the file "LICENSE" in the atem-connection package, or visit: https://github.com/nrkno/atem-connection/blob/main/LICENSE
+VTR-PON2 uses the independently developed MIT-licensed atem-connection
+library and does not bundle or use the Blackmagic Design ATEM SDK.
+This integration is not endorsed or supported by Blackmagic Design.
 
---------------------------------------------------
-6. Other Dependencies
---------------------------------------------------
-For other third-party libraries and components used in this project,
-please refer to their respective documentation or license files included in the distribution.
+5. Microsoft PowerPoint
 
-�� This file is provided for informational purposes only. The full text of each license is available in the respective license files or at the provided URLs.
+Microsoft PowerPoint is proprietary third-party software and is not bundled.
+PPTX-related functions require a separately licensed local installation.
+https://www.microsoft.com/microsoft-365/powerpoint
 
---------------------------------------------------
-7. Microsoft PowerPoint (Required Software)
---------------------------------------------------
-License: Proprietary (Microsoft Corporation)
+6. Separately installed SPLIT-PON ADDON
 
-This software utilizes Microsoft PowerPoint for processing PPTX files.  
-Microsoft PowerPoint is proprietary software owned by Microsoft Corporation and is not included in this distribution.  
-Users must have a properly licensed version of Microsoft PowerPoint installed on their system in order to use the PPTX-related features of this software.
+VTR-PON2 SPLIT-PON ADDON, GStreamer, and the NDI Runtime are not included in
+the VTR-PON2 distribution. Their notices and terms are supplied by the
+separate ADDON installer and the applicable runtime providers.
+The ADDON integration is available only in the Windows version. The macOS
+version does not load or expose its NDI or Operator Monitor outputs.
 
-For more information on Microsoft PowerPoint and its licensing, please visit:
-https://www.microsoft.com/en-us/microsoft-365/powerpoint
+----------------------------------------------------------------------
 
---------------------------------------------------
+日本語要約
 
+本書はWindows x64およびmacOS x64／arm64配布物の主要な第三者componentを示します。
+正確なnpm dependency versionとintegrity hashはNPM-DEPENDENCIES-LOCK.jsonへ
+固定します。第三者licenseは各componentにだけ適用され、VTR-PON2と同梱するだけで
+GPLへ変更されません。ADDON連携はWindows版だけが対象であり、macOS版はNDIおよび
+Operator Monitor出力を読み込まず、UIにも表示しません。
 
-==============================
+Electron配布物が生成するLICENSE.electron.txtとLICENSES.chromium.html、
+各npm package内のlicense file、COPYING、および上記source linkをあわせて
+参照してください。FFmpeg／ffprobeのcodec・patent条件はcopyright licenseとは
+別問題であり、利用方法と地域に応じた確認が必要です。
