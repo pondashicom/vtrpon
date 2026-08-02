@@ -4,6 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const {
+    normalizeOriginUrl
+} = require('../scripts/verify-release-source');
 
 const repoRoot = path.resolve(__dirname, '..');
 
@@ -33,6 +36,14 @@ test('2.6.5 release exposes GPL, source, notices, and dependency lock', () => {
         destinations.get('NPM-DEPENDENCIES-LOCK.json'),
         'package-lock.json'
     );
+    assert.doesNotMatch(
+        packageJson.scripts.build,
+        /verify:release-source/
+    );
+    assert.match(
+        packageJson.scripts['build:release'],
+        /verify:release-source/
+    );
     for (const script of [
         'dist:win',
         'dist:mac-arm64',
@@ -55,6 +66,33 @@ test('2.6.5 release exposes GPL, source, notices, and dependency lock', () => {
             `Build output must be excluded from app.asar: ${excludedOutput}`
         );
     }
+});
+
+test('CI and release builds use separate source-verification gates', () => {
+    const workflow = read('.github/workflows/build.yml');
+    const tagConditions = workflow.match(
+        /if: startsWith\(github\.ref, 'refs\/tags\/v'\)/g
+    ) || [];
+    const releaseChecks = workflow.match(
+        /run: npm run verify:release-source/g
+    ) || [];
+    const fullCheckouts = workflow.match(/fetch-depth: 0/g) || [];
+
+    assert.equal(tagConditions.length, 2);
+    assert.equal(releaseChecks.length, 2);
+    assert.equal(fullCheckouts.length, 2);
+});
+
+test('release origin accepts GitHub HTTPS URLs with or without .git', () => {
+    const expected = 'https://github.com/pondashicom/vtrpon';
+
+    assert.equal(normalizeOriginUrl(expected), expected);
+    assert.equal(normalizeOriginUrl(`${expected}.git`), expected);
+    assert.equal(normalizeOriginUrl(`${expected}.git/`), expected);
+    assert.notEqual(
+        normalizeOriginUrl('git@github.com:pondashicom/vtrpon.git'),
+        expected
+    );
 });
 
 test('source notice identifies exact public tag and build gate', () => {

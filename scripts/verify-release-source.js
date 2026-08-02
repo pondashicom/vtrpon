@@ -21,6 +21,13 @@ function readJson(relativePath) {
     );
 }
 
+function normalizeOriginUrl(value) {
+    return String(value)
+        .trim()
+        .replace(/\/+$/, '')
+        .replace(/\.git$/i, '');
+}
+
 function assertFile(relativePath) {
     const absolutePath = path.join(repoRoot, relativePath);
     assert.equal(
@@ -71,9 +78,12 @@ function main() {
     assert.equal(packageLock.packages[''].version, packageJson.version);
 
     const expectedTag = `v${packageJson.version}`;
-    const expectedOrigin =
-        'https://github.com/pondashicom/vtrpon.git';
-    assert.equal(git(['remote', 'get-url', 'origin']), expectedOrigin);
+    const expectedOrigin = 'https://github.com/pondashicom/vtrpon';
+    assert.equal(
+        normalizeOriginUrl(git(['remote', 'get-url', 'origin'])),
+        expectedOrigin,
+        'Release build requires the official HTTPS origin.'
+    );
     assert.equal(
         git(['status', '--porcelain']),
         '',
@@ -176,5 +186,6 @@ if (require.main === module) {
 module.exports = {
     assertExistingFile,
     inspectBinary,
+    normalizeOriginUrl,
     main
 };
