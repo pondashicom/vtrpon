@@ -862,7 +862,10 @@ function requestSplitPonOutputEnabled(output, enabled) {
                 if (!current.sharedCaptureDesired) {
                     sendSplitPonAudioEnabled(false);
                 }
-                await showSplitPonAddonStatus('error');
+                await showSplitPonAddonStatus(
+                    'error',
+                    updated.error
+                );
                 return;
             }
         }
@@ -873,7 +876,12 @@ function requestSplitPonOutputEnabled(output, enabled) {
             if (!current.sharedCaptureDesired) {
                 sendSplitPonAudioEnabled(false);
             }
-            await showSplitPonAddonStatus('error');
+            await showSplitPonAddonStatus(
+                result.error?.code === 'second_display_required'
+                    ? 'warning'
+                    : 'error',
+                result.error
+            );
         } else if (!desired.ndi && !desired.operatorMonitor) {
             sendSplitPonAudioEnabled(false);
         }
@@ -1080,9 +1088,9 @@ function splitPonAddonMenuLabel(labels) {
     return `${labels["menu-tools-splitpon-addon"]} [${stateLabel}]`;
 }
 
-function splitPonAddonStatusDetail() {
+function splitPonAddonStatusDetail(errorOverride = null) {
     const isJapanese = global.currentLanguage === 'ja';
-    const error = splitPonAddonStatus.error;
+    const error = errorOverride || splitPonAddonStatus.error;
     const lines = isJapanese
         ? [
             `利用可能: ${splitPonAddonStatus.available ? 'はい' : 'いいえ'}`,
@@ -1118,14 +1126,17 @@ function splitPonAddonStatusDetail() {
     return lines.join('\n');
 }
 
-async function showSplitPonAddonStatus(type = 'info') {
+async function showSplitPonAddonStatus(
+    type = 'info',
+    errorOverride = null
+) {
     await splitPonAddonController.refresh();
     const labels = require('./labels.js')[global.currentLanguage];
     await dialog.showMessageBox(mainWindow, {
         type,
         title: labels["menu-tools-splitpon-status-title"],
         message: splitPonAddonMenuLabel(labels),
-        detail: splitPonAddonStatusDetail(),
+        detail: splitPonAddonStatusDetail(errorOverride),
         buttons: ['OK']
     });
 }

@@ -161,6 +161,7 @@ class FakeFormalHostClient extends EventEmitter {
         this.nextPid = 5000;
         this.requests = [];
         this.onRequest = null;
+        this.outputsError = null;
         this.components = Object.fromEntries(
             ['input', 'core', 'ndi', 'operatorMonitor'].map(
                 (name) => [
@@ -260,6 +261,20 @@ class FakeFormalHostClient extends EventEmitter {
             return this.response();
         }
         if (type === 'outputs.set') {
+            if (this.outputsError) {
+                this.outputs = {
+                    ndi: false,
+                    operatorMonitor: false
+                };
+                for (const name of Object.keys(this.components)) {
+                    this.componentState(name, false);
+                }
+                return {
+                    ...this.response(),
+                    ok: false,
+                    error: { ...this.outputsError }
+                };
+            }
             this.outputs = { ...fields.outputs };
             const shared = this.outputs.ndi ||
                 this.outputs.operatorMonitor;
@@ -772,6 +787,55 @@ test('formal outputs share Input/Core and stop them after the last output', asyn
         off.status.sharedCaptureObservedState,
         'stopped'
     );
+
+    await controller.stop();
+});
+
+test('single-display refusal stays stopped and preserves the host message', async () => {
+    const fake = new FakeFormalHostClient();
+    fake.outputsError = {
+        component: 'display',
+        code: 'second_display_required',
+        nativeCode: 0,
+        message: '2枚目のディスプレイがないため動作を終了します'
+    };
+    const controller = new SplitPonAddonController({
+        config: {
+            available: true,
+            reason: null,
+            mode: 'formal',
+            protocolVersion: 3,
+            hostPath: 'C:\\addon\\host.exe',
+            manifestVersion: '0.2.0',
+            components: {},
+            outputs: ['ndi', 'operatorMonitor'],
+            allowDummyCrash: false
+        },
+        clientFactory: async () => fake,
+        pollIntervalMs: 60_000
+    });
+
+    const result = await controller.setOutputs({
+        ndi: true,
+        operatorMonitor: true
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error.component, 'display');
+    assert.equal(result.error.code, 'second_display_required');
+    assert.equal(
+        result.error.message,
+        '2枚目のディスプレイがないため動作を終了します'
+    );
+    assert.equal(result.status.state, 'stopped');
+    assert.equal(result.status.sharedCaptureDesired, false);
+    assert.equal(result.status.outputs.ndi.desired, false);
+    assert.equal(
+        result.status.outputs.operatorMonitor.desired,
+        false
+    );
+    for (const component of Object.values(result.status.components)) {
+        assert.equal(component.observedState, 'stopped');
+    }
 
     await controller.stop();
 });

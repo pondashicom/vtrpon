@@ -137,6 +137,18 @@ test('main-window output IPC is bounded to the primary renderer', () => {
     assert.match(main, /typeof payload\.enabled !== 'boolean'/);
     assert.match(view, /elements\.section\.hidden = !installed/);
     assert.match(view, /pending\.set\(output, nextEnabled\)/);
+    assert.match(
+        main,
+        /result\.error\?\.code === 'second_display_required'\s*\? 'warning'\s*:\s*'error'/
+    );
+    assert.match(
+        main,
+        /function splitPonAddonStatusDetail\(errorOverride = null\)/
+    );
+    assert.match(
+        main,
+        /const error = errorOverride \|\| splitPonAddonStatus\.error/
+    );
 });
 
 test('main-window output buttons keep independent transition states', () => {
