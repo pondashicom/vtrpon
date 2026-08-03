@@ -6,15 +6,13 @@
         "test": "node --test",
         "start": "electron .",
         "verify:release-source": "node scripts/verify-release-source.js",
-        "build": "electron-builder",
-        "build:release": "npm run verify:release-source && electron-builder",
+        "build": "electron-builder --publish=never",
+        "build:release": "npm run verify:release-source && electron-builder --publish=never",
         "rebuild:win": "npx @electron/rebuild -f -w winax,@julusian/freetype2 --arch=x64",
-        "dist:win": "npm run verify:release-source && npm run rebuild:win && electron-builder --win",
+        "dist:win": "npm run verify:release-source && npm run rebuild:win && electron-builder --win --x64 --publish=never",
         "deps:mac-arm64": "electron-builder install-app-deps --platform=darwin --arch=arm64",
-        "deps:mac-x64": "electron-builder install-app-deps --platform=darwin --arch=x64",
-        "dist:mac-arm64": "npm run verify:release-source && npm run deps:mac-arm64 && electron-builder --mac --arm64",
-        "dist:mac-x64": "npm run verify:release-source && npm run deps:mac-x64 && electron-builder --mac --x64",
-        "dist": "node -e \"const {execSync}=require('child_process'); const os=process.platform; if(os==='win32'){execSync('npm run dist:win',{stdio:'inherit'})} else if(os==='darwin'){execSync('npm run dist:mac-arm64',{stdio:'inherit'})} else {execSync('npm run verify:release-source',{stdio:'inherit'});execSync('electron-builder -l',{stdio:'inherit'})}\"",
+        "dist:mac-arm64": "npm run verify:release-source && npm run deps:mac-arm64 && electron-builder --mac --arm64 --publish=never",
+        "dist": "node -e \"const {execSync}=require('child_process'); const os=process.platform; if(os==='win32'){execSync('npm run dist:win',{stdio:'inherit'})} else if(os==='darwin'){execSync('npm run dist:mac-arm64',{stdio:'inherit'})} else {execSync('npm run verify:release-source',{stdio:'inherit'});execSync('electron-builder -l --publish=never',{stdio:'inherit'})}\"",
         "postinstall": "node -e \"if(process.platform==='win32'){try{require('child_process').execSync('npx @electron/rebuild -f -w winax,@julusian/freetype2 --arch=x64',{stdio:'inherit'})}catch(e){console.warn('postinstall: rebuild skipped:',e && e.message)}}else{console.log('postinstall: skip on non-Windows')}\""
     },
     "keywords": [],
@@ -72,7 +70,6 @@
                 {
                     "target": "dmg",
                     "arch": [
-                        "x64",
                         "arm64"
                     ]
                 }

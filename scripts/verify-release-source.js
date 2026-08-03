@@ -7,6 +7,17 @@ const { execFileSync, spawnSync } = require('node:child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
 
+const releaseBinaryVersions = {
+    'darwin-arm64': {
+        ffmpeg: /^ffmpeg version 6\.0\b/m,
+        ffprobe: /^ffprobe version 4\.4(?:-tessus)?\b/m
+    },
+    'win32-x64': {
+        ffmpeg: /^ffmpeg version 6\.1\.1\b/m,
+        ffprobe: /^ffprobe version 4\.0\.2\b/m
+    }
+};
+
 function git(args) {
     return execFileSync('git', args, {
         cwd: repoRoot,
@@ -68,6 +79,16 @@ function inspectBinary(executablePath, expectedVersionPattern, label) {
     assert.match(output, expectedVersionPattern, `${label} version mismatch`);
     assert.match(output, /--enable-gpl/, `${label} is not a GPL build`);
     assert.match(output, /--enable-version3/, `${label} is not version-3 enabled`);
+}
+
+function getReleaseBinaryVersions(platform, arch) {
+    const key = `${platform}-${arch}`;
+    const versions = releaseBinaryVersions[key];
+    assert.ok(
+        versions,
+        `Release binaries are unsupported on ${platform}/${arch}`
+    );
+    return versions;
 }
 
 function main() {
@@ -135,6 +156,11 @@ function main() {
         )
     );
 
+    const binaryVersions = getReleaseBinaryVersions(
+        process.platform,
+        process.arch
+    );
+
     const ffmpegPackage = readJson(
         'node_modules/ffmpeg-static/package.json'
     );
@@ -155,7 +181,7 @@ function main() {
         `${ffmpegPath}.README`,
         'FFmpeg binary source notice'
     );
-    inspectBinary(ffmpegPath, /^ffmpeg version 6\.1\.1\b/m, 'FFmpeg');
+    inspectBinary(ffmpegPath, binaryVersions.ffmpeg, 'FFmpeg');
 
     const ffprobePackage = readJson(
         'node_modules/ffprobe-static/package.json'
@@ -165,7 +191,7 @@ function main() {
         require('ffprobe-static').path,
         'FFprobe release binary'
     );
-    inspectBinary(ffprobePath, /^ffprobe version 4\.0\.2\b/m, 'FFprobe');
+    inspectBinary(ffprobePath, binaryVersions.ffprobe, 'FFprobe');
 
     process.stdout.write(
         `VTRPON2_RELEASE_SOURCE_GATE_PASS ${expectedTag} ${head}\n`
@@ -185,6 +211,7 @@ if (require.main === module) {
 
 module.exports = {
     assertExistingFile,
+    getReleaseBinaryVersions,
     inspectBinary,
     normalizeOriginUrl,
     main

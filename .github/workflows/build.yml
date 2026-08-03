@@ -42,9 +42,7 @@ jobs:
         run: npm run verify:release-source
 
       - name: Build macOS
-        run: npm run build -- --mac
-        env:
-          GH_TOKEN: ${{ github.token }}
+        run: npx --no-install electron-builder --mac --arm64 --publish=never
 
       - name: Create release directory
         run: mkdir -p release
@@ -96,9 +94,7 @@ jobs:
         run: npm run verify:release-source
 
       - name: Build Windows
-        run: npm run build -- --win
-        env:
-          GH_TOKEN: ${{ github.token }}
+        run: npx --no-install electron-builder --win --x64 --publish=never
 
       - name: Create release directory
         run: mkdir -p release

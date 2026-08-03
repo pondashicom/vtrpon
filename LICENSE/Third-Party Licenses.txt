@@ -1,7 +1,7 @@
 VTR-PON2 2.6.5 THIRD-PARTY NOTICES
 
 This file identifies the principal third-party components in the Windows x64
-and macOS x64/arm64 distributions. Exact npm dependency versions and integrity
+and macOS arm64 distributions. Exact npm dependency versions and integrity
 hashes are installed as NPM-DEPENDENCIES-LOCK.json. Package license files remain
 included with their packages. Third-party terms apply only to the components
 they cover.
@@ -32,19 +32,24 @@ application. A package license is not replaced by the VTR-PON2 GPL.
 
 3. FFmpeg and ffprobe executable binaries
 
-ffmpeg-static 5.3.0 selects FFmpeg 6.1.1 for its binary release and is
-GPL-3.0-or-later. ffprobe-static 3.1.0 includes an FFprobe 4.0.2 binary whose
-reported build configuration enables GPL and version-3 components. The GNU
-GPL v3 text is installed as COPYING.
+ffmpeg-static 5.3.0 binary release b6.1.1 installs FFmpeg 6.1.1 on Windows x64
+and FFmpeg 6.0 on macOS arm64. It is GPL-3.0-or-later. ffprobe-static 3.1.0
+installs FFprobe 4.0.2 on Windows x64 and FFprobe 4.4-tessus on macOS arm64.
+Each binary's reported build configuration enables GPL and version-3
+components. The GNU GPL v3 text is installed as COPYING.
 
 Corresponding upstream sources:
 
 - FFmpeg 6.1.1: https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+- FFmpeg 6.0: https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz
+- FFmpeg 4.4: https://ffmpeg.org/releases/ffmpeg-4.4.tar.xz
 - FFmpeg 4.0.2: https://ffmpeg.org/releases/ffmpeg-4.0.2.tar.xz
 - ffmpeg-static package:
   https://github.com/eugeneware/ffmpeg-static/tree/5.3.0
+- ffmpeg-static binary release:
+  https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1
 - ffprobe-static package:
-  https://github.com/joshwnj/ffprobe-static/tree/3.1.0
+  https://github.com/joshwnj/ffprobe-static/tree/73b68af853c51b29037dccb9a4267d4342a6aa6a
 
 Codec and patent permissions are separate from copyright licenses and may
 depend on use and jurisdiction. This notice does not claim that every codec
@@ -74,11 +79,14 @@ version does not load or expose its NDI or Operator Monitor outputs.
 
 日本語要約
 
-本書はWindows x64およびmacOS x64／arm64配布物の主要な第三者componentを示します。
+本書はWindows x64およびmacOS arm64配布物の主要な第三者componentを示します。
 正確なnpm dependency versionとintegrity hashはNPM-DEPENDENCIES-LOCK.jsonへ
 固定します。第三者licenseは各componentにだけ適用され、VTR-PON2と同梱するだけで
 GPLへ変更されません。ADDON連携はWindows版だけが対象であり、macOS版はNDIおよび
 Operator Monitor出力を読み込まず、UIにも表示しません。
+
+同梱binaryの表示versionは、Windows x64がFFmpeg 6.1.1／FFprobe 4.0.2、
+macOS arm64がFFmpeg 6.0／FFprobe 4.4-tessusです。
 
 Electron配布物が生成するLICENSE.electron.txtとLICENSES.chromium.html、
 各npm package内のlicense file、COPYING、および上記source linkをあわせて

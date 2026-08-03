@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {
+    getReleaseBinaryVersions,
     normalizeOriginUrl
 } = require('../scripts/verify-release-source');
 
@@ -40,20 +41,28 @@ test('2.6.5 release exposes GPL, source, notices, and dependency lock', () => {
         packageJson.scripts.build,
         /verify:release-source/
     );
+    assert.match(packageJson.scripts.build, /--publish=never/);
     assert.match(
         packageJson.scripts['build:release'],
         /verify:release-source/
     );
     for (const script of [
         'dist:win',
-        'dist:mac-arm64',
-        'dist:mac-x64'
+        'dist:mac-arm64'
     ]) {
         assert.match(
             packageJson.scripts[script],
             /verify:release-source/
         );
+        assert.match(
+            packageJson.scripts[script],
+            /--publish=never/
+        );
     }
+    assert.deepEqual(
+        packageJson.build.mac.target[0].arch,
+        ['arm64']
+    );
     for (const excludedOutput of [
         '!dist/**/*',
         '!dist-validation/**/*',
@@ -81,6 +90,29 @@ test('CI and release builds use separate source-verification gates', () => {
     assert.equal(tagConditions.length, 2);
     assert.equal(releaseChecks.length, 2);
     assert.equal(fullCheckouts.length, 2);
+    assert.match(
+        workflow,
+        /run: npx --no-install electron-builder --mac --arm64 --publish=never/
+    );
+    assert.match(
+        workflow,
+        /run: npx --no-install electron-builder --win --x64 --publish=never/
+    );
+    assert.doesNotMatch(workflow, /GH_TOKEN/);
+});
+
+test('release binary versions are explicit for each supported platform', () => {
+    const macVersions = getReleaseBinaryVersions('darwin', 'arm64');
+    const windowsVersions = getReleaseBinaryVersions('win32', 'x64');
+
+    assert.match('ffmpeg version 6.0', macVersions.ffmpeg);
+    assert.match('ffprobe version 4.4-tessus', macVersions.ffprobe);
+    assert.match('ffmpeg version 6.1.1', windowsVersions.ffmpeg);
+    assert.match('ffprobe version 4.0.2', windowsVersions.ffprobe);
+    assert.throws(
+        () => getReleaseBinaryVersions('darwin', 'x64'),
+        /unsupported on darwin\/x64/
+    );
 });
 
 test('release origin accepts GitHub HTTPS URLs with or without .git', () => {
@@ -109,12 +141,14 @@ test('source notice identifies exact public tag and build gate', () => {
     );
     assert.match(notice, /GPL-3\.0-or-later/);
     assert.match(notice, /Third-party components retain their own licenses/);
-    assert.match(thirdParty, /FFmpeg 6\.1\.1/);
-    assert.match(thirdParty, /FFprobe 4\.0\.2/);
-    assert.match(thirdParty, /Windows x64\s+and macOS x64\/arm64/);
+    assert.match(thirdParty, /FFmpeg 6\.1\.1 on Windows x64/);
+    assert.match(thirdParty, /FFmpeg 6\.0 on macOS arm64/);
+    assert.match(thirdParty, /FFprobe 4\.0\.2 on Windows x64/);
+    assert.match(thirdParty, /FFprobe 4\.4-tessus on macOS arm64/);
+    assert.match(thirdParty, /Windows x64\s+and macOS arm64/);
     assert.match(
         source,
-        /Windows and macOS distributions[\s\S]*platform-specific prebuilt/
+        /Windows x64 and macOS arm64 distributions[\s\S]*platform-specific\s+prebuilt/
     );
     assert.match(verifier, /Published origin/);
     assert.match(verifier, /Release build requires a clean worktree/);

@@ -31,12 +31,16 @@ binary download.
 Third-party Corresponding Source
 --------------------------------
 
-The Windows and macOS distributions also contain platform-specific prebuilt
-FFmpeg/ffprobe binaries.
+The Windows x64 and macOS arm64 distributions also contain platform-specific
+prebuilt FFmpeg/ffprobe binaries.
 Upstream sources for the fixed binary versions are:
 
 - FFmpeg 6.1.1:
   https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+- FFmpeg 6.0:
+  https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz
+- FFmpeg 4.4:
+  https://ffmpeg.org/releases/ffmpeg-4.4.tar.xz
 - FFmpeg 4.0.2:
   https://ffmpeg.org/releases/ffmpeg-4.0.2.tar.xz
 
@@ -52,6 +56,7 @@ binaryを公開するdownload pageでは、同じ場所または明確な案内�
 同等にaccessできるようにします。公開tagとbuild commitが一致しない場合、標準の
 release scriptは配布buildを停止します。
 
-Windows版とmacOS版は、それぞれのplatform向けにbuildされたFFmpeg／ffprobe
-binaryを含みます。固定versionの上流sourceとnpm wrapper sourceは上記および
-THIRD-PARTY-NOTICES.txtに記載します。
+Windows x64版とmacOS arm64版は、それぞれのplatform向けにbuildされた
+FFmpeg／ffprobe binaryを含みます。表示versionはWindows x64がFFmpeg 6.1.1／
+FFprobe 4.0.2、macOS arm64がFFmpeg 6.0／FFprobe 4.4-tessusです。固定versionの
+上流sourceとnpm wrapper sourceは上記およびTHIRD-PARTY-NOTICES.txtに記載します。
