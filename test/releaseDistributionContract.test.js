@@ -8,6 +8,9 @@ const {
     getReleaseBinaryVersions,
     normalizeOriginUrl
 } = require('../scripts/verify-release-source');
+const {
+    getPackagedBinaryPaths
+} = require('../scripts/runtime-binary-validation');
 
 const repoRoot = path.resolve(__dirname, '..');
 
@@ -15,7 +18,7 @@ function read(relativePath) {
     return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
-test('2.6.5 release exposes GPL, source, notices, and dependency lock', () => {
+test('2.6.6 release exposes GPL, source, notices, and dependency lock', () => {
     const packageJson = JSON.parse(read('package.json'));
     const destinations = new Map(
         packageJson.build.extraResources.map((entry) => [
@@ -24,7 +27,7 @@ test('2.6.5 release exposes GPL, source, notices, and dependency lock', () => {
         ])
     );
 
-    assert.equal(packageJson.version, '2.6.5');
+    assert.equal(packageJson.version, '2.6.6');
     assert.equal(packageJson.license, 'GPL-3.0-or-later');
     assert.equal(destinations.get('COPYING'), 'LICENSE/gpl-3.0.txt');
     assert.equal(destinations.get('LICENSE.txt'), 'LICENSE/LICENSE.txt');
@@ -41,7 +44,19 @@ test('2.6.5 release exposes GPL, source, notices, and dependency lock', () => {
         packageJson.scripts.build,
         /verify:release-source/
     );
+    assert.match(
+        packageJson.scripts.build,
+        /verify:runtime-binaries/
+    );
     assert.match(packageJson.scripts.build, /--publish=never/);
+    assert.match(
+        packageJson.scripts['build:win'],
+        /verify:runtime-binaries/
+    );
+    assert.match(
+        packageJson.scripts['build:win'],
+        /electron-builder --win --x64 --publish=never/
+    );
     assert.match(
         packageJson.scripts['build:release'],
         /verify:release-source/
@@ -62,6 +77,14 @@ test('2.6.5 release exposes GPL, source, notices, and dependency lock', () => {
     assert.deepEqual(
         packageJson.build.mac.target[0].arch,
         ['arm64']
+    );
+    assert.equal(
+        packageJson.build.beforePack,
+        'scripts/electron-builder-before-pack.js'
+    );
+    assert.equal(
+        packageJson.build.afterPack,
+        'scripts/electron-builder-after-pack.js'
     );
     for (const excludedOutput of [
         '!dist/**/*',
@@ -96,7 +119,7 @@ test('CI and release builds use separate source-verification gates', () => {
     );
     assert.match(
         workflow,
-        /run: npx --no-install electron-builder --win --x64 --publish=never/
+        /run: npm run build:win/
     );
     assert.doesNotMatch(workflow, /GH_TOKEN/);
 });
@@ -127,17 +150,18 @@ test('release origin accepts GitHub HTTPS URLs with or without .git', () => {
     );
 });
 
-test('source notice identifies exact public tag and build gate', () => {
+test('source notice identifies exact public tag and binary gates', () => {
     const source = read('LICENSE/SOURCE.txt');
     const notice = read('LICENSE/LICENSE.txt');
     const thirdParty = read('LICENSE/Third-Party Licenses.txt');
     const verifier = read('scripts/verify-release-source.js');
+    const binaryVerifier = read('scripts/runtime-binary-validation.js');
     const main = read('main.js');
 
-    assert.match(source, /v2\.6\.5/);
+    assert.match(source, /v2\.6\.6/);
     assert.match(
         source,
-        /github\.com\/pondashicom\/vtrpon\/tree\/v2\.6\.5/
+        /github\.com\/pondashicom\/vtrpon\/tree\/v2\.6\.6/
     );
     assert.match(notice, /GPL-3\.0-or-later/);
     assert.match(notice, /Third-party components retain their own licenses/);
@@ -152,14 +176,32 @@ test('source notice identifies exact public tag and build gate', () => {
     );
     assert.match(verifier, /Published origin/);
     assert.match(verifier, /Release build requires a clean worktree/);
-    assert.match(verifier, /require\('ffmpeg-static'\)/);
-    assert.match(verifier, /require\('ffprobe-static'\)\.path/);
+    assert.match(verifier, /verifyRuntimeBinaries\(\)/);
+    assert.match(binaryVerifier, /require\('ffmpeg-static'\)/);
+    assert.match(binaryVerifier, /require\('ffprobe-static'\)\.path/);
     assert.doesNotMatch(
-        verifier,
+        binaryVerifier,
         /node_modules\/ffmpeg-static\/ffmpeg\.exe|bin\/win32\/x64\/ffprobe\.exe/
     );
     assert.match(
         main,
-        /github\.com\/pondashicom\/vtrpon\/tree\/v2\.6\.5/
+        /github\.com\/pondashicom\/vtrpon\/tree\/v\$\{app\.getVersion\(\)\}/
+    );
+});
+
+test('packaged runtime binary paths stay in app.asar.unpacked', () => {
+    const paths = getPackagedBinaryPaths(
+        path.join('C:', 'package', 'resources'),
+        'win32',
+        'x64'
+    );
+
+    assert.match(
+        paths.ffmpegPath,
+        /app\.asar\.unpacked[\\/]node_modules[\\/]ffmpeg-static[\\/]ffmpeg\.exe$/
+    );
+    assert.match(
+        paths.ffprobePath,
+        /app\.asar\.unpacked[\\/]node_modules[\\/]ffprobe-static[\\/]bin[\\/]win32[\\/]x64[\\/]ffprobe\.exe$/
     );
 });

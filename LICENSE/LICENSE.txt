@@ -1,5 +1,5 @@
 VTR-PON2 LICENSE NOTICE
-Version 2.6.5
+Version 2.6.6
 
 Copyright (c) 2024-2026 Tetsu Suzuki
 
@@ -15,13 +15,13 @@ for details.
 The complete GPL text is installed as COPYING.
 
 Complete Corresponding Source for this exact release:
-https://github.com/pondashicom/vtrpon/tree/v2.6.5
+https://github.com/pondashicom/vtrpon/tree/v2.6.6
 
 Source archive:
-https://github.com/pondashicom/vtrpon/archive/refs/tags/v2.6.5.zip
+https://github.com/pondashicom/vtrpon/archive/refs/tags/v2.6.6.zip
 
 Build and installation scripts are included in that source tree. The release
-build is refused unless the local and published v2.6.5 tag identify the exact
+build is refused unless the local and published v2.6.6 tag identify the exact
 commit used for the executable. See SOURCE.txt for source details.
 
 Third-party components retain their own licenses. They do not become GPL
@@ -37,7 +37,7 @@ marker. The macOS version does not load or expose the ADDON integration.
 ----------------------------------------------------------------------
 
 VTR-PON2 ライセンス告知
-Version 2.6.5
+Version 2.6.6
 
 Copyright (c) 2024-2026 Tetsu Suzuki
 
@@ -52,13 +52,13 @@ free softwareです。
 GPL全文はCOPYINGとしてinstallします。
 
 このreleaseの完全な対応source:
-https://github.com/pondashicom/vtrpon/tree/v2.6.5
+https://github.com/pondashicom/vtrpon/tree/v2.6.6
 
 source archive:
-https://github.com/pondashicom/vtrpon/archive/refs/tags/v2.6.5.zip
+https://github.com/pondashicom/vtrpon/archive/refs/tags/v2.6.6.zip
 
 build／install scriptはsource treeに含まれます。release buildは、localおよび
-公開済みのv2.6.5 tagが実行fileに使用した正確なcommitを指していなければ
+公開済みのv2.6.6 tagが実行fileに使用した正確なcommitを指していなければ
 停止します。詳細はSOURCE.txtを参照してください。
 
 第三者componentにはそれぞれのlicenseが適用されます。VTR-PON2と一緒に

@@ -1,4 +1,4 @@
-VTR-PON2 2.6.5 THIRD-PARTY NOTICES
+VTR-PON2 2.6.6 THIRD-PARTY NOTICES
 
 This file identifies the principal third-party components in the Windows x64
 and macOS arm64 distributions. Exact npm dependency versions and integrity

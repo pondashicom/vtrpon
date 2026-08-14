@@ -94,7 +94,7 @@ jobs:
         run: npm run verify:release-source
 
       - name: Build Windows
-        run: npx --no-install electron-builder --win --x64 --publish=never
+        run: npm run build:win
 
       - name: Create release directory
         run: mkdir -p release

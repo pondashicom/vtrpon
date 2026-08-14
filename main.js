@@ -1799,7 +1799,7 @@ function buildMenuTemplate(labels) {
             }).then(({ response }) => {
               if (response === 1) {
                 return shell.openExternal(
-                  'https://github.com/pondashicom/vtrpon/tree/v2.6.5'
+                  `https://github.com/pondashicom/vtrpon/tree/v${app.getVersion()}`
                 );
               }
               if (

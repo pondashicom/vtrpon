@@ -3,20 +3,15 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { execFileSync } = require('node:child_process');
+const {
+    assertExistingFile,
+    getReleaseBinaryVersions,
+    inspectBinary,
+    verifyRuntimeBinaries
+} = require('./runtime-binary-validation');
 
 const repoRoot = path.resolve(__dirname, '..');
-
-const releaseBinaryVersions = {
-    'darwin-arm64': {
-        ffmpeg: /^ffmpeg version 6\.0\b/m,
-        ffprobe: /^ffprobe version 4\.4(?:-tessus)?\b/m
-    },
-    'win32-x64': {
-        ffmpeg: /^ffmpeg version 6\.1\.1\b/m,
-        ffprobe: /^ffprobe version 4\.0\.2\b/m
-    }
-};
 
 function git(args) {
     return execFileSync('git', args, {
@@ -49,52 +44,10 @@ function assertFile(relativePath) {
     return absolutePath;
 }
 
-function assertExistingFile(filePath, label) {
-    assert.equal(
-        typeof filePath,
-        'string',
-        `${label} path is unavailable on ${process.platform}/${process.arch}`
-    );
-    const absolutePath = path.resolve(filePath);
-    assert.equal(
-        fs.existsSync(absolutePath),
-        true,
-        `${label} is missing: ${absolutePath}`
-    );
-    return absolutePath;
-}
-
-function inspectBinary(executablePath, expectedVersionPattern, label) {
-    const result = spawnSync(executablePath, ['-version'], {
-        encoding: 'utf8',
-        windowsHide: true
-    });
-    assert.equal(
-        result.error,
-        undefined,
-        `${label} could not be started: ${result.error?.message}`
-    );
-    assert.equal(result.status, 0, `${label} -version failed`);
-    const output = `${result.stdout || ''}\n${result.stderr || ''}`;
-    assert.match(output, expectedVersionPattern, `${label} version mismatch`);
-    assert.match(output, /--enable-gpl/, `${label} is not a GPL build`);
-    assert.match(output, /--enable-version3/, `${label} is not version-3 enabled`);
-}
-
-function getReleaseBinaryVersions(platform, arch) {
-    const key = `${platform}-${arch}`;
-    const versions = releaseBinaryVersions[key];
-    assert.ok(
-        versions,
-        `Release binaries are unsupported on ${platform}/${arch}`
-    );
-    return versions;
-}
-
 function main() {
     const packageJson = readJson('package.json');
     const packageLock = readJson('package-lock.json');
-    assert.equal(packageJson.version, '2.6.5');
+    assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
     assert.equal(packageLock.version, packageJson.version);
     assert.equal(packageLock.packages[''].version, packageJson.version);
 
@@ -156,42 +109,7 @@ function main() {
         )
     );
 
-    const binaryVersions = getReleaseBinaryVersions(
-        process.platform,
-        process.arch
-    );
-
-    const ffmpegPackage = readJson(
-        'node_modules/ffmpeg-static/package.json'
-    );
-    assert.equal(ffmpegPackage.version, '5.3.0');
-    assert.equal(
-        ffmpegPackage['ffmpeg-static']['binary-release-tag'],
-        'b6.1.1'
-    );
-    const ffmpegPath = assertExistingFile(
-        require('ffmpeg-static'),
-        'FFmpeg release binary'
-    );
-    assertExistingFile(
-        `${ffmpegPath}.LICENSE`,
-        'FFmpeg binary license'
-    );
-    assertExistingFile(
-        `${ffmpegPath}.README`,
-        'FFmpeg binary source notice'
-    );
-    inspectBinary(ffmpegPath, binaryVersions.ffmpeg, 'FFmpeg');
-
-    const ffprobePackage = readJson(
-        'node_modules/ffprobe-static/package.json'
-    );
-    assert.equal(ffprobePackage.version, '3.1.0');
-    const ffprobePath = assertExistingFile(
-        require('ffprobe-static').path,
-        'FFprobe release binary'
-    );
-    inspectBinary(ffprobePath, binaryVersions.ffprobe, 'FFprobe');
+    verifyRuntimeBinaries();
 
     process.stdout.write(
         `VTRPON2_RELEASE_SOURCE_GATE_PASS ${expectedTag} ${head}\n`
@@ -214,5 +132,6 @@ module.exports = {
     getReleaseBinaryVersions,
     inspectBinary,
     normalizeOriginUrl,
+    verifyRuntimeBinaries,
     main
 };

@@ -1,12 +1,14 @@
 {
     "name": "VTR-PON2",
-    "version": "2.6.5",
+    "version": "2.6.6",
     "main": "main.js",
     "scripts": {
         "test": "node --test",
         "start": "electron .",
+        "verify:runtime-binaries": "node scripts/verify-runtime-binaries.js",
         "verify:release-source": "node scripts/verify-release-source.js",
-        "build": "electron-builder --publish=never",
+        "build": "npm run verify:runtime-binaries && electron-builder --publish=never",
+        "build:win": "npm run verify:runtime-binaries && npm run rebuild:win && electron-builder --win --x64 --publish=never",
         "build:release": "npm run verify:release-source && electron-builder --publish=never",
         "rebuild:win": "npx @electron/rebuild -f -w winax,@julusian/freetype2 --arch=x64",
         "dist:win": "npm run verify:release-source && npm run rebuild:win && electron-builder --win --x64 --publish=never",
@@ -51,6 +53,8 @@
     },
     "build": {
         "appId": "pondashi.com-vtrpon",
+        "beforePack": "scripts/electron-builder-before-pack.js",
+        "afterPack": "scripts/electron-builder-after-pack.js",
         "files": [
             "**/*",
             "!dist",
