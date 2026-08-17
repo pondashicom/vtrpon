@@ -87,6 +87,11 @@ Feedback and contributions are always welcome.
 - Email: info@pondashi.com
 - Twitter: [@vtrpon2](https://x.com/vtrpon2)
 
+### Support
+
+Enjoying VTR-PON? Buy me a beer and support its continued development.
+
+[🍺 Buy me a beer](https://buymeacoffee.com/vtrpon2g)
 
 ---
 
