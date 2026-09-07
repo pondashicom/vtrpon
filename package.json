@@ -31,11 +31,11 @@
         "papaparse": "^5.5.2"
     },
     "optionalDependencies": {
-        "winax": "^3.6.1"
+        "winax": "^3.6.9"
     },
     "devDependencies": {
         "@electron/rebuild": "^4.0.3",
-        "electron": "^39.8.10",
+        "electron": "^41.10.7",
         "electron-builder": "^26.15.3"
     },
     "overrides": {
@@ -46,10 +46,10 @@
         "js-yaml": "^4.3.1",
         "minimatch": "^10.2.5",
         "ajv": "^8.18.0",
-        "fast-uri": "^3.1.5",
+        "fast-uri": "^3.1.6",
         "picomatch": "^4.0.4",
         "brace-expansion": "^5.0.9",
-        "@xmldom/xmldom": "0.8.13",
+        "@xmldom/xmldom": "0.8.15",
         "lodash": "^4.18.1"
     },
     "build": {
