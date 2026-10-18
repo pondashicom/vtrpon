@@ -14,6 +14,39 @@
     <meta property="og:type" content="website">
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="img/favicon.png">
+    <style>
+        /* このHTMLの差し替えだけで、メニュー表示とお知らせを更新します。 */
+        .global-menu .global-menu-addon::after {
+            content: none;
+        }
+        .v3-release-notice {
+            margin: 24px 0;
+            padding: 16px 20px;
+            border-left: 3px solid #666;
+            background: #1a1a1a;
+            font-size: 0.9rem;
+        }
+        .v3-release-notice h2 {
+            margin: 0 0 8px;
+            color: #e0e0e0;
+            font-size: 1.05rem;
+            line-height: 1.5;
+        }
+        .v3-release-notice time {
+            display: inline-block;
+            margin-left: 10px;
+            color: #aaa;
+            font-size: 0.8rem;
+            font-weight: normal;
+        }
+        .v3-release-notice p {
+            margin: 6px 0 0;
+            text-align: left;
+        }
+        .v3-release-notice a {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 
 <body>
@@ -57,6 +90,12 @@
             </div>
         </section>
 
+        <!-- VTR-PON3公開のお知らせ -->
+        <section class="v3-release-notice" aria-labelledby="v3-release-title">
+            <h2 id="v3-release-title">VTR-PON3公開のお知らせ <time datetime="2026-10-18">2026.10.18</time></h2>
+            <p>Windows 11 x64向けのVTR-PON3ベータ版を公開しました。機能紹介・ダウンロードは<a href="https://pondashi.com/vtr-pon/">VTR-PON3公式サイト</a>をご覧ください。</p>
+            <p>Mac（Appleシリコン）をお使いの方は、引き続きVTR-PON2をご利用ください。</p>
+        </section>
 
         <!-- 概要 -->
         <section id="overview">
@@ -1102,8 +1141,8 @@
                 <li>DSKの続けて別のアイテムに切り替えられるようにしてほしい</li>
             </ul>
             <p>
-                これらご要望をいただいた機能の多くは現行版でのVTR-PON2での開発は難しいものも多く、2026年5月から開発を始めているVTR-PON 3(仮称）で実現していこうと思っています。
-                中には採用しない機能もあるかもしれませんがご了承ください。
+                これらのご要望をもとに開発してきた後継版VTR-PON3は、2026年10月18日にWindows版ベータを公開しました。
+                対応済みの機能や動作条件は、<a href="https://pondashi.com/vtr-pon/features.html">VTR-PON3の機能・動作条件</a>をご覧ください。すべてのご要望への対応をお約束するものではありません。
             </p>
         </section>
 
