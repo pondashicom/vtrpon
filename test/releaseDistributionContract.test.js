@@ -18,7 +18,7 @@ function read(relativePath) {
     return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
-test('2.6.6 release exposes GPL, source, notices, and dependency lock', () => {
+test('2.6.7 release exposes GPL, source, notices, and dependency lock', () => {
     const packageJson = JSON.parse(read('package.json'));
     const destinations = new Map(
         packageJson.build.extraResources.map((entry) => [
@@ -27,7 +27,7 @@ test('2.6.6 release exposes GPL, source, notices, and dependency lock', () => {
         ])
     );
 
-    assert.equal(packageJson.version, '2.6.6');
+    assert.equal(packageJson.version, '2.6.7');
     assert.equal(packageJson.license, 'GPL-3.0-or-later');
     assert.equal(destinations.get('COPYING'), 'LICENSE/gpl-3.0.txt');
     assert.equal(destinations.get('LICENSE.txt'), 'LICENSE/LICENSE.txt');
@@ -158,10 +158,10 @@ test('source notice identifies exact public tag and binary gates', () => {
     const binaryVerifier = read('scripts/runtime-binary-validation.js');
     const main = read('main.js');
 
-    assert.match(source, /v2\.6\.6/);
+    assert.match(source, /v2\.6\.7/);
     assert.match(
         source,
-        /github\.com\/pondashicom\/vtrpon\/tree\/v2\.6\.6/
+        /github\.com\/pondashicom\/vtrpon\/tree\/v2\.6\.7/
     );
     assert.match(notice, /GPL-3\.0-or-later/);
     assert.match(notice, /Third-party components retain their own licenses/);

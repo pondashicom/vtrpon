@@ -1994,37 +1994,38 @@ function createFileInfo(file, index) {
     if (typeof file.path === 'string' && file.path.startsWith('UVC_DEVICE')) {
         fileType = 'UVC';
     } else {
-        fileType = file.type || file.path.split('.').pop().toUpperCase();
+        fileType = file.type || (typeof file.path === 'string' ? file.path.split('.').pop().toUpperCase() : '');
     }
 
-    // ファイル名番号ラベル
-    fileInfo.innerHTML = `
-        <div class="file-header-row">
-            <div class="playlist-index-label">${String(index + 1)}</div>
-            <p class="${fileNameClass}">${fileName}</p>
-        </div>
-        <div class="file-details-grid">
-            <div class="file-details-grid">
-                <div class="file-details-row">
-                    <span class="label">RES</span><span class="value">${file.resolution}</span>
-                    <span class="label">IN</span><span class="value">${inPoint}</span>
-                </div>
-                <div class="file-details-row">
-                    <span class="label">DUR</span><span class="value">${file.duration}</span>
-                    <span class="label">OUT</span><span class="value">${outPoint}</span>
-                </div>
-                <div class="file-details-row">
-                    <span class="label">TOTAL</span><span class="value">${file.totalRemainDisplay ? file.totalRemainDisplay : ""}</span>
-                </div>
-                <div class="file-details-row">
-                    <span class="label">TYPE</span><span class="value">${fileType}</span>
-                </div>
-                <div class="file-details-row">
-                    <span class="label">VOL</span><span class="value">${file.defaultVolume !== undefined ? file.defaultVolume : 100}%</span>
-                </div>
-            </div>
-        </div>
-    `;
+    // インポート／保存済みプレイリストの値は、HTMLとして解釈せず文字列で表示する。
+    function appendElement(parent, tagName, className, text) {
+        const element = document.createElement(tagName);
+        element.className = className;
+        if (text !== undefined) element.textContent = String(text);
+        parent.appendChild(element);
+        return element;
+    }
+
+    const header = appendElement(fileInfo, 'div', 'file-header-row');
+    appendElement(header, 'div', 'playlist-index-label', index + 1);
+    appendElement(header, 'p', fileNameClass, fileName);
+
+    const outerGrid = appendElement(fileInfo, 'div', 'file-details-grid');
+    const grid = appendElement(outerGrid, 'div', 'file-details-grid');
+    const rows = [
+        [['RES', file.resolution], ['IN', inPoint]],
+        [['DUR', file.duration], ['OUT', outPoint]],
+        [['TOTAL', file.totalRemainDisplay || '']],
+        [['TYPE', fileType]],
+        [['VOL', `${file.defaultVolume !== undefined ? file.defaultVolume : 100}%`]]
+    ];
+    for (const values of rows) {
+        const row = appendElement(grid, 'div', 'file-details-row');
+        for (const [label, value] of values) {
+            appendElement(row, 'span', 'label', label);
+            appendElement(row, 'span', 'value', value);
+        }
+    }
     return fileInfo;
 }
 
@@ -2109,10 +2110,14 @@ function createStatusContainer(file) {
     statusList.forEach(({ label, value }) => {
         const statusRow = document.createElement('div');
         statusRow.classList.add('status-row');
-        statusRow.innerHTML = `
-            <span class="status-label">${label}</span>
-            <span class="status-value">${value}</span>
-        `;
+        const labelElement = document.createElement('span');
+        labelElement.classList.add('status-label');
+        labelElement.textContent = label;
+        const valueElement = document.createElement('span');
+        valueElement.classList.add('status-value');
+        valueElement.textContent = String(value);
+        statusRow.appendChild(labelElement);
+        statusRow.appendChild(valueElement);
         statusContainer.appendChild(statusRow);
     });
     return statusContainer;

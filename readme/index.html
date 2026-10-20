@@ -79,8 +79,8 @@
                 <h1>VTR-PON 2</h1>
                 <p>ビデオ・音声・UVCビデオ・静止画をシームレスにポン出し</p>
 
-                <a href="./download/vtrponsetup2.6.6.zip" class="download-link hero-download">Windows 2.6.6 ダウンロード</a>
-                <a href="./download/mac/VTR-PON2-2.6.6-arm64.dmg" class="download-link hero-download">Mac(Appleシリコン) 2.6.6 ダウンロード</a>
+                <a href="./download/vtrponsetup2.6.7.zip" class="download-link hero-download">Windows 2.6.7 ダウンロード</a>
+                <a href="./download/mac/VTR-PON2-2.6.7-arm64.dmg" class="download-link hero-download">Mac(Appleシリコン) 2.6.7 ダウンロード</a>
 
                 <!-- Twitter フォローボタン -->
                 <h3>
@@ -146,8 +146,8 @@
         <section id="installation">
             <h2>インストール手順</h2>
             <div class="download-container">
-                <a href="./download/vtrponsetup2.6.6.zip" class="download-link hero-download">Windows 2.6.6 ダウンロード</a>
-                <a href="./download/mac/VTR-PON2-2.6.6-arm64.dmg" class="download-link hero-download">Mac(Appleシリコン) 2.6.6 ダウンロード</a>
+                <a href="./download/vtrponsetup2.6.7.zip" class="download-link hero-download">Windows 2.6.7 ダウンロード</a>
+                <a href="./download/mac/VTR-PON2-2.6.7-arm64.dmg" class="download-link hero-download">Mac(Appleシリコン) 2.6.7 ダウンロード</a>
             </div>
             <ol>
                 <li>インストーラーをダウンロード</li>
@@ -972,6 +972,19 @@
         <section id="version-history">
             <h2>バージョン履歴</h2>
             <ul>
+               <li>
+                   [2026/10/20] ver2.6.7 Windows版/Mac版
+                   <ul>
+                       <li>脆弱性対策
+                           <ul>
+                               <li>Electronを39.8.6から43.8.0へ更新し、コンテキスト分離の回避や不正なファイルアクセスなど、複数の脆弱性に対応</li>
+                               <li>不正なプレイリストによるスクリプトが実行されうる脆弱性に対応</li>
+                               <li>開発・ビルド用ライブラリを更新</li>
+                           </ul>
+                       </li>
+                       <li>Windows版のPowerPoint連携ライブラリを更新</li>
+                   </ul>
+               </li>
                 <li>
                     [2026/8/14] ver2.6.6 Windows版/Mac版
                     <ul>
@@ -1059,6 +1072,7 @@
 
             <h3 id="bug">既知の問題</h3>
             <ul>
+                <li>ver2.6.6以前のバージョンで、不正なプレイリストjsonを読み込むとスクリプトが実行されうる脆弱性があります。2.6.7に更新をお願いします。（2.6.7で修正済み）</li>
                 <li>ver2.6.5で、インストーラーの不備によりffmpegが同梱されておらず、変換が必要なすべての機能が動作しない重大な不具合があります。（2.6.6で修正済み）</li>
                 <li>ver2.6.3以前のバージョンで、UVCソースのスクリーンショットを保存できない不具合があります。（2.6.4で修正済み）</li>
                 <li>ver2.6.3以前のバージョンで、DSK素材をすばやく切り替えた際、古い映像が残る、または新しい映像が正しく表示されない不具合があります。（2.6.4で修正済み）</li>
