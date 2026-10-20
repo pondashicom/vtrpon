@@ -21,3 +21,7 @@ id_*
 *_ed25519
 src/assets/ffmpeg*
 src/assets/ffprobe*
+
+# Literal filenames created by an accidental ssh-keygen save-path entry.
+/eval "$(ssh-agent -s)"
+/eval "$(ssh-agent -s)".pub
